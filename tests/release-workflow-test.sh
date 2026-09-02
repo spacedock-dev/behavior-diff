@@ -20,6 +20,22 @@ require_literal() {
   grep -Fq -- "$literal" "$file" || fail "$message"
 }
 
+require_order() {
+  local first=$1
+  local second=$2
+  local file=$3
+  local message=$4
+  local first_match
+  local second_match
+  if ! first_match=$(grep -nF -- "$first" "$file"); then
+    fail "$message"
+  fi
+  if ! second_match=$(grep -nF -- "$second" "$file"); then
+    fail "$message"
+  fi
+  ((${first_match%%:*} < ${second_match%%:*})) || fail "$message"
+}
+
 has_only_safe_marketplace_push() {
   local file=$1
   local push_lines
@@ -78,6 +94,18 @@ cp "$index" "$tmp/expected.json"
 "$updater" "$index" 0.3.2
 cmp -s "$tmp/expected.json" "$index" || fail 'second update changed the index'
 
+printf '[release] Ignore predictable temp symlinks\n'
+symlink_index=$tmp/symlink-marketplace.json
+victim=$tmp/victim
+make_index "$symlink_index"
+printf 'sentinel\n' >"$victim"
+ln -s "$victim" "${symlink_index}.tmp"
+"$updater" "$symlink_index" 0.3.2
+[[ $(cat "$victim") == sentinel ]] ||
+  fail 'updater followed a predictable temp symlink'
+[[ ! -L $symlink_index ]] ||
+  fail 'updater replaced the index with a symlink'
+
 printf '[release] Reject invalid versions and entry counts\n'
 make_index "$tmp/invalid-version.json"
 if "$updater" "$tmp/invalid-version.json" v0.3.2 >/dev/null 2>&1; then
@@ -121,6 +149,8 @@ require_literal 'git merge-base --is-ancestor HEAD origin/main' \
   "$release_workflow" 'release workflow does not require a main commit'
 require_literal "MARKETPLACE_DEPLOY_KEY: \${{ secrets.MARKETPLACE_DEPLOY_KEY }}" \
   "$release_workflow" 'release workflow does not use the deploy-key secret'
+require_order 'umask 077' ">\"\$SSH_DIR/key\"" "$release_workflow" \
+  'release workflow does not restrict permissions before writing the key'
 require_literal "update-marketplace.sh\" \"\$INDEX\" \"\$VERSION\"" \
   "$release_workflow" 'release workflow does not call the tested updater'
 has_only_safe_marketplace_push "$release_workflow" ||

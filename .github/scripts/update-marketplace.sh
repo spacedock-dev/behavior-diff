@@ -31,7 +31,7 @@ if [[ $count -ne 1 ]]; then
   exit 1
 fi
 
-tmp=${index}.tmp
+tmp=$(mktemp "${index}.tmp.XXXXXX")
 trap 'rm -f "$tmp"' EXIT
 jq --arg version "$version" '
   (.plugins[] | select(.name == "behavior-diff") | .version) = $version |
