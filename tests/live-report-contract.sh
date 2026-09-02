@@ -5,6 +5,9 @@ here=$(cd "$(dirname "$0")" && pwd -P)
 skill=$here/../plugin/skills/behavior-diff-live/SKILL.md
 headless_skill=$here/../plugin/skills/behavior-diff/SKILL.md
 demo_skill=$here/../.agents/skills/run-behavior-diff-demo-journey/SKILL.md
+spacedock_reference=$here/../plugin/skills/behavior-diff/references/spacedock-duo.md
+spacedock_fixture_script=$here/../plugin/skills/behavior-diff/scripts/make-spacedock-fixtures.sh
+legacy_spacedock_fixture_script=$here/../plugin/skills/behavior-diff/scripts/make-capsule.sh
 e2e_readme=$here/../e2e/README.md
 nudge_script=$here/nudge-e2e.sh
 renderer=$here/../plugin/skills/behavior-diff/scripts/render.py
@@ -35,6 +38,21 @@ require_order_after() {
     *"$marker"*"$first"*"$second"*) ;;
     *) fail "$message" ;;
   esac
+}
+require_definition_at_first_use() {
+  local file=$1
+  local message=$2
+  local first_use
+  local definition
+  first_use=$(grep -nF -- 'Spacedock fixtures' "$file" |
+    sed -n '1s/:.*//p' || true)
+  definition=$(grep -nE -- \
+    'Spacedock fixtures.*isolated.*before/after.*test repo' "$file" |
+    sed -n '1s/:.*//p' || true)
+  if [[ -z $first_use || -z $definition ]] ||
+    ((definition < first_use || definition > first_use + 1)); then
+    fail "$message"
+  fi
 }
 
 tmp=$(mktemp -d "${TMPDIR:-/tmp}/behavior-diff-live-contract.XXXXXX")
@@ -85,6 +103,41 @@ progress() {
 }
 
 progress 'Validate manifests and live-skill reporting contract'
+[[ -x $spacedock_fixture_script ]] ||
+  fail 'renamed Spacedock fixture builder is missing or not executable'
+[[ ! -e $legacy_spacedock_fixture_script ]] ||
+  fail 'legacy make-capsule.sh path still exists'
+require_output 'Usage: make-spacedock-fixtures.sh' \
+  "$spacedock_fixture_script" \
+  'fixture builder help still uses the legacy name'
+require_output 'make-spacedock-fixtures:' "$spacedock_fixture_script" \
+  'fixture builder diagnostics still use the legacy name'
+require_output 'FIXTURES OK' "$spacedock_fixture_script" \
+  'fixture builder does not produce the documented validation signal'
+reject_output 'make-capsule' "$spacedock_fixture_script" \
+  'fixture builder still uses the legacy script name'
+reject_output 'CAPSULE' "$spacedock_fixture_script" \
+  'fixture builder still uses the legacy validation name'
+require_definition_at_first_use "$headless_skill" \
+  'headless skill does not define Spacedock fixtures at first use'
+require_output '`make-spacedock-fixtures.sh`' "$headless_skill" \
+  'headless skill does not name the fixture builder'
+require_definition_at_first_use "$skill" \
+  'live skill does not define Spacedock fixtures at first use'
+require_output '`make-spacedock-fixtures.sh`' "$skill" \
+  'live skill does not name the fixture builder'
+require_output 'Hand-built files can contain state' "$spacedock_reference" \
+  'Spacedock reference does not name the hand-built state risk'
+require_output 'Spacedock itself would never create' "$spacedock_reference" \
+  'Spacedock reference does not explain why hand-built fixtures are unsafe'
+require_output 'FIXTURES OK' "$spacedock_reference" \
+  'Spacedock reference does not name the fixture validation signal'
+reject_output 'capsule' "$headless_skill" \
+  'headless skill still uses the unexplained capsule term'
+reject_output 'capsule' "$skill" \
+  'live skill still uses the unexplained capsule term'
+reject_output 'capsule' "$spacedock_reference" \
+  'Spacedock reference still uses the unexplained capsule term'
 require_fixed() { grep -qF -- "$1" "$skill" || fail "$2"; }
 require_output 'Run it as soon as the task is known.' "$headless_skill" \
   'headless skill does not start the default run immediately'

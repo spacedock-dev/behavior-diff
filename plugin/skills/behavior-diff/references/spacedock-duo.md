@@ -13,25 +13,30 @@ may do in response to what the OTHER role did?
 Litmus: if writing the scenario forces you to fake the other role's
 output ("assume the worker has signaled…", "assume a briefing is open
 and the FO is mid-review…"), it is a HANDOFF rule → run the duo cycle
-(section 4). If the spacedock binary can mint the entire trigger as a
-frozen, valid snapshot, it is a single-role rule → the normal skill flow
-works (section 3).
+(section 4). If the Spacedock binary can create the entire trigger as a
+valid snapshot, it is a single-role rule → the normal skill flow works
+(section 3).
 
 Scope by RULE, not by commit: if the two shas differ by more than the
 one rule under test, say which rule the scenario exercises.
 
-## 2. Fixtures: always mint, never hand-build
+## 2. Fixtures: create with Spacedock, never by hand
 
-Use the bundled capsule script — every gotcha in it was paid for once
-already (it sits in `scripts/` beside this file's `references/` folder):
+Spacedock fixtures are isolated before/after repo copies. Build their workflow
+state with the real Spacedock binary. Hand-built files can contain state that
+Spacedock itself would never create, so the trial would measure a broken
+fixture instead of the rule.
 
-    scripts/make-capsule.sh --repo <spacedock repo> \
-      --before <sha> --after <sha> --out <scratch>/capsule \
+Use the bundled fixture builder in the sibling `scripts/` directory:
+
+    scripts/make-spacedock-fixtures.sh --repo <spacedock repo> \
+      --before <sha> --after <sha> \
+      --out <scratch>/spacedock-fixtures \
       --phase base|worker-mid|briefing-open|revise-recorded
 
 Pick the phase whose NEXT step is the decision the rule governs. Launch
-no agent unless it printed `CAPSULE OK`. The source repo stays
-read-only; capsules live in scratch. Known fixture traps (stale `gate
+no agent unless the script printed `FIXTURES OK`. The source repo stays
+read-only; fixtures live in scratch. Known fixture traps (stale `gate
 validate` help, the corpus test that escapes its checkout, the red base
 test, hybrid entity shapes) are in `RETRO_NOTES.md` — at the runs root
 (`${BEHAVIOR_DIFF_HOME:-~/.behavior-diff}`), or in the Behavior Diff repo
@@ -41,11 +46,11 @@ when working there.
 
 The host skill's normal flow applies, with three spacedock adjustments:
 
-- fixtures come from the capsule (section 2), not hand-injected files;
+- use the Spacedock fixtures from section 2, not hand-injected files;
 - set `vocab: "spacedock"` in the run's config.json (headless runner:
   pass `--vocab spacedock`) so gate/state/dispatch verbs show forks in
   the deterministic flow diff without a model call;
-- tell each agent the prebuilt binary is at `<capsule>/sd` and to pin
+- tell each agent the prebuilt binary is at `<spacedock-fixtures>/sd` and
   `GOPROXY=off` (the module cache is warm).
 
 ## 4. Handoff rule: the duo cycle
@@ -67,7 +72,7 @@ single-sample evidence, same honesty labels as behavior-diff-live.
    read a README. The two variants' cycles may run in parallel; within a
    cycle the FO launches only after the worker's report arrives. Every
    agent prompt must include:
-   - work only inside <variant dir>; binary at <capsule>/sd;
+   - work only inside <variant dir>; binary at `<spacedock-fixtures>/sd`;
      `GOPROXY=off`;
    - the durable state is already real — start AT your step, do not
      rebuild the world (the FO's job is its one call on the open room);

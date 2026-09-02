@@ -1,15 +1,16 @@
 #!/usr/bin/env bash
-# Mint a spacedock FO<->worker incident capsule — binary-minted, never
-# hand-written (every gotcha here was learned the hard way; see
-# RETRO_NOTES.md at the runs root or in the Behavior Diff repo).
+# Create Spacedock before/after fixtures with workflow state built by the
+# real binary. Never create that state by editing files. See RETRO_NOTES.md
+# at the runs root or in the Behavior Diff repo for known fixture traps.
 #
-# Usage: make-capsule.sh --repo PATH --before SHA --after SHA --out DIR \
+# Usage: make-spacedock-fixtures.sh --repo PATH --before SHA --after SHA \
+#          --out DIR \
 #          [--phase base|worker-mid|briefing-open|revise-recorded] \
 #          [--file docs/dev/README.md] [--slug native-go-status]
 #
-# Builds out/{before,after}: each a git-init'd copy of the repo at its sha,
-# with a binary-valid state checkout walked to the requested phase. The
-# capsule is only valid if the precheck at the end prints CAPSULE OK.
+# Builds out/{before,after}: each a git-initialized copy of the repo at its
+# commit, with a binary-valid state checkout advanced to the requested phase.
+# The fixtures are valid only if the precheck prints FIXTURES OK.
 # The source repo is read-only throughout.
 set -euo pipefail
 
@@ -50,18 +51,18 @@ while [ $# -gt 0 ]; do
       exit 0
       ;;
     *)
-      echo "make-capsule: unknown argument $1" >&2
+      echo "make-spacedock-fixtures: unknown argument $1" >&2
       exit 2
       ;;
   esac
 done
 [ -n "$repo" ] && [ -n "$before" ] && [ -n "$after" ] && [ -n "$out" ] || {
-  echo "make-capsule: --repo, --before, --after, --out required" >&2
+  echo "make-spacedock-fixtures: --repo, --before, --after, --out required" >&2
   exit 2
 }
 case "$phase" in base | worker-mid | briefing-open | revise-recorded) ;;
 *)
-  echo "make-capsule: bad --phase $phase" >&2
+  echo "make-spacedock-fixtures: bad --phase $phase" >&2
   exit 2
   ;;
 esac
@@ -75,21 +76,23 @@ SD=$out/sd
 (cd "$repo" && go mod download github.com/creack/pty 2>/dev/null || true)
 (cd "$repo" && go build -o "$SD" ./cmd/spacedock)
 
-mint() { # $1 = variant name, $2 = sha
+create_fixture() { # $1 = variant name, $2 = sha
   local dir=$out/$1
   rm -rf "$dir"
   mkdir -p "$dir"
   git -C "$repo" archive "$2" | tar -x -C "$dir"
-  (cd "$dir" && git init -q -b main . && git config user.email c@apsule &&
-    git config user.name capsule && git add -A && git commit -qm base)
+  (cd "$dir" && git init -q -b main . &&
+    git config user.email fixture@behavior-diff.invalid &&
+    git config user.name fixture && git add -A && git commit -qm base)
   # Gotcha 1: the state checkout must BE its own git toplevel, on branch
   # spacedock-state/dev. Plain git init; `state init` needs an origin.
   (
     cd "$dir/docs/dev/.spacedock-state" 2>/dev/null ||
       { mkdir -p "$dir/docs/dev/.spacedock-state" &&
         cd "$dir/docs/dev/.spacedock-state"; }
-    git init -q -b main . && git config user.email c@apsule &&
-      git config user.name capsule
+    git init -q -b main . &&
+      git config user.email fixture@behavior-diff.invalid &&
+      git config user.name fixture
     [ -e README.md ] || ln -sf ../README.md README.md
     git add -A && git commit -qm "state root"
     git branch -M spacedock-state/dev
@@ -98,7 +101,7 @@ mint() { # $1 = variant name, $2 = sha
 
   (
     cd "$dir"
-    # Gotcha 2: `new` mints the sd-b32 id; stdin must begin with ---.
+    # Gotcha 2: `new` creates the sd-b32 id; stdin must begin with ---.
     # Gotcha (first VOID run): ACs must cite real, passing tests.
     "$SD" new "$slug" --workflow-dir docs/dev <<'BODY'
 ---
@@ -120,7 +123,7 @@ BODY
         >"docs/dev/_evidence/$slug/validation-review.md"
       git add "docs/dev/_evidence/$slug/validation-review.md"
       git commit -qm "evidence: validation review"
-      # Gotcha 4: never hand-write gates: blocks — mint the room.
+      # Gotcha 4: never hand-write gates: blocks — create the room.
       "$SD" gate prepare "$slug" --workflow-dir docs/dev \
         --question "Do the cited suites establish the renderer is correct?" \
         --artifact "docs/dev/_evidence/$slug/validation-review.md" \
@@ -138,10 +141,10 @@ BODY
   )
 }
 
-mint before "$before"
-mint after "$after"
+create_fixture before "$before"
+create_fixture after "$after"
 
-# ---------- precheck: refuse to hand over a capsule that cannot work ----------
+# ---------- precheck: refuse to hand over fixtures that cannot work ----------
 fail=0
 say() { echo "precheck: $*"; }
 # variants differ by exactly the target file (+ its known symlinks)
@@ -192,5 +195,5 @@ if [ "$phase" != base ]; then
     fi
   done
 fi
-[ "$fail" -eq 0 ] && echo "CAPSULE OK: $out (phase $phase)" || echo "CAPSULE INVALID"
+[ "$fail" -eq 0 ] && echo "FIXTURES OK: $out (phase $phase)" || echo "FIXTURES INVALID"
 exit "$fail"
