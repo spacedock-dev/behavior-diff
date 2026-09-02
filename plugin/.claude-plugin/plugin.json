@@ -1,6 +1,6 @@
 {
   "name": "behavior-diff",
-  "description": "Test whether an uncommitted CLAUDE.md/AGENTS.md/skill edit actually changes agent behavior: isolated before/after trials (claude or codex), deterministic trace grading, a decision diff, an HTML evidence report, and a retro skill that feeds lessons back.",
+  "description": "Test whether an uncommitted CLAUDE.md/AGENTS.md/skill edit actually changes agent behavior: isolated before/after trials (claude, codex, pi, or omp), deterministic trace grading, a decision diff, an HTML evidence report, and a retro skill that feeds lessons back.",
   "version": "0.3.2",
   "author": {
     "name": "Kent Huang"
