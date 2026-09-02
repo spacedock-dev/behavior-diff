@@ -143,11 +143,10 @@ Drive the rest the same way — `drop-whisper` between turns for Journey B,
 
 **The ask can get answered without you.** It has happened in a driven
 pane; the cause was never pinned down (auto mode, or a stray Enter landing
-on the prompt). It matters only for Journey A's Skip branch: if something
-answers before you do, that is not the agent's choice — note it and re-run.
-It does not cause a surprise spend. The behavior-diff skill states its cost
-and waits before starting any trials, which is a separate gate that holds
-either way.
+on the prompt). The setup prompt now carries the exact later task while
+telling the agent not to answer it during the edit turn. If auto mode accepts
+the ask, check that the agent reused that task. A run against another scenario
+is invalid demo evidence; interrupt it and stop.
 
 **A stray keystroke sits in the input box.** `herdr pane send-keys "$NEW"
 ctrl+u` clears it before your next `pane run`, or your prompt gets appended
@@ -155,8 +154,7 @@ to whatever was there.
 
 **Escape interrupts the agent, not the background shell.** If the skill
 already launched `behavior-diff.sh`, that keeps running after the interrupt;
-`ps aux | grep behavior-diff.sh` to check, and remember the skill stops at
-its own confirmation gate before spending trials.
+check the process directly. There is no later confirmation gate.
 
 **Headless is not a substitute for the interactive check.** `claude -p`
 fires both hooks and is a fine smoke test, but it has no AskUserQuestion

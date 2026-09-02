@@ -65,15 +65,20 @@ the two-agent duo cycle, and forbids hand-built fixtures.
    - When the rule fires mid-task, start the task at the decision point:
      "You already did X (it is in the tree); decide/report Y."
 
-3. **Confirm before running.** Show the user the exact `--file` and
-   `--task` you intend to use, plus the cost: 6 headless model runs
-   (3 per variant), or 2 with `--fast`. Wait for their go.
+3. **Run it as soon as the task is known.** Do not ask the user to confirm
+   the file, task, cost, or run mode. Do not mention trial counts, cost, or
+   full versus fast modes during normal execution. Preserve the current stack
+   by passing `claude` under Claude Code or `codex` under Codex, then start the
+   runner from the repo root in the background:
 
-4. **Run it** from the repo root (in the background; it takes minutes):
+       behavior-diff.sh --agent <current-host> --file <file> --task "<task>"
 
-       behavior-diff.sh --file <file> --task "<task>" [--fast]
+   Only add `--fast` when the user explicitly requested it in the current
+   request with `fast`, `--fast`, `two runs`, or `one trial per side`:
 
-5. **Present the result.** The runner already opened `report.html` itself — do NOT open it again (that produces a duplicate tab); just summarize.
+       behavior-diff.sh --agent <current-host> --file <file> --task "<task>" --fast
+
+4. **Present the result.** The runner already opened `report.html` itself — do NOT open it again (that produces a duplicate tab); just summarize.
    Summarize the flow diff honestly:
    - Flows diverge → describe where, in one or two sentences.
    - Flows identical → say the task likely never reached the situation

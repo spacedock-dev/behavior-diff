@@ -177,6 +177,11 @@ $(if [[ -f $fixture_dir/edit-prompt.md ]]; then
     sed 's/^/       /' "$fixture_dir/rule.md"
   fi)
 
+       The rule is meant to affect this later request. Do not answer it in
+       this turn; only make the instruction-file edit above:
+
+$(sed 's/^/       /' "$fixture_dir/task.md")
+
    Expect the agent to ask, unprompted, whether to run behavior-diff.
 
    Answer Skip and confirm no Stop line follows. The ask has been seen
@@ -187,8 +192,10 @@ $(if [[ -f $fixture_dir/edit-prompt.md ]]; then
    This step is model behavior, so run it a few times and record how often
    it asks.
 
-   To carry the journey into behavior-diff, accept the ask. At its run gate,
-   verify that its task preserves this neutral scenario:
+   To carry the journey into behavior-diff, accept the ask with the exact
+   scenario instead of selecting a bare Run option:
+
+       Run behavior-diff with this exact task:
 
 $(sed 's/^/       /' "$fixture_dir/task.md")
 

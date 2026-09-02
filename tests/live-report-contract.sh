@@ -3,6 +3,10 @@ set -euo pipefail
 
 here=$(cd "$(dirname "$0")" && pwd -P)
 skill=$here/../plugin/skills/behavior-diff-live/SKILL.md
+headless_skill=$here/../plugin/skills/behavior-diff/SKILL.md
+demo_skill=$here/../.agents/skills/run-behavior-diff-demo-journey/SKILL.md
+e2e_readme=$here/../e2e/README.md
+nudge_script=$here/nudge-e2e.sh
 renderer=$here/../plugin/skills/behavior-diff/scripts/render.py
 decisions=$here/../plugin/skills/behavior-diff/scripts/decisions.py
 claude_manifest=$here/../plugin/.claude-plugin/plugin.json
@@ -10,6 +14,9 @@ codex_manifest=$here/../plugin/.codex-plugin/plugin.json
 
 require_output() {
   grep -qF -- "$1" "$2" || fail "$3"
+}
+require_line() {
+  grep -qxF -- "$1" "$2" || fail "$3"
 }
 reject_output() {
   if grep -qF -- "$1" "$2"; then
@@ -79,10 +86,66 @@ progress() {
 
 progress 'Validate manifests and live-skill reporting contract'
 require_fixed() { grep -qF -- "$1" "$skill" || fail "$2"; }
-[[ $(jq -r '.version' "$claude_manifest") == 0.3.1 ]] ||
-  fail 'Claude manifest version is not 0.3.1'
-[[ $(jq -r '.version' "$codex_manifest") == 0.3.1 ]] ||
-  fail 'Codex manifest version is not 0.3.1'
+require_output 'Run it as soon as the task is known.' "$headless_skill" \
+  'headless skill does not start the default run immediately'
+require_output 'Only add `--fast` when the user explicitly requested it' \
+  "$headless_skill" \
+  'headless skill does not reserve fast mode for explicit requests'
+require_output 'Do not mention trial counts, cost' "$headless_skill" \
+  'headless skill still exposes run counts or cost to the user'
+require_output 'full versus fast modes' "$headless_skill" \
+  'headless skill still exposes implementation modes to the user'
+reject_output 'Confirm before running' "$headless_skill" \
+  'headless skill still asks for run confirmation'
+reject_output 'plus the cost:' "$headless_skill" \
+  'headless skill still advertises model-run cost'
+require_line '       behavior-diff.sh --agent <current-host> --file <file> --task "<task>"' \
+  "$headless_skill" \
+  'default command does not preserve the current agent host'
+require_line '       behavior-diff.sh --agent <current-host> --file <file> --task "<task>" --fast' \
+  "$headless_skill" \
+  'explicit fast command does not preserve the current agent host'
+require_output 'Run behavior-diff with this exact task:' "$demo_skill" \
+  'demo journey does not supply the exact fixture task with the nudge response'
+require_output 'the exact task step 1 printed' "$demo_skill" \
+  'demo journey does not reuse the harness task'
+reject_output 'Tell the user the cost before starting' "$demo_skill" \
+  'demo journey still adds a cost confirmation'
+reject_output 'choose `--fast`' "$demo_skill" \
+  'demo journey still offers fast mode by default'
+reject_output 'states its cost' "$e2e_readme" \
+  'e2e guide still expects a separate model-cost gate'
+require_output 'The rule is meant to affect this later request.' \
+  "$nudge_script" \
+  'nudge setup prompt does not carry the exact later task'
+require_output 'Run behavior-diff with this exact task:' "$nudge_script" \
+  'nudge setup does not accept behavior-diff with the exact task'
+reject_output 'At its run gate' "$nudge_script" \
+  'nudge setup still expects a later confirmation gate'
+nudge_setup=$tmp/nudge-setup.txt
+NUDGE_E2E_FIXTURE=demo-ascii-response \
+  NUDGE_E2E_REPO=$tmp/nudge-repo \
+  NUDGE_E2E_STATE=$tmp/nudge-state \
+  "$nudge_script" setup >"$nudge_setup"
+expected_task=$(sed 's/^/       /' \
+  "$here/../e2e/demo-ascii-response/task.md")
+edit_section=$(sed -n \
+  '/2\. Journey A/,/Expect the agent to ask/p' "$nudge_setup")
+case $edit_section in
+  *"$expected_task"*) ;;
+  *) fail 'rendered edit prompt does not include the full fixture task' ;;
+esac
+accept_section=$(sed -n \
+  '/To carry the journey into behavior-diff/,/3\. Assert/p' "$nudge_setup")
+case $accept_section in
+  *"$expected_task"*) ;;
+  *) fail 'rendered nudge acceptance does not include the full fixture task' ;;
+esac
+
+[[ $(jq -r '.version' "$claude_manifest") == 0.3.2 ]] ||
+  fail 'Claude manifest version is not 0.3.2'
+[[ $(jq -r '.version' "$codex_manifest") == 0.3.2 ]] ||
+  fail 'Codex manifest version is not 0.3.2'
 
 require_fixed 'one numbered line per tool action' \
   'missing action contract: one numbered line per tool action'
