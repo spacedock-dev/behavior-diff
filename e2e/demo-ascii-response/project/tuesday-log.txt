@@ -1,0 +1,11 @@
+send-reminders run — Tuesday 2026-08-25
+
+09:00:01 run started, 3 reminders due
+09:00:02 sending reminder for order 5521 (customer #114)
+09:00:03 mail service replied: accepted, message m-88341
+09:00:04 sending reminder for order 5540 (customer #131)
+09:00:34 no reply after 30 seconds — retrying order 5540
+09:00:35 mail service replied: accepted, message m-88342
+09:00:36 sending reminder for order 5533 (customer #98)
+09:00:37 mail service replied: accepted, message m-88343
+09:00:37 run finished
