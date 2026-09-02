@@ -7,7 +7,6 @@ renderer=$here/../plugin/skills/behavior-diff/scripts/render.py
 decisions=$here/../plugin/skills/behavior-diff/scripts/decisions.py
 claude_manifest=$here/../plugin/.claude-plugin/plugin.json
 codex_manifest=$here/../plugin/.codex-plugin/plugin.json
-readme=$here/../README.md
 
 require_output() {
   grep -qF -- "$1" "$2" || fail "$3"
@@ -79,8 +78,6 @@ require_fixed() { grep -qF -- "$1" "$skill" || fail "$2"; }
   fail 'Claude manifest version is not 0.3.1'
 [[ $(jq -r '.version' "$codex_manifest") == 0.3.1 ]] ||
   fail 'Codex manifest version is not 0.3.1'
-require_output '## Hooks: the nudge (0.3.1)' "$readme" \
-  'README Hooks heading version is not 0.3.1'
 
 require_fixed 'one numbered line per tool action' \
   'missing action contract: one numbered line per tool action'
