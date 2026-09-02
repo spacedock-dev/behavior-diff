@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """rk-monitor: tiny interactive terminal monitor. Arrow keys move the
 row selection; q quits. Requires a real terminal."""
+
 import sys
 
 UP = "\x1b[A"

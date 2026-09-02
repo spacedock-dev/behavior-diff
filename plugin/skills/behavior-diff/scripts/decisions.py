@@ -34,6 +34,7 @@ The extractor is NOT shown the instruction-file diff. Axes have to be
 discovered from the supplied trial evidence, or the diff just grades the run
 against whatever the author hoped the rule would do.
 """
+
 import json
 import re
 import shutil
@@ -48,18 +49,21 @@ SOURCE_TERMS = {
         "schema_noun": "command",
         "entry_heading": "commands it ran:",
         "anchor_noun": "command",
-        "decision_clause": ("A decision is not a command; some decisions "
-                            "leave no command"),
+        "decision_clause": (
+            "A decision is not a command; some decisions leave no command"
+        ),
         "evidence_clause": "what the trials actually did and said",
     },
     "self-reported": {
-        "source_note": ("The numbered entries are self-reported actions, "
-                        "not captured tool calls."),
+        "source_note": (
+            "The numbered entries are self-reported actions, not captured tool calls."
+        ),
         "schema_noun": "action",
         "entry_heading": "reported actions:",
         "anchor_noun": "action",
-        "decision_clause": ("A decision is not an action; some decisions "
-                            "leave no action"),
+        "decision_clause": (
+            "A decision is not an action; some decisions leave no action"
+        ),
         "evidence_clause": "the reported actions and final answers",
     },
 }
@@ -148,7 +152,8 @@ def trials_of(run):
                 final = obj.get("result") or final
         if final:
             out.setdefault(variant, []).append(
-                {"name": d.name, "cmds": cmds, "final": final})
+                {"name": d.name, "cmds": cmds, "final": final}
+            )
     return out
 
 
@@ -156,16 +161,19 @@ def render_trials(trials, entry_heading):
     blocks = []
     for variant in ("before", "after"):
         for t in trials.get(variant, []):
-            cmds = "\n".join(f"  ${i}: " + c[:400]
-                             for i, c in enumerate(t["cmds"], 1)) or "  (none)"
-            blocks.append(f"=== {t['name']} ({variant.upper()}) ===\n"
-                          f"{entry_heading}\n{cmds}\n"
-                          f"final answer it gave:\n{t['final'].strip()}\n")
+            cmds = (
+                "\n".join(f"  ${i}: " + c[:400] for i, c in enumerate(t["cmds"], 1))
+                or "  (none)"
+            )
+            blocks.append(
+                f"=== {t['name']} ({variant.upper()}) ===\n"
+                f"{entry_heading}\n{cmds}\n"
+                f"final answer it gave:\n{t['final'].strip()}\n"
+            )
     return "\n".join(blocks)
 
 
-TRACE_SOURCE_ERROR = (
-    'trace_source must be either "captured" or "self-reported"')
+TRACE_SOURCE_ERROR = 'trace_source must be either "captured" or "self-reported"'
 
 
 def source_terms(run):
@@ -204,20 +212,25 @@ def normalize(data, counts):
         if not isinstance(row, dict) or not row.get("decision"):
             continue
         a = row.get("anchor")
-        clean = {"decision": str(row["decision"]).strip(),
-                 "topic": str(row.get("topic") or "").strip(),
-                 "anchor": a if isinstance(a, int) and a >= 1 else "answer",
-                 "diverges": bool(row.get("diverges")),
-                 "_pos": pos,
-                 "note": (str(row["note"]).strip()
-                          if row.get("note") else "")}
+        clean = {
+            "decision": str(row["decision"]).strip(),
+            "topic": str(row.get("topic") or "").strip(),
+            "anchor": a if isinstance(a, int) and a >= 1 else "answer",
+            "diverges": bool(row.get("diverges")),
+            "_pos": pos,
+            "note": (str(row["note"]).strip() if row.get("note") else ""),
+        }
         ok = True
         for variant in ("before", "after"):
             branches = []
             for br in row.get(variant) or []:
                 if isinstance(br, dict) and br.get("choice"):
-                    branches.append({"choice": str(br["choice"]).strip(),
-                                     "n": int(br.get("n") or 0)})
+                    branches.append(
+                        {
+                            "choice": str(br["choice"]).strip(),
+                            "n": int(br.get("n") or 0),
+                        }
+                    )
             if sum(b["n"] for b in branches) != counts.get(variant, 0):
                 ok = False  # hallucinated counts: drop the row, keep the rest
             clean[variant] = branches
@@ -225,9 +238,13 @@ def normalize(data, counts):
             chain.append(clean)
         else:
             dropped += 1
-    chain.sort(key=lambda c: ((0, c["anchor"], c["_pos"])
-                              if isinstance(c["anchor"], int)
-                              else (1, 0, c["_pos"])))
+    chain.sort(
+        key=lambda c: (
+            (0, c["anchor"], c["_pos"])
+            if isinstance(c["anchor"], int)
+            else (1, 0, c["_pos"])
+        )
+    )
     raw_fork = data.get("fork")
     fork = None
     if isinstance(raw_fork, int):
@@ -237,9 +254,12 @@ def normalize(data, counts):
                 break
     for c in chain:
         del c["_pos"]
-    return {"chain": chain, "fork": fork, "dropped": dropped,
-            "fork_note": (str(data["fork_note"]).strip()
-                          if data.get("fork_note") else "")}
+    return {
+        "chain": chain,
+        "fork": fork,
+        "dropped": dropped,
+        "fork_note": (str(data["fork_note"]).strip() if data.get("fork_note") else ""),
+    }
 
 
 def extract_json(text):
@@ -264,7 +284,7 @@ def extract_json(text):
         elif ch == "}":
             depth -= 1
             if depth == 0:
-                return json.loads(text[start:i + 1])
+                return json.loads(text[start : i + 1])
     raise ValueError("unbalanced JSON in extractor output")
 
 
@@ -274,9 +294,23 @@ DEFAULT_MODEL = {"codex": "gpt-5.6-terra", "claude": "sonnet"}
 def _codex(prompt, model):
     with tempfile.NamedTemporaryFile("r", suffix=".md") as out:
         proc = subprocess.run(
-            ["codex", "exec", "--ephemeral", "--skip-git-repo-check",
-             "-s", "read-only", "-m", model, "-o", out.name, "-"],
-            input=prompt, capture_output=True, text=True)
+            [
+                "codex",
+                "exec",
+                "--ephemeral",
+                "--skip-git-repo-check",
+                "-s",
+                "read-only",
+                "-m",
+                model,
+                "-o",
+                out.name,
+                "-",
+            ],
+            input=prompt,
+            capture_output=True,
+            text=True,
+        )
         answer = ""
         try:
             answer = open(out.name).read()
@@ -290,7 +324,9 @@ def _codex(prompt, model):
 def _claude(prompt, model):
     proc = subprocess.run(
         ["claude", "-p", prompt, "--model", model, "--allowedTools", ""],
-        capture_output=True, text=True)
+        capture_output=True,
+        text=True,
+    )
     return proc.stdout if proc.returncode == 0 else None
 
 
@@ -309,8 +345,10 @@ def run_extractor(prompt, agent=None, model=None):
         answer = runners[a](prompt, m)
         if answer is not None:
             return f"{a}:{m}", answer
-        print(f"decision diff: {a} ({m}) failed"
-              + ("" if agent or a == "claude" else " — falling back to claude"))
+        print(
+            f"decision diff: {a} ({m}) failed"
+            + ("" if agent or a == "claude" else " — falling back to claude")
+        )
     return "none", None
 
 
@@ -329,11 +367,15 @@ def build_prompt(run):
     task = (run / "task.md").read_text().strip()
     terms = source_terms(run)
     schema = SCHEMA.format(schema_noun=terms["schema_noun"])
-    return PROMPT.format(task=task, source_note=terms["source_note"],
-                         trials=render_trials(trials, terms["entry_heading"]),
-                         schema=schema, anchor_noun=terms["anchor_noun"],
-                         evidence_clause=terms["evidence_clause"],
-                         decision_clause=terms["decision_clause"]), counts
+    return PROMPT.format(
+        task=task,
+        source_note=terms["source_note"],
+        trials=render_trials(trials, terms["entry_heading"]),
+        schema=schema,
+        anchor_noun=terms["anchor_noun"],
+        evidence_clause=terms["evidence_clause"],
+        decision_clause=terms["decision_clause"],
+    ), counts
 
 
 def write_decisions(run, raw, counts, extractor):
@@ -353,10 +395,15 @@ def write_decisions(run, raw, counts, extractor):
     data["counts"] = counts
     (run / "decisions.json").write_text(json.dumps(data, indent=2))
     n_div = sum(r["diverges"] for r in data["chain"])
-    drop_note = (f", {data['dropped']} row(s) dropped for inconsistent counts"
-                 if data["dropped"] else "")
-    print(f"decision diff ({extractor}): {len(data['chain'])} decisions, "
-          f"{n_div} diverging{drop_note}")
+    drop_note = (
+        f", {data['dropped']} row(s) dropped for inconsistent counts"
+        if data["dropped"]
+        else ""
+    )
+    print(
+        f"decision diff ({extractor}): {len(data['chain'])} decisions, "
+        f"{n_div} diverging{drop_note}"
+    )
     return True
 
 
@@ -390,22 +437,37 @@ def ingest(run, reply_file, label):
 
 def self_check():
     counts = {"before": 3, "after": 3}
-    good = {"chain": [
-        {"decision": "What verdict shape?", "anchor": "answer",
-         "before": [{"choice": "PASS", "n": 2}, {"choice": "FAIL", "n": 1}],
-         "after": [{"choice": "score /100", "n": 3}], "diverges": True},
-        {"decision": "How is correctness established?", "anchor": 2,
-         "topic": "Correctness check",
-         "before": [{"choice": "ran the program", "n": 3}],
-         "after": [{"choice": "traced by hand", "n": 3}],
-         "diverges": True},
-        {"decision": "bad row, counts do not add up", "anchor": 1,
-         "before": [{"choice": "x", "n": 1}],
-         "after": [{"choice": "y", "n": 3}], "diverges": False},
-    ], "fork": 2, "fork_note": "how truth is established"}
+    good = {
+        "chain": [
+            {
+                "decision": "What verdict shape?",
+                "anchor": "answer",
+                "before": [{"choice": "PASS", "n": 2}, {"choice": "FAIL", "n": 1}],
+                "after": [{"choice": "score /100", "n": 3}],
+                "diverges": True,
+            },
+            {
+                "decision": "How is correctness established?",
+                "anchor": 2,
+                "topic": "Correctness check",
+                "before": [{"choice": "ran the program", "n": 3}],
+                "after": [{"choice": "traced by hand", "n": 3}],
+                "diverges": True,
+            },
+            {
+                "decision": "bad row, counts do not add up",
+                "anchor": 1,
+                "before": [{"choice": "x", "n": 1}],
+                "after": [{"choice": "y", "n": 3}],
+                "diverges": False,
+            },
+        ],
+        "fork": 2,
+        "fork_note": "how truth is established",
+    }
     out = normalize(good, counts)
-    assert len(out["chain"]) == 2, out          # bad row dropped
-    assert out["dropped"] == 1, out             # ...and counted, not silent
+    assert len(out["chain"]) == 2, out  # bad row dropped
+    assert out["dropped"] == 1, out  # ...and counted, not silent
     # action-anchored row sorts before the answer-anchored one
     assert out["chain"][0]["anchor"] == 2, out
     assert out["chain"][0]["topic"] == "Correctness check", out
@@ -422,15 +484,20 @@ def self_check():
     assert extract_json(fenced) == {"chain": [], "fork": None}
     # a brace inside a string must not end the object early
     assert extract_json('{"a": "} not the end", "b": 1}')["b"] == 1
-    assert normalize({}, counts) == {"chain": [], "fork": None,
-                                     "dropped": 0, "fork_note": ""}
+    assert normalize({}, counts) == {
+        "chain": [],
+        "fork": None,
+        "dropped": 0,
+        "fork_note": "",
+    }
 
     # ---- emit/ingest modes over a synthetic run dir ----
     me = Path(__file__).resolve()
 
     def cli(*argv):
-        return subprocess.run([sys.executable, str(me), *argv],
-                              capture_output=True, text=True)
+        return subprocess.run(
+            [sys.executable, str(me), *argv], capture_output=True, text=True
+        )
 
     with tempfile.TemporaryDirectory() as td:
         run = Path(td) / "run"
@@ -439,15 +506,31 @@ def self_check():
         run.mkdir()
         (run / "task.md").write_text(task)
         (run / "rule.md").write_text(f"Always {sentinel} before answering.")
-        for name, ans in (("before-1", "the list was already sorted"),
-                          ("after-1", "sorted it and flagged item 3")):
+        for name, ans in (
+            ("before-1", "the list was already sorted"),
+            ("after-1", "sorted it and flagged item 3"),
+        ):
             d = run / name
             d.mkdir()
             (d / "trace.jsonl").write_text(
-                json.dumps({"type": "assistant", "message": {"content": [
-                    {"type": "tool_use", "name": "Bash",
-                     "input": {"command": f"cat {name}.txt"}}]}}) + "\n" +
-                json.dumps({"type": "result", "result": ans}) + "\n")
+                json.dumps(
+                    {
+                        "type": "assistant",
+                        "message": {
+                            "content": [
+                                {
+                                    "type": "tool_use",
+                                    "name": "Bash",
+                                    "input": {"command": f"cat {name}.txt"},
+                                }
+                            ]
+                        },
+                    }
+                )
+                + "\n"
+                + json.dumps({"type": "result", "result": ans})
+                + "\n"
+            )
 
         # A missing config file or trace_source key defaults to captured.
         captured = "The numbered entries come from captured tool calls."
@@ -456,8 +539,7 @@ def self_check():
         assert source_note(run) == captured
 
         # Supplied but invalid provenance fails before extractor dispatch.
-        provenance_error = (
-            'trace_source must be either "captured" or "self-reported"')
+        provenance_error = 'trace_source must be either "captured" or "self-reported"'
         invalid_configs = (
             "{",
             "null",
@@ -473,8 +555,7 @@ def self_check():
             assert provenance_error in p.stderr, p.stderr
 
         # Live runs identify numbered entries as self-reported before emit.
-        (run / "config.json").write_text(json.dumps(
-            {"trace_source": "self-reported"}))
+        (run / "config.json").write_text(json.dumps({"trace_source": "self-reported"}))
 
         # emit prints exactly what the default path hands run_extractor
         p = cli(str(run), "--emit-prompt")
@@ -484,30 +565,30 @@ def self_check():
         assert task in p.stdout
         assert "=== before-1 (BEFORE) ===" in p.stdout
         assert "=== after-1 (AFTER) ===" in p.stdout
-        assert '"fork_note"' in p.stdout            # schema included
-        assert ("The numbered entries are self-reported actions, "
-                "not captured tool calls.") in p.stdout
+        assert '"fork_note"' in p.stdout  # schema included
+        assert (
+            "The numbered entries are self-reported actions, not captured tool calls."
+        ) in p.stdout
         assert "action number" in p.stdout
         assert "reported actions:" in p.stdout
         assert "commands it ran" not in p.stdout
         assert "actually did" not in p.stdout
-        assert ("A decision is not an action; some decisions leave no action"
-                in p.stdout)
+        assert "A decision is not an action; some decisions leave no action" in p.stdout
         assert "A decision is not a command" not in p.stdout
         # Captured mode retains the original command/performed-action language.
-        (run / "config.json").write_text(json.dumps(
-            {"trace_source": "captured"}))
+        (run / "config.json").write_text(json.dumps({"trace_source": "captured"}))
         captured_prompt, _ = build_prompt(run)
         assert "captured tool calls" in captured_prompt
         assert "command number" in captured_prompt
         assert "commands it ran:" in captured_prompt
         assert "actually did and said" in captured_prompt
         assert "self-reported" not in captured_prompt
-        assert ("A decision is not a command; some decisions leave no command"
-                in captured_prompt)
+        assert (
+            "A decision is not a command; some decisions leave no command"
+            in captured_prompt
+        )
         assert "A decision is not an action" not in captured_prompt
-        (run / "config.json").write_text(json.dumps(
-            {"trace_source": "self-reported"}))
+        (run / "config.json").write_text(json.dumps({"trace_source": "self-reported"}))
         # blind handoff: no rule content, no path back to the run dir
         assert sentinel not in p.stdout
         assert str(run) not in p.stdout
@@ -527,19 +608,35 @@ def self_check():
         assert not (run / "decisions.json").exists()
 
         # Failed extraction still renders raw actions and final answers.
-        skip = ("decision diff skipped: extractor reply unparseable "
-                "(2 subagent attempts)")
-        (run / "grades.tsv").write_text(
-            "before-1\tREVIEW\t-\nafter-1\tREVIEW\t-\n")
-        (run / "config.json").write_text(json.dumps(
-            {"title": "check", "sub": "synthetic self-check run. " + skip,
-             "scenario": task, "expected": None,
-             "mode": "review", "vocab": "generic",
-             "trace_source": "self-reported"}))
+        skip = (
+            "decision diff skipped: extractor reply unparseable (2 subagent attempts)"
+        )
+        (run / "grades.tsv").write_text("before-1\tREVIEW\t-\nafter-1\tREVIEW\t-\n")
+        (run / "config.json").write_text(
+            json.dumps(
+                {
+                    "title": "check",
+                    "sub": "synthetic self-check run. " + skip,
+                    "scenario": task,
+                    "expected": None,
+                    "mode": "review",
+                    "vocab": "generic",
+                    "trace_source": "self-reported",
+                }
+            )
+        )
         p = subprocess.run(
-            [sys.executable, str(me.parent / "render.py"), str(run),
-             str(run), "check", str(run / "config.json")],
-            capture_output=True, text=True)
+            [
+                sys.executable,
+                str(me.parent / "render.py"),
+                str(run),
+                str(run),
+                "check",
+                str(run / "config.json"),
+            ],
+            capture_output=True,
+            text=True,
+        )
         assert p.returncode == 0, p.stderr
         page = (run / "report.html").read_text()
         assert "Decision diff — top divergences" not in page
@@ -548,24 +645,38 @@ def self_check():
         assert "the list was already sorted" in page
         assert "Flow diff" not in page
         no_decision_result = (
-            "No automatic verdict — compare the reported actions and "
-            "final answers")
+            "No automatic verdict — compare the reported actions and final answers"
+        )
         normal_result = (
             "No automatic verdict — compare the reported actions, decision "
-            "diff, and final answers")
+            "diff, and final answers"
+        )
         assert no_decision_result in page
         assert normal_result not in page
 
         # well-formed reply lands on disk in the unchanged schema
         reply = run / "reply-good.txt"
-        reply.write_text(json.dumps({"chain": [
-            {"topic": "Verdict shape", "decision": "What verdict shape?",
-             "anchor": "answer",
-             "before": [{"choice": "prose", "n": 1}],
-             "after": [{"choice": "flagged item", "n": 1}],
-             "diverges": True}], "fork": 1, "fork_note": "shape"}))
-        p = cli(str(run), "--ingest", str(reply),
-                "--extractor-label", "subagent:sonnet")
+        reply.write_text(
+            json.dumps(
+                {
+                    "chain": [
+                        {
+                            "topic": "Verdict shape",
+                            "decision": "What verdict shape?",
+                            "anchor": "answer",
+                            "before": [{"choice": "prose", "n": 1}],
+                            "after": [{"choice": "flagged item", "n": 1}],
+                            "diverges": True,
+                        }
+                    ],
+                    "fork": 1,
+                    "fork_note": "shape",
+                }
+            )
+        )
+        p = cli(
+            str(run), "--ingest", str(reply), "--extractor-label", "subagent:sonnet"
+        )
         assert p.returncode == 0, p.stdout + p.stderr
         data = json.loads((run / "decisions.json").read_text())
         assert len(data["chain"]) == 1, data
@@ -590,20 +701,28 @@ if __name__ == "__main__":
         i = 0
         while i < len(args):
             if args[i] == "--agent":
-                agent = args[i + 1]; i += 2
+                agent = args[i + 1]
+                i += 2
             elif args[i] == "--model":
-                model = args[i + 1]; i += 2
+                model = args[i + 1]
+                i += 2
             elif args[i] == "--emit-prompt":
-                emit = True; i += 1
+                emit = True
+                i += 1
             elif args[i] == "--ingest":
-                reply = args[i + 1]; i += 2
+                reply = args[i + 1]
+                i += 2
             elif args[i] == "--extractor-label":
-                label = args[i + 1]; i += 2
+                label = args[i + 1]
+                i += 2
             else:
-                run_dir = args[i]; i += 1
-        usage = ("usage: decisions.py RUN_DIR [--agent codex|claude] "
-                 "[--model NAME] | RUN_DIR --emit-prompt | "
-                 "RUN_DIR --ingest FILE [--extractor-label LABEL]")
+                run_dir = args[i]
+                i += 1
+        usage = (
+            "usage: decisions.py RUN_DIR [--agent codex|claude] "
+            "[--model NAME] | RUN_DIR --emit-prompt | "
+            "RUN_DIR --ingest FILE [--extractor-label LABEL]"
+        )
         if not run_dir or (agent and agent not in ("codex", "claude")):
             sys.exit(usage)
         # the new modes never touch a CLI extractor, so --agent/--model

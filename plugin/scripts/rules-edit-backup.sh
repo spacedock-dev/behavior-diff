@@ -19,12 +19,15 @@ cwd=$(printf '%s' "$input" | jq -r '.cwd // empty' 2>/dev/null)
 path=$(printf '%s' "$input" | jq -r '.tool_input.file_path // empty' 2>/dev/null) || quit
 [ -n "$path" ] || quit
 case "$(basename "$path")" in
-  CLAUDE.md|AGENTS.md|SKILL.md) ;;
+  CLAUDE.md | AGENTS.md | SKILL.md) ;;
   *) quit ;;
 esac
 case "$path" in
   /*) ;;
-  *) [ -n "$cwd" ] || quit; path=$cwd/$path ;;
+  *)
+    [ -n "$cwd" ] || quit
+    path=$cwd/$path
+    ;;
 esac
 # canonicalize the directory part so the runner resolves the same store key
 if dir=$(cd "$(dirname "$path")" 2>/dev/null && pwd -P); then
@@ -32,8 +35,8 @@ if dir=$(cd "$(dirname "$path")" 2>/dev/null && pwd -P); then
 fi
 
 # a file git tracks needs no baseline — the runner diffs against HEAD
-if [ -f "$path" ] \
-   && git -C "$(dirname "$path")" ls-files --error-unmatch "$path" >/dev/null 2>&1; then
+if [ -f "$path" ] &&
+  git -C "$(dirname "$path")" ls-files --error-unmatch "$path" >/dev/null 2>&1; then
   quit
 fi
 
@@ -62,22 +65,22 @@ if [ ! -f "$path" ]; then
   # the file does not exist yet — record that "before" is absence
   case "$newest" in
     *-ABSENT) ;;
-    *) : > "$dest/$(date +%Y%m%d-%H%M%S)-ABSENT" 2>/dev/null || quit ;;
+    *) : >"$dest/$(date +%Y%m%d-%H%M%S)-ABSENT" 2>/dev/null || quit ;;
   esac
-  : > "$marker" 2>/dev/null
+  : >"$marker" 2>/dev/null
   quit
 fi
 if [ -n "$newest" ]; then
   case "$newest" in
     *-ABSENT) ;; # an absence marker never equals a real file
     *) if cmp -s "$dest/$newest" "$path" 2>/dev/null; then
-         : > "$marker" 2>/dev/null # unchanged since the newest baseline
-         quit
-       fi ;;
+      : >"$marker" 2>/dev/null # unchanged since the newest baseline
+      quit
+    fi ;;
   esac
 fi
-hash=$(cksum < "$path" 2>/dev/null | awk '{print $1}')
+hash=$(cksum <"$path" 2>/dev/null | awk '{print $1}')
 [ -n "$hash" ] || hash=0
 cp "$path" "$dest/$(date +%Y%m%d-%H%M%S)-$hash" 2>/dev/null || quit
-: > "$marker" 2>/dev/null
+: >"$marker" 2>/dev/null
 quit

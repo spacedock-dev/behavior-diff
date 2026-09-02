@@ -43,7 +43,7 @@ while IFS= read -r f; do
     [ -n "$dirty" ] || continue
   fi
   pending+=("$f")
-done < "$spoken"
+done <"$spoken"
 [ "${#pending[@]}" -gt 0 ] || quit
 
 if [ "${#pending[@]}" -eq 1 ]; then

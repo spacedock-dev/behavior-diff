@@ -3,6 +3,7 @@
 
 Usage: python3 price.py PRICE PERCENT
 """
+
 import sys
 
 from discount import apply_discount

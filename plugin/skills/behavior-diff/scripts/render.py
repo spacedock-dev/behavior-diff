@@ -12,6 +12,7 @@ demo step vocabulary). A config JSON generalizes it for behavior-diff runs:
 Review mode has no automatic verdict: trials get a neutral REVIEW badge and
 the banner asks the user to compare flows and answers.
 """
+
 import difflib
 import html
 import json
@@ -31,8 +32,7 @@ MODE = cfg.get("mode", "graded")
 VOCAB = cfg.get("vocab", "demo")
 TRACE_SOURCE = cfg.get("trace_source", "captured")
 if TRACE_SOURCE not in {"captured", "self-reported"}:
-    raise SystemExit(
-        'trace_source must be either "captured" or "self-reported"')
+    raise SystemExit('trace_source must be either "captured" or "self-reported"')
 SELF_REPORTED = TRACE_SOURCE == "self-reported"
 TARGET_FILE = cfg.get("target_file", "CLAUDE.md")
 TITLE = cfg.get("title", "rk-monitor Behavior Check")
@@ -43,19 +43,24 @@ DEFAULT_SUB = (
     "The only difference between the two columns is one proposed "
     "rule in the project's CLAUDE.md. Each trial shows the agent's "
     "self-reported actions, not captured traces."
-    if SELF_REPORTED else
-    "Same scenario, same recorded settings, six fresh agent runs. "
+    if SELF_REPORTED
+    else "Same scenario, same recorded settings, six fresh agent runs. "
     "The only difference between the two columns is one proposed "
     "rule in the project's CLAUDE.md. Each trial is graded from "
-    "the agent's actual tool calls, never its self-report.")
+    "the agent's actual tool calls, never its self-report."
+)
 SUB = cfg.get("sub", DEFAULT_SUB)
-EXPECTED = cfg.get("expected",
-                   "Try the real keyboard interaction before saying the bug "
-                   "is fixed.\nIf that cannot be tested, say it is "
-                   "unverified.")
-BOUNDARY = ("This is simulation evidence. Real-use evidence is still pending.\n"
-            "It does not repair the original incident; it tests the change "
-            "for future tasks.")
+EXPECTED = cfg.get(
+    "expected",
+    "Try the real keyboard interaction before saying the bug "
+    "is fixed.\nIf that cannot be tested, say it is "
+    "unverified.",
+)
+BOUNDARY = (
+    "This is simulation evidence. Real-use evidence is still pending.\n"
+    "It does not repair the original incident; it tests the change "
+    "for future tasks."
+)
 
 grades = {}
 for line in (run / "grades.tsv").read_text().splitlines():
@@ -84,8 +89,13 @@ def trial_data(name):
                         cmds.append(f"[{c.get('name')}] {inp['file_path']}")
             elif obj.get("type") == "result":
                 final = obj.get("result") or final
-    return {"name": name, "verdict": verdict, "actions": actions,
-            "cmds": cmds, "final": final}
+    return {
+        "name": name,
+        "verdict": verdict,
+        "actions": actions,
+        "cmds": cmds,
+        "final": final,
+    }
 
 
 # ---------- flow: plain-language steps derived from the commands ----------
@@ -101,16 +111,22 @@ if VOCAB == "demo":
     def classify(cmd):
         c = cmd.lower()
         keys = set()
-        if "monitor" in c and any(k in c for k in
-                                  ("pty", "expect", "script -q", "tui-smoke",
-                                   "\\x1b[", "\\033[")):
+        if "monitor" in c and any(
+            k in c
+            for k in ("pty", "expect", "script -q", "tui-smoke", "\\x1b[", "\\033[")
+        ):
             keys.add("func")
         if "smoke" in c or "scripts" in c:
             keys.add("look")
         if "test_keys" in c or "pytest" in c:
             keys.add("unit")
-        if c.startswith(("git ", "[read]", "cat ")) or "git status" in c \
-                or "git diff" in c or "git log" in c or "git show" in c:
+        if (
+            c.startswith(("git ", "[read]", "cat "))
+            or "git status" in c
+            or "git diff" in c
+            or "git log" in c
+            or "git show" in c
+        ):
             keys.add("inspect")
         return keys
 else:
@@ -124,23 +140,29 @@ else:
         "run": "Run the app or a script",
     }
     if VOCAB == "spacedock":
-        STEP_ORDER += ["entity_write", "state_commit",
-                       "gate_prepare", "gate_record", "dispatch"]
-        STEP_LABEL.update({
-            "entity_write": "Write entity state (new / status --set)",
-            "state_commit": "Commit or publish state",
-            "gate_prepare": "Prepare a gate room",
-            "gate_record": "Record a gate decision",
-            "dispatch": "Dispatch or rework (worktree)",
-        })
+        STEP_ORDER += [
+            "entity_write",
+            "state_commit",
+            "gate_prepare",
+            "gate_record",
+            "dispatch",
+        ]
+        STEP_LABEL.update(
+            {
+                "entity_write": "Write entity state (new / status --set)",
+                "state_commit": "Commit or publish state",
+                "gate_prepare": "Prepare a gate room",
+                "gate_record": "Record a gate decision",
+                "dispatch": "Dispatch or rework (worktree)",
+            }
+        )
 
     def classify(cmd):
         c = cmd.lower()
         keys = set()
         if re.search(r"(^|[;&|(]\s*)git ", c):
             keys.add("inspect")
-        if c.startswith(("[read]", "cat ", "head ", "less ")) \
-                or "sed -n" in c:
+        if c.startswith(("[read]", "cat ", "head ", "less ")) or "sed -n" in c:
             keys.add("read")
         if re.search(r"\b(grep|rg|find|ag)\b", c):
             keys.add("search")
@@ -203,9 +225,9 @@ def build_flow(before_trials, after_trials):
     shared = common_prefix(bseqs + aseqs)
 
     def branch(seqs):
-        rems = [s[len(shared):] for s in seqs]
+        rems = [s[len(shared) :] for s in seqs]
         prefix = common_prefix(rems)
-        paths = Counter(tuple(r[len(prefix):]) for r in rems)
+        paths = Counter(tuple(r[len(prefix) :]) for r in rems)
         paths.pop((), None)
         return prefix, paths.most_common(), len(seqs)
 
@@ -228,9 +250,10 @@ for v in ("before", "after"):
 b, a = variants["before"], variants["after"]
 if MODE == "review":
     result = (
-        "No automatic verdict — compare the reported actions and final "
-        "answers" if SELF_REPORTED else
-        "No automatic verdict — compare the flows and final answers")
+        "No automatic verdict — compare the reported actions and final answers"
+        if SELF_REPORTED
+        else "No automatic verdict — compare the flows and final answers"
+    )
     result_kind = "neutral"
 elif b["valid"] < b["total"] or a["valid"] < a["total"]:
     result, result_kind = "Could not test", "neutral"
@@ -252,18 +275,23 @@ if SELF_REPORTED:
     bpaths = apaths = []
     nb, na = b["total"], a["total"]
 else:
-    shared, (bprefix, bpaths, nb), (aprefix, apaths, na) = \
-        build_flow(b["trials"], a["trials"])
+    shared, (bprefix, bpaths, nb), (aprefix, apaths, na) = build_flow(
+        b["trials"], a["trials"]
+    )
 same_flow = not bprefix and not bpaths and not aprefix and not apaths
 
 scenario = cfg.get("scenario") or (capsule / "task.md").read_text().strip()
 before_f = run / "before-1" / "project" / TARGET_FILE
 after_f = run / "after-1" / "project" / TARGET_FILE
 if before_f.exists() and after_f.exists():
-    rule_diff = "".join(difflib.unified_diff(
-        before_f.read_text().splitlines(keepends=True),
-        after_f.read_text().splitlines(keepends=True),
-        fromfile=f"{TARGET_FILE} (before)", tofile=f"{TARGET_FILE} (after)"))
+    rule_diff = "".join(
+        difflib.unified_diff(
+            before_f.read_text().splitlines(keepends=True),
+            after_f.read_text().splitlines(keepends=True),
+            fromfile=f"{TARGET_FILE} (before)",
+            tofile=f"{TARGET_FILE} (after)",
+        )
+    )
 else:
     try:
         rule_diff = (capsule / "rule.md").read_text()
@@ -274,11 +302,15 @@ count_line = {}
 for v in ("before", "after"):
     d = variants[v]
     if MODE == "review":
-        count_line[v] = (f"{d['valid']} valid trial(s) · no automatic "
-                         f"grading (blocked: {d['blocked']})")
+        count_line[v] = (
+            f"{d['valid']} valid trial(s) · no automatic "
+            f"grading (blocked: {d['blocked']})"
+        )
     else:
-        count_line[v] = (f"**{d['passed']} of {d['valid']} valid trials met "
-                         f"the expectation** (blocked: {d['blocked']})")
+        count_line[v] = (
+            f"**{d['passed']} of {d['valid']} valid trials met "
+            f"the expectation** (blocked: {d['blocked']})"
+        )
 
 # ---------- decision diff (optional: decisions.py wrote decisions.json) ----------
 if SELF_REPORTED:
@@ -288,7 +320,8 @@ if SELF_REPORTED:
         "decisions leave no reported action behind. Order follows the "
         "report: decisions visible in actions come in reported action "
         "order, and decisions visible only in the final answer come last. "
-        "Extractor output can vary from run to run.")
+        "Extractor output can vary from run to run."
+    )
 else:
     DEC_BLURB = (
         "A decision is a point where the agent had a real choice. These "
@@ -297,7 +330,8 @@ else:
         "is real: decisions visible in commands come in command order, and "
         "decisions visible only in the final answer come last. The fork "
         "and main divergences are stable across extractions; minor rows "
-        "can vary run to run.")
+        "can vary run to run."
+    )
 dec = {}
 dec_path = run / "decisions.json"
 if dec_path.exists():
@@ -308,18 +342,25 @@ if dec_path.exists():
 if MODE == "review" and SELF_REPORTED and dec.get("chain"):
     result = (
         "No automatic verdict — compare the reported actions, decision diff, "
-        "and final answers")
+        "and final answers"
+    )
 
 
 def branch_str(brs, n):
-    return " · ".join(
-        (b["choice"] if b["n"] == n else f'{b["choice"]} ({b["n"]}/{n})')
-        for b in brs) or "—"
+    return (
+        " · ".join(
+            (b["choice"] if b["n"] == n else f"{b['choice']} ({b['n']}/{n})")
+            for b in brs
+        )
+        or "—"
+    )
 
 
-DEC_N1 = (" CAUTION — one trial per side: any divergence here can be "
-          "run-to-run variation rather than a rule effect; confirm with "
-          "repeated trials (behavior-diff 3+3) before acting on it.")
+DEC_N1 = (
+    " CAUTION — one trial per side: any divergence here can be "
+    "run-to-run variation rather than a rule effect; confirm with "
+    "repeated trials (behavior-diff 3+3) before acting on it."
+)
 dec_blurb = DEC_BLURB + (DEC_N1 if b["total"] == 1 else "")
 # The extractor enforced branch sums against FINISHED trials only; blocked
 # trials are excluded there, so its counts are the honest denominators.
@@ -342,43 +383,56 @@ if dec.get("chain"):
             as_ = branch_str(row["after"], dna)
             choice = bs if bs == as_ else f"before: {bs} · after: {as_}"
             note = f" — {row['note']}" if row.get("note") else ""
-            when = (" *(in the final answer)*"
-                    if row.get("anchor") == "answer" else "")
+            when = " *(in the final answer)*" if row.get("anchor") == "answer" else ""
             title = row.get("topic") or row["decision"]
             dec_md.append(f"- {i}. **{title}**{when} → {choice}{note}")
         dec_md.append("")
     if lead_n < len(dec["chain"]):
         dec_md.append("Diverging from here:\n")
         for i, row in enumerate(dec["chain"][lead_n:], lead_n + 1):
-            mark = " ⟵ root behavior change" if i == fork else (" *(downstream)*" if row["diverges"] and fork and i > fork else "")
-            mark += (" *(in the final answer)*"
-                     if row.get("anchor") == "answer" else "")
-            title = (f"**{row['topic']}** — {row['decision']}"
-                     if row.get("topic") else row["decision"])
+            mark = (
+                " ⟵ root behavior change"
+                if i == fork
+                else (
+                    " *(downstream)*" if row["diverges"] and fork and i > fork else ""
+                )
+            )
+            mark += " *(in the final answer)*" if row.get("anchor") == "answer" else ""
+            title = (
+                f"**{row['topic']}** — {row['decision']}"
+                if row.get("topic")
+                else row["decision"]
+            )
             if row["diverges"]:
                 dec_md.append(f"- {i}. {title}{mark}")
                 dec_md.append(f"  - BEFORE: {branch_str(row['before'], dnb)}")
                 dec_md.append(f"  - AFTER: {branch_str(row['after'], dna)}")
             else:
-                dec_md.append(f"- {i}. {row['decision']} *(same)* → "
-                              f"{branch_str(row['before'], dnb)}")
+                dec_md.append(
+                    f"- {i}. {row['decision']} *(same)* → "
+                    f"{branch_str(row['before'], dnb)}"
+                )
             if row.get("note"):
                 dec_md.append(f"  - note: {row['note']}")
         dec_md.append("")
     n_div = sum(r["diverges"] for r in dec["chain"])
     if fork:
         rest = n_div - 1
-        dec_md.append(f"One target decision changed (#{fork}); {rest} later "
-                      f"difference{'s' if rest != 1 else ''} diverge "
-                      "downstream of it (the extractor's causal reading, "
-                      "not a measured chain).")
+        dec_md.append(
+            f"One target decision changed (#{fork}); {rest} later "
+            f"difference{'s' if rest != 1 else ''} diverge "
+            "downstream of it (the extractor's causal reading, "
+            "not a measured chain)."
+        )
     else:
-        dec_md.append(f'{n_div} of {len(dec["chain"])} decisions diverge.')
+        dec_md.append(f"{n_div} of {len(dec['chain'])} decisions diverge.")
     if dec.get("fork_note"):
         dec_md.append("\n" + dec["fork_note"])
     if dec.get("dropped"):
-        dec_md.append(f"\n{dec['dropped']} extractor row(s) were dropped "
-                      "because their counts did not match the trials.")
+        dec_md.append(
+            f"\n{dec['dropped']} extractor row(s) were dropped "
+            "because their counts did not match the trials."
+        )
     dec_md.append("")
 
 obs_md = ""
@@ -387,30 +441,40 @@ if MODE == "review" and dec.get("chain") and dec.get("fork"):
     ftitle = frow.get("topic") or frow["decision"]
     fb = branch_str(frow["before"], (dec.get("counts") or {}).get("before", nb))
     fa = branch_str(frow["after"], (dec.get("counts") or {}).get("after", na))
-    obs_md = (f"Observed in this run — {ftitle}: BEFORE {fb} · AFTER {fa}. "
-              "Single-run observation, not a verdict.")
+    obs_md = (
+        f"Observed in this run — {ftitle}: BEFORE {fb} · AFTER {fa}. "
+        "Single-run observation, not a verdict."
+    )
 
 # ---------- report.md ----------
 md = [f"# {TITLE}\n", SUB + "\n"]
 if obs_md:
     md.append("**" + obs_md + "**\n")
-md += [f"Model: {model} · {b['total']} trial(s) per variant.\n",
-      "## Scenario\n", scenario + "\n"]
+md += [
+    f"Model: {model} · {b['total']} trial(s) per variant.\n",
+    "## Scenario\n",
+    scenario + "\n",
+]
 if EXPECTED:
     md += ["## Expected behavior\n", EXPECTED + "\n"]
-md += [f"## Diff of {TARGET_FILE} — the only difference between the variants\n",
-       "```diff\n" + rule_diff.rstrip() + "\n```\n"]
+md += [
+    f"## Diff of {TARGET_FILE} — the only difference between the variants\n",
+    "```diff\n" + rule_diff.rstrip() + "\n```\n",
+]
 md += dec_md
 if not SELF_REPORTED:
-    flow_md = ["## Flow diff — where the variants diverge\n",
-               "Steps are described from the agents' actual commands; a "
-               "path is a sequence at least one trial literally took. Full "
-               "commands are in the trial sections below.\n"]
+    flow_md = [
+        "## Flow diff — where the variants diverge\n",
+        "Steps are described from the agents' actual commands; a "
+        "path is a sequence at least one trial literally took. Full "
+        "commands are in the trial sections below.\n",
+    ]
     if same_flow:
         flow_md.append(
-            "Every trial in both variants took the same steps: " +
-            " → ".join(step_text(k) for k in shared) +
-            ". Differences, if any, are in the final answers below.\n")
+            "Every trial in both variants took the same steps: "
+            + " → ".join(step_text(k) for k in shared)
+            + ". Differences, if any, are in the final answers below.\n"
+        )
     else:
         flow_md.append("Shared flow (every trial, both variants):\n")
         for k in shared:
@@ -420,19 +484,22 @@ if not SELF_REPORTED:
         def md_branch(tag, prefix, paths, n):
             if not paths:
                 flow_md.append(
-                    f"- {tag}, all {n} trials → " +
-                    (" → ".join(step_text(s) for s in prefix)
-                     or "(same steps as the shared flow)"))
+                    f"- {tag}, all {n} trials → "
+                    + (
+                        " → ".join(step_text(s) for s in prefix)
+                        or "(same steps as the shared flow)"
+                    )
+                )
                 return
             lead = f"- {tag}"
             if prefix:
-                lead += ", all trials → " + " → ".join(
-                    step_text(s) for s in prefix)
+                lead += ", all trials → " + " → ".join(step_text(s) for s in prefix)
             flow_md.append(lead + ", then splits:")
             for path, cnt in paths:
                 flow_md.append(
-                    f"  - {cnt} of {n} trials → " +
-                    " → ".join(step_text(s) for s in path))
+                    f"  - {cnt} of {n} trials → "
+                    + " → ".join(step_text(s) for s in path)
+                )
 
         md_branch("BEFORE", bprefix, bpaths, nb)
         md_branch("AFTER", aprefix, apaths, na)
@@ -440,13 +507,16 @@ if not SELF_REPORTED:
     if dec_md:
         md.append(
             "<details><summary>Flow diff — command-derived (deterministic, "
-            "no model involved)</summary>\n")
+            "no model involved)</summary>\n"
+        )
         md += flow_md
         md.append("</details>\n")
     else:
         md += flow_md
-for v, label in (("before", f"BEFORE — {BEFORE_LABEL}"),
-                 ("after", f"AFTER — {AFTER_LABEL}")):
+for v, label in (
+    ("before", f"BEFORE — {BEFORE_LABEL}"),
+    ("after", f"AFTER — {AFTER_LABEL}"),
+):
     d = variants[v]
     md.append(f"## {label}\n")
     md.append(count_line[v] + "\n")
@@ -454,14 +524,20 @@ for v, label in (("before", f"BEFORE — {BEFORE_LABEL}"),
         md.append(f"### {t['name']} — {t['verdict']}\n")
         if t["actions"] != "-":
             md.append(t["actions"] + "\n")
-        action_label = ("self-reported actions" if SELF_REPORTED
-                        else "commands the agent ran")
-        md.append(f"<details><summary>{action_label} "
-                  f"({len(t['cmds'])})</summary>\n\n```\n" +
-                  "\n\n".join(c[:500] for c in t["cmds"]) +
-                  "\n```\n</details>\n")
-        md.append("<details><summary>final answer to the user</summary>\n\n" +
-                  t["final"].strip() + "\n\n</details>\n")
+        action_label = (
+            "self-reported actions" if SELF_REPORTED else "commands the agent ran"
+        )
+        md.append(
+            f"<details><summary>{action_label} "
+            f"({len(t['cmds'])})</summary>\n\n```\n"
+            + "\n\n".join(c[:500] for c in t["cmds"])
+            + "\n```\n</details>\n"
+        )
+        md.append(
+            "<details><summary>final answer to the user</summary>\n\n"
+            + t["final"].strip()
+            + "\n\n</details>\n"
+        )
 md += ["## Result\n", f"**{result}**\n", BOUNDARY + "\n"]
 (run / "report.md").write_text("\n".join(md))
 
@@ -477,37 +553,45 @@ def card(t):
     else:
         evidence = "\n\n".join("$ " + c for c in t["cmds"]) or "(no commands)"
         evidence_label = "Commands the agent ran"
-    acts = ("" if t["actions"] == "-"
-            else f'<p class="acts">{esc(t["actions"])}</p>')
-    return (f'<article class="trial">'
-            f'<p class="trial-head"><span class="badge {cls}">{t["verdict"]}'
-            f'</span><strong>{esc(t["name"])}</strong></p>{acts}'
-            f'<details><summary>{evidence_label} ({len(t["cmds"])})'
-            f'</summary><pre>{esc(evidence)}</pre></details>'
-            f'<details {"open" if MODE == "review" else ""}>'
-            f'<summary>Final answer to the user</summary>'
-            f'<pre>{esc(t["final"].strip())}</pre></details></article>')
+    acts = "" if t["actions"] == "-" else f'<p class="acts">{esc(t["actions"])}</p>'
+    return (
+        f'<article class="trial">'
+        f'<p class="trial-head"><span class="badge {cls}">{t["verdict"]}'
+        f"</span><strong>{esc(t['name'])}</strong></p>{acts}"
+        f"<details><summary>{evidence_label} ({len(t['cmds'])})"
+        f"</summary><pre>{esc(evidence)}</pre></details>"
+        f"<details {'open' if MODE == 'review' else ''}>"
+        f"<summary>Final answer to the user</summary>"
+        f"<pre>{esc(t['final'].strip())}</pre></details></article>"
+    )
 
 
 cols = ""
-for v, label, note in (("before", "Before", BEFORE_LABEL),
-                       ("after", "After", AFTER_LABEL)):
+for v, label, note in (
+    ("before", "Before", BEFORE_LABEL),
+    ("after", "After", AFTER_LABEL),
+):
     d = variants[v]
     cl = count_line[v].replace("**", "")
-    cols += (f'<section class="col"><header class="col-head"><h2>{label}</h2>'
-             f'<span class="col-note">{esc(note)}</span></header>'
-             f'<p class="count">{esc(cl)}</p>'
-             + "".join(card(t) for t in d["trials"]) + "</section>")
+    cols += (
+        f'<section class="col"><header class="col-head"><h2>{label}</h2>'
+        f'<span class="col-note">{esc(note)}</span></header>'
+        f'<p class="count">{esc(cl)}</p>'
+        + "".join(card(t) for t in d["trials"])
+        + "</section>"
+    )
 
 diff_html = "".join(
     f'<span class="{"d-add" if l.startswith("+") else "d-del" if l.startswith("-") else "d-ctx"}">{esc(l)}</span>\n'
-    for l in rule_diff.rstrip().splitlines())
+    for l in rule_diff.rstrip().splitlines()
+)
 
 shared_html = "".join(
     f'<div class="fstep shared"><span>{esc(step_text(k))}</span>'
     f'<span class="fcount">before {nb}/{nb} · after {na}/{na}</span></div>'
     f'<div class="fline"></div>'
-    for k in shared)
+    for k in shared
+)
 
 
 def lane(steps, cls):
@@ -515,62 +599,71 @@ def lane(steps, cls):
     for i, s in enumerate(steps):
         if i:
             boxes.append('<div class="farrow">↓</div>')
-        boxes.append(f'<div class="fstep {cls}">'
-                     f'<span>{esc(step_text(s))}</span></div>')
+        boxes.append(f'<div class="fstep {cls}"><span>{esc(step_text(s))}</span></div>')
     return "".join(boxes)
 
 
 def branch_html(prefix, paths, n, cls):
     h = ""
     if not paths:
-        body = lane(prefix, cls) or \
-            '<p class="fnote">(same steps as the shared flow)</p>'
-        return (f'<div class="fbranch"><p class="fpath-head">all {n} trials'
-                f'</p>{body}</div>')
+        body = (
+            lane(prefix, cls) or '<p class="fnote">(same steps as the shared flow)</p>'
+        )
+        return (
+            f'<div class="fbranch"><p class="fpath-head">all {n} trials</p>{body}</div>'
+        )
     if prefix:
         h += f'<p class="fpath-head">all {n} trials</p>' + lane(prefix, cls)
         h += '<div class="farrow">↓</div>'
     h += f'<div class="fsplit">splits into {len(paths)} paths</div>'
     lanes = "".join(
         f'<div class="fpath"><p class="fpath-head">{cnt} of {n} trials</p>'
-        f'{lane(path, cls)}</div>'
-        for path, cnt in paths)
-    h += (f'<div class="fpaths" '
-          f'style="grid-template-columns:repeat({len(paths)},1fr)">'
-          f'{lanes}</div>')
+        f"{lane(path, cls)}</div>"
+        for path, cnt in paths
+    )
+    h += (
+        f'<div class="fpaths" '
+        f'style="grid-template-columns:repeat({len(paths)},1fr)">'
+        f"{lanes}</div>"
+    )
     return f'<div class="fbranch">{h}</div>'
 
 
 if same_flow:
-    flow_html = (f'<div class="flow">{shared_html}'
-                 f'<p class="fnote">Both variants used the same command '
-                 f'categories; the buckets are coarse, so their actual work '
-                 f'paths and depth may still differ — see the decision diff '
-                 f'and the trial cards.</p></div>')
+    flow_html = (
+        f'<div class="flow">{shared_html}'
+        f'<p class="fnote">Both variants used the same command '
+        f"categories; the buckets are coarse, so their actual work "
+        f"paths and depth may still differ — see the decision diff "
+        f"and the trial cards.</p></div>"
+    )
 else:
-    flow_html = (f'<div class="flow">{shared_html}'
-                 f'<div class="fork-label">paths diverge here</div>'
-                 f'<div class="fork">'
-                 f'<div><p class="fork-side">BEFORE</p>'
-                 f'{branch_html(bprefix, bpaths, nb, "b")}</div>'
-                 f'<div><p class="fork-side">AFTER</p>'
-                 f'{branch_html(aprefix, apaths, na, "a")}</div>'
-                 f'</div></div>')
+    flow_html = (
+        f'<div class="flow">{shared_html}'
+        f'<div class="fork-label">paths diverge here</div>'
+        f'<div class="fork">'
+        f'<div><p class="fork-side">BEFORE</p>'
+        f"{branch_html(bprefix, bpaths, nb, 'b')}</div>"
+        f'<div><p class="fork-side">AFTER</p>'
+        f"{branch_html(aprefix, apaths, na, 'a')}</div>"
+        f"</div></div>"
+    )
+
 
 def dec_choices(brs, n, cls):
     lines = []
     for br in brs:
-        cnt = ("" if br["n"] == n
-               else f' <span class="fcount">{br["n"]}/{n}</span>')
+        cnt = "" if br["n"] == n else f' <span class="fcount">{br["n"]}/{n}</span>'
         lines.append(f'<div class="dline">{esc(br["choice"])}{cnt}</div>')
-    return (f'<div class="fstep {cls} dcell">'
-            + ("".join(lines) or "—") + "</div>")
+    return f'<div class="fstep {cls} dcell">' + ("".join(lines) or "—") + "</div>"
 
 
 def dec_label(i, row, fork):
-    when = ('<span class="dwhen">in the final answer</span>'
-            if row.get("anchor") == "answer"
-            else '<span class="dwhen">during the work</span>')
+    when = (
+        '<span class="dwhen">in the final answer</span>'
+        if row.get("anchor") == "answer"
+        else '<span class="dwhen">during the work</span>'
+    )
     if i == fork:
         tag = '<span class="dtag">root change</span>'
     elif not row["diverges"]:
@@ -583,10 +676,9 @@ def dec_label(i, row, fork):
     title = row.get("topic") or row["decision"]
     sub = row["decision"] if row.get("topic") else ""
     if row.get("note"):
-        sub = f'{sub} — {row["note"]}' if sub else row["note"]
+        sub = f"{sub} — {row['note']}" if sub else row["note"]
     note = f'<span class="dnote">{esc(sub)}</span>' if sub else ""
-    return (f'<p class="dq dspan">{i} · {esc(title)}'
-            f'{tag}{note}</p>')
+    return f'<p class="dq dspan">{i} · {esc(title)}{tag}{note}</p>'
 
 
 dec_html = ""
@@ -603,70 +695,85 @@ if dec.get("chain"):
         as_ = branch_str(row["after"], dna)
         choice = bs if bs == as_ else f"before: {bs} · after: {as_}"
         parts.append(dec_label(i, row, fork))
-        parts.append(f'<div class="fstep shared"><span>{esc(choice)}</span>'
-                     f'<span class="fcount">before {dnb}/{dnb} · '
-                     f'after {dna}/{dna}</span></div>')
+        parts.append(
+            f'<div class="fstep shared"><span>{esc(choice)}</span>'
+            f'<span class="fcount">before {dnb}/{dnb} · '
+            f"after {dna}/{dna}</span></div>"
+        )
         parts.append('<div class="fline"></div>')
     rest = dec["chain"][lead_n:]
     if rest:
         parts.append('<div class="fork-label">paths diverge here</div>')
-        grid = ['<p class="fork-side">BEFORE</p>'
-                '<p class="fork-side">AFTER</p>']
+        grid = ['<p class="fork-side">BEFORE</p><p class="fork-side">AFTER</p>']
         for j, row in enumerate(rest):
             i = lead_n + j + 1
             if j:
-                grid.append('<div class="farrow">↓</div>'
-                            '<div class="farrow">↓</div>')
+                grid.append('<div class="farrow">↓</div><div class="farrow">↓</div>')
             grid.append(dec_label(i, row, fork))
             if row["diverges"]:
                 grid.append(dec_choices(row["before"], dnb, "b"))
                 grid.append(dec_choices(row["after"], dna, "a"))
             else:
-                grid.append('<div class="fstep shared dspan"><span>'
-                            + esc(branch_str(row["before"], dnb))
-                            + "</span></div>")
+                grid.append(
+                    '<div class="fstep shared dspan"><span>'
+                    + esc(branch_str(row["before"], dnb))
+                    + "</span></div>"
+                )
         parts.append(f'<div class="dgrid">{"".join(grid)}</div>')
     n_div = sum(r["diverges"] for r in dec["chain"])
     if fork:
         rest = n_div - 1
-        foot = (f'One target decision changed (#{fork}); {rest} later '
-                f'difference{"s" if rest != 1 else ""} '
-                'diverge downstream of it (the extractor\'s causal '
-                'reading, not a measured chain).')
+        foot = (
+            f"One target decision changed (#{fork}); {rest} later "
+            f"difference{'s' if rest != 1 else ''} "
+            "diverge downstream of it (the extractor's causal "
+            "reading, not a measured chain)."
+        )
     else:
-        foot = f'{n_div} of {len(dec["chain"])} decisions diverge.'
+        foot = f"{n_div} of {len(dec['chain'])} decisions diverge."
     if dec.get("fork_note"):
         foot += " " + dec["fork_note"]
     if dec.get("dropped"):
-        foot += (f' {dec["dropped"]} extractor row(s) were dropped because '
-                 "their counts did not match the trials.")
+        foot += (
+            f" {dec['dropped']} extractor row(s) were dropped because "
+            "their counts did not match the trials."
+        )
     dec_html = (
         '<p class="section-label">Decision diff — top divergences</p>'
         f'<p class="sub">{esc(dec_blurb)}</p>'
         f'<div class="flow">{"".join(parts)}</div>'
-        f'<p class="fnote dfoot">{esc(foot)}</p>')
+        f'<p class="fnote dfoot">{esc(foot)}</p>'
+    )
 
 flow_section = ""
 if not SELF_REPORTED:
     flow_section = (
         '<p class="section-label">Flow diff — where the variants diverge</p>'
         '<p class="sub">Steps are described from the agents\' actual commands. '
-        'A path is a sequence at least one trial literally took — arrows '
-        'connect steps inside a path, and a split shows where trials went '
-        'different ways. Full commands are in the trial cards below.</p>'
-        + flow_html)
+        "A path is a sequence at least one trial literally took — arrows "
+        "connect steps inside a path, and a split shows where trials went "
+        "different ways. Full commands are in the trial cards below.</p>" + flow_html
+    )
     if dec_html:
-        flow_section = ('<details class="flowfold"><summary>Flow diff — '
-                        'command-derived (deterministic, no model involved)'
-                        '</summary>' + flow_section + "</details>")
+        flow_section = (
+            '<details class="flowfold"><summary>Flow diff — '
+            "command-derived (deterministic, no model involved)"
+            "</summary>" + flow_section + "</details>"
+        )
 
 obs_html = f'<p class="obs">{esc(obs_md)}</p>' if obs_md else ""
 
-expected_html = "" if not EXPECTED else (
-    '<p class="section-label">Expected behavior</p>'
-    f'<p class="sub">{esc(EXPECTED)}</p>')
-result_bg = {"good": "var(--pass)", "bad": "var(--fail)",
-             "neutral": "var(--accent)"}[result_kind]
+expected_html = (
+    ""
+    if not EXPECTED
+    else (
+        '<p class="section-label">Expected behavior</p>'
+        f'<p class="sub">{esc(EXPECTED)}</p>'
+    )
+)
+result_bg = {"good": "var(--pass)", "bad": "var(--fail)", "neutral": "var(--accent)"}[
+    result_kind
+]
 
 body = f"""<title>{esc(TITLE)}</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
@@ -803,11 +910,14 @@ details {{ margin-bottom:.25rem; }}
 """
 (run / "report-artifact.html").write_text(body)
 (run / "report.html").write_text(
-    "<!doctype html><html><head><meta charset=\"utf-8\">"
-    "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">"
-    "</head><body>" + body + "</body></html>")
+    '<!doctype html><html><head><meta charset="utf-8">'
+    '<meta name="viewport" content="width=device-width, initial-scale=1">'
+    "</head><body>" + body + "</body></html>"
+)
 
-print(f"mode {MODE} · BEFORE pass {b['passed']}/{b['valid']} · "
-      f"AFTER pass {a['passed']}/{a['valid']} → {result}")
+print(
+    f"mode {MODE} · BEFORE pass {b['passed']}/{b['valid']} · "
+    f"AFTER pass {a['passed']}/{a['valid']} → {result}"
+)
 print(f"report: {run / 'report.md'}")
 print(f"page:   {run / 'report.html'}")

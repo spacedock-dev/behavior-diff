@@ -21,7 +21,10 @@ set -euo pipefail
 here=$(cd -- "$(dirname -- "$0")" && pwd -P)
 runner=$here/../plugin/skills/behavior-diff/scripts/behavior-diff.sh
 
-die() { printf 'behavior-diff: %s\n' "$1" >&2; exit 2; }
+die() {
+  printf 'behavior-diff: %s\n' "$1" >&2
+  exit 2
+}
 
 usage() {
   sed -n '3,9p' "$0" | sed 's/^# \{0,1\}//' >&2
@@ -31,17 +34,36 @@ usage() {
 rule='' task='' into='' dry='' passthru=()
 while [[ $# -gt 0 ]]; do
   case $1 in
-    --task) [[ $# -ge 2 ]] || die "--task needs a value"; task=$2; shift 2 ;;
-    --into) [[ $# -ge 2 ]] || die "--into needs a value"; into=$2; shift 2 ;;
-    --dry-run) dry=1; shift ;;
-    --fast) passthru+=("$1"); shift ;;
+    --task)
+      [[ $# -ge 2 ]] || die "--task needs a value"
+      task=$2
+      shift 2
+      ;;
+    --into)
+      [[ $# -ge 2 ]] || die "--into needs a value"
+      into=$2
+      shift 2
+      ;;
+    --dry-run)
+      dry=1
+      shift
+      ;;
+    --fast)
+      passthru+=("$1")
+      shift
+      ;;
     --trials | --agent | --model | --extract-agent | --extract-model)
       [[ $# -ge 2 ]] || die "$1 needs a value"
-      passthru+=("$1" "$2"); shift 2 ;;
+      passthru+=("$1" "$2")
+      shift 2
+      ;;
     -h | --help) usage ;;
     -*) die "unknown option $1" ;;
-    *) [[ -z $rule ]] || die "only one rule file (got $rule and $1)"
-       rule=$1; shift ;;
+    *)
+      [[ -z $rule ]] || die "only one rule file (got $rule and $1)"
+      rule=$1
+      shift
+      ;;
   esac
 done
 
@@ -68,11 +90,15 @@ else
       if [[ -t 0 ]]; then
         printf 'Which file should the rule go in?\n' >&2
         select choice in "${candidates[@]}"; do
-          [[ -n ${choice:-} ]] && { target=$choice; break; }
+          [[ -n ${choice:-} ]] && {
+            target=$choice
+            break
+          }
         done
       else
         die "both CLAUDE.md and AGENTS.md exist — pass --into FILE"
-      fi ;;
+      fi
+      ;;
   esac
 fi
 
@@ -103,7 +129,10 @@ restore() {
 trap restore EXIT INT TERM
 
 printf 'applying %s to %s\n' "$rule" "$target"
-{ printf '\n'; cat -- "$rule"; } >> "$repo/$target"
+{
+  printf '\n'
+  cat -- "$rule"
+} >>"$repo/$target"
 
 if [[ -n $dry ]]; then
   printf '\n--- the edit this would test ---\n'
@@ -112,4 +141,4 @@ if [[ -n $dry ]]; then
   exit 0
 fi
 
-( cd "$repo" && "$runner" --file "$target" --task "$task" "${passthru[@]+"${passthru[@]}"}" )
+(cd "$repo" && "$runner" --file "$target" --task "$task" "${passthru[@]+"${passthru[@]}"}")

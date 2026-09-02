@@ -46,9 +46,12 @@ state=${NUDGE_E2E_STATE:-/tmp/nudge-e2e-state}
 agent=${NUDGE_E2E_AGENT:-claude}
 case $agent in
   claude) session_cmd="claude --model ${NUDGE_E2E_MODEL:-sonnet}" ;;
-  codex)  session_cmd="codex -m ${NUDGE_E2E_MODEL:-gpt-5.6-terra}" ;;
-  *) printf 'nudge-e2e: NUDGE_E2E_AGENT must be claude or codex: %s\n' \
-       "$agent" >&2; exit 2 ;;
+  codex) session_cmd="codex -m ${NUDGE_E2E_MODEL:-gpt-5.6-terra}" ;;
+  *)
+    printf 'nudge-e2e: NUDGE_E2E_AGENT must be claude or codex: %s\n' \
+      "$agent" >&2
+    exit 2
+    ;;
 esac
 fixture=${NUDGE_E2E_FIXTURE:-capsule}
 here=$(cd -- "$(dirname -- "$0")" && pwd -P)
@@ -61,17 +64,26 @@ case $fixture in
     fixture_dir=$here/../e2e/$fixture
     instruction_file=AGENTS.md
     ;;
-  *) printf 'nudge-e2e: unknown NUDGE_E2E_FIXTURE: %s\n' \
-       "$fixture" >&2; exit 2 ;;
+  *)
+    printf 'nudge-e2e: unknown NUDGE_E2E_FIXTURE: %s\n' \
+      "$fixture" >&2
+    exit 2
+    ;;
 esac
 capsule=$fixture_dir/project
 nudge=$state/nudge
 marker=.nudge-e2e-sandbox
 failures=0
 
-die() { printf 'nudge-e2e: %s\n' "$1" >&2; exit 2; }
+die() {
+  printf 'nudge-e2e: %s\n' "$1" >&2
+  exit 2
+}
 pass() { printf '  ok    %s\n' "$1"; }
-fail() { printf '  FAIL  %s\n' "$1" >&2; failures=$((failures + 1)); }
+fail() {
+  printf '  FAIL  %s\n' "$1" >&2
+  failures=$((failures + 1))
+}
 info() { printf '  --    %s\n' "$1"; }
 
 usage() {
@@ -124,14 +136,14 @@ cmd_setup() {
   [[ -f $fixture_dir/rule.md ]] || die "$fixture rule.md is missing"
   [[ -f $fixture_dir/task.md ]] || die "$fixture task.md is missing"
   if [[ $instruction_file == AGENTS.md ]] &&
-     ! grep -qxF -- '@AGENTS.md' "$capsule/CLAUDE.md"; then
+    ! grep -qxF -- '@AGENTS.md' "$capsule/CLAUDE.md"; then
     die "$fixture CLAUDE.md must import canonical AGENTS.md"
   fi
   remove_sandbox "$repo" NUDGE_E2E_REPO
   remove_sandbox "$state" NUDGE_E2E_STATE
   mkdir -p -- "$repo" "$nudge"
-  : > "$repo/$marker"
-  : > "$state/$marker"
+  : >"$repo/$marker"
+  : >"$state/$marker"
 
   # A concrete fixture, not an abstract prompt. The journey only produces a
   # useful diff if the rule can change a decision about project evidence. See
@@ -210,7 +222,7 @@ cmd_check() {
     if grep -qF -- "$instruction_file" "$recorded"; then
       pass "$instruction_file is the recorded path"
     else
-      fail "recorded path is not $instruction_file: $(tr '\n' ' ' < "$recorded")"
+      fail "recorded path is not $instruction_file: $(tr '\n' ' ' <"$recorded")"
     fi
     count=$(grep -c . -- "$recorded" || true)
     if [[ $count -eq 1 ]]; then

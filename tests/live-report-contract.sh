@@ -70,15 +70,17 @@ JSON
   fi
 }
 
-fail() { printf 'FAIL: %s\n' "$1" >&2; exit 1; }
+fail() {
+  printf 'FAIL: %s\n' "$1" >&2
+  exit 1
+}
 require_fixed() { grep -qF -- "$1" "$skill" || fail "$2"; }
-[[ $(jq -r '.version' "$claude_manifest") == 0.3.1 ]] \
-  || fail 'Claude manifest version is not 0.3.1'
-[[ $(jq -r '.version' "$codex_manifest") == 0.3.1 ]] \
-  || fail 'Codex manifest version is not 0.3.1'
+[[ $(jq -r '.version' "$claude_manifest") == 0.3.1 ]] ||
+  fail 'Claude manifest version is not 0.3.1'
+[[ $(jq -r '.version' "$codex_manifest") == 0.3.1 ]] ||
+  fail 'Codex manifest version is not 0.3.1'
 require_output '## Hooks: the nudge (0.3.1)' "$readme" \
   'README Hooks heading version is not 0.3.1'
-
 
 require_fixed 'one numbered line per tool action' \
   'missing action contract: one numbered line per tool action'
@@ -111,21 +113,21 @@ require_fixed 'quote both final answers, and repeat the visible extractor-skip n
 reject_output '7. **Summarize in conversation** in the flow-diff shape' "$skill" \
   'step 7 still requires a flow when extraction failed'
 
-decision_match=$(grep -nF -- 'Then extract the decision diff' "$skill") \
-  || fail 'missing decision extraction marker'
-render_match=$(grep -nF -- "Then run \`scripts/render.py\`" "$skill") \
-  || fail 'missing render marker'
-open_match=$(grep -nF -- "immediately \`open\` the report.html" "$skill") \
-  || fail 'missing open marker'
+decision_match=$(grep -nF -- 'Then extract the decision diff' "$skill") ||
+  fail 'missing decision extraction marker'
+render_match=$(grep -nF -- "Then run \`scripts/render.py\`" "$skill") ||
+  fail 'missing render marker'
+open_match=$(grep -nF -- "immediately \`open\` the report.html" "$skill") ||
+  fail 'missing open marker'
 
 decision_line=${decision_match%%:*}
 render_line=${render_match%%:*}
 open_line=${open_match%%:*}
 
-(( decision_line < render_line )) \
-  || fail 'decision extraction must precede render'
-(( render_line <= open_line )) \
-  || fail 'render must not follow open'
+((decision_line < render_line)) ||
+  fail 'decision extraction must precede render'
+((render_line <= open_line)) ||
+  fail 'render must not follow open'
 
 self_run=$tmp/self-reported
 captured_run=$tmp/captured
@@ -281,8 +283,8 @@ done
 
 printf '%s\n' '{"trace_source":"invented"}' >"$tmp/invalid-config.json"
 if python3 "$renderer" "$captured_run" "$captured_run" contract \
-    "$tmp/invalid-config.json" >"$tmp/invalid-output.txt" \
-    2>"$tmp/invalid-error.txt"; then
+  "$tmp/invalid-config.json" >"$tmp/invalid-output.txt" \
+  2>"$tmp/invalid-error.txt"; then
   fail 'renderer accepts an invalid trace_source'
 fi
 require_output 'trace_source must be either "captured" or "self-reported"' \
@@ -290,20 +292,20 @@ require_output 'trace_source must be either "captured" or "self-reported"' \
 
 printf '%s\n' '{"trace_source":null}' >"$tmp/null-source-config.json"
 if python3 "$renderer" "$captured_run" "$captured_run" contract \
-    "$tmp/null-source-config.json" >/dev/null 2>&1; then
+  "$tmp/null-source-config.json" >/dev/null 2>&1; then
   fail 'renderer accepts a malformed trace_source'
 fi
 
 printf '%s\n' '{' >"$tmp/malformed-config.json"
 if python3 "$renderer" "$captured_run" "$captured_run" contract \
-    "$tmp/malformed-config.json" >/dev/null 2>&1; then
+  "$tmp/malformed-config.json" >/dev/null 2>&1; then
   fail 'renderer accepts malformed config JSON'
 fi
 
 printf '%s\n' '{"trace_source":"invented"}' \
   >"$captured_run/config.json"
 if python3 "$decisions" "$captured_run" --emit-prompt \
-    >"$tmp/invalid-emit-output.txt" 2>"$tmp/invalid-emit-error.txt"; then
+  >"$tmp/invalid-emit-output.txt" 2>"$tmp/invalid-emit-error.txt"; then
   fail 'decision prompt accepts an invalid trace_source'
 fi
 require_output 'trace_source must be either "captured" or "self-reported"' \

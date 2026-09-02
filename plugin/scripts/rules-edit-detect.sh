@@ -29,15 +29,18 @@ paths=()
 while IFS= read -r p; do
   [ -n "$p" ] || continue
   case "$(basename "$p")" in
-    CLAUDE.md|AGENTS.md|SKILL.md) ;;
+    CLAUDE.md | AGENTS.md | SKILL.md) ;;
     *) continue ;;
   esac
   case "$p" in
     /*) ;;
-    *) [ -n "$cwd" ] || continue; p=$cwd/$p ;;
+    *)
+      [ -n "$cwd" ] || continue
+      p=$cwd/$p
+      ;;
   esac
   paths+=("$p")
-done <<< "$raw"
+done <<<"$raw"
 [ "${#paths[@]}" -gt 0 ] || quit
 
 session=$(printf '%s' "$input" | jq -r '.session_id // empty' 2>/dev/null) || quit
@@ -52,7 +55,7 @@ find "$state_dir" -type f -mtime +7 -delete 2>/dev/null
 state=$state_dir/$session.edits
 for p in "${paths[@]}"; do
   if ! grep -qxF -- "$p" "$state" 2>/dev/null; then
-    printf '%s\n' "$p" >> "$state" 2>/dev/null
+    printf '%s\n' "$p" >>"$state" 2>/dev/null
   fi
 done
 
@@ -61,7 +64,7 @@ done
 # the Stop-time fallback line, so mark that it was sent.
 whispered=$state_dir/$session.whispered
 [ -f "$whispered" ] && quit
-: > "$whispered" 2>/dev/null || quit
+: >"$whispered" 2>/dev/null || quit
 files=
 for p in "${paths[@]}"; do
   if [ -z "$files" ]; then files=$p; else files="$files, $p"; fi

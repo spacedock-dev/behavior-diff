@@ -24,35 +24,91 @@ set -euo pipefail
 file="" task="" trials=3 agent=claude model="" vocab=generic extract_agent="" extract_model="" before_file=""
 while [ $# -gt 0 ]; do
   case "$1" in
-    --file) file=$2; shift 2 ;;
-    --before-file) before_file=$2; shift 2 ;;
-    --task) task=$2; shift 2 ;;
-    --trials) trials=$2; shift 2 ;;
-    --fast) trials=1; shift ;;
-    --model) model=$2; shift 2 ;;
-    --agent) agent=$2; shift 2 ;;
-    --vocab) vocab=$2; shift 2 ;;
-    --extract-agent) extract_agent=$2; shift 2 ;;
-    --extract-model) extract_model=$2; shift 2 ;;
-    -h|--help) sed -n '2,21p' "$0"; exit 0 ;;
-    *) echo "behavior-diff: unknown argument $1 (see --help)" >&2; exit 2 ;;
+    --file)
+      file=$2
+      shift 2
+      ;;
+    --before-file)
+      before_file=$2
+      shift 2
+      ;;
+    --task)
+      task=$2
+      shift 2
+      ;;
+    --trials)
+      trials=$2
+      shift 2
+      ;;
+    --fast)
+      trials=1
+      shift
+      ;;
+    --model)
+      model=$2
+      shift 2
+      ;;
+    --agent)
+      agent=$2
+      shift 2
+      ;;
+    --vocab)
+      vocab=$2
+      shift 2
+      ;;
+    --extract-agent)
+      extract_agent=$2
+      shift 2
+      ;;
+    --extract-model)
+      extract_model=$2
+      shift 2
+      ;;
+    -h | --help)
+      sed -n '2,21p' "$0"
+      exit 0
+      ;;
+    *)
+      echo "behavior-diff: unknown argument $1 (see --help)" >&2
+      exit 2
+      ;;
   esac
 done
-case "$vocab" in generic|spacedock) ;; *) echo "behavior-diff: --vocab must be generic or spacedock" >&2; exit 2 ;; esac
-case "$agent" in claude|codex) ;; *) echo "behavior-diff: --agent must be claude or codex" >&2; exit 2 ;; esac
-case "$trials" in ''|*[!0-9]*|0) echo "behavior-diff: --trials must be a positive integer" >&2; exit 2 ;; esac
+case "$vocab" in generic | spacedock) ;; *)
+  echo "behavior-diff: --vocab must be generic or spacedock" >&2
+  exit 2
+  ;;
+esac
+case "$agent" in claude | codex) ;; *)
+  echo "behavior-diff: --agent must be claude or codex" >&2
+  exit 2
+  ;;
+esac
+case "$trials" in '' | *[!0-9]* | 0)
+  echo "behavior-diff: --trials must be a positive integer" >&2
+  exit 2
+  ;;
+esac
 [ -n "$model" ] || model=$([ "$agent" = codex ] && echo gpt-5.6-terra || echo sonnet)
 [ -n "$file" ] && [ -n "$task" ] || {
-  echo "behavior-diff: --file and --task are required (see --help)" >&2; exit 2; }
-command -v jq >/dev/null || { echo "behavior-diff: jq required" >&2; exit 3; }
-command -v "$agent" >/dev/null || { echo "behavior-diff: $agent CLI required (--agent $agent)" >&2; exit 3; }
+  echo "behavior-diff: --file and --task are required (see --help)" >&2
+  exit 2
+}
+command -v jq >/dev/null || {
+  echo "behavior-diff: jq required" >&2
+  exit 3
+}
+command -v "$agent" >/dev/null || {
+  echo "behavior-diff: $agent CLI required (--agent $agent)" >&2
+  exit 3
+}
 
 # Resolve the sandbox world and the "before" side. The tracked-file git
 # path stays the default: before = the repo at HEAD, sandboxes from
 # `git archive HEAD`. An untracked file diffs against --before-file, else
 # the newest hook-captured baseline; a non-git folder is copied as-is.
-world=git           # git: sandboxes from `git archive HEAD` | copy: folder copy
-before_mode="head"  # head: repo at HEAD | file: $before_file | absent: no file
+world=git          # git: sandboxes from `git archive HEAD` | copy: folder copy
+before_mode="head" # head: repo at HEAD | file: $before_file | absent: no file
 baselines=${BEHAVIOR_DIFF_HOME:-$HOME/.behavior-diff}/baselines
 resolve_baseline() { # $1 = absolute target path -> newest baseline path
   # store key: percent-encoded absolute path
@@ -66,8 +122,8 @@ resolve_baseline() { # $1 = absolute target path -> newest baseline path
 }
 
 abs=$(cd "$(dirname "$file")" && pwd -P)/$(basename "$file")
-if repo=$(git rev-parse --show-toplevel 2>/dev/null) \
-   && git -C "$repo" rev-parse -q --verify HEAD >/dev/null 2>&1; then
+if repo=$(git rev-parse --show-toplevel 2>/dev/null) &&
+  git -C "$repo" rev-parse -q --verify HEAD >/dev/null 2>&1; then
   :
 else
   world=copy
@@ -75,7 +131,7 @@ else
   # copy-world guard: every trial gets a full copy of this folder (2 x
   # trials of them), so refuse a huge one instead of silently snapshotting
   # it — think a 2 GB ~/.claude full of session transcripts
-  cap_kb=${BEHAVIOR_DIFF_COPY_CAP_KB:-204800}   # 200 MB
+  cap_kb=${BEHAVIOR_DIFF_COPY_CAP_KB:-204800} # 200 MB
   # du exits non-zero on a partial read (unreadable subdir) while still
   # printing a total — disarm it so the empty-value check below governs
   size_kb=$(du -sk "$repo" 2>/dev/null | awk '{print $1}') || true
@@ -87,10 +143,11 @@ fi
 rel=${abs#"$repo"/}
 case "$rel" in /*)
   echo "behavior-diff: $file is outside $repo — run it from the folder that holds the file" >&2
-  exit 2 ;;
+  exit 2
+  ;;
 esac
-if [ "$world" = git ] && [ -z "$before_file" ] \
-   && git -C "$repo" cat-file -e "HEAD:$rel" 2>/dev/null; then
+if [ "$world" = git ] && [ -z "$before_file" ] &&
+  git -C "$repo" cat-file -e "HEAD:$rel" 2>/dev/null; then
   if git -C "$repo" diff --quiet HEAD -- "$rel"; then
     echo "behavior-diff: $rel has no uncommitted change — nothing to compare" >&2
     exit 2
@@ -100,7 +157,8 @@ else
   if [ -z "$before_file" ]; then
     before_file=$(resolve_baseline "$abs") || {
       echo "behavior-diff: no 'before' source for $rel — git does not track it and no baseline exists under $baselines. Pass --before-file <original>." >&2
-      exit 2; }
+      exit 2
+    }
     # only a store-resolved entry can be the hook's ABSENT marker; a
     # user-given --before-file is always read as a plain file
     case "$(basename "$before_file")" in
@@ -109,7 +167,9 @@ else
   fi
   if [ "$before_mode" = file ]; then
     [ -f "$before_file" ] || {
-      echo "behavior-diff: before file not found: $before_file" >&2; exit 2; }
+      echo "behavior-diff: before file not found: $before_file" >&2
+      exit 2
+    }
     if cmp -s "$before_file" "$repo/$rel"; then
       echo "behavior-diff: $rel matches the before content — nothing to compare" >&2
       exit 2
@@ -121,7 +181,7 @@ scripts=$(cd "$(dirname "$0")" && pwd)
 runs_root=${BEHAVIOR_DIFF_HOME:-$HOME/.behavior-diff}
 run=$runs_root/runs/diff-$(date +%Y%m%d-%H%M%S)
 mkdir -p "$run"
-printf '%s\n' "$task" > "$run/task.md"
+printf '%s\n' "$task" >"$run/task.md"
 case "$before_mode" in
   head) sub="Same task, same settings, fresh agent runs. Before is the repo at HEAD; After adds only your uncommitted change to $rel. No automatic grading — compare what the agents did and said." ;;
   file) sub="Same task, same settings, fresh agent runs. Before is your saved original of $rel ($before_file); After is the same world with your current $rel. No automatic grading — compare what the agents did and said." ;;
@@ -131,7 +191,7 @@ jq -n --arg f "$rel" --arg task "$task" --arg vocab "$vocab" \
   --arg title "Behavior Diff — $rel" \
   --arg sub "$sub" \
   '{title:$title, sub:$sub, scenario:$task, expected:null,
-    target_file:$f, mode:"review", vocab:$vocab}' > "$run/config.json"
+    target_file:$f, mode:"review", vocab:$vocab}' >"$run/config.json"
 
 # Conservative read/run allowlist; no Write/Edit, no network tools.
 ALLOWED='Bash(pytest:*),Bash(python3:*),Bash(python:*),Bash(bash:*),Bash(sh:*),Bash(node:*),Bash(npm:*),Bash(make:*),Bash(go:*),Bash(cargo:*),Bash(printf:*),Bash(echo:*),Bash(ls:*),Bash(cat:*),Bash(head:*),Bash(sed:*),Bash(git:*),Bash(find:*),Bash(grep:*),Bash(rg:*),Read,Grep,Glob'
@@ -157,12 +217,12 @@ launch() { # $1 variant, $2 trial index
       absent) rm -f "$dir/project/$rel" ;;
     esac
   fi
-  ( cd "$dir/project" && git init -q \
-      && git config user.email b@diff && git config user.name behavior-diff \
-      && git add -A && git commit -qm "snapshot for behavior diff" \
-      && "$scripts/run-trial.sh" --agent "$agent" --model "$model" \
-           --dir "$dir/project" --task-file "$run/task.md" \
-           --allowed "$ALLOWED" --trace-dir "$dir" ) &
+  (cd "$dir/project" && git init -q &&
+    git config user.email b@diff && git config user.name behavior-diff &&
+    git add -A && git commit -qm "snapshot for behavior diff" &&
+    "$scripts/run-trial.sh" --agent "$agent" --model "$model" \
+      --dir "$dir/project" --task-file "$run/task.md" \
+      --allowed "$ALLOWED" --trace-dir "$dir") &
 }
 
 echo "behavior diff on $rel: $trials trial(s) per variant, agent $agent, model $model"
@@ -181,7 +241,7 @@ for v in before after; do
       "$run/$v-$t/trace.jsonl" >/dev/null 2>&1 || verdict=BLOCKED
     printf '%s\t%s\t-\n' "$v-$t" "$verdict"
   done
-done > "$run/grades.tsv"
+done >"$run/grades.tsv"
 
 echo
 # Decision diff: one model pass over the final answers. Best-effort — if it
