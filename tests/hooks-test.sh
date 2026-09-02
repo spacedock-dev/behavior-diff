@@ -147,6 +147,7 @@ printf '%s' "$out" | jq -e '.systemMessage | test("AGENTS.md")' >/dev/null ||
 # plus the runner's --before-file / baseline-resolve argument paths.
 backup=$here/../plugin/scripts/rules-edit-backup.sh
 runner=$here/../plugin/skills/behavior-diff/scripts/behavior-diff.sh
+trial_runner=$here/../plugin/skills/behavior-diff/scripts/run-trial.sh
 baselines=$BEHAVIOR_DIFF_HOME/baselines
 enc_of() { printf '%s' "$1" | sed 's|%|%25|g; s|/|%2F|g'; }
 nentries() { find "$1" -mindepth 1 -maxdepth 1 -type f ! -name '.*' | wc -l; }
@@ -294,5 +295,140 @@ chmod 700 "$odd/locked"
 printf '%s' "$out" | grep -q "matches the before content" ||
   fail "unreadable subdir: expected the plain equal-content stop, got: $out"
 [ "$code" -eq 2 ] || fail "unreadable subdir: exit $code, want 2"
+
+progress 'Pi and OMP runner contracts'
+
+cat >"$stub/omp" <<'SH'
+#!/bin/sh
+printf '%s\n' "$@" >"$OMP_ARGS_FILE"
+cat >/dev/null
+cat <<'JSON'
+{"type":"tool_execution_start","toolCallId":"call-1","toolName":"bash","args":{"command":"printf ok"}}
+{"type":"tool_execution_start","toolCallId":"call-2","toolName":"read","args":{"path":"AGENTS.md"}}
+JSON
+if [ "${NO_FINAL:-}" != 1 ]; then
+  printf '%s\n' '{"type":"message_end","message":{"role":"assistant","content":[{"type":"text","text":"OMP done"}]}}'
+fi
+SH
+chmod +x "$stub/omp"
+
+cat >"$stub/pi" <<'SH'
+#!/bin/sh
+printf '%s\n' "$@" >"$PI_ARGS_FILE"
+printf '%s\n%s\n' "${PI_SKIP_VERSION_CHECK:-}" "${PI_TELEMETRY:-}" >"$PI_ENV_FILE"
+cat >/dev/null
+cat <<'JSON'
+{"type":"tool_execution_start","toolCallId":"call-1","toolName":"bash","args":{"command":"printf ok"}}
+{"type":"tool_execution_start","toolCallId":"call-2","toolName":"read","args":{"path":"AGENTS.md"}}
+JSON
+if [ "${NO_FINAL:-}" != 1 ]; then
+  printf '%s\n' '{"type":"message_end","message":{"role":"assistant","content":[{"type":"text","text":"Pi done"}]}}'
+fi
+SH
+chmod +x "$stub/pi"
+
+# 28. unknown stacks list every supported binary
+set +e
+out=$(cd "$plainrun" && PATH="$stub:$PATH" "$runner" --agent unknown \
+  --model test/model --file CLAUDE.md --task t 2>&1)
+code=$?
+set -e
+[ "$code" -eq 2 ] || fail "unknown agent: exit $code, want 2"
+printf '%s' "$out" | grep -qF 'Supported stacks: claude, codex, pi, omp.' ||
+  fail "unknown agent does not list every supported stack"
+
+# 29. Pi and OMP require an explicit model
+for stack in pi omp; do
+  set +e
+  out=$(cd "$plainrun" && PATH="$stub:$PATH" "$runner" --agent "$stack" \
+    --file CLAUDE.md --task t 2>&1)
+  code=$?
+  set -e
+  [ "$code" -eq 2 ] || fail "$stack without model: exit $code, want 2"
+  printf '%s' "$out" | grep -qF "requires --model" ||
+    fail "$stack without model: missing model guidance"
+done
+
+# 30. a missing Pi or OMP binary keeps the runner's dependency exit code
+missing_bin=$tmp/missing-bin
+mkdir -p "$missing_bin"
+ln -s "$(command -v jq)" "$missing_bin/jq"
+for stack in pi omp; do
+  set +e
+  out=$(cd "$plainrun" && PATH="$missing_bin:/bin:/usr/bin" "$runner" \
+    --agent "$stack" --model test/model --file CLAUDE.md --task t 2>&1)
+  code=$?
+  set -e
+  [ "$code" -eq 3 ] || fail "missing $stack binary: exit $code, want 3"
+  printf '%s' "$out" | grep -qF "$stack CLI required (--agent $stack)" ||
+    fail "missing $stack binary: wrong guidance"
+done
+
+trial_project=$tmp/trial-project
+task_file=$tmp/trial-task.md
+mkdir -p "$trial_project"
+printf '%s\n' 'Inspect this synthetic project.' >"$task_file"
+
+# 31. OMP events normalize into the shared trace contract
+omp_trace=$tmp/omp-trace
+mkdir -p "$omp_trace"
+OMP_ARGS_FILE=$tmp/omp-args PATH="$stub:$PATH" \
+  "$trial_runner" --agent omp --model test/omp-model \
+  --dir "$trial_project" --task-file "$task_file" --trace-dir "$omp_trace"
+[ -f "$omp_trace/omp-raw.jsonl" ] || fail "OMP raw trace missing"
+grep -qF '"command":"printf ok"' "$omp_trace/trace.jsonl" ||
+  fail "OMP command not normalized"
+grep -qF '"file_path":"AGENTS.md"' "$omp_trace/trace.jsonl" ||
+  fail "OMP path not normalized"
+grep -qF '"result":"OMP done"' "$omp_trace/trace.jsonl" ||
+  fail "OMP final answer not normalized"
+for arg in -p --mode json --no-session --no-title --approval-mode yolo \
+  test/omp-model read,bash,grep,glob; do
+  grep -qxF -- "$arg" "$tmp/omp-args" || fail "OMP argument missing: $arg"
+done
+
+# 32. Pi uses its own flags and the same canonical trace contract
+pi_trace=$tmp/pi-trace
+mkdir -p "$pi_trace"
+PI_ARGS_FILE=$tmp/pi-args PI_ENV_FILE=$tmp/pi-env PATH="$stub:$PATH" \
+  "$trial_runner" --agent pi --model test/pi-model \
+  --dir "$trial_project" --task-file "$task_file" --trace-dir "$pi_trace"
+[ -f "$pi_trace/pi-raw.jsonl" ] || fail "Pi raw trace missing"
+grep -qF '"command":"printf ok"' "$pi_trace/trace.jsonl" ||
+  fail "Pi command not normalized"
+grep -qF '"file_path":"AGENTS.md"' "$pi_trace/trace.jsonl" ||
+  fail "Pi path not normalized"
+grep -qF '"result":"Pi done"' "$pi_trace/trace.jsonl" ||
+  fail "Pi final answer not normalized"
+for arg in -p --mode json --no-session test/pi-model read,bash,grep,find,ls; do
+  grep -qxF -- "$arg" "$tmp/pi-args" || fail "Pi argument missing: $arg"
+done
+if grep -qxF -- '--no-title' "$tmp/pi-args" ||
+  grep -qxF -- '--approval-mode' "$tmp/pi-args"; then
+  fail "Pi received OMP-only flags"
+fi
+grep -qxF '1' "$tmp/pi-env" || fail "Pi version check was not disabled"
+grep -qxF '0' "$tmp/pi-env" || fail "Pi telemetry was not disabled"
+
+# 33. missing final text remains visible to the grader as BLOCKED
+for stack in pi omp; do
+  no_final=$tmp/$stack-no-final
+  mkdir -p "$no_final"
+  if [ "$stack" = pi ]; then
+    PI_ARGS_FILE=$tmp/pi-no-final-args PI_ENV_FILE=$tmp/pi-no-final-env \
+      NO_FINAL=1 PATH="$stub:$PATH" \
+      "$trial_runner" --agent pi --model test/pi-model \
+      --dir "$trial_project" --task-file "$task_file" --trace-dir "$no_final"
+  else
+    OMP_ARGS_FILE=$tmp/omp-no-final-args NO_FINAL=1 PATH="$stub:$PATH" \
+      "$trial_runner" --agent omp --model test/omp-model \
+      --dir "$trial_project" --task-file "$task_file" --trace-dir "$no_final"
+  fi
+  if jq -e -s '[.[] | select(.type == "result"
+                               and ((.result // "") | length > 0))]
+                | length > 0' "$no_final/trace.jsonl" >/dev/null; then
+    fail "$stack missing final answer did not become BLOCKED"
+  fi
+done
 
 echo "ok — all hook self-checks passed"

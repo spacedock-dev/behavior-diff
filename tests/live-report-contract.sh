@@ -14,6 +14,7 @@ renderer=$here/../plugin/skills/behavior-diff/scripts/render.py
 decisions=$here/../plugin/skills/behavior-diff/scripts/decisions.py
 claude_manifest=$here/../plugin/.claude-plugin/plugin.json
 codex_manifest=$here/../plugin/.codex-plugin/plugin.json
+readme=$here/../README.md
 
 require_output() {
   grep -qF -- "$1" "$2" || fail "$3"
@@ -139,6 +140,26 @@ reject_output 'capsule' "$skill" \
 reject_output 'capsule' "$spacedock_reference" \
   'Spacedock reference still uses the unexplained capsule term'
 require_fixed() { grep -qF -- "$1" "$skill" || fail "$2"; }
+require_output 'The skill owns judgment.' "$headless_skill" \
+  'headless skill does not state its judgment ownership'
+require_output 'The scripts own repeatable mechanics.' "$headless_skill" \
+  'headless skill does not state script ownership'
+require_output '--agent pi' "$headless_skill" \
+  'headless skill does not name the Pi trial stack'
+require_output '<exact-current-pi-model>' "$headless_skill" \
+  'headless skill does not require the exact Pi model'
+require_output '--agent omp' "$headless_skill" \
+  'headless skill does not name the OMP trial stack'
+require_output '<exact-current-omp-model>' "$headless_skill" \
+  'headless skill does not require the exact OMP model'
+require_output 'Pi has no built-in subagent dispatch.' "$skill" \
+  'live skill invents a built-in Pi dispatch path'
+require_output 'one `task` batch' "$skill" \
+  'live skill does not use one OMP task batch'
+require_output 'Results return to the parent automatically.' "$skill" \
+  'live skill does not explain OMP result delivery'
+require_output 'Pi and OMP are trial stacks, not plugin hosts' "$readme" \
+  'README does not separate trial stacks from plugin hosts'
 require_output 'Run it as soon as the task is known.' "$headless_skill" \
   'headless skill does not start the default run immediately'
 require_output 'Only add `--fast` when the user explicitly requested it' \
