@@ -2,13 +2,13 @@
 """Decision diff for a Behavior Diff run. It shows what agents CHOSE, not
 what they typed.
 
-Usage: decisions.py RUN_DIR [--agent codex|claude] [--model NAME]
+Usage: decisions.py RUN_DIR [--agent codex|claude|pi|omp] [--model NAME]
        decisions.py RUN_DIR --emit-prompt
        decisions.py RUN_DIR --ingest FILE [--extractor-label LABEL]
 
 Defaults: codex with gpt-5.6-terra when the codex CLI is present, else
-claude -p with sonnet. --agent pins one extractor (no cross-fallback);
---model overrides that agent's default model.
+claude -p with sonnet. --agent pins one extractor (no cross-fallback).
+Pi and OMP require --model; --model overrides the Claude or Codex default.
 
 --emit-prompt prints the extraction prompt so a caller can run the model
 call itself (the live skill hands it to an in-session subagent);
@@ -36,6 +36,7 @@ against whatever the author hoped the rule would do.
 """
 
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -330,18 +331,66 @@ def _claude(prompt, model):
     return proc.stdout if proc.returncode == 0 else None
 
 
+def _pi(prompt, model):
+    proc = subprocess.run(
+        [
+            "pi",
+            "-p",
+            "--no-tools",
+            "--no-session",
+            "--model",
+            model,
+        ],
+        input=prompt,
+        capture_output=True,
+        text=True,
+        env={
+            **os.environ,
+            "PI_SKIP_VERSION_CHECK": "1",
+            "PI_TELEMETRY": "0",
+        },
+    )
+    return proc.stdout if proc.returncode == 0 else None
+
+
+def _omp(prompt, model):
+    proc = subprocess.run(
+        [
+            "omp",
+            "-p",
+            "--no-tools",
+            "--no-session",
+            "--no-title",
+            "--model",
+            model,
+        ],
+        input=prompt,
+        capture_output=True,
+        text=True,
+    )
+    return proc.stdout if proc.returncode == 0 else None
+
+
 def run_extractor(prompt, agent=None, model=None):
-    """Run the decision extractor. agent=None tries codex first (default
-    gpt-5.6-terra), then claude (default sonnet); an explicit agent pins
-    that extractor with no cross-fallback. Returns (label, text|None)."""
-    runners = {"codex": _codex, "claude": _claude}
+    """Run the decision extractor. With no agent, try Codex and then Claude.
+    An explicit agent pins one extractor with no cross-fallback. Pi and OMP
+    require an explicit model. Returns (label, text|None)."""
+    runners = {
+        "codex": _codex,
+        "claude": _claude,
+        "pi": _pi,
+        "omp": _omp,
+    }
     order = [agent] if agent else ["codex", "claude"]
     for a in order:
         if not shutil.which(a):
             if agent:
                 print(f"decision diff: {a} CLI not found")
             continue
-        m = model or DEFAULT_MODEL[a]
+        m = model or DEFAULT_MODEL.get(a)
+        if not m:
+            print(f"decision diff: {a} requires --model")
+            return "none", None
         answer = runners[a](prompt, m)
         if answer is not None:
             return f"{a}:{m}", answer
@@ -500,9 +549,12 @@ def self_check():
     # ---- emit/ingest modes over a synthetic run dir ----
     me = Path(__file__).resolve()
 
-    def cli(*argv):
+    def cli(*argv, env=None):
         return subprocess.run(
-            [sys.executable, str(me), *argv], capture_output=True, text=True
+            [sys.executable, str(me), *argv],
+            capture_output=True,
+            text=True,
+            env=env,
         )
 
     with tempfile.TemporaryDirectory() as td:
@@ -695,6 +747,72 @@ def self_check():
         assert data["extractor"] == "subagent:sonnet", data
         assert data["counts"] == {"before": 1, "after": 1}, data
 
+        progress("Validate pinned Pi and OMP extractors")
+        fake_bin = Path(td) / "bin"
+        fake_bin.mkdir()
+        fake_extractor = """#!/usr/bin/env python3
+import os
+import sys
+from pathlib import Path
+
+name = Path(sys.argv[0]).name.upper()
+Path(os.environ[f"{name}_ARGS_FILE"]).write_text("\\n".join(sys.argv[1:]) + "\\n")
+if name == "PI":
+    Path(os.environ["PI_ENV_FILE"]).write_text(
+        os.environ.get("PI_SKIP_VERSION_CHECK", "")
+        + "\\n"
+        + os.environ.get("PI_TELEMETRY", "")
+        + "\\n"
+    )
+sys.stdin.read()
+print(os.environ["EXTRACTOR_REPLY"])
+"""
+        for binary in ("pi", "omp"):
+            path = fake_bin / binary
+            path.write_text(fake_extractor)
+            path.chmod(0o755)
+        extractor_reply = json.dumps(
+            {
+                "chain": [
+                    {
+                        "decision": "Which result?",
+                        "anchor": "answer",
+                        "before": [{"choice": "before", "n": 1}],
+                        "after": [{"choice": "after", "n": 1}],
+                        "diverges": True,
+                    }
+                ],
+                "fork": 1,
+                "fork_note": "result",
+            }
+        )
+        fake_env = {
+            **os.environ,
+            "PATH": f"{fake_bin}{os.pathsep}{os.environ['PATH']}",
+            "EXTRACTOR_REPLY": extractor_reply,
+            "PI_ARGS_FILE": str(Path(td) / "pi-args"),
+            "OMP_ARGS_FILE": str(Path(td) / "omp-args"),
+            "PI_ENV_FILE": str(Path(td) / "pi-env"),
+        }
+        for stack, model in (("pi", "test/pi-model"), ("omp", "test/omp-model")):
+            (run / "decisions.json").unlink(missing_ok=True)
+            p = cli(
+                str(run),
+                "--agent",
+                stack,
+                "--model",
+                model,
+                env=fake_env,
+            )
+            assert p.returncode == 0, p.stdout + p.stderr
+            data = json.loads((run / "decisions.json").read_text())
+            assert data["extractor"] == f"{stack}:{model}", data
+            args = (Path(td) / f"{stack}-args").read_text().splitlines()
+            assert "--no-tools" in args, args
+            assert model in args, args
+            assert ("--no-title" in args) == (stack == "omp"), args
+        assert (Path(td) / "pi-env").read_text().splitlines() == ["1", "0"]
+
         progress("Reject incomplete trial sets")
 
         # a side without a finished trial flips emit to a nonzero exit
@@ -733,11 +851,11 @@ if __name__ == "__main__":
                 run_dir = args[i]
                 i += 1
         usage = (
-            "usage: decisions.py RUN_DIR [--agent codex|claude] "
+            "usage: decisions.py RUN_DIR [--agent codex|claude|pi|omp] "
             "[--model NAME] | RUN_DIR --emit-prompt | "
             "RUN_DIR --ingest FILE [--extractor-label LABEL]"
         )
-        if not run_dir or (agent and agent not in ("codex", "claude")):
+        if not run_dir or (agent and agent not in ("codex", "claude", "pi", "omp")):
             sys.exit(usage)
         # the new modes never touch a CLI extractor, so --agent/--model
         # cannot combine with them; emit and ingest are mutually exclusive
