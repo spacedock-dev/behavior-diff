@@ -58,13 +58,13 @@ jobs:
         run: |
           set -euo pipefail
           test -n "$MARKETPLACE_DEPLOY_KEY"
+          umask 077
 
           MARKETPLACE=$RUNNER_TEMP/marketplace
           SSH_DIR=$RUNNER_TEMP/marketplace-ssh
           install -d -m 700 "$SSH_DIR"
           trap 'rm -rf "$SSH_DIR"' EXIT
           printf '%s\n' "$MARKETPLACE_DEPLOY_KEY" >"$SSH_DIR/key"
-          chmod 600 "$SSH_DIR/key"
           curl --fail --silent --show-error https://api.github.com/meta |
             jq -r '.ssh_keys[] | "github.com " + .' >"$SSH_DIR/known_hosts"
           test -s "$SSH_DIR/known_hosts"
