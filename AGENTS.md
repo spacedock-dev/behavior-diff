@@ -64,6 +64,7 @@ For the full deterministic suite, run:
 bash tests/hooks-test.sh
 python3 plugin/skills/behavior-diff/scripts/decisions.py --check
 bash tests/live-report-contract.sh
+bash tests/release-workflow-test.sh
 ```
 
 For Markdown-only changes, also run `git diff --check`. Do not replace these

@@ -262,7 +262,7 @@ require_literal 'workflow_call:' "$ci_workflow" \
   'CI is not reusable from the release workflow'
 require_literal 'types: [published]' "$release_workflow" \
   'release workflow does not use the published event'
-require_literal 'if: ${{ !github.event.release.prerelease }}' \
+require_literal "if: \${{ !github.event.release.prerelease }}" \
   "$release_workflow" 'release workflow does not skip prereleases'
 require_literal 'uses: ./.github/workflows/ci.yml' "$release_workflow" \
   'release workflow does not reuse deterministic CI'
@@ -274,9 +274,9 @@ require_literal 'plugin/.codex-plugin/plugin.json' "$release_workflow" \
   'release workflow does not validate the Codex manifest'
 require_literal 'git merge-base --is-ancestor HEAD origin/main' \
   "$release_workflow" 'release workflow does not require a main commit'
-require_literal 'MARKETPLACE_DEPLOY_KEY: ${{ secrets.MARKETPLACE_DEPLOY_KEY }}' \
+require_literal "MARKETPLACE_DEPLOY_KEY: \${{ secrets.MARKETPLACE_DEPLOY_KEY }}" \
   "$release_workflow" 'release workflow does not use the deploy-key secret'
-require_literal 'update-marketplace.sh "$INDEX" "$VERSION"' \
+require_literal "update-marketplace.sh\" \"\$INDEX\" \"\$VERSION\"" \
   "$release_workflow" 'release workflow does not call the tested updater'
 ```
 

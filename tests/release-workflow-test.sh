@@ -3,12 +3,21 @@ set -euo pipefail
 
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 updater=$here/../.github/scripts/update-marketplace.sh
+release_workflow=$here/../.github/workflows/release.yml
+ci_workflow=$here/../.github/workflows/ci.yml
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 
 fail() {
   printf 'FAIL: %s\n' "$1" >&2
   exit 1
+}
+
+require_literal() {
+  local literal=$1
+  local file=$2
+  local message=$3
+  grep -Fq -- "$literal" "$file" || fail "$message"
 }
 
 make_index() {
@@ -81,5 +90,27 @@ mv "$tmp/duplicate.tmp" "$tmp/duplicate.json"
 if "$updater" "$tmp/duplicate.json" 0.3.2 >/dev/null 2>&1; then
   fail 'updater accepted duplicate Behavior Diff entries'
 fi
+
+printf '[release] Keep GitHub Release and security invariants\n'
+require_literal 'workflow_call:' "$ci_workflow" \
+  'CI is not reusable from the release workflow'
+require_literal 'types: [published]' "$release_workflow" \
+  'release workflow does not use the published event'
+require_literal "if: \${{ !github.event.release.prerelease }}" \
+  "$release_workflow" 'release workflow does not skip prereleases'
+require_literal 'uses: ./.github/workflows/ci.yml' "$release_workflow" \
+  'release workflow does not reuse deterministic CI'
+require_literal 'needs: ci' "$release_workflow" \
+  'marketplace update is not gated by CI'
+require_literal 'plugin/.claude-plugin/plugin.json' "$release_workflow" \
+  'release workflow does not validate the Claude manifest'
+require_literal 'plugin/.codex-plugin/plugin.json' "$release_workflow" \
+  'release workflow does not validate the Codex manifest'
+require_literal 'git merge-base --is-ancestor HEAD origin/main' \
+  "$release_workflow" 'release workflow does not require a main commit'
+require_literal "MARKETPLACE_DEPLOY_KEY: \${{ secrets.MARKETPLACE_DEPLOY_KEY }}" \
+  "$release_workflow" 'release workflow does not use the deploy-key secret'
+require_literal "update-marketplace.sh\" \"\$INDEX\" \"\$VERSION\"" \
+  "$release_workflow" 'release workflow does not call the tested updater'
 
 printf 'ok — release workflow contract passed\n'

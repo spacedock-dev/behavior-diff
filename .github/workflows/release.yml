@@ -1,0 +1,87 @@
+name: Release
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    if: ${{ !github.event.release.prerelease }}
+    uses: ./.github/workflows/ci.yml
+
+  marketplace:
+    if: ${{ !github.event.release.prerelease }}
+    needs: ci
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out released tag
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.release.tag_name }}
+          fetch-depth: 0
+
+      - name: Validate release
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          set -euo pipefail
+          if ! [[ $RELEASE_TAG =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+            printf 'stable release tag must use vX.Y.Z: %s\n' "$RELEASE_TAG" >&2
+            exit 1
+          fi
+
+          VERSION=${RELEASE_TAG#v}
+          CLAUDE_VERSION=$(jq -r '.version' plugin/.claude-plugin/plugin.json)
+          CODEX_VERSION=$(jq -r '.version' plugin/.codex-plugin/plugin.json)
+          if [[ $CLAUDE_VERSION != "$VERSION" || $CODEX_VERSION != "$VERSION" ]]; then
+            printf 'release %s does not match plugin manifests (%s, %s)\n' \
+              "$VERSION" "$CLAUDE_VERSION" "$CODEX_VERSION" >&2
+            exit 1
+          fi
+
+          git fetch origin \
+            '+refs/heads/main:refs/remotes/origin/main'
+          if ! git merge-base --is-ancestor HEAD origin/main; then
+            printf 'released commit is not on main: %s\n' "$RELEASE_TAG" >&2
+            exit 1
+          fi
+
+          printf 'VERSION=%s\n' "$VERSION" >>"$GITHUB_ENV"
+
+      - name: Publish marketplace entry
+        env:
+          MARKETPLACE_DEPLOY_KEY: ${{ secrets.MARKETPLACE_DEPLOY_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "$MARKETPLACE_DEPLOY_KEY"
+
+          MARKETPLACE=$RUNNER_TEMP/marketplace
+          SSH_DIR=$RUNNER_TEMP/marketplace-ssh
+          install -d -m 700 "$SSH_DIR"
+          trap 'rm -rf "$SSH_DIR"' EXIT
+          printf '%s\n' "$MARKETPLACE_DEPLOY_KEY" >"$SSH_DIR/key"
+          chmod 600 "$SSH_DIR/key"
+          curl --fail --silent --show-error https://api.github.com/meta |
+            jq -r '.ssh_keys[] | "github.com " + .' >"$SSH_DIR/known_hosts"
+          test -s "$SSH_DIR/known_hosts"
+          export GIT_SSH_COMMAND="ssh -i $SSH_DIR/key -o IdentitiesOnly=yes -o IdentityAgent=none -o StrictHostKeyChecking=yes -o UserKnownHostsFile=$SSH_DIR/known_hosts"
+
+          git clone --depth 1 git@github.com:spacedock-dev/marketplace.git "$MARKETPLACE"
+          INDEX=$MARKETPLACE/.claude-plugin/marketplace.json
+          "$GITHUB_WORKSPACE/.github/scripts/update-marketplace.sh" "$INDEX" "$VERSION"
+          git -C "$MARKETPLACE" diff --check
+          if git -C "$MARKETPLACE" diff --quiet -- .claude-plugin/marketplace.json; then
+            printf 'marketplace already publishes Behavior Diff %s\n' "$VERSION"
+            exit 0
+          fi
+
+          git -C "$MARKETPLACE" add -- .claude-plugin/marketplace.json
+          git -C "$MARKETPLACE" \
+            -c user.name=github-actions \
+            -c user.email=actions@github.com \
+            commit --signoff -m "behavior-diff $VERSION"
+          git -C "$MARKETPLACE" push origin HEAD:main
