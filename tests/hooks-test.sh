@@ -24,6 +24,11 @@ fail() {
   echo "FAIL: $1"
   exit 1
 }
+progress() {
+  printf '[hooks] %s\n' "$1"
+}
+
+progress 'Claude edit detection, deduplication, and reminders'
 
 # 1. first CLAUDE.md edit: recorded, and the agent whisper is emitted
 out=$(payload s1 /proj/CLAUDE.md | "$detect")
@@ -98,6 +103,8 @@ codex_payload() { # session patch-body cwd
 }
 patch_agents=$'*** Begin Patch\n*** Update File: AGENTS.md\n@@\n-a\n+b\n*** End Patch'
 
+progress 'Codex apply_patch path detection and reminders'
+
 # 11. AC-1: an apply_patch updating AGENTS.md records the cwd-joined absolute
 #     path exactly once and whispers once
 out=$(codex_payload c1 "$patch_agents" /work | "$detect")
@@ -144,6 +151,8 @@ baselines=$BEHAVIOR_DIFF_HOME/baselines
 enc_of() { printf '%s' "$1" | sed 's|%|%25|g; s|/|%2F|g'; }
 nentries() { find "$1" -mindepth 1 -maxdepth 1 -type f ! -name '.*' | wc -l; }
 real=$(cd "$tmp" && pwd -P) # the hook canonicalizes /var -> /private/var
+
+progress 'Baseline backup, deduplication, and failure guards'
 
 # 15. AC-1 case A: untracked file — the pre-edit content lands in the store
 mkdir -p "$real/plain"
@@ -198,6 +207,8 @@ printf '#!/bin/sh\nexit 0\n' >"$stub/claude" && chmod +x "$stub/claude"
 plainrun=$real/plainrun && mkdir -p "$plainrun"
 printf 'x\n' >"$plainrun/CLAUDE.md"
 
+progress 'Runner baseline resolution and early-stop errors'
+
 # 21. --before-file that does not exist is a plain exit 2
 set +e
 out=$(cd "$plainrun" && PATH="$stub:$PATH" "$runner" --file CLAUDE.md --task t \
@@ -237,6 +248,8 @@ set -e
 [ "$code" -eq 2 ] || fail "resolved-baseline equal content: exit $code, want 2"
 printf '%s' "$out" | grep -q "matches the before content" ||
   fail "baseline auto-resolve did not find the hook's copy"
+
+progress 'Copy-size and unreadable-directory safety guards'
 
 # 25. copy-world size guard: a folder over the cap is refused before any
 #     run dir exists (fails if the guard is removed)

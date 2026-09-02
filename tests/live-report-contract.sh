@@ -73,6 +73,11 @@ fail() {
   printf 'FAIL: %s\n' "$1" >&2
   exit 1
 }
+progress() {
+  printf '[report] %s\n' "$1"
+}
+
+progress 'Validate manifests and live-skill reporting contract'
 require_fixed() { grep -qF -- "$1" "$skill" || fail "$2"; }
 [[ $(jq -r '.version' "$claude_manifest") == 0.3.1 ]] ||
   fail 'Claude manifest version is not 0.3.1'
@@ -126,6 +131,8 @@ open_line=${open_match%%:*}
 ((render_line <= open_line)) ||
   fail 'render must not follow open'
 
+progress 'Build captured and self-reported decision prompts'
+
 self_run=$tmp/self-reported
 captured_run=$tmp/captured
 build_run "$self_run" self-reported
@@ -166,6 +173,8 @@ require_output \
 reject_output 'A decision is not an action' "$captured_prompt" \
   'captured prompt uses self-reported action wording'
 
+progress 'Render captured and self-reported reports'
+
 python3 "$renderer" "$self_run" "$self_run" contract \
   "$self_run/config.json" >/dev/null
 python3 "$renderer" "$captured_run" "$captured_run" contract \
@@ -173,6 +182,8 @@ python3 "$renderer" "$captured_run" "$captured_run" contract \
 
 read_action='Read: AGENTS.md'
 test_action='Test: bash behavior-diff/tests/live-report-contract.sh'
+
+progress 'Validate self-reported wording, escaping, and action order'
 
 for report in "$self_run/report.md" "$self_run/report.html"; do
   require_output 'self-reported actions' "$report" \
@@ -227,6 +238,8 @@ for report in "$self_run/report.md" "$self_run/report.html"; do
     "self-reported actions are not preserved in order: $report"
 done
 
+progress 'Validate captured flow, labels, and command order'
+
 for report in "$captured_run/report.md" "$captured_run/report.html"; do
   require_output 'actual commands' "$report" \
     "captured report lost its actual commands wording: $report"
@@ -277,6 +290,8 @@ for report in "$captured_run/report.md" "$captured_run/report.html"; do
   require_order_after "$after_marker" "$read_action" "$test_action" "$report" \
     "captured commands are not preserved in order: $report"
 done
+
+progress 'Reject invalid provenance and malformed configuration'
 
 printf '%s\n' '{"trace_source":"invented"}' >"$tmp/invalid-config.json"
 if python3 "$renderer" "$captured_run" "$captured_run" contract \

@@ -436,6 +436,10 @@ def ingest(run, reply_file, label):
 
 
 def self_check():
+    def progress(message):
+        print(f"[decisions] {message}", flush=True)
+
+    progress("Normalize decision rows and parse extractor JSON")
     counts = {"before": 3, "after": 3}
     good = {
         "chain": [
@@ -491,6 +495,8 @@ def self_check():
         "fork_note": "",
     }
 
+    progress("Build synthetic before and after traces")
+
     # ---- emit/ingest modes over a synthetic run dir ----
     me = Path(__file__).resolve()
 
@@ -531,6 +537,8 @@ def self_check():
                 + json.dumps({"type": "result", "result": ans})
                 + "\n"
             )
+
+        progress("Validate trace provenance and prompt wording")
 
         # A missing config file or trace_source key defaults to captured.
         captured = "The numbered entries come from captured tool calls."
@@ -593,6 +601,8 @@ def self_check():
         assert sentinel not in p.stdout
         assert str(run) not in p.stdout
 
+        progress("Validate CLI errors and failed extraction fallback")
+
         # new modes reject the CLI-extractor flags
         bad = cli(str(run), "--emit-prompt", "--agent", "codex")
         assert bad.returncode != 0 and "usage:" in bad.stderr, bad
@@ -654,6 +664,8 @@ def self_check():
         assert no_decision_result in page
         assert normal_result not in page
 
+        progress("Validate successful decision ingestion")
+
         # well-formed reply lands on disk in the unchanged schema
         reply = run / "reply-good.txt"
         reply.write_text(
@@ -682,6 +694,8 @@ def self_check():
         assert len(data["chain"]) == 1, data
         assert data["extractor"] == "subagent:sonnet", data
         assert data["counts"] == {"before": 1, "after": 1}, data
+
+        progress("Reject incomplete trial sets")
 
         # a side without a finished trial flips emit to a nonzero exit
         (run / "after-1" / "trace.jsonl").unlink()

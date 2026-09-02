@@ -78,11 +78,11 @@ jobs:
             plugin/skills/behavior-diff/scripts/decisions.py \
             plugin/skills/behavior-diff/scripts/render.py
 
-      - name: Unit check 1/3 — Hooks
+      - name: Run hook unit checks
         run: bash tests/hooks-test.sh
 
-      - name: Unit check 2/3 — Decisions
+      - name: Run decision unit check
         run: python3 plugin/skills/behavior-diff/scripts/decisions.py --check
 
-      - name: Unit check 3/3 — Report contract
+      - name: Run report contract checks
         run: bash tests/live-report-contract.sh
