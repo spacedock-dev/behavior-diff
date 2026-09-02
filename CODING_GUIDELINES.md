@@ -141,11 +141,13 @@ docker run --rm -v "$PWD:/mnt" -w /mnt \
   mvdan/shfmt:v3.14.0 -d -i 2 -ci .
 uvx ruff@0.16.5 format --check --diff .
 bash -n \
+  .github/scripts/*.sh \
   bin/behavior-diff \
   plugin/scripts/*.sh \
   plugin/skills/behavior-diff/scripts/*.sh \
   tests/*.sh
 shellcheck \
+  .github/scripts/*.sh \
   bin/behavior-diff \
   plugin/scripts/*.sh \
   plugin/skills/behavior-diff/scripts/*.sh \
@@ -156,6 +158,7 @@ python3 -m py_compile \
 bash tests/hooks-test.sh
 python3 plugin/skills/behavior-diff/scripts/decisions.py --check
 bash tests/live-report-contract.sh
+bash tests/release-workflow-test.sh
 git diff --check
 ```
 

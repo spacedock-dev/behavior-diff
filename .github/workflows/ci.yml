@@ -1,6 +1,7 @@
 name: CI
 
 on:
+  workflow_call:
   pull_request:
   push:
     branches:
@@ -67,6 +68,7 @@ jobs:
       - name: Check shell syntax
         run: |
           bash -n \
+            .github/scripts/*.sh \
             bin/behavior-diff \
             plugin/scripts/*.sh \
             plugin/skills/behavior-diff/scripts/*.sh \
@@ -86,3 +88,6 @@ jobs:
 
       - name: Run report contract checks
         run: bash tests/live-report-contract.sh
+
+      - name: Run release workflow checks
+        run: bash tests/release-workflow-test.sh
