@@ -158,6 +158,10 @@ require_output 'one `task` batch' "$skill" \
   'live skill does not use one OMP task batch'
 require_output 'Results return to the parent automatically.' "$skill" \
   'live skill does not explain OMP result delivery'
+require_output 'claude, codex, pi, or omp' "$claude_manifest" \
+  'Claude manifest does not name all trial stacks'
+require_output 'claude, codex, pi, or omp' "$codex_manifest" \
+  'Codex manifest does not name all trial stacks'
 require_output 'Pi and OMP are trial stacks, not plugin hosts' "$readme" \
   'README does not separate trial stacks from plugin hosts'
 require_output 'Run it as soon as the task is known.' "$headless_skill" \

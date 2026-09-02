@@ -42,8 +42,17 @@ Use Behavior Diff when you:
 
 ## Install
 
-Behavior Diff supports Claude Code and Codex. The commands below install the
-public marketplace release.
+Behavior Diff installs as a plugin on Claude Code and Codex. The commands below
+install the public marketplace release.
+
+Pi and OMP are trial stacks, not plugin hosts in this change. Run their
+headless trials from a Behavior Diff source checkout and pass an exact model.
+
+| Surface | Claude Code | Codex | Pi | OMP |
+| --- | --- | --- | --- | --- |
+| Marketplace plugin install | Yes | Yes | No | No |
+| Headless trial stack | Yes | Yes | Yes, with `--model` | Yes, with `--model` |
+| Live trial dispatch | Parallel subagents | Fresh sequential contexts or headless | No built-in dispatch. Use headless. | One parallel `task` batch |
 
 ### Claude Code
 
