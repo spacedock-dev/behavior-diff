@@ -10,12 +10,24 @@ fresh headless agent trials with and without the change. The report shows the
 git diff, a flow diff, and every trial's commands and final answer. There is
 no automatic verdict. The user judges the evidence.
 
+## Ownership
+
+The skill owns judgment. It finds the change, drafts the decision-moment task,
+selects the current trial stack and model, and explains the evidence.
+
+The scripts own repeatable mechanics. They build variants, run trials,
+normalize traces, grade completeness, extract decisions, and render the report.
+
 The runner is bundled with this skill: `scripts/behavior-diff.sh` inside
-this skill's base directory. Pass `--agent` to match the agent running
-this skill — `claude` under Claude Code, `codex` under Codex; you know
-which one you are. Trials then run on that stack (model defaults:
-sonnet for claude, gpt-5.6-terra for codex; override with `--model`). Your job is to prepare its two parameters —
-`--file` and `--task` — well. Runs land under
+this skill's base directory. Pass `--agent` for the stack under test:
+
+- Claude Code: `--agent claude`. The model defaults to sonnet.
+- Codex: `--agent codex`. The model defaults to gpt-5.6-terra.
+- Upstream Pi: `--agent pi --model <exact-current-pi-model>`.
+- OMP: `--agent omp --model <exact-current-omp-model>`.
+
+Never omit the Pi or OMP model. A user-specific default can test a different
+agent. Your job is to prepare `--file` and `--task` well. Runs land under
 `${BEHAVIOR_DIFF_HOME:-~/.behavior-diff}/runs/`.
 
 
@@ -71,16 +83,26 @@ the single-role or two-agent path. Create the fixtures with
 
 3. **Run it as soon as the task is known.** Do not ask the user to confirm
    the file, task, cost, or run mode. Do not mention trial counts, cost, or
-   full versus fast modes during normal execution. Preserve the current stack
-   by passing `claude` under Claude Code or `codex` under Codex, then start the
-   runner from the repo root in the background:
+   full versus fast modes during normal execution.
+
+   Under Claude Code or Codex, preserve the current stack:
 
        behavior-diff.sh --agent <current-host> --file <file> --task "<task>"
+
+   Under upstream Pi, preserve the exact current model:
+
+       behavior-diff.sh --agent pi --model <exact-current-pi-model> --file <file> --task "<task>"
+
+   Under OMP, preserve the exact current model:
+
+       behavior-diff.sh --agent omp --model <exact-current-omp-model> --file <file> --task "<task>"
 
    Only add `--fast` when the user explicitly requested it in the current
    request with `fast`, `--fast`, `two runs`, or `one trial per side`:
 
        behavior-diff.sh --agent <current-host> --file <file> --task "<task>" --fast
+
+   For Pi or OMP, append `--fast` to its model-pinned command.
 
 4. **Present the result.** The runner already opened `report.html` itself — do NOT open it again (that produces a duplicate tab); just summarize.
    Summarize the flow diff honestly:
