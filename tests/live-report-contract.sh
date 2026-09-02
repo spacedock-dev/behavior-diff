@@ -119,7 +119,9 @@ reject_output 'The rule is meant to affect this later request.' \
   "$nudge_script" \
   'nudge setup prompt still inlines the later task into the edit turn'
 require_output 'take that session out of auto mode' "$nudge_script" \
-  'nudge setup does not tell the operator to leave auto mode'
+  'nudge setup does not tell the claude operator to leave auto mode'
+require_output 'no mode to turn off here' "$nudge_script" \
+  'nudge setup has no codex counterpart for the auto-mode precaution'
 require_output 'Run behavior-diff with this exact task:' "$nudge_script" \
   'nudge setup does not accept behavior-diff with the exact task'
 reject_output 'At its run gate' "$nudge_script" \
@@ -133,6 +135,10 @@ expected_task=$(sed 's/^/       /' \
   "$here/../e2e/demo-ascii-response/task.md")
 edit_section=$(sed -n \
   '/2\. Journey A/,/Expect the agent to ask/p' "$nudge_setup")
+# A renamed heading would empty this range and pass the negative check below
+# without reading anything, so anchor it first.
+[[ -n $edit_section ]] ||
+  fail 'rendered edit-prompt section not found — range markers drifted'
 case $edit_section in
   *"$expected_task"*) fail 'rendered edit prompt still inlines the task' ;;
 esac

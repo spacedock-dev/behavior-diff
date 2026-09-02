@@ -82,10 +82,18 @@ both prefixed with `cd /tmp/nudge-e2e && BEHAVIOR_DIFF_HOME=/tmp/nudge-e2e-state
 Wait for the prompt to appear, then read the pane to confirm it says the
 hooks loaded.
 
-Then take the pane out of auto mode — `herdr pane send-keys "$NEW" shift+tab`,
-repeated until the footer reads manual mode — so nothing can accept the ask
-before your audience sees it. You will approve the rule-file edit by hand;
-that is one keypress, and it buys you the only beat this demo has.
+On **claude**, then take the pane out of auto mode —
+`herdr pane send-keys "$NEW" shift+tab`, repeated until the footer reads
+manual mode — so nothing can accept the ask before your audience sees it.
+You approve the rule-file edit yourself with
+`herdr pane send-keys "$NEW" enter`; that is one keypress, and it buys you
+the only beat this demo has.
+
+On **codex** there is no such mode and nothing to turn off — with no
+AskUserQuestion tool the ask arrives as a plain sentence you answer by
+typing. Check instead that the session may write the instruction file, or
+the edit never lands and the hook never fires. Step 1's output carries the
+line for whichever host you chose.
 
 **3. The edit.** Send the rule prompt from step 1's output. Never mention
 behavior-diff in it — if you do, the prompt caused the ask, not the hook,
@@ -197,8 +205,10 @@ the state directory the reports live in.
   `(plugin enabled?)` hint. Report the refusal as the result. Do not argue
   the agent into applying a rule it judged unsafe.
 
-- **The agent opened project records during the edit turn.** The fixture
-  guards against this and the payoff is spoiled once it does. Stop, say
+- **The agent opened project records during the edit turn.** The payoff is
+  spoiled once it does. `demo-invoice-review` and `demo-ascii-response`
+  forbid it in their own `AGENTS.md`; on `demo` and `demo-inbox-cleanup`
+  only the setup prompt does, so watch for it yourself there. Stop, say
   which records it read, and start again from a fresh sandbox.
 - **Escape stops the agent, not the shell it started.** If a run is already
   in flight, `ps aux | grep behavior-diff.sh`.
