@@ -82,6 +82,11 @@ both prefixed with `cd /tmp/nudge-e2e && BEHAVIOR_DIFF_HOME=/tmp/nudge-e2e-state
 Wait for the prompt to appear, then read the pane to confirm it says the
 hooks loaded.
 
+Then take the pane out of auto mode — `herdr pane send-keys "$NEW" shift+tab`,
+repeated until the footer reads manual mode — so nothing can accept the ask
+before your audience sees it. You will approve the rule-file edit by hand;
+that is one keypress, and it buys you the only beat this demo has.
+
 **3. The edit.** Send the rule prompt from step 1's output. Never mention
 behavior-diff in it — if you do, the prompt caused the ask, not the hook,
 and the demo is a lie. Narrate while it works: *nobody told it to run a
@@ -96,10 +101,14 @@ tool, so the whisper's fallback applies and the ask arrives as one plain
 sentence. Say which you expect before it happens, so a plain sentence does
 not read as a failure.
 
-The ask has been seen answered without anyone pressing a key. The setup
-prompt therefore includes the exact fixture task as a later request, while
-telling the agent not to answer it during the edit turn. If auto mode accepts
-the ask, the task is already in context.
+Auto mode has been seen accepting this ask without anyone pressing a key,
+which is why step 2 leaves the pane in manual mode. If something still
+answers before you do, that is not the agent's choice — note it and re-run
+from a fresh sandbox.
+
+The edit turn never carries the task, and you must not add it. Naming the
+task there invites the agent to work out what the rule would change, and to
+do that it opens the records the payoff depends on staying unread.
 
 Confirm the state behind the ask if you want the receipts:
 
@@ -116,6 +125,10 @@ option. Accept it with the exact scenario instead. For Claude, select
 The skill starts the comparison as soon as it has the task. There is no later
 run-count or task-confirmation gate. If the driven agent starts with a
 different task, interrupt it and stop: the demo contract failed.
+
+Once the run is under way, put the pane back in auto mode. The comparison
+makes dozens of tool calls, and in manual mode every one of them waits on a
+keypress. The ask has already happened, so auto mode costs you nothing now.
 
 **5. The payoff.** When the run finishes, read the pane and show the two
 results.
@@ -176,6 +189,17 @@ the state directory the reports live in.
 - **The agent did not ask.** That is a real result, not a bug to hide —
   say so, and note it as a data point on the ask rate. Do not re-prompt it
   into asking; that invalidates the demo.
+
+- **The agent refused to make the edit.** Seen on `demo-invoice-review`,
+  where the rule removes a duplicate-payment check: the agent called it a
+  fraud-control gap and left the file alone. No edit means no hook, so no
+  ask, and `check` reports `nothing recorded` with a misleading
+  `(plugin enabled?)` hint. Report the refusal as the result. Do not argue
+  the agent into applying a rule it judged unsafe.
+
+- **The agent opened project records during the edit turn.** The fixture
+  guards against this and the payoff is spoiled once it does. Stop, say
+  which records it read, and start again from a fresh sandbox.
 - **Escape stops the agent, not the shell it started.** If a run is already
   in flight, `ps aux | grep behavior-diff.sh`.
 - **A run starts with the wrong task.** Interrupt it immediately and stop.

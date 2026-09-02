@@ -115,9 +115,11 @@ reject_output 'choose `--fast`' "$demo_skill" \
   'demo journey still offers fast mode by default'
 reject_output 'states its cost' "$e2e_readme" \
   'e2e guide still expects a separate model-cost gate'
-require_output 'The rule is meant to affect this later request.' \
+reject_output 'The rule is meant to affect this later request.' \
   "$nudge_script" \
-  'nudge setup prompt does not carry the exact later task'
+  'nudge setup prompt still inlines the later task into the edit turn'
+require_output 'take that session out of auto mode' "$nudge_script" \
+  'nudge setup does not tell the operator to leave auto mode'
 require_output 'Run behavior-diff with this exact task:' "$nudge_script" \
   'nudge setup does not accept behavior-diff with the exact task'
 reject_output 'At its run gate' "$nudge_script" \
@@ -132,8 +134,7 @@ expected_task=$(sed 's/^/       /' \
 edit_section=$(sed -n \
   '/2\. Journey A/,/Expect the agent to ask/p' "$nudge_setup")
 case $edit_section in
-  *"$expected_task"*) ;;
-  *) fail 'rendered edit prompt does not include the full fixture task' ;;
+  *"$expected_task"*) fail 'rendered edit prompt still inlines the task' ;;
 esac
 accept_section=$(sed -n \
   '/To carry the journey into behavior-diff/,/3\. Assert/p' "$nudge_setup")
