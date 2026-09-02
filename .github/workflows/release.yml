@@ -21,7 +21,7 @@ jobs:
       - name: Check out released tag
         uses: actions/checkout@v5
         with:
-          ref: ${{ github.event.release.tag_name }}
+          ref: refs/tags/${{ github.event.release.tag_name }}
           fetch-depth: 0
 
       - name: Validate release

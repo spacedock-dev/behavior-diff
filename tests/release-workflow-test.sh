@@ -20,6 +20,15 @@ require_literal() {
   grep -Fq -- "$literal" "$file" || fail "$message"
 }
 
+reject_literal() {
+  local literal=$1
+  local file=$2
+  local message=$3
+  if grep -Fq -- "$literal" "$file"; then
+    fail "$message"
+  fi
+}
+
 make_index() {
   cat >"$1" <<'JSON'
 {
@@ -96,6 +105,8 @@ require_literal 'workflow_call:' "$ci_workflow" \
   'CI is not reusable from the release workflow'
 require_literal 'types: [published]' "$release_workflow" \
   'release workflow does not use the published event'
+require_literal "ref: refs/tags/\${{ github.event.release.tag_name }}" \
+  "$release_workflow" 'release workflow does not check out the tag namespace'
 require_literal "if: \${{ !github.event.release.prerelease }}" \
   "$release_workflow" 'release workflow does not skip prereleases'
 require_literal 'uses: ./.github/workflows/ci.yml' "$release_workflow" \
@@ -112,5 +123,13 @@ require_literal "MARKETPLACE_DEPLOY_KEY: \${{ secrets.MARKETPLACE_DEPLOY_KEY }}"
   "$release_workflow" 'release workflow does not use the deploy-key secret'
 require_literal "update-marketplace.sh\" \"\$INDEX\" \"\$VERSION\"" \
   "$release_workflow" 'release workflow does not call the tested updater'
+require_literal "git -C \"\$MARKETPLACE\" push origin HEAD:main" \
+  "$release_workflow" 'release workflow does not push marketplace main'
+reject_literal 'push --force' "$release_workflow" \
+  'release workflow allows a force push'
+reject_literal 'push -f' "$release_workflow" \
+  'release workflow allows a short force push'
+reject_literal 'force-with-lease' "$release_workflow" \
+  'release workflow allows a force-with-lease push'
 
 printf 'ok — release workflow contract passed\n'
