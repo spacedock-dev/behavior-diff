@@ -21,9 +21,13 @@ sonnet for claude, gpt-5.6-terra for codex; override with `--model`). Your job i
 
 **Spacedock workflow rule?** If the changed file is a spacedock workflow
 doc (the repo contains `cmd/spacedock`, or the user says spacedock / FO /
-ensign / gate), read `references/spacedock-duo.md` inside this skill's
-base directory before designing the run — it decides between the single-role path and
-the two-agent duo cycle, and forbids hand-built fixtures.
+ensign / gate), use Spacedock fixtures.
+Spacedock fixtures are isolated before/after test repos. The real Spacedock
+binary creates their workflow state. Do not create this state by editing files.
+Before designing the run, read
+`references/spacedock-duo.md` inside this skill's base directory. It chooses
+the single-role or two-agent path. Create the fixtures with
+`make-spacedock-fixtures.sh` from this skill's bundled `scripts/` directory.
 
 ## Steps
 

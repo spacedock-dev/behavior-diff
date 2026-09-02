@@ -9,7 +9,8 @@ need.
 
 - Fixture discovery must happen before experiment time: five error-by-error
   round trips against the spacedock binary burned most of an 80-minute run.
-  Recipe captured in that run's fixture-build.md; script it (make-capsule.sh).
+  Use `make-spacedock-fixtures.sh` instead of repeating the recipe from that
+  run's fixture-build.md.
 - A rule that governs a HANDOFF cannot be tested one side at a time —
   faking the other side's output is what kept breaking. Sequence rules need
   a two-agent harness comparing whole cycles.
@@ -38,7 +39,7 @@ need.
   cannot reproduce it. Fixture ACs must not cite it.
 - `skills/integration TestSurveyCodexPresenceThroughSync` is red at base
   commit 0eac880 — fixture ACs citing "all tests green" are instantly false.
-- An entity minted flat that later gains a gate room becomes a hybrid
+- An entity created as a flat file that later gains a gate room becomes a
   flat-plus-folder shape: `status --validate` exits 0 VALID but warns.
   Agents notice and chase it; keep fixtures in one shape.
 
