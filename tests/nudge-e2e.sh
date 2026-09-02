@@ -163,6 +163,9 @@ Sandbox ready: $repo   (state: $state)
 
        cd $repo && BEHAVIOR_DIFF_HOME=$state $session_cmd
 
+   Then take that session out of auto mode — shift+tab in Claude Code, until
+   the footer reads manual mode — so nothing can accept the ask for you.
+
    (NUDGE_E2E_AGENT=codex or NUDGE_E2E_MODEL=opus for another stack; the
    ask rate belongs to the agent, so it is worth measuring on each.)
 
@@ -177,17 +180,19 @@ $(if [[ -f $fixture_dir/edit-prompt.md ]]; then
     sed 's/^/       /' "$fixture_dir/rule.md"
   fi)
 
-       The rule is meant to affect this later request. Do not answer it in
-       this turn; only make the instruction-file edit above:
-
-$(sed 's/^/       /' "$fixture_dir/task.md")
+       Make only this instruction-file edit. Do not start any other work in
+       this turn, and do not open any project record.
 
    Expect the agent to ask, unprompted, whether to run behavior-diff.
 
-   Answer Skip and confirm no Stop line follows. The ask has been seen
-   answered without a keypress in a driven pane (cause unconfirmed), so if
-   something answers before you do, that is not the agent's choice — note
-   it and re-run.
+   The edit turn never carries the task. Naming it there invites the agent to
+   work out what the rule would change, which means opening the very records
+   the payoff depends on staying unread.
+
+   Answer Skip and confirm no Stop line follows. In auto mode the ask has
+   been seen answered without a keypress, which is why step 1 turns auto mode
+   off; if something still answers before you do, that is not the agent's
+   choice — note it and re-run.
 
    This step is model behavior, so run it a few times and record how often
    it asks.

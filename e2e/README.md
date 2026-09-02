@@ -143,10 +143,17 @@ Drive the rest the same way — `drop-whisper` between turns for Journey B,
 
 **The ask can get answered without you.** It has happened in a driven
 pane; the cause was never pinned down (auto mode, or a stray Enter landing
-on the prompt). The setup prompt now carries the exact later task while
-telling the agent not to answer it during the edit turn. If auto mode accepts
-the ask, check that the agent reused that task. A run against another scenario
-is invalid demo evidence; interrupt it and stop.
+on the prompt). Take the session out of auto mode before you send the rule
+prompt, and approve the rule-file edit by hand. A run against another
+scenario is invalid demo evidence; interrupt it and stop.
+
+**The edit turn must not carry the task.** It used to, so that an
+auto-accepted ask still had the task in context. That backfired on two
+fixtures: told the rule was "meant to affect this later request", the agent
+worked out what would change, which meant opening the business records the
+payoff depends on staying unread — and on `demo-invoice-review` it then
+refused the edit as a fraud-control gap. Manual mode replaces that
+safety net.
 
 **A stray keystroke sits in the input box.** `herdr pane send-keys "$NEW"
 ctrl+u` clears it before your next `pane run`, or your prompt gets appended
