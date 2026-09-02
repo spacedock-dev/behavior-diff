@@ -20,13 +20,13 @@ require_literal() {
   grep -Fq -- "$literal" "$file" || fail "$message"
 }
 
-reject_literal() {
-  local literal=$1
-  local file=$2
-  local message=$3
-  if grep -Fq -- "$literal" "$file"; then
-    fail "$message"
+has_only_safe_marketplace_push() {
+  local file=$1
+  local push_lines
+  if ! push_lines=$(grep -F "git -C \"\$MARKETPLACE\" push" "$file"); then
+    return 1
   fi
+  [[ $push_lines == "          git -C \"\$MARKETPLACE\" push origin HEAD:main" ]]
 }
 
 make_index() {
@@ -123,13 +123,13 @@ require_literal "MARKETPLACE_DEPLOY_KEY: \${{ secrets.MARKETPLACE_DEPLOY_KEY }}"
   "$release_workflow" 'release workflow does not use the deploy-key secret'
 require_literal "update-marketplace.sh\" \"\$INDEX\" \"\$VERSION\"" \
   "$release_workflow" 'release workflow does not call the tested updater'
-require_literal "git -C \"\$MARKETPLACE\" push origin HEAD:main" \
-  "$release_workflow" 'release workflow does not push marketplace main'
-reject_literal 'push --force' "$release_workflow" \
-  'release workflow allows a force push'
-reject_literal 'push -f' "$release_workflow" \
-  'release workflow allows a short force push'
-reject_literal 'force-with-lease' "$release_workflow" \
-  'release workflow allows a force-with-lease push'
+has_only_safe_marketplace_push "$release_workflow" ||
+  fail 'release workflow must contain only the exact non-force marketplace push'
+forced_workflow=$tmp/forced-release.yml
+sed 's/push origin HEAD:main/push origin HEAD:main --force/' \
+  "$release_workflow" >"$forced_workflow"
+if has_only_safe_marketplace_push "$forced_workflow"; then
+  fail 'marketplace push check accepted a trailing force flag'
+fi
 
 printf 'ok — release workflow contract passed\n'
