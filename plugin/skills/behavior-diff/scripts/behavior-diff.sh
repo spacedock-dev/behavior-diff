@@ -79,8 +79,13 @@ case "$vocab" in generic | spacedock) ;; *)
   exit 2
   ;;
 esac
-case "$agent" in claude | codex) ;; *)
-  echo "behavior-diff: --agent must be claude or codex" >&2
+case "$agent" in claude | codex | pi | omp) ;; *)
+  echo "behavior-diff: unsupported trial stack \"$agent\"" >&2
+  echo "Supported stacks: claude, codex, pi, omp." >&2
+  echo "A new stack needs:" >&2
+  echo "1. a fresh headless CLI run." >&2
+  echo "2. machine-readable tool and final-answer events." >&2
+  echo "3. a converter to canonical trace.jsonl." >&2
   exit 2
   ;;
 esac
@@ -89,7 +94,20 @@ case "$trials" in '' | *[!0-9]* | 0)
   exit 2
   ;;
 esac
-[ -n "$model" ] || model=$([ "$agent" = codex ] && echo gpt-5.6-terra || echo sonnet)
+if [ -z "$model" ]; then
+  case "$agent" in
+    claude) model=sonnet ;;
+    codex) model=gpt-5.6-terra ;;
+    pi)
+      echo "behavior-diff: --agent pi requires --model with the exact Pi model ID" >&2
+      exit 2
+      ;;
+    omp)
+      echo "behavior-diff: --agent omp requires --model with the exact OMP model ID" >&2
+      exit 2
+      ;;
+  esac
+fi
 [ -n "$file" ] && [ -n "$task" ] || {
   echo "behavior-diff: --file and --task are required (see --help)" >&2
   exit 2
@@ -246,6 +264,14 @@ done >"$run/grades.tsv"
 echo
 # Decision diff: one model pass over the final answers. Best-effort — if it
 # fails, render.py falls back to the command-derived flow diff alone.
+case "$agent" in
+  pi | omp)
+    if [ -z "$extract_agent" ]; then
+      extract_agent=$agent
+      [ -n "$extract_model" ] || extract_model=$model
+    fi
+    ;;
+esac
 python3 "$scripts/decisions.py" "$run" ${extract_agent:+--agent "$extract_agent"} ${extract_model:+--model "$extract_model"} || true
 python3 "$scripts/render.py" "$run" "$run" "$model" "$run/config.json"
 open "$run/report.html" 2>/dev/null || true

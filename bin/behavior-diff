@@ -2,7 +2,7 @@
 # Diff agent behavior for a rule that lives in a markdown file.
 #
 #   behavior-diff RULE.md --task "..." [--into FILE] [--fast | --trials N]
-#                                      [--agent claude|codex] [--model NAME]
+#                                      [--agent claude|codex|pi|omp] [--model NAME]
 #                                      [--dry-run]
 #
 # The underlying runner compares the repo at HEAD against the repo plus one
