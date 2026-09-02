@@ -55,8 +55,6 @@ mid-demo.
    - Codex runs a cache snapshot, not the marketplace source. After any
      plugin change: `codex plugin add behavior-diff@spacedock`.
 
-5. Tell the user the cost before starting: the demo spends 2 headless model
-   runs (`--fast`), plus the driven session's own turns. Get their go.
 
 ## The journey
 
@@ -98,21 +96,26 @@ tool, so the whisper's fallback applies and the ask arrives as one plain
 sentence. Say which you expect before it happens, so a plain sentence does
 not read as a failure.
 
-The ask has been seen answered without anyone pressing a key. Leave auto
-mode alone either way — turning it off just moves the interruptions to
-permission prompts during the edit, and the spend is already gated: the
-behavior-diff skill states its cost and waits before starting trials.
-Answering it yourself is a nicer beat when you get the chance, not a
-requirement.
-Confirm the state behind it if you want the receipts:
+The ask has been seen answered without anyone pressing a key. The setup
+prompt therefore includes the exact fixture task as a later request, while
+telling the agent not to answer it during the edit turn. If auto mode accepts
+the ask, the task is already in context.
+
+Confirm the state behind the ask if you want the receipts:
 
     NUDGE_E2E_FIXTURE=<fixture> tests/nudge-e2e.sh check
 
-Answer **Run behavior-diff**. At its run gate, compare the displayed task with
-the task from step 1. A paraphrase is acceptable only when it still requires
-the same decision, records used, and no-write boundary, and does not reveal
-the expected problem or result. Otherwise cancel and stop: the demo contract
-failed. When it preserves the scenario, choose `--fast`.
+When the ask stays on screen, do not select the bare **Run behavior-diff**
+option. Accept it with the exact scenario instead. For Claude, select
+**Type something**; for Codex, answer its plain question. Send:
+
+    Run behavior-diff with this exact task:
+
+    <the exact task step 1 printed>
+
+The skill starts the comparison as soon as it has the task. There is no later
+run-count or task-confirmation gate. If the driven agent starts with a
+different task, interrupt it and stop: the demo contract failed.
 
 **5. The payoff.** When the run finishes, read the pane and show the two
 results.
@@ -149,12 +152,8 @@ records, same cause, same conclusion — the only thing that changed is that
 the answer is now a picture. She wrote one line hoping it would help, and it
 took one run to see that it fired.* Say the honest part too: nothing here is
 broken, and that is the point — this fixture is about seeing what a rule did,
-not about catching a bug. For consistency questions it wants the full
-three-per-side run, not `--fast`.
-
-Say the honest caveat out loud: `--fast` is one trial per side. It shows the
-shape; it settles nothing. Divergence counts move run to run (7 of 8 one
-run, 3 of 8 the next, same fixture).
+not about catching a bug. Use repeated trials for consistency claims; one
+sample only shows one outcome.
 
 **6. Optional beat — the Stop line.** Only if someone asks what happens
 when the agent stays quiet:
@@ -179,9 +178,9 @@ the state directory the reports live in.
   into asking; that invalidates the demo.
 - **Escape stops the agent, not the shell it started.** If a run is already
   in flight, `ps aux | grep behavior-diff.sh`.
-- **A run you did not want started.** The skill stops at its own
-  confirmation gate before spending trials, so interrupting there costs
-  nothing.
+- **A run starts with the wrong task.** Interrupt it immediately and stop.
+  There is no later confirmation gate; a run against another scenario is not
+  demo evidence.
 
 ## Boundaries
 
