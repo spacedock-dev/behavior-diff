@@ -1,172 +1,165 @@
 # Behavior Diff
 
-Behavior Diff compares agent behavior before and after an instruction-file
-change. It runs isolated trials with and without the change, then shows
-whether the agent took a different path.
+**Test changes to your agent instructions before you trust them.**
 
-- `e2e/` — the fixtures a run is driven from. Each holds a synthetic
-  project, the task at the decision point, and the rule block to add.
-  Everything here is synthetic; nothing comes from a real transcript.
-  - `e2e/capsule/` — the frozen rk-monitor incident capsule (post-"fix"
-    state, passing unit tests, a functional smoke check that is missing).
-    The harder case, and what `tests/nudge-e2e.sh` uses by default.
-  - `e2e/demo/` — the pricer: a passing ticket replay leads the before agent
-    to close the ticket; a proposed verification rule reroutes the after
-    agent through code inspection and a targeted counterexample. For showing
-    someone a different flow, decision, and result.
-  - `e2e/demo-inbox-cleanup/` — a non-developer backup: a broader cleanup
-    rule archives the intended delivery update, but also hides an important
-    event cancellation. Keep it as a simple output-diff smoke case.
-  - `e2e/demo-invoice-review/` — the non-developer behavior-flow demo: a
-    quick-review shortcut may skip payment history and approve a duplicate invoice.
-    It shows different evidence, decision, and business result.
-  - `e2e/demo-ascii-response/` — the vague-rule demo: one line with no
-    trigger point ("use ASCII to visualize content when explaining
-    concepts"). Nothing breaks — both agents read the same records and reach
-    the same cause. Only the answer changes: 1 of 6 before trials drew a
-    diagram, 6 of 6 after trials did. Use it to show that a rule nobody can
-    normally check becomes checkable in one run.
-- `bin/behavior-diff` — the quick front door. Point it at a markdown file
-  holding the rule you are considering; it appends that rule to the repo's
-  CLAUDE.md (or AGENTS.md), runs the diff, and restores the file exactly.
-  You never paste a rule in by hand, and a rule you decide against leaves
-  no trace:
+Behavior Diff shows whether a change to `CLAUDE.md`, `AGENTS.md`, or a skill
+changes what an agent does. It runs the same task with and without your change,
+then gives you a before-and-after report.
 
-      behavior-diff my-rule.md --task "the scenario the agents get" [--fast]
-      behavior-diff my-rule.md --dry-run        # show the edit, run nothing
+A rule can sound clear and still change nothing. It can also fix one case but
+cause a new problem somewhere else. Behavior Diff lets you review evidence
+before you commit the rule.
 
-  It refuses to touch a target that already has uncommitted changes, so the
-  diff can only be measuring the rule. Put it on your PATH with a symlink:
-  `ln -s "$PWD/bin/behavior-diff" /usr/local/bin/behavior-diff`.
+## Why use Behavior Diff?
 
-Run the demo:
+Agent instruction files shape decisions, tool use, and final answers. Text
+review can show whether a rule sounds clear. It cannot show what the agent will
+do.
 
-    NUDGE_E2E_FIXTURE=demo tests/nudge-e2e.sh setup    # sandbox at /tmp/nudge-e2e
-    cd /tmp/nudge-e2e
-    behavior-diff <repo>/e2e/demo/rule.md --into AGENTS.md \
-      --task "$(cat <repo>/e2e/demo/task.md)" --fast
+Behavior Diff runs the change as a controlled experiment. You see whether the
+rule changes the process or result before you share it.
 
-Run the non-developer behavior-flow demo:
+## What you can compare
 
-    NUDGE_E2E_FIXTURE=demo-invoice-review tests/nudge-e2e.sh setup
+- Whether the agent reached the situation that the rule targets.
+- Where the before and after runs took different paths.
+- Which commands, tools, and evidence each run used.
+- Whether the final answers changed.
+- Whether the change was consistent across repeated runs.
 
-The invoice fixture replaces a rule section. Drive it through the printed
-session command; do not use the append-only `bin/behavior-diff` front door.
+Behavior Diff does not label a rule as good or bad. You compare the evidence
+with the behavior that you want.
 
-Run the vague-rule demo (an appended rule, so the front door works):
+## When it helps
 
-    NUDGE_E2E_FIXTURE=demo-ascii-response tests/nudge-e2e.sh setup
-    cd /tmp/nudge-e2e
-    behavior-diff <repo>/e2e/demo-ascii-response/rule.md --into AGENTS.md \
-      --task "$(cat <repo>/e2e/demo-ascii-response/task.md)" --fast
+Use Behavior Diff when you:
 
-## Your own change, not the demo
+- Add a rule after an agent made the wrong choice.
+- Change a shared `CLAUDE.md` or `AGENTS.md` file.
+- Edit a skill trigger or workflow instruction.
+- Remove or simplify a rule and want to find regressions.
+- Want evidence before your team adopts an instruction change.
 
-`behavior-diff.sh` runs the same before/after engine on a real local
-change. From a git repo where an instruction file (CLAUDE.md, a skill's
-SKILL.md/README.md) has uncommitted edits:
+## Install
 
-    behavior-diff.sh --file CLAUDE.md --task "one-line scenario" [--fast]
+Behavior Diff supports Claude Code and Codex. The commands below are for the
+public marketplace release. The marketplace entry is not live yet.
 
-Before = the repo at HEAD; After = the same snapshot plus only your
-working-tree version of that file (other uncommitted edits stay out).
-The report shows your git diff, a generic-vocabulary flow diff, and
-every trial's commands and final answer — with **no automatic verdict**
-(there is no per-case grading contract), so the banner asks you to
-compare the flows and answers yourself. The task must exercise the
-situation your change is about, or both variants will behave the same.
+### Claude Code
 
-`plugin/` contains the installable `behavior-diff` plugin. Its `skills/`
-directory is the canonical source.
+```bash
+claude plugin marketplace add spacedock-dev/marketplace
+claude plugin install behavior-diff@spacedock
+```
 
-Install it from the Spacedock marketplace:
-
-    claude plugin marketplace add spacedock-dev/marketplace
-    claude plugin install behavior-diff@spacedock
-
-For Codex:
-
-    codex plugin marketplace add spacedock-dev/marketplace
-    codex plugin add behavior-diff@spacedock
-
-You can also copy the three skill directories into `~/.claude/skills/`.
-The main skill includes its scripts and references. The live and retro skills
-use the main skill as a sibling. Runs land under
-`${BEHAVIOR_DIFF_HOME:-~/.behavior-diff}/runs/`.
-
-`plugin/skills/behavior-diff/scripts/make-capsule.sh` mints binary-valid spacedock FO↔worker
-capsules (phases: worker-mid, briefing-open, revise-recorded) with a
-built-in precheck. `plugin/skills/behavior-diff/references/spacedock-duo.md` is the shared spacedock
-module both skills load when the change is a workflow rule: it routes
-single-role rules through the normal flow (capsule fixtures,
-`--vocab spacedock`) and handoff rules through the two-agent worker→FO
-duo cycle. `plugin/skills/behavior-diff-retro/SKILL.md` writes a retro into a
-finished run dir and feeds durable lessons to `RETRO_NOTES.md`.
-
-`plugin/skills/behavior-diff-live/SKILL.md` is the in-session variant: one trial
-per side run as subagents the main agent launches and watches — for
-experiments where you adjust the scenario and want visible progress.
-Weaker evidence by design (single sample; subagents are told to read the
-variant's CLAUDE.md rather than loading it natively) and it says so.
-
-`plugin/skills/behavior-diff/SKILL.md` wraps the headless runner as an agent skill (install by
-copying to `~/.claude/skills/behavior-diff/`): the agent finds the changed
-file, drafts a leak-free task, confirms cost, runs the script, and
-summarizes the report honestly.
-
-## Hooks: the nudge (0.3.1)
-
-A plugin install also brings two hooks so the product finds its own
-moment — Claude Code and Codex both run them (see the Codex caveats
-below). `plugin/hooks/hooks.json` registers:
-
-- **PostToolUse** (`Edit|Write|MultiEdit`) → `rules-edit-detect.sh`: when
-  the agent edits a `CLAUDE.md`, `AGENTS.md`, or `SKILL.md`, the path is
-  recorded once per session under
-  `${BEHAVIOR_DIFF_HOME:-~/.behavior-diff}/nudge/`, and — once per
-  session — the hook whispers an `additionalContext` instruction to the
-  agent: when the current task is done, ask the user whether to run
-  behavior-diff (AskUserQuestion if available, one plain sentence
-  otherwise; ask once, never run without an explicit yes).
-- **Stop** → `rules-edit-remind.sh`: the fallback. If no whisper was sent
-  this session and a recorded file still has uncommitted changes, one
-  `systemMessage` line asks the user to run `/behavior-diff` before
-  committing. A whispered session is silent here — the agent owns the
-  question, and a second line would duplicate it right after the user
-  answered. Once per session (claim by rename), single line only (the
-  Stop surface prefixes every line), never a control key, every exit
-  path `exit 0`.
-
-Trials cannot nudge themselves: `run-trial.sh` exports
-`BEHAVIOR_DIFF_TRIAL=1` and both hooks exit on it (the variable inherits
-into Codex hook processes too). Hand edits made outside a session fire no
-hook — the skill's own `git status` scan still catches them when invoked.
+Restart Claude Code after installation.
 
 ### Codex
 
-The same two hooks run on Codex — no separate adapter. Codex
-auto-discovers the plugin's `hooks/hooks.json`, maps `apply_patch` edits
-into the `Edit|Write|MultiEdit` matcher, and delivers the
-`additionalContext` whisper (verified live on codex-cli 0.149.1). Codex
-sends no `tool_input.file_path`; `rules-edit-detect.sh` falls back to
-reading the edited paths from the apply_patch grammar in
-`tool_input.command` and joins them to the payload's `cwd`. Three caveats:
+```bash
+codex plugin marketplace add spacedock-dev/marketplace
+codex plugin add behavior-diff@spacedock
+```
 
-- Codex hooks are feature-flagged: set `[features] hooks = true` in
-  `~/.codex/config.toml` or the hooks never run.
-- Each hook entry needs a one-time trust approval in an *interactive*
-  Codex session — `codex exec` never prompts and silently skips untrusted
-  hooks.
-- Codex runs a cache snapshot of the plugin, not the marketplace source:
-  after updating the plugin, run `codex plugin add behavior-diff@spacedock`
-  again to refresh the snapshot.
+Enable hooks in `~/.codex/config.toml`:
 
-Self-check: `bash tests/hooks-test.sh` (fake payloads, no model). Live
-delivery is a manual check, still owed — and it must verify the whisper
-actually reaches the agent: if `additionalContext` goes undelivered on
-this surface, remove the Stop suppression in `rules-edit-remind.sh`.
+```toml
+[features]
+hooks = true
+```
 
-Current boundaries: no redaction (use synthetic capsules), no isolation of
-the agent's global user CLAUDE.md (same for both variants), and an
-effectful-tool allowlist instead of interception. Reports stay under
-`${BEHAVIOR_DIFF_HOME:-~/.behavior-diff}/runs/`.
+Start one interactive Codex session after installation. Approve each Behavior
+Diff hook when Codex asks. Codex does not ask for hook approval during
+`codex exec`.
+
+Codex uses a cached copy of each plugin. Run the install command again after a
+Behavior Diff update:
+
+```bash
+codex plugin add behavior-diff@spacedock
+```
+
+## Use Behavior Diff
+
+1. Edit one instruction file. Keep the change uncommitted.
+2. Ask Claude Code or Codex to run Behavior Diff on the change.
+3. Review the report before you commit the instruction.
+
+For example:
+
+```text
+Run behavior diff on my AGENTS.md change.
+```
+
+In Claude Code, you can also run:
+
+```text
+/behavior-diff
+```
+
+Behavior Diff finds the changed instruction file and prepares a neutral task.
+It shows you the task and the model cost before it starts. The run starts only
+after you approve it.
+
+The standard run starts six fresh agent trials: three without the change and
+three with it. Fast mode starts one trial for each side.
+
+## Read the report
+
+Each run creates a local HTML report. The report contains:
+
+- The instruction-file diff.
+- The flow of each trial.
+- The main decisions that changed.
+- The commands and tools that each trial used.
+- The final answer from every trial.
+
+Start with the flow difference. Find the first point where the runs separate.
+Then compare the evidence and final answers from that point.
+
+If both sides follow the same path, the task can miss the situation that the
+rule targets. Use a task that starts closer to the decision that you want to
+change.
+
+## What stays local
+
+Behavior Diff runs each side in a separate copy of the project. The after side
+contains only the instruction change that you selected. Other uncommitted files
+do not enter the experiment.
+
+Reports stay on your machine under:
+
+```text
+${BEHAVIOR_DIFF_HOME:-~/.behavior-diff}/runs/
+```
+
+A report can quote code and agent output from your project. Review the report
+before you share it.
+
+## How Behavior Diff works
+
+Behavior Diff creates two copies of the same project state:
+
+1. The **before** copy uses the committed instruction file.
+2. The **after** copy adds only your uncommitted instruction change.
+
+It gives both copies the same task and starts fresh agent sessions. Standard
+mode repeats each side three times. This makes one unusual model response less
+likely to control the result.
+
+The runner records tool calls, commands, evidence, decisions, and final answers.
+It converts those traces into a common flow format, compares the two sides, and
+builds the HTML report. It does not use a model to declare a winner.
+
+The plugin also watches edits to `CLAUDE.md`, `AGENTS.md`, and `SKILL.md`. After
+you finish the current task, it can ask whether you want to run Behavior Diff.
+It never starts a model run without your approval.
+
+### Repository layout
+
+- `plugin/` contains the installable plugin, skills, hooks, and runner.
+- `e2e/` contains synthetic scenarios for manual product checks.
+- `tests/` contains deterministic checks that do not call a model.
+- [`e2e/README.md`](e2e/README.md) explains the demo and live-check fixtures.
+- [`AGENTS.md`](AGENTS.md) and
+  [`CODING_GUIDELINES.md`](CODING_GUIDELINES.md) contain contributor guidance.
