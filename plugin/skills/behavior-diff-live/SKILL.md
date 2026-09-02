@@ -6,17 +6,16 @@ description: Run a before/after behavior diff inside the current session using s
 # Behavior diff — live (subagent variant)
 
 The sibling `behavior-diff` skill shells out to `behavior-diff.sh`: fresh
-headless `claude -p` sessions where the variant's CLAUDE.md loads exactly
-like production, three trials, rendered report. This variant trades that
-fidelity for observability: **one trial per variant, run as subagents**
-launched and watched by you, with the scenario prepared — and adjustable —
-in conversation.
+headless sessions where the variant's instruction file loads like production,
+three trials, and one rendered report. This variant trades that fidelity for
+observability: **one trial per variant, run as subagents** launched and watched
+by you, with the scenario prepared and adjustable in conversation.
 
 State this evidence boundary in every summary: subagents do not auto-load
-the variant's CLAUDE.md; they are told to read and follow it, which is
-weaker instruction delivery than the headless runner. And one trial per
-side is a single sample — report what happened; never say "consistently",
-and treat the decision diff as a sketch until the headless 3+3 confirms it.
+the variant's instruction file. They are told to read and follow it, which is
+weaker instruction delivery than the headless runner. One trial per side is
+one sample. Report what happened, never say "consistently", and treat the
+decision diff as a sketch until the headless 3+3 confirms it.
 
 
 **Spacedock workflow rule?** If the changed file is a spacedock workflow
@@ -30,11 +29,16 @@ directory (both skills install together). It chooses the single-role or
 two-agent path. Create the fixtures with `make-spacedock-fixtures.sh` from
 the sibling skill's bundled `scripts/` directory.
 
-**Host note:** this variant orchestrates two parallel subagents, which
-Claude Code provides. On a host without subagent dispatch (Codex), run
-the two trials sequentially yourself in fresh contexts, or prefer the
-sibling `behavior-diff` skill — its runner gives stronger evidence
-anyway and takes `--agent codex`.
+**Host dispatch:**
+
+- Claude Code launches two parallel subagents. Each result uses `SendMessage`.
+- OMP launches one `task` batch with two task items.
+  Results return to the parent automatically. Do not ask an OMP task agent
+  to call `SendMessage`.
+- Pi has no built-in subagent dispatch. Use the sibling headless skill with
+  `--agent pi` and the exact Pi model.
+- On Codex without dispatch, run two fresh contexts in sequence or use the
+  sibling headless skill with `--agent codex`.
 
 ## Steps
 
@@ -84,33 +88,41 @@ anyway and takes `--agent codex`.
    IDENTICALLY to both copies. Show the user the final task and any
    injected state, and get their go before launching.
 
-4. **Launch both subagents in ONE message** (so they run concurrently),
-   one per variant, identical prompts except the directory. Dispatch
-   both with NO model override: the trials must run as the same model
-   as the main agent, because the experiment measures what THIS agent
-   would do — a trial on another model measures a different agent.
-   Each prompt:
+4. **Launch both trials with the host path above.** The two prompts must be
+   identical except for the directory. Use no model override: each trial must
+   run as the same model as the main agent. A different model measures a
+   different agent.
+
+   Claude Code sends both prompts in one parallel dispatch. Add this delivery
+   rule to each Claude prompt: when finished, call `SendMessage` with
+   `to: "main"`. A report left as plain final text gets stuck.
+
+   OMP sends both prompts in one `task` batch. Results return to the parent
+   automatically. Do not add a `SendMessage` rule.
+
+   Each trial prompt must:
    - work only inside <dir>; never modify any file, never touch anything
      outside it, never run networked or destructive commands;
    - first read the project instruction files there (CLAUDE.md,
-     AGENTS.md) and follow them as your project instructions;
-   - then the task;
-   - end the report with two sections: `ANSWER` (what you would tell the
-     user) and `ACTIONS`.
+     AGENTS.md) and follow them as project instructions;
+   - then handle the task;
+   - end the report with two sections: `ANSWER` (what it would tell the user)
+     and `ACTIONS`.
      Under `ACTIONS`, list every task tool action completed before report delivery
      in order. Write one numbered line per tool action as
      `<Tool>: <target or command>`. Never group several actions on one line.
      Include reads and searches, not only commands.
      Do not include the final delivery SendMessage in `ACTIONS`.
-   - when finished, DELIVER the report by calling SendMessage with
-     `to: "main"` — a report left as plain final text gets stuck.
-   Never tell either subagent it is being compared, which variant it is,
-   or what the rule change is.
+     OMP has no separate delivery action to list.
 
-5. **While they run**, relay progress and early divergence to the user —
-   that visibility is the point of this variant. A silent agent is usually
-   thinking, not dead: file mtimes and process lists misdiagnose it. Never
-   relaunch a trial for silence alone; ping it with SendMessage first.
+   Never tell either trial it is being compared, which variant it is, or what
+   the rule change is.
+
+5. **While they run**, relay progress and early divergence to the user.
+   That visibility is the point of this variant. A silent agent is usually
+   thinking, not dead. File mtimes and process lists misdiagnose it. Never
+   relaunch a trial for silence alone. Use the host's agent messaging path
+   before treating it as stuck.
 
 6. **Render through the Behavior Diff pipeline — do not invent a report format.**
    Build `${BEHAVIOR_DIFF_HOME:-~/.behavior-diff}/runs/live-<stamp>/`
