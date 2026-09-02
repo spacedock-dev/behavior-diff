@@ -49,8 +49,16 @@ is authoritative when a Behavior Diff rule differs from an Engram rule.
 
 ## Verification
 
-Run shell syntax checks for every changed shell file. For the full deterministic
-suite, run:
+Check Bash and Python formatting from the repository root:
+
+```bash
+docker run --rm -v "$PWD:/mnt" -w /mnt \
+  mvdan/shfmt:v3.14.0 -d -i 2 -ci .
+uvx ruff@0.16.5 format --check --diff .
+```
+
+The first command checks Bash formatting. The second checks all Python files.
+For the full deterministic suite, run:
 
 ```bash
 bash tests/hooks-test.sh

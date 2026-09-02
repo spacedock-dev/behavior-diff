@@ -1,2 +1,6 @@
 # trial outputs are real model traces — never committed
 runs/
+
+# local Python verification artifacts
+__pycache__/
+*.pyc

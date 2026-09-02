@@ -1,0 +1,88 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  CI: "1"
+  ANTHROPIC_API_KEY: ""
+  CLAUDE_CODE_OAUTH_TOKEN: ""
+  OPENAI_API_KEY: ""
+
+jobs:
+  format:
+    name: Format
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Check Bash formatting
+        run: |
+          docker run --rm \
+            -v "$PWD:/mnt" \
+            -w /mnt \
+            mvdan/shfmt:v3.14.0 \
+            -d -i 2 -ci .
+
+      - name: Check Python formatting
+        uses: astral-sh/ruff-action@v4.1.0
+        with:
+          version: "0.16.5"
+          args: "format --check --diff"
+          src: "."
+
+  unit:
+    name: Unit
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Block LLM executables
+        run: |
+          mkdir -p "$RUNNER_TEMP/no-llm"
+          for command in claude codex; do
+            cat >"$RUNNER_TEMP/no-llm/$command" <<'EOF'
+          #!/usr/bin/env bash
+          printf 'LLM invocation is forbidden in CI\n' >&2
+          exit 97
+          EOF
+            chmod +x "$RUNNER_TEMP/no-llm/$command"
+          done
+          echo "$RUNNER_TEMP/no-llm" >>"$GITHUB_PATH"
+
+      - name: Check shell syntax
+        run: |
+          bash -n \
+            bin/behavior-diff \
+            plugin/scripts/*.sh \
+            plugin/skills/behavior-diff/scripts/*.sh \
+            tests/*.sh
+
+      - name: Check Python syntax
+        run: |
+          python3 -m py_compile \
+            plugin/skills/behavior-diff/scripts/decisions.py \
+            plugin/skills/behavior-diff/scripts/render.py
+
+      - name: Run hook unit checks
+        run: bash tests/hooks-test.sh
+
+      - name: Run decision unit check
+        run: python3 plugin/skills/behavior-diff/scripts/decisions.py --check
+
+      - name: Run report contract checks
+        run: bash tests/live-report-contract.sh

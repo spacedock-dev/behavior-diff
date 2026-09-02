@@ -137,10 +137,25 @@ Run the checks relevant to the changed files. Do not claim checks that did not
 run.
 
 ```bash
-bash -n path/to/changed-script.sh
-shellcheck path/to/changed-script.sh
-python3 -m py_compile path/to/changed-script.py
-bash tests/relevant-contract.sh
+docker run --rm -v "$PWD:/mnt" -w /mnt \
+  mvdan/shfmt:v3.14.0 -d -i 2 -ci .
+uvx ruff@0.16.5 format --check --diff .
+bash -n \
+  bin/behavior-diff \
+  plugin/scripts/*.sh \
+  plugin/skills/behavior-diff/scripts/*.sh \
+  tests/*.sh
+shellcheck \
+  bin/behavior-diff \
+  plugin/scripts/*.sh \
+  plugin/skills/behavior-diff/scripts/*.sh \
+  tests/*.sh
+python3 -m py_compile \
+  plugin/skills/behavior-diff/scripts/decisions.py \
+  plugin/skills/behavior-diff/scripts/render.py
+bash tests/hooks-test.sh
+python3 plugin/skills/behavior-diff/scripts/decisions.py --check
+bash tests/live-report-contract.sh
 git diff --check
 ```
 

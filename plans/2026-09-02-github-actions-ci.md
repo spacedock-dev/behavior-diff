@@ -35,6 +35,7 @@ three existing deterministic contracts.
 ## Files
 
 - Create: `.github/workflows/ci.yml`
+- Modify: `.gitignore`
 - Modify: `AGENTS.md`
 - Modify: `CODING_GUIDELINES.md`
 - Format mechanically:
@@ -42,8 +43,7 @@ three existing deterministic contracts.
   - `plugin/scripts/*.sh`
   - `plugin/skills/behavior-diff/scripts/*.sh`
   - `tests/*.sh`
-  - `plugin/skills/behavior-diff/scripts/decisions.py`
-  - `plugin/skills/behavior-diff/scripts/render.py`
+  - all Python files under `plugin/`, `tests/`, and `e2e/`
 
 ---
 
@@ -52,8 +52,7 @@ three existing deterministic contracts.
 **Files:**
 
 - Modify mechanically: all shell files listed above
-- Modify mechanically: `plugin/skills/behavior-diff/scripts/decisions.py`
-- Modify mechanically: `plugin/skills/behavior-diff/scripts/render.py`
+- Modify mechanically: all Python files under `plugin/`, `tests/`, and `e2e/`
 
 - [ ] **Step 1: Make sure that the worktree contains no unrelated changes**
 
@@ -63,8 +62,7 @@ Run:
 git status --short
 ```
 
-Expected: only files intentionally included in this plan are modified or
-untracked. `HANDOFF.md` can remain untracked, but do not stage it.
+Expected: the worktree is clean.
 
 - [ ] **Step 2: Apply the pinned Bash formatter**
 
@@ -87,16 +85,11 @@ JSON, or Python files.
 Run:
 
 ```bash
-uvx ruff@0.16.5 format \
-  plugin/skills/behavior-diff/scripts/decisions.py \
-  plugin/skills/behavior-diff/scripts/render.py
+uvx ruff@0.16.5 format .
 ```
 
-Expected:
-
-```text
-2 files reformatted
-```
+Expected: Ruff formats every Python file and exits 0. The exact changed-file
+count depends on the baseline.
 
 - [ ] **Step 4: Check the formatter baseline**
 
@@ -168,6 +161,7 @@ contains formatting only.
 
 **Files:**
 
+- Modify: `.gitignore`
 - Modify: `AGENTS.md:50-65`
 - Modify: `CODING_GUIDELINES.md:134-147`
 
@@ -215,7 +209,18 @@ git diff --check
 Keep the existing rule that agents must report unavailable checks instead of
 substituting weaker checks.
 
-- [ ] **Step 3: Check the documentation change**
+- [ ] **Step 3: Ignore local Python bytecode**
+
+Add these entries to `.gitignore`:
+
+```gitignore
+__pycache__/
+*.pyc
+```
+
+This keeps local `py_compile` verification from dirtying the worktree.
+
+- [ ] **Step 4: Check the documentation change**
 
 Run:
 
