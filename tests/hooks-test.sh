@@ -47,7 +47,8 @@ out=$(payload s1 /proj/AGENTS.md | "$detect")
 [ -z "$out" ] || fail "whispered twice for second file"
 
 # 5. trial guard: nothing recorded, nothing whispered
-out=$(payload s9 /proj/AGENTS.md | BEHAVIOR_DIFF_TRIAL=1 "$detect")
+trial_input=$(payload s9 /proj/AGENTS.md)
+out=$(BEHAVIOR_DIFF_TRIAL=1 "$detect" <<<"$trial_input")
 [ ! -f "$nudge/s9.edits" ] && [ -z "$out" ] || fail "trial guard broken"
 
 # 6. Stop is silent when the whisper was sent (the agent owns the question)
@@ -122,7 +123,8 @@ out=$(codex_payload c2 "$patch_two" /work | "$detect")
 [ -z "$out" ] || fail "repeat patch whispered"
 
 # 13. AC-3: the trial guard covers codex payloads too
-out=$(codex_payload c9 "$patch_agents" /work | BEHAVIOR_DIFF_TRIAL=1 "$detect")
+trial_input=$(codex_payload c9 "$patch_agents" /work)
+out=$(BEHAVIOR_DIFF_TRIAL=1 "$detect" <<<"$trial_input")
 [ ! -f "$nudge/c9.edits" ] && [ -z "$out" ] || fail "codex trial guard broken"
 
 # 14. AC-5: the Stop fallback fires from codex-recorded state — detect
@@ -184,7 +186,8 @@ ro=$tmp/ro && mkdir -p "$ro" && chmod 500 "$ro"
 out=$(payload b6 "$real/plain/CLAUDE.md" | BEHAVIOR_DIFF_HOME=$ro/home "$backup") &&
   [ -z "$out" ] || fail "unwritable store not fail-quiet"
 chmod 700 "$ro"
-out=$(payload b7 "$real/plain/CLAUDE.md" | BEHAVIOR_DIFF_TRIAL=1 "$backup") &&
+trial_input=$(payload b7 "$real/plain/CLAUDE.md")
+out=$(BEHAVIOR_DIFF_TRIAL=1 "$backup" <<<"$trial_input") &&
   [ -z "$out" ] || fail "trial guard broken for backup"
 [ ! -f "$bdir/.session-b7" ] || fail "trial guard wrote a session marker"
 
