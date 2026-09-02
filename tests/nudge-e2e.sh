@@ -44,9 +44,21 @@ set -euo pipefail
 repo=${NUDGE_E2E_REPO:-/tmp/nudge-e2e}
 state=${NUDGE_E2E_STATE:-/tmp/nudge-e2e-state}
 agent=${NUDGE_E2E_AGENT:-claude}
+# The ask can be auto-accepted only where a tool renders it as a prompt, so
+# the precaution is host-specific. Keep both branches in step with invariant 2.
 case $agent in
-  claude) session_cmd="claude --model ${NUDGE_E2E_MODEL:-sonnet}" ;;
-  codex) session_cmd="codex -m ${NUDGE_E2E_MODEL:-gpt-5.6-terra}" ;;
+  claude)
+    session_cmd="claude --model ${NUDGE_E2E_MODEL:-sonnet}"
+    mode_note="   Then take that session out of auto mode — shift+tab, until the footer
+   reads manual mode — so nothing can accept the ask for you."
+    ;;
+  codex)
+    session_cmd="codex -m ${NUDGE_E2E_MODEL:-gpt-5.6-terra}"
+    mode_note="   There is no mode to turn off here: Codex has no AskUserQuestion tool, so
+   the whisper falls back to one plain sentence you answer by typing. Check
+   instead that the session may write the instruction file (-s
+   workspace-write), or the edit never lands and the hook never fires."
+    ;;
   *)
     printf 'nudge-e2e: NUDGE_E2E_AGENT must be claude or codex: %s\n' \
       "$agent" >&2
@@ -163,8 +175,7 @@ Sandbox ready: $repo   (state: $state)
 
        cd $repo && BEHAVIOR_DIFF_HOME=$state $session_cmd
 
-   Then take that session out of auto mode — shift+tab in Claude Code, until
-   the footer reads manual mode — so nothing can accept the ask for you.
+$mode_note
 
    (NUDGE_E2E_AGENT=codex or NUDGE_E2E_MODEL=opus for another stack; the
    ask rate belongs to the agent, so it is worth measuring on each.)
