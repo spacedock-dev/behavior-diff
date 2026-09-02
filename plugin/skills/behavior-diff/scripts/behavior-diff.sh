@@ -266,10 +266,12 @@ echo
 # fails, render.py falls back to the command-derived flow diff alone.
 case "$agent" in
   pi | omp)
-    if [ -z "$extract_agent" ]; then
-      extract_agent=$agent
-      [ -n "$extract_model" ] || extract_model=$model
-    fi
+    [ -n "$extract_agent" ] || extract_agent=$agent
+    case "$extract_agent" in
+      pi | omp)
+        [ -n "$extract_model" ] || extract_model=$model
+        ;;
+    esac
     ;;
 esac
 python3 "$scripts/decisions.py" "$run" ${extract_agent:+--agent "$extract_agent"} ${extract_model:+--model "$extract_model"} || true

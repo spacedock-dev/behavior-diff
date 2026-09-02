@@ -431,4 +431,48 @@ for stack in pi omp; do
   fi
 done
 
+# 34. an explicit Pi or OMP extractor inherits the trial model
+extract_repo=$tmp/extract-repo
+mkdir -p "$extract_repo"
+git -C "$extract_repo" init -q
+git -C "$extract_repo" config user.email test@example.com
+git -C "$extract_repo" config user.name test
+printf '%s\n' 'before' >"$extract_repo/AGENTS.md"
+git -C "$extract_repo" add AGENTS.md
+git -C "$extract_repo" commit -qm baseline
+printf '%s\n' 'after' >"$extract_repo/AGENTS.md"
+
+capture_bin=$tmp/capture-bin
+mkdir -p "$capture_bin"
+cat >"$capture_bin/python3" <<'SH'
+#!/bin/sh
+{
+  printf 'CALL'
+  for arg in "$@"; do
+    printf '\t%s' "$arg"
+  done
+  printf '\n'
+} >>"$PYTHON_ARGS_FILE"
+SH
+chmod +x "$capture_bin/python3"
+
+for stack in pi omp; do
+  calls=$tmp/$stack-python-calls
+  model=test/$stack-model
+  (
+    cd "$extract_repo"
+    PATH="$capture_bin:$stub:$PATH" \
+      BEHAVIOR_DIFF_HOME="$tmp/extract-home-$stack" \
+      PYTHON_ARGS_FILE="$calls" \
+      PI_ARGS_FILE="$tmp/extract-pi-args" \
+      PI_ENV_FILE="$tmp/extract-pi-env" \
+      OMP_ARGS_FILE="$tmp/extract-omp-args" \
+      "$runner" --agent "$stack" --model "$model" \
+      --extract-agent "$stack" --file AGENTS.md --task t --fast >/dev/null
+  )
+  expected=$(printf '%s\t%s\t%s\t%s' --agent "$stack" --model "$model")
+  grep -qF -- "$expected" "$calls" ||
+    fail "explicit $stack extractor did not inherit trial model"
+done
+
 echo "ok — all hook self-checks passed"

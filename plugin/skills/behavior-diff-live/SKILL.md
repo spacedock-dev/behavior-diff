@@ -142,8 +142,13 @@ the sibling skill's bundled `scripts/` directory.
    by each agent, not captured traces, one trial per side. Save both raw
    trial reports under `runs/live-<stamp>/reports/`.
 
-   Then extract the decision diff as a subagent of THIS session — never
-   by spawning `codex exec` or `claude -p`:
+   If Codex ran the two trials sequentially because the host has no subagent
+   dispatch, append "decision diff skipped: host has no subagent dispatch"
+   to `config.json`'s `sub`. Skip the extraction bullets below and continue
+   with `render.py`. Do not invent a decision diff or start another CLI.
+
+   On hosts with dispatch, extract the decision diff as a subagent of THIS
+   session — never by spawning `codex exec` or `claude -p`:
    - Run `decisions.py <run dir> --emit-prompt` (it sits beside
      `render.py` in the sibling `behavior-diff` skill's directory) and
      save its stdout as `<run dir>/reports/extractor-prompt.txt`.
@@ -184,9 +189,9 @@ the sibling skill's bundled `scripts/` directory.
    - If decision extraction succeeded, use the flow-diff shape: steps both
      took in order, the first divergence, each side's path, and both final
      answers quoted.
-   - If decision extraction was skipped after two failed attempts, do not
-     invent a decision diff or flow. Instead,
-     summarize each side's ordered self-reported actions,
+   - If decision extraction was skipped because the host has no subagent
+     dispatch or after two failed attempts, do not invent a decision diff
+     or flow. Instead, summarize each side's ordered self-reported actions,
      quote both final answers, and repeat the visible extractor-skip note.
    - Label it "1 trial per side — single-sample evidence; actions
      self-reported".
