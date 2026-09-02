@@ -42,8 +42,8 @@ Use Behavior Diff when you:
 
 ## Install
 
-Behavior Diff supports Claude Code and Codex. The commands below are for the
-public marketplace release. The marketplace entry is not live yet.
+Behavior Diff supports Claude Code and Codex. The commands below install the
+public marketplace release.
 
 ### Claude Code
 
@@ -97,12 +97,9 @@ In Claude Code, you can also run:
 /behavior-diff
 ```
 
-Behavior Diff finds the changed instruction file and prepares a neutral task.
-It shows you the task and the model cost before it starts. The run starts only
-after you approve it.
-
-The standard run starts six fresh agent trials: three without the change and
-three with it. Fast mode starts one trial for each side.
+Behavior Diff finds the changed instruction file and uses your request as the
+comparison task. Once the task is known, it runs the comparison and opens the
+report.
 
 ## Read the report
 
@@ -143,17 +140,27 @@ Behavior Diff creates two copies of the same project state:
 1. The **before** copy uses the committed instruction file.
 2. The **after** copy adds only your uncommitted instruction change.
 
-It gives both copies the same task and starts fresh agent sessions. Standard
-mode repeats each side three times. This makes one unusual model response less
-likely to control the result.
+It gives both copies the same task and starts fresh agent sessions.
 
 The runner records tool calls, commands, evidence, decisions, and final answers.
 It converts those traces into a common flow format, compares the two sides, and
 builds the HTML report. It does not use a model to declare a winner.
 
-The plugin also watches edits to `CLAUDE.md`, `AGENTS.md`, and `SKILL.md`. After
-you finish the current task, it can ask whether you want to run Behavior Diff.
-It never starts a model run without your approval.
+The plugin also watches edits to `CLAUDE.md`, `AGENTS.md`, and `SKILL.md`.
+After you finish the current task, the agent can use that task to run Behavior
+Diff on the instruction change.
+
+## Release
+
+1. Update both plugin manifests to the same `X.Y.Z` version.
+2. Merge the version change to `main` and wait for CI.
+3. Create a GitHub Release with tag `vX.Y.Z`, targeting `main`.
+4. Publish it as a stable release, not a prerelease.
+5. Confirm the Release workflow pins the marketplace entry to `vX.Y.Z`.
+
+The release workflow rejects tags that do not match both plugin manifests or
+do not point to a commit on `main`. Drafts and prereleases do not update the
+stable marketplace.
 
 ### Repository layout
 
