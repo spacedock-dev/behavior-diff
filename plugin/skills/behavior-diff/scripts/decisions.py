@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-"""Decision diff for a behavior-check run: what the agents CHOSE, not what
-they typed.
+"""Decision diff for a Behavior Diff run. It shows what agents CHOSE, not
+what they typed.
 
 Usage: decisions.py RUN_DIR [--agent codex|claude] [--model NAME]
        decisions.py RUN_DIR --emit-prompt

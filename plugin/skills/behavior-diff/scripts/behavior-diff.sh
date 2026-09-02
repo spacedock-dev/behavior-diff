@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Behavior diff for a local instruction-file change (behavior-check PoC).
+# Behavior Diff for a local instruction-file change.
 #
 # Run from a git repo where an instruction file (CLAUDE.md, a skill's
 # SKILL.md or README.md, ...) has UNCOMMITTED changes:

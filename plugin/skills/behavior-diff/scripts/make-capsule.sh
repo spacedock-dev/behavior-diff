@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Mint a spacedock FO<->worker incident capsule — binary-minted, never
 # hand-written (every gotcha here was learned the hard way; see
-# RETRO_NOTES.md at the runs root or in the behavior-check PoC repo).
+# RETRO_NOTES.md at the runs root or in the Behavior Diff repo).
 #
 # Usage: make-capsule.sh --repo PATH --before SHA --after SHA --out DIR \
 #          [--phase base|worker-mid|briefing-open|revise-recorded] \

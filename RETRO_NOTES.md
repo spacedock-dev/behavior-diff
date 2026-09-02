@@ -1,4 +1,4 @@
-# Behavior-check retro notes
+# Behavior Diff retro notes
 
 Durable, tool-level lessons fed back from experiment retros (the
 `behavior-diff-retro` skill appends here). Full retros live in each run

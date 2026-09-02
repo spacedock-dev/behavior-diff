@@ -100,15 +100,15 @@ on screen before the trials run. All records are synthetic.
 
 From the repository root:
 
-    NUDGE_E2E_FIXTURE=demo-ascii-response behavior-diff/tests/nudge-e2e.sh setup
+    NUDGE_E2E_FIXTURE=demo-ascii-response tests/nudge-e2e.sh setup
 
 The setup command prints the isolated session command, edit prompt, and neutral
 task. Because the rule is an append, the append-only `bin/behavior-diff` front
 door also works, without a driven session:
 
     cd /tmp/nudge-e2e
-    behavior-diff <repo>/behavior-diff/e2e/demo-ascii-response/rule.md --into AGENTS.md \
-      --task "$(cat <repo>/behavior-diff/e2e/demo-ascii-response/task.md)" --fast
+    behavior-diff <repo>/e2e/demo-ascii-response/rule.md --into AGENTS.md \
+      --task "$(cat <repo>/e2e/demo-ascii-response/task.md)" --fast
 
 `--fast` is one trial per side — enough to show the shape in a live demo, and
 it settles nothing on its own. This fixture was first read at one trial per

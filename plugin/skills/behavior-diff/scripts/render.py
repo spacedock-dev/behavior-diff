@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Render a behavior-check run into report.md + report.html (+ artifact body).
+"""Render a Behavior Diff run into report.md + report.html (+ artifact body).
 
 Usage: render.py RUN_DIR CAPSULE_DIR MODEL [CONFIG_JSON]
 
@@ -797,7 +797,7 @@ details {{ margin-bottom:.25rem; }}
 <p class="section-label">Result</p>
 <div class="result">{esc(result)}</div>
 
-<p class="footer">Simulation evidence from the Engram behavior-check PoC
+<p class="footer">Simulation evidence from Behavior Diff
 (model: {esc(model)}, {b["total"]} trial(s) per variant).
 {esc(BOUNDARY)}</p>
 """

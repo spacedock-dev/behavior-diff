@@ -10,7 +10,7 @@ watches that pane; you narrate. The payoff is one screen: the same task, the
 same project, and one added `AGENTS.md` rule changes the agent's decision and
 the user's result.
 
-Background and the fixtures themselves: `behavior-diff/e2e/README.md`.
+Background and the fixtures themselves: `e2e/README.md`.
 Do not duplicate its content here — read it if a step needs context.
 
 ## Preflight — fail fast, before an audience is watching
@@ -40,12 +40,12 @@ mid-demo.
    selected name.
 4. Then the checks for that agent:
 
-   **claude** — the plugin is enabled (`behavior-diff@engram` in
+   **claude** — the plugin is enabled (`behavior-diff@spacedock` in
    `~/.claude/settings.json`), and the installed hooks match this repo's
    source, so you are not demoing an old build:
 
-       diff -q ~/.claude/plugins/cache/engram/behavior-diff/*/hooks/hooks.json \
-         behavior-diff/plugin/hooks/hooks.json
+       diff -q ~/.claude/plugins/cache/spacedock/behavior-diff/*/hooks/hooks.json \
+         plugin/hooks/hooks.json
 
    **codex** — three things, each of which fails *silently* and looks
    exactly like "the nudge does not work":
@@ -53,7 +53,7 @@ mid-demo.
    - Every hook entry needs a one-time trust approval, given in an
      interactive Codex session. Do that before the audience arrives.
    - Codex runs a cache snapshot, not the marketplace source. After any
-     plugin change: `codex plugin add behavior-diff@engram`.
+     plugin change: `codex plugin add behavior-diff@spacedock`.
 
 5. Tell the user the cost before starting: the demo spends 2 headless model
    runs (`--fast`), plus the driven session's own turns. Get their go.
@@ -62,7 +62,7 @@ mid-demo.
 
 **1. Sandbox.** From the repo root:
 
-    NUDGE_E2E_FIXTURE=<fixture> behavior-diff/tests/nudge-e2e.sh setup
+    NUDGE_E2E_FIXTURE=<fixture> tests/nudge-e2e.sh setup
     # add NUDGE_E2E_AGENT=codex for a Codex demo
 
 Read what it prints; it carries the session command for the chosen agent,
@@ -106,7 +106,7 @@ Answering it yourself is a nicer beat when you get the chance, not a
 requirement.
 Confirm the state behind it if you want the receipts:
 
-    NUDGE_E2E_FIXTURE=<fixture> behavior-diff/tests/nudge-e2e.sh check
+    NUDGE_E2E_FIXTURE=<fixture> tests/nudge-e2e.sh check
 
 Answer **Run behavior-diff**. At its run gate, compare the displayed task with
 the task from step 1. A paraphrase is acceptable only when it still requires
@@ -130,7 +130,7 @@ remove, but it also hides an important cancellation notice. Behavior-diff
 showed the consequence before the rule controlled her real inbox.*
 
 For `demo-invoice-review`, read
-`behavior-diff/e2e/demo-invoice-review/expectations.md` only after the trials
+`e2e/demo-invoice-review/expectations.md` only after the trials
 finish. Never send it to the driven agent. Expect before to inspect supplier
 trust and payment history, find the duplicate invoice, and return `HOLD`.
 Expect after to stop after supplier and amount checks and return `APPROVE`.
@@ -140,7 +140,7 @@ created a duplicate-payment risk.* If the record-inspection paths did not
 diverge, say the case did not demonstrate a meaningful behavior-flow change.
 
 For `demo-ascii-response`, read
-`behavior-diff/e2e/demo-ascii-response/expectations.md` only after the trials
+`e2e/demo-ascii-response/expectations.md` only after the trials
 finish. Expect both sides to read the same records and reach the same cause —
 identical flows are this fixture's point, not a failure. The single observable
 is whether the answer contains a drawn timeline: measured at 1 of 6 before
@@ -159,7 +159,7 @@ run, 3 of 8 the next, same fixture).
 **6. Optional beat — the Stop line.** Only if someone asks what happens
 when the agent stays quiet:
 
-    NUDGE_E2E_FIXTURE=<fixture> behavior-diff/tests/nudge-e2e.sh drop-whisper
+    NUDGE_E2E_FIXTURE=<fixture> tests/nudge-e2e.sh drop-whisper
 
 Then any trivial message in that pane; the turn ends with one
 `Stop says: 📊 …` line, and the next turn is silent.
@@ -168,7 +168,7 @@ Then any trivial message in that pane; the turn ends with one
 the state directory the reports live in.
 
     herdr pane close "$NEW"
-    NUDGE_E2E_FIXTURE=<fixture> behavior-diff/tests/nudge-e2e.sh reset
+    NUDGE_E2E_FIXTURE=<fixture> tests/nudge-e2e.sh reset
 
 ## When it goes wrong on stage
 

@@ -83,7 +83,7 @@ hidden safeguard before the two trials run. All records are synthetic.
 
 From the repository root:
 
-    NUDGE_E2E_FIXTURE=demo-invoice-review behavior-diff/tests/nudge-e2e.sh setup
+    NUDGE_E2E_FIXTURE=demo-invoice-review tests/nudge-e2e.sh setup
 
 The setup command prints the isolated session command, edit prompt, and neutral
 task. At the run gate, verify that the driven skill preserves the same
@@ -98,7 +98,7 @@ This fixture tests a replacement, so do not use the append-only
 normal instruction-file comparison:
 
     behavior-diff.sh --file AGENTS.md \
-      --task "$(cat /path/to/engram/behavior-diff/e2e/demo-invoice-review/task.md)" \
+      --task "$(cat <repo>/e2e/demo-invoice-review/task.md)" \
       --fast
 
 `--fast` is one trial per side. It demonstrates a possible route; it does not

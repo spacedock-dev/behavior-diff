@@ -1,8 +1,8 @@
-# Behavior-check PoC
+# Behavior Diff
 
-Spike for the paired before/after simulation in
-[`plans/engram-behavior-check-research-survey.md`](../plans/engram-behavior-check-research-survey.md):
-does changing only one rule change the agent's observable next action?
+Behavior Diff compares agent behavior before and after an instruction-file
+change. It runs isolated trials with and without the change, then shows
+whether the agent took a different path.
 
 - `e2e/` — the fixtures a run is driven from. Each holds a synthetic
   project, the task at the decision point, and the rule block to add.
@@ -43,8 +43,8 @@ Run the demo:
 
     NUDGE_E2E_FIXTURE=demo tests/nudge-e2e.sh setup    # sandbox at /tmp/nudge-e2e
     cd /tmp/nudge-e2e
-    behavior-diff <repo>/behavior-diff/e2e/demo/rule.md --into AGENTS.md \
-      --task "$(cat <repo>/behavior-diff/e2e/demo/task.md)" --fast
+    behavior-diff <repo>/e2e/demo/rule.md --into AGENTS.md \
+      --task "$(cat <repo>/e2e/demo/task.md)" --fast
 
 Run the non-developer behavior-flow demo:
 
@@ -57,8 +57,8 @@ Run the vague-rule demo (an appended rule, so the front door works):
 
     NUDGE_E2E_FIXTURE=demo-ascii-response tests/nudge-e2e.sh setup
     cd /tmp/nudge-e2e
-    behavior-diff <repo>/behavior-diff/e2e/demo-ascii-response/rule.md --into AGENTS.md \
-      --task "$(cat <repo>/behavior-diff/e2e/demo-ascii-response/task.md)" --fast
+    behavior-diff <repo>/e2e/demo-ascii-response/rule.md --into AGENTS.md \
+      --task "$(cat <repo>/e2e/demo-ascii-response/task.md)" --fast
 
 ## Your own change, not the demo
 
@@ -76,13 +76,23 @@ every trial's commands and final answer — with **no automatic verdict**
 compare the flows and answers yourself. The task must exercise the
 situation your change is about, or both variants will behave the same.
 
-`plugin/` is the installable `behavior-diff@engram` plugin, and its
-`skills/` directory IS the canonical source — no mirror, no materialize
-step. Install via the marketplace one-liner in the repo README, or copy a
-skill directory into `~/.claude/skills/` (behavior-diff carries `scripts/`
-and `references/` inside it; the live and retro skills reference it as a
-sibling, so install behavior-diff alongside them). No absolute paths in
-skill content; runs land under `${BEHAVIOR_DIFF_HOME:-~/.behavior-diff}/runs/`.
+`plugin/` contains the installable `behavior-diff` plugin. Its `skills/`
+directory is the canonical source.
+
+Install it from the Spacedock marketplace:
+
+    claude plugin marketplace add spacedock-dev/marketplace
+    claude plugin install behavior-diff@spacedock
+
+For Codex:
+
+    codex plugin marketplace add spacedock-dev/marketplace
+    codex plugin add behavior-diff@spacedock
+
+You can also copy the three skill directories into `~/.claude/skills/`.
+The main skill includes its scripts and references. The live and retro skills
+use the main skill as a sibling. Runs land under
+`${BEHAVIOR_DIFF_HOME:-~/.behavior-diff}/runs/`.
 
 `plugin/skills/behavior-diff/scripts/make-capsule.sh` mints binary-valid spacedock FO↔worker
 capsules (phases: worker-mid, briefing-open, revise-recorded) with a
@@ -148,7 +158,7 @@ reading the edited paths from the apply_patch grammar in
   Codex session — `codex exec` never prompts and silently skips untrusted
   hooks.
 - Codex runs a cache snapshot of the plugin, not the marketplace source:
-  after updating the plugin, run `codex plugin add behavior-diff@engram`
+  after updating the plugin, run `codex plugin add behavior-diff@spacedock`
   again to refresh the snapshot.
 
 Self-check: `bash tests/hooks-test.sh` (fake payloads, no model). Live
@@ -156,8 +166,7 @@ delivery is a manual check, still owed — and it must verify the whisper
 actually reaches the agent: if `additionalContext` goes undelivered on
 this surface, remove the Stop suppression in `rules-edit-remind.sh`.
 
-PoC boundaries, deliberately not the product: Claude-only, no redaction
-(synthetic capsule), report stays in `runs/` (gitignored) instead of
-`~/.engram/reports/`, the agent's global user CLAUDE.md is not isolated
-(identical for both variants, so the comparison holds), and effectful
-tools are excluded via allowlist rather than intercepted.
+Current boundaries: no redaction (use synthetic capsules), no isolation of
+the agent's global user CLAUDE.md (same for both variants), and an
+effectful-tool allowlist instead of interception. Reports stay under
+`${BEHAVIOR_DIFF_HOME:-~/.behavior-diff}/runs/`.

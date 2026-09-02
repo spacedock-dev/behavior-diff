@@ -5,10 +5,10 @@ description: Compare agent behavior before/after an uncommitted change to CLAUDE
 
 # Behavior diff
 
-Runs the Engram behavior-check PoC on a local uncommitted instruction-file
-change: fresh headless agent trials with and without the change, then a
-report showing the git diff, a flow diff, and every trial's commands and
-final answer. There is no automatic verdict — the user judges the evidence.
+Runs Behavior Diff on a local uncommitted instruction-file change. It starts
+fresh headless agent trials with and without the change. The report shows the
+git diff, a flow diff, and every trial's commands and final answer. There is
+no automatic verdict. The user judges the evidence.
 
 The runner is bundled with this skill: `scripts/behavior-diff.sh` inside
 this skill's base directory. Pass `--agent` to match the agent running

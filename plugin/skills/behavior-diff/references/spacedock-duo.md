@@ -34,8 +34,8 @@ no agent unless it printed `CAPSULE OK`. The source repo stays
 read-only; capsules live in scratch. Known fixture traps (stale `gate
 validate` help, the corpus test that escapes its checkout, the red base
 test, hybrid entity shapes) are in `RETRO_NOTES.md` — at the runs root
-(`${BEHAVIOR_DIFF_HOME:-~/.behavior-diff}`), or in the behavior-check
-PoC repo when working there.
+(`${BEHAVIOR_DIFF_HOME:-~/.behavior-diff}`), or in the Behavior Diff repo
+when working there.
 
 ## 3. Single-role rule
 
@@ -77,7 +77,7 @@ single-sample evidence, same honesty labels as behavior-diff-live.
    A silent agent is usually thinking — ping before assuming death;
    never relaunch unpinged.
 
-3. **Render through the PoC pipeline** (behavior-diff-live step 6) with
+3. **Render through the Behavior Diff pipeline** (behavior-diff-live step 6) with
    two changes: `config.json` sets `vocab: "spacedock"`, and each
    variant's trial dir concatenates worker+FO actions in cycle order
    with a `--- FO ---` marker command between them. Run `decisions.py`

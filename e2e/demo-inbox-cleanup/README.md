@@ -47,15 +47,15 @@ The fixture is synthetic. It contains no real email or personal data.
 
 From the repository root:
 
-    NUDGE_E2E_FIXTURE=demo-inbox-cleanup behavior-diff/tests/nudge-e2e.sh setup
+    NUDGE_E2E_FIXTURE=demo-inbox-cleanup tests/nudge-e2e.sh setup
 
 The setup command prints the isolated session command, the proposed rule, and
 the neutral task. To run behavior-diff directly in the prepared sandbox:
 
     cd /tmp/nudge-e2e
-    behavior-diff /path/to/engram/behavior-diff/e2e/demo-inbox-cleanup/rule.md \
+    behavior-diff <repo>/e2e/demo-inbox-cleanup/rule.md \
       --into AGENTS.md \
-      --task "$(cat /path/to/engram/behavior-diff/e2e/demo-inbox-cleanup/task.md)" \
+      --task "$(cat <repo>/e2e/demo-inbox-cleanup/task.md)" \
       --fast
 
 `--fast` runs one trial per side. It can show the story shape, but it cannot

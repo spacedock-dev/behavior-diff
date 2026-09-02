@@ -66,7 +66,7 @@ Both stacks carry the nudge hooks, and the ask rate belongs to the agent,
 so the journey is worth running on each. Codex needs three things first,
 each of which fails silently: `[features] hooks = true` in
 `~/.codex/config.toml`, a one-time interactive trust approval per hook
-entry, and `codex plugin add behavior-diff@engram` after any plugin change
+entry, and `codex plugin add behavior-diff@spacedock` after any plugin change
 (it runs a cache snapshot, not the source). Codex also has no
 AskUserQuestion, so the ask arrives as one plain sentence rather than a
 two-option prompt.

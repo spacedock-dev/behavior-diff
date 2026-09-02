@@ -1,6 +1,6 @@
 ---
 name: behavior-diff-retro
-description: Write a retro for a finished behavior-diff or behavior-diff-live run — where the time went, what broke, what the evidence can and cannot support — and feed the lessons back into the PoC. Use for "behavior diff retro", "retro this run", "retro the experiment", after any behavior-diff run finishes.
+description: Write a retro for a finished behavior-diff or behavior-diff-live run — where the time went, what broke, what the evidence can and cannot support — and feed the lessons back into Behavior Diff. Use for "behavior diff retro", "retro this run", "retro the experiment", after any behavior-diff run finishes.
 ---
 
 # Behavior-diff retro
@@ -9,8 +9,8 @@ After a run of `behavior-diff` (headless) or `behavior-diff-live`
 (subagents), write the retro while the session still remembers what
 happened, and feed durable lessons into `RETRO_NOTES.md` at the runs
 root (`${BEHAVIOR_DIFF_HOME:-~/.behavior-diff}`). When the current repo
-is the behavior-check PoC itself, use the repo's own `RETRO_NOTES.md`
-instead and follow its commit rules.
+is the Behavior Diff repo, use the repo's own `RETRO_NOTES.md` instead and
+follow its commit rules.
 
 ## Steps
 
@@ -38,10 +38,10 @@ instead and follow its commit rules.
 3. **Feed back.** Append one dated entry to the `RETRO_NOTES.md` named
    above: 3-8 bullets of durable, tool-level lessons with a pointer to
    the run dir. Tooling lessons only — never real code excerpts or
-   transcript quotes. In the PoC repo, run its privacy check before
-   committing.
+   transcript quotes. In the Behavior Diff repo, run its privacy check
+   before committing.
 
 4. **Propose, don't apply.** Turn the lessons into a short list of
-   concrete PoC improvements (file-level: which skill text, which script,
-   which label) and give it to the user as proposals. Do not change the
+   concrete Behavior Diff improvements (file-level: which skill text, which
+   script, which label) and give it to the user as proposals. Do not change the
    skills or scripts without their go.

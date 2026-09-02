@@ -108,7 +108,7 @@ anyway and takes `--agent codex`.
    thinking, not dead: file mtimes and process lists misdiagnose it. Never
    relaunch a trial for silence alone; ping it with SendMessage first.
 
-6. **Render through the PoC pipeline — do not invent a report format.**
+6. **Render through the Behavior Diff pipeline — do not invent a report format.**
    Build `${BEHAVIOR_DIFF_HOME:-~/.behavior-diff}/runs/live-<stamp>/`
    with, per variant, a
    `before-1/` / `after-1/` dir containing a synthesized `trace.jsonl`:
