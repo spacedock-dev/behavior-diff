@@ -105,7 +105,7 @@ def _variants(run, grades, metadata):
         blocked = sum(trial.verdict == "BLOCKED" for trial in trials)
         passed = sum(trial.verdict == "PASS" for trial in trials)
         valid = len(trials) - blocked
-        count_text, count_emphasized = content.count_data(
+        count_text, count_suffix, count_emphasized = content.count_data(
             metadata.mode, passed, valid, blocked
         )
         values[name] = VariantData(
@@ -116,6 +116,7 @@ def _variants(run, grades, metadata):
             valid=valid,
             total=len(trials),
             count_text=count_text,
+            count_suffix=count_suffix,
             count_emphasized=count_emphasized,
             trials=trials,
         )
@@ -145,17 +146,35 @@ def _read_trace(path):
             item = json.loads(raw)
         except ValueError:
             continue
+        if type(item) is not dict:
+            continue
         if item.get("type") == "assistant":
-            for part in item.get("message", {}).get("content") or []:
-                if part.get("type") != "tool_use":
+            message = item.get("message")
+            if type(message) is not dict:
+                continue
+            parts = message.get("content")
+            if type(parts) is not list:
+                continue
+            for part in parts:
+                if type(part) is not dict or part.get("type") != "tool_use":
                     continue
-                input_data = part.get("input") or {}
-                if input_data.get("command"):
-                    commands.append(input_data["command"])
-                elif input_data.get("file_path"):
-                    commands.append("[{0}] {1}".format(part.get("name"), input_data["file_path"]))
+                input_data = part.get("input")
+                if type(input_data) is not dict:
+                    continue
+                command = input_data.get("command")
+                file_path = input_data.get("file_path")
+                if type(command) is str and command:
+                    commands.append(command)
+                elif (
+                    type(file_path) is str
+                    and file_path
+                    and type(part.get("name")) is str
+                ):
+                    commands.append("[{0}] {1}".format(part["name"], file_path))
         elif item.get("type") == "result":
-            final = item.get("result") or final
+            result = item.get("result")
+            if type(result) is str and result:
+                final = result
     return commands, final
 
 
@@ -327,7 +346,12 @@ def _convert_decisions(raw, before_default, after_default):
         raise ValueError("malformed counts")
     before_count = counts.get("before", before_default)
     after_count = counts.get("after", after_default)
-    if not _is_int(before_count) or not _is_int(after_count):
+    if (
+        not _is_int(before_count)
+        or not _is_int(after_count)
+        or before_count < 0
+        or after_count < 0
+    ):
         raise ValueError("malformed counts")
     fork = raw.get("fork")
     if fork is not None and not _is_int(fork):
@@ -335,9 +359,24 @@ def _convert_decisions(raw, before_default, after_default):
     fork_note = raw.get("fork_note", "")
     dropped = raw.get("dropped", 0)
     extractor = raw.get("extractor", "")
-    if type(fork_note) is not str or not _is_int(dropped) or type(extractor) is not str:
+    if (
+        type(fork_note) is not str
+        or not _is_int(dropped)
+        or dropped < 0
+        or type(extractor) is not str
+    ):
         raise ValueError("malformed decisions")
     rows = tuple(_decision_row(row) for row in raw["chain"])
+    if any(
+        sum(choice.count for choice in row.before) != before_count
+        or sum(choice.count for choice in row.after) != after_count
+        for row in rows
+    ):
+        raise ValueError("decision counts do not match")
+    if fork is not None and (
+        fork < 1 or fork > len(rows) or not rows[fork - 1].diverges
+    ):
+        raise ValueError("malformed fork")
     return DecisionData(rows, fork, fork_note, dropped, extractor, before_count, after_count)
 
 
@@ -373,7 +412,12 @@ def _decision_choices(raw):
         raise ValueError("malformed decision choices")
     choices = []
     for choice in raw:
-        if type(choice) is not dict or type(choice.get("choice")) is not str or not _is_int(choice.get("n")):
+        if (
+            type(choice) is not dict
+            or type(choice.get("choice")) is not str
+            or not _is_int(choice.get("n"))
+            or choice["n"] < 0
+        ):
             raise ValueError("malformed decision choice")
         choices.append(DecisionChoiceData(choice["choice"], choice["n"]))
     return tuple(choices)

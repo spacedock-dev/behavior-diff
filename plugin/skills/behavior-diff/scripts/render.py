@@ -64,9 +64,12 @@ b = variants["before"]
 a = variants["after"]
 count_line = {
     name: (
-        "**" + variant.count_text + "**"
-        if variant.count_emphasized
-        else variant.count_text
+        (
+            "**" + variant.count_text + "**"
+            if variant.count_emphasized
+            else variant.count_text
+        )
+        + variant.count_suffix
     )
     for name, variant in (
         ("before", report.variants.before),
@@ -316,7 +319,7 @@ for name, label, variant in (
     cols += (
         f'<section class="col"><header class="col-head"><h2>{label}</h2>'
         f'<span class="col-note">{esc(variant.note)}</span></header>'
-        f'<p class="count">{esc(variant.count_text)}</p>'
+        f'<p class="count">{esc(variant.count_text + variant.count_suffix)}</p>'
         + "".join(card(trial) for trial in variants[name]["trials"])
         + "</section>"
     )

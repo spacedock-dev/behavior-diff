@@ -26,6 +26,7 @@ class VariantData:
     valid: int
     total: int
     count_text: str
+    count_suffix: str
     count_emphasized: bool
     trials: Tuple[TrialData, ...]
 
@@ -256,6 +257,9 @@ def _variant(value, path):
         total=_expect_int(_field(value, "total", path), path + ".total"),
         count_text=_expect_str(
             _field(value, "count_text", path), path + ".count_text"
+        ),
+        count_suffix=_expect_str(
+            _field(value, "count_suffix", path), path + ".count_suffix"
         ),
         count_emphasized=_expect_bool(
             _field(value, "count_emphasized", path), path + ".count_emphasized"

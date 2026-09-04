@@ -390,6 +390,7 @@ require_output \
 reject_output 'A decision is not an action' "$captured_prompt" \
   'captured prompt uses self-reported action wording'
 
+
 progress 'Render captured and self-reported reports'
 
 python3 "$renderer" "$self_run" "$self_run" contract \
@@ -417,6 +418,32 @@ done
   "$captured_run/report-data.json") == \
   'Read: AGENTS.md|Test: bash behavior-diff/tests/live-report-contract.sh' ]] ||
   fail 'report data does not preserve after commands in order'
+[[ $(jq -r '.command_flow.enabled == false and (.command_flow.shared | length == 0) and (.command_flow.before.prefix | length == 0) and (.command_flow.before.paths | length == 0) and (.command_flow.after.prefix | length == 0) and (.command_flow.after.paths | length == 0)' "$self_run/report-data.json") == true ]] ||
+  fail 'self-reported report data must disable and empty command flow'
+
+graded_run=$tmp/graded
+build_run "$graded_run" captured
+python3 "$renderer" "$graded_run" "$graded_run" contract >/dev/null
+require_output '**0 of 1 valid trials met the expectation** (blocked: 0)' \
+  "$graded_run/report.md" \
+  'graded Markdown count must emphasize only the expectation result'
+
+
+invalid_decisions_run=$tmp/invalid-decisions
+build_run "$invalid_decisions_run" captured
+printf '%s\n' '{"chain":[{"decision":"Synthetic decision","topic":"","anchor":"work","before":[{"choice":"before","n":1}],"after":[{"choice":"after","n":1}],"diverges":true}],"fork":2,"counts":{"before":1,"after":1}}' \
+  >"$invalid_decisions_run/decisions.json"
+cat >"$invalid_decisions_run/before-1/trace.jsonl" <<'JSON'
+{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Bash","input":{"command":"Read: AGENTS.md"}}]}}
+[]
+{"type":"assistant","message":[]}
+{"type":"assistant","message":{"content":[null,{"type":"tool_use","input":null},{"type":"tool_use","input":{"command":17}},{"type":"tool_use","name":17,"input":{"file_path":"AGENTS.md"}}]}}
+{"type":"result","result":"Before answer"}
+JSON
+python3 "$renderer" "$invalid_decisions_run" "$invalid_decisions_run" contract \
+  "$invalid_decisions_run/config.json" >/dev/null
+[[ $(jq '.decisions.rows | length' "$invalid_decisions_run/report-data.json") == 0 ]] ||
+  fail 'out-of-range decision fork must fall back to empty decisions'
 
 for report in report.md report.html report-artifact.html; do
   require_exact_report captured "$captured_run/$report"

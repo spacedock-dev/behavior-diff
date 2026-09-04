@@ -55,6 +55,7 @@ def synthetic_raw():
                 "valid": 2,
                 "total": 2,
                 "count_text": "2 valid trials",
+                "count_suffix": "",
                 "count_emphasized": False,
                 "trials": [
                     {
@@ -83,6 +84,7 @@ def synthetic_raw():
                 "valid": 2,
                 "total": 2,
                 "count_text": "1 of 2 valid trials passed",
+                "count_suffix": " (blocked: 0)",
                 "count_emphasized": True,
                 "trials": [
                     {
@@ -226,6 +228,17 @@ def main():
         invalid_count,
         "invalid report-data field command_flow.before.paths[0].count: expected integer",
     )
+    invalid_suffix = copy.deepcopy(raw)
+    invalid_suffix["variants"]["after"]["count_suffix"] = True
+    assert_rejected(
+        invalid_suffix,
+        "invalid report-data field variants.after.count_suffix: expected string",
+    )
+
+    if len(sys.argv) == 2:
+        assert_file_round_trip(sys.argv[1])
+
+
 
 def assert_file_round_trip(path):
     """Validate any renderer-produced report without fixture assumptions."""
@@ -235,8 +248,7 @@ def assert_file_round_trip(path):
     assert json.loads(report.to_json()) == raw
 
 
-if len(sys.argv) == 2:
-    assert_file_round_trip(sys.argv[1])
+
 
 
 if __name__ == "__main__":

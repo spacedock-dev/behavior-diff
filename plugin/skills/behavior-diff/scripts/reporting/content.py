@@ -63,13 +63,18 @@ def single_run_suffix(mode, trial_count):
 
 def count_data(mode, passed, valid, blocked):
     if mode == "review":
-        return "{0} valid trial(s) · no automatic grading (blocked: {1})".format(
-            valid, blocked
-        ), False
-    return "{0} of {1} valid trials met the expectation (blocked: {2})".format(
-        passed, valid, blocked
-    ), True
-
+        return (
+            "{0} valid trial(s) · no automatic grading (blocked: {1})".format(
+                valid, blocked
+            ),
+            "",
+            False,
+        )
+    return (
+        "{0} of {1} valid trials met the expectation".format(passed, valid),
+        " (blocked: {0})".format(blocked),
+        True,
+    )
 
 def decision_blurb(self_reported, trial_count):
     if self_reported:
