@@ -235,6 +235,39 @@ def main():
         "invalid report-data field variants.after.count_suffix: expected string",
     )
 
+    from reporting.render_html import _resolve_css, render_artifact, render_document
+
+    assert _resolve_css(".result { background:__RESULT_BG__; }", "good") == (
+        ".result { background:var(--pass); }"
+    )
+    assert _resolve_css(".result { background:__RESULT_BG__; }", "bad") == (
+        ".result { background:var(--fail); }"
+    )
+    assert _resolve_css(".result { background:__RESULT_BG__; }", "neutral") == (
+        ".result { background:var(--accent); }"
+    )
+    for css in (".result {}", "__RESULT_BG__ __RESULT_BG__"):
+        try:
+            _resolve_css(css, "good")
+        except ValueError as error:
+            assert str(error) == "report.css must contain __RESULT_BG__ exactly once"
+        else:
+            raise AssertionError("invalid CSS token count was accepted")
+
+    artifact = render_artifact(report, ".result { background:__RESULT_BG__; }")
+    assert artifact == render_artifact(report, ".result { background:__RESULT_BG__; }")
+    document = render_document(artifact)
+    assert document == render_document(artifact)
+    escaping_raw = copy.deepcopy(raw)
+    escaping_raw["variants"]["before"]["trials"][0]["verdict"] = 'REVIEW"><script>&'
+    escaping_artifact = render_artifact(
+        ReportData.from_dict(escaping_raw),
+        ".result { background:__RESULT_BG__; }",
+    )
+    assert '<script>' not in escaping_artifact
+    assert 'class="badge review&quot;&gt;&lt;script&gt;&amp;"' in escaping_artifact
+    assert 'REVIEW&quot;&gt;&lt;script&gt;&amp;</span>' in escaping_artifact
+
     if len(sys.argv) == 2:
         assert_file_round_trip(sys.argv[1])
 
@@ -247,10 +280,17 @@ def assert_file_round_trip(path):
     assert report.to_dict() == raw
     assert json.loads(report.to_json()) == raw
 
+    from reporting.render_html import render_artifact, render_document
     from reporting.render_markdown import render_markdown
 
     markdown_path = Path(path).with_name("report.md")
+    artifact_path = Path(path).with_name("report-artifact.html")
+    document_path = Path(path).with_name("report.html")
+    css = (scripts / "reporting/report.css").read_text()
     assert render_markdown(report) == markdown_path.read_text()
+    artifact = render_artifact(report, css)
+    assert artifact == artifact_path.read_text()
+    assert render_document(artifact) == document_path.read_text()
 
 
 
