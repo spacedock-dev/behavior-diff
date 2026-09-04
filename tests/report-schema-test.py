@@ -1,7 +1,12 @@
 #!/usr/bin/env python3
+import contextlib
 import copy
+import importlib.util
+import io
 import json
+import os
 import sys
+import tempfile
 from pathlib import Path
 
 scripts = Path(__file__).resolve().parents[1] / "plugin/skills/behavior-diff/scripts"
@@ -175,7 +180,36 @@ def assert_rejected(raw, message):
         raise AssertionError("invalid report data was accepted")
 
 
+def assert_render_import_safe():
+    render_path = scripts / "render.py"
+    original_cwd = Path.cwd()
+    original_argv = sys.argv
+    stdout = io.StringIO()
+    stderr = io.StringIO()
+    module_name = "_behavior_diff_render_import_test"
+
+    try:
+        with tempfile.TemporaryDirectory() as directory:
+            os.chdir(directory)
+            sys.argv = [str(render_path)]
+            spec = importlib.util.spec_from_file_location(module_name, render_path)
+            assert spec is not None and spec.loader is not None
+            module = importlib.util.module_from_spec(spec)
+            sys.modules[module_name] = module
+            with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
+                spec.loader.exec_module(module)
+            assert list(Path(".").iterdir()) == []
+            assert stdout.getvalue() == ""
+            assert stderr.getvalue() == ""
+            assert callable(module.main)
+    finally:
+        sys.modules.pop(module_name, None)
+        sys.argv = original_argv
+        os.chdir(original_cwd)
+
+
 def main():
+    assert_render_import_safe()
     raw = synthetic_raw()
     report = assert_round_trip(raw)
     assert isinstance(report.variants.before.trials[0], TrialData)
