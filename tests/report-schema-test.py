@@ -227,8 +227,16 @@ def main():
         "invalid report-data field command_flow.before.paths[0].count: expected integer",
     )
 
-    if len(sys.argv) == 2:
-        assert_round_trip(json.loads(Path(sys.argv[1]).read_text()))
+def assert_file_round_trip(path):
+    """Validate any renderer-produced report without fixture assumptions."""
+    raw = json.loads(Path(path).read_text())
+    report = ReportData.from_dict(raw)
+    assert report.to_dict() == raw
+    assert json.loads(report.to_json()) == raw
+
+
+if len(sys.argv) == 2:
+    assert_file_round_trip(sys.argv[1])
 
 
 if __name__ == "__main__":

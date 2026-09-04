@@ -401,6 +401,23 @@ if [[ $update_report_fixtures == true ]]; then
   copy_report_fixtures self-reported "$self_run"
 fi
 
+for run in "$self_run" "$captured_run"; do
+  [[ -f $run/report-data.json ]] ||
+    fail "renderer did not write report-data.json: $run"
+  python3 "$here/report-schema-test.py" "$run/report-data.json"
+done
+
+[[ $(jq -r '.schema_version' "$captured_run/report-data.json") == 1 ]] ||
+  fail 'captured report data schema version is not 1'
+[[ $(jq -r '.metadata.trace_source' "$captured_run/report-data.json") == captured ]] ||
+  fail 'captured report data provenance is not captured'
+[[ $(jq -r '.metadata.trace_source' "$self_run/report-data.json") == self-reported ]] ||
+  fail 'self-reported report data provenance is not self-reported'
+[[ $(jq -r '.variants.after.trials[0].commands | join("|")' \
+  "$captured_run/report-data.json") == \
+  'Read: AGENTS.md|Test: bash behavior-diff/tests/live-report-contract.sh' ]] ||
+  fail 'report data does not preserve after commands in order'
+
 for report in report.md report.html report-artifact.html; do
   require_exact_report captured "$captured_run/$report"
   require_exact_report self-reported "$self_run/$report"
