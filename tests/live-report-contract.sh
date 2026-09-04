@@ -394,7 +394,15 @@ reject_output 'A decision is not an action' "$captured_prompt" \
 progress 'Render captured and self-reported reports'
 
 python3 "$renderer" "$self_run" "$self_run" contract \
-  "$self_run/config.json" >/dev/null
+  "$self_run/config.json" >"$self_run/render.stdout"
+self_run_path=$(cd "$self_run" && pwd -P)
+if ! printf '%s\n' \
+  'mode review · BEFORE pass 0/1 · AFTER pass 0/1 → No automatic verdict — compare the reported actions, decision diff, and final answers' \
+  "report: $self_run_path/report.md" \
+  "page:   $self_run_path/report.html" |
+  cmp -s - "$self_run/render.stdout"; then
+  fail 'renderer stdout changed'
+fi
 python3 "$renderer" "$captured_run" "$captured_run" contract \
   "$captured_run/config.json" >/dev/null
 if [[ $update_report_fixtures == true ]]; then
