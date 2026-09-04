@@ -95,7 +95,4 @@ jobs:
         run: bash tests/release-workflow-test.sh
 
       - name: Run release skill unit check
-        run: >-
-          python3
-          .agents/skills/release-behavior-diff/scripts/bump-version.py
-          --check
+        run: python3 .agents/skills/release-behavior-diff/scripts/bump-version.py --check

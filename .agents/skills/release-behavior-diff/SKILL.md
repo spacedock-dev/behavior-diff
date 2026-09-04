@@ -186,6 +186,20 @@ git ls-remote origin refs/heads/main | cut -f1
 If push is rejected or the returned SHA differs, stop. Do not create a release.
 Recovery mode performs no push.
 
+Before either release command, capture the newest matching Release workflow
+run. The command must succeed; an empty value is allowed:
+
+```bash
+previous_run_id=$(gh run list \
+  --repo spacedock-dev/behavior-diff \
+  --workflow Release \
+  --event release \
+  --commit "$sha" \
+  --limit 1 \
+  --json databaseId \
+  --jq '.[0].databaseId // empty')
+```
+
 Create a new tag and release at the exact selected commit:
 
 ```bash
@@ -207,6 +221,22 @@ gh release create "v$new" \
   --generate-notes
 ```
 
+If `gh release create` exits nonzero, the result is uncertain. Immediately run:
+
+```bash
+gh release view "v$new" \
+  --repo spacedock-dev/behavior-diff \
+  --json tagName,url,isDraft,isPrerelease
+git fetch origin "refs/tags/v$new"
+published_sha=$(git rev-parse 'FETCH_HEAD^{commit}')
+```
+
+Continue to workflow discovery only when the read-back shows the exact
+non-draft, non-prerelease release and `published_sha` equals `sha`. If
+read-back explicitly reports not found, report that the release is missing.
+Any other read-back error or mismatch stops the workflow as uncertain. Never
+return to the version bump.
+
 ## Watch the release workflow
 
 Wait at most one minute for the Release workflow run to appear:
@@ -214,14 +244,18 @@ Wait at most one minute for the Release workflow run to appear:
 ```bash
 run_id=
 for attempt in $(seq 1 12); do
-  run_id=$(gh run list \
+  candidate=$(gh run list \
     --repo spacedock-dev/behavior-diff \
     --workflow Release \
+    --event release \
     --commit "$sha" \
     --limit 1 \
     --json databaseId \
     --jq '.[0].databaseId // empty')
-  [[ -n $run_id ]] && break
+  if [[ -n $candidate && $candidate != "$previous_run_id" ]]; then
+    run_id=$candidate
+    break
+  fi
   sleep 5
 done
 if [[ -z $run_id ]]; then
@@ -253,9 +287,11 @@ Require overall success and successful `ci / Unit`, `ci / Format`, and
 - Failure before push: do not push or release. Leave a focused local version
   diff or commit and report the failed command.
 - Push rejection: never force. Fetch and report that remote `main` moved.
-- Push success followed by release failure: report that the version commit is
-  on `main` but its release is missing. Retry the same version in recovery
-  mode; never bump again.
+- Push success followed by a release-create error: read the release back. If it
+  exists at the selected tag and SHA, continue with workflow discovery. If it
+  is explicitly absent, report that the version commit is on `main` but its
+  release is missing. Retry the same version in recovery mode; never bump
+  again. Treat any other result as uncertain and stop.
 - Workflow failure: keep the release and tag. Report the workflow URL and the
   failed job. Never delete or recreate release state automatically.
 - Never invoke an AI model as part of release verification.

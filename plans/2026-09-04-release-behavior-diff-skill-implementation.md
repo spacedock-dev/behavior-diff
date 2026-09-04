@@ -54,9 +54,7 @@ import tempfile
 from pathlib import Path
 from typing import Optional, Tuple
 
-VERSION_RE = re.compile(
-    r"^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$"
-)
+VERSION_RE = re.compile(r"^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$")
 MANIFESTS = (
     Path("plugin/.claude-plugin/plugin.json"),
     Path("plugin/.codex-plugin/plugin.json"),
@@ -73,9 +71,7 @@ def _fixture(root: Path, claude: str = "0.3.2", codex: str = "0.3.2") -> None:
         path = root / relative
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(
-            '{\n  "name": "behavior-diff",\n  "version": "'
-            + version
-            + '"\n}\n'
+            '{\n  "name": "behavior-diff",\n  "version": "' + version + '"\n}\n'
         )
     contract = root / CONTRACT
     contract.parent.mkdir(parents=True, exist_ok=True)
