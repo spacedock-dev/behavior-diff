@@ -77,6 +77,7 @@ jobs:
       - name: Check Python syntax
         run: |
           python3 -m py_compile \
+            .agents/skills/release-behavior-diff/scripts/bump-version.py \
             plugin/skills/behavior-diff/scripts/decisions.py \
             plugin/skills/behavior-diff/scripts/render.py \
             plugin/skills/behavior-diff/scripts/reporting/*.py
@@ -92,3 +93,9 @@ jobs:
 
       - name: Run release workflow checks
         run: bash tests/release-workflow-test.sh
+
+      - name: Run release skill unit check
+        run: >-
+          python3
+          .agents/skills/release-behavior-diff/scripts/bump-version.py
+          --check
