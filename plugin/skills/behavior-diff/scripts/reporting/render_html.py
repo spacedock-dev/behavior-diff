@@ -27,18 +27,6 @@ def _diff_line_class(line: str) -> str:
     return "d-ctx"
 
 
-def _branch_text(choices, total: int) -> str:
-    return (
-        " · ".join(
-            choice.choice
-            if choice.count == total
-            else f"{choice.choice} ({choice.count}/{total})"
-            for choice in choices
-        )
-        or "—"
-    )
-
-
 def _trial_card(trial, self_reported: bool, mode: str) -> str:
     escaped = html.escape
     verdict_class = escaped(trial.verdict.lower())
@@ -188,8 +176,8 @@ def render_artifact(report: ReportData, css: str) -> str:
             lead_count += 1
         parts = []
         for index, row in enumerate(report.decisions.rows[:lead_count], 1):
-            before_choices = _branch_text(row.before, decision_before_total)
-            after_choices = _branch_text(row.after, decision_after_total)
+            before_choices = content.branch_text(row.before, decision_before_total)
+            after_choices = content.branch_text(row.after, decision_after_total)
             choice = before_choices if before_choices == after_choices else f"before: {before_choices} · after: {after_choices}"
             parts.append(_decision_label(index, row, fork))
             parts.append(
@@ -213,7 +201,7 @@ def render_artifact(report: ReportData, css: str) -> str:
                 else:
                     grid.append(
                         '<div class="fstep shared dspan"><span>'
-                        + escaped(_branch_text(row.before, decision_before_total))
+                        + escaped(content.branch_text(row.before, decision_before_total))
                         + "</span></div>"
                     )
             parts.append(f'<div class="dgrid">{"".join(grid)}</div>')

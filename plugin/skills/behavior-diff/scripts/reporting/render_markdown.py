@@ -4,18 +4,6 @@ from reporting import content
 from reporting.schema import ReportData
 
 
-def _branch_text(choices, total):
-    return (
-        " · ".join(
-            choice.choice
-            if choice.count == total
-            else f"{choice.choice} ({choice.count}/{total})"
-            for choice in choices
-        )
-        or "—"
-    )
-
-
 def _decision_markdown(report):
     decisions = report.decisions
     if not decisions.rows:
@@ -36,8 +24,8 @@ def _decision_markdown(report):
     if lead_count:
         markdown.append("Decided the same way on both sides:\n")
         for index, row in enumerate(decisions.rows[:lead_count], 1):
-            before_choice = _branch_text(row.before, before_total)
-            after_choice = _branch_text(row.after, after_total)
+            before_choice = content.branch_text(row.before, before_total)
+            after_choice = content.branch_text(row.after, after_total)
             choice = (
                 before_choice
                 if before_choice == after_choice
@@ -66,12 +54,16 @@ def _decision_markdown(report):
             )
             if row.diverges:
                 markdown.append(f"- {index}. {title}{mark}")
-                markdown.append(f"  - BEFORE: {_branch_text(row.before, before_total)}")
-                markdown.append(f"  - AFTER: {_branch_text(row.after, after_total)}")
+                markdown.append(
+                    f"  - BEFORE: {content.branch_text(row.before, before_total)}"
+                )
+                markdown.append(
+                    f"  - AFTER: {content.branch_text(row.after, after_total)}"
+                )
             else:
                 markdown.append(
                     f"- {index}. {row.decision} *(same)* → "
-                    f"{_branch_text(row.before, before_total)}"
+                    f"{content.branch_text(row.before, before_total)}"
                 )
             if row.note:
                 markdown.append(f"  - note: {row.note}")
