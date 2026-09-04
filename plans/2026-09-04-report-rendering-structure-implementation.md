@@ -227,6 +227,7 @@ def main():
                     "valid": 1,
                     "total": 1,
                     "count_text": "1 valid trial(s)",
+                    "count_suffix": " (blocked: 0)",
                     "count_emphasized": False,
                     "trials": [{
                         "name": "before-1",
@@ -245,6 +246,7 @@ def main():
                     "valid": 1,
                     "total": 1,
                     "count_text": "1 valid trial(s)",
+                    "count_suffix": " (blocked: 0)",
                     "count_emphasized": False,
                     "trials": [{
                         "name": "after-1",
@@ -340,6 +342,7 @@ class VariantData:
     valid: int
     total: int
     count_text: str
+    count_suffix: str
     count_emphasized: bool
     trials: Tuple[TrialData, ...]
 
@@ -472,6 +475,7 @@ git commit --signoff -m "feat: define internal report data schema"
 - Create: `plugin/skills/behavior-diff/scripts/reporting/content.py`
 - Create: `plugin/skills/behavior-diff/scripts/reporting/load.py`
 - Modify: `plugin/skills/behavior-diff/scripts/render.py:16-448,918-923`
+- Modify: `plugin/skills/behavior-diff/scripts/reporting/schema.py`
 - Modify: `tests/live-report-contract.sh`
 - Modify: `tests/report-schema-test.py`
 
@@ -515,7 +519,7 @@ Expected: `FAIL: renderer did not write report-data.json`.
 Move the current default subtitle, boundary, result matrix, count wording, decision explanation, observation wording, and section headings behind these pure functions:
 
 - `result_data(mode: str, self_reported: bool, before: VariantData, after: VariantData) -> ResultData` copies the current result matrix and single-run suffix from `render.py:250-271`.
-- `count_data(mode: str, passed: int, valid: int, blocked: int) -> Tuple[str, bool]` returns plain count text plus whether Markdown emphasizes it; HTML must not remove Markdown markers.
+- `count_data(mode: str, passed: int, valid: int, blocked: int) -> Tuple[str, str, bool]` returns plain main count text, the plain blocked-count suffix, and whether Markdown emphasizes only the main text. This keeps shared copy format-neutral while preserving the graded report's exact emphasis boundary.
 - `decision_blurb(self_reported: bool, single_trial: bool) -> str` copies `DEC_BLURB` and `DEC_N1` from `render.py:315-364`.
 - `observation(decisions: DecisionData) -> str` copies the fork observation from `render.py:438-447`.
 - `build_content(config: Dict[str, object], target_file: str, scenario: str, result: ResultData, observation_text: str, decision_text: str) -> ContentData` applies current defaults and builds the shared headings and boundary.

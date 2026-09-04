@@ -93,6 +93,11 @@ The main type is `ReportData`. Nested immutable records cover:
 - decision rows and choices;
 - shared report content.
 
+Variant count copy stays format-neutral: `count_text` and `count_suffix` are
+separate fields, and `count_emphasized` tells Markdown whether to emphasize
+only the main text. This preserves the graded report's emphasis boundary
+without putting Markdown in shared content or parsing prose in a renderer.
+
 `schema.py` also owns deterministic `to_dict` and `from_dict` conversion. It does not read files, write files, render markup, or call an AI model.
 
 ### `reporting/load.py`
