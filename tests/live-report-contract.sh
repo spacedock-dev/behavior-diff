@@ -16,6 +16,8 @@ claude_manifest=$here/../plugin/.claude-plugin/plugin.json
 codex_manifest=$here/../plugin/.codex-plugin/plugin.json
 readme=$here/../README.md
 
+fixture_root=$here/fixtures/report-rendering
+update_report_fixtures=false
 require_output() {
   grep -qF -- "$1" "$2" || fail "$3"
 }
@@ -103,6 +105,42 @@ progress() {
   printf '[report] %s\n' "$1"
 }
 
+
+copy_report_fixtures() {
+  local mode=$1
+  local run=$2
+  local fixture_dir=$fixture_root/$mode
+
+  mkdir -p "$fixture_dir"
+  cp "$run/report.md" "$fixture_dir/report.md"
+  cp "$run/report.html" "$fixture_dir/report.html"
+  cp "$run/report-artifact.html" "$fixture_dir/report-artifact.html"
+}
+
+require_exact_report() {
+  local mode=$1
+  local report=$2
+  local fixture=$fixture_root/$mode/$(basename "$report")
+
+  if ! cmp -s "$fixture" "$report"; then
+    printf 'Rendered report differs from fixture: %s\n' "$fixture" >&2
+    if diff -u "$fixture" "$report" >&2; then
+      fail "rendered report comparison failed unexpectedly: $report"
+    else
+      fail "rendered report differs from fixture: $report"
+    fi
+  fi
+}
+
+case $# in
+  0) ;;
+  1)
+    [[ $1 == --update-report-fixtures ]] ||
+      fail "usage: $0 [--update-report-fixtures]"
+    update_report_fixtures=true
+    ;;
+  *) fail "usage: $0 [--update-report-fixtures]" ;;
+esac
 progress 'Validate manifests and live-skill reporting contract'
 [[ -x $spacedock_fixture_script ]] ||
   fail 'renamed Spacedock fixture builder is missing or not executable'
@@ -331,6 +369,15 @@ python3 "$renderer" "$self_run" "$self_run" contract \
   "$self_run/config.json" >/dev/null
 python3 "$renderer" "$captured_run" "$captured_run" contract \
   "$captured_run/config.json" >/dev/null
+if [[ $update_report_fixtures == true ]]; then
+  copy_report_fixtures captured "$captured_run"
+  copy_report_fixtures self-reported "$self_run"
+fi
+
+for report in report.md report.html report-artifact.html; do
+  require_exact_report captured "$captured_run/$report"
+  require_exact_report self-reported "$self_run/$report"
+done
 
 read_action='Read: AGENTS.md'
 test_action='Test: bash behavior-diff/tests/live-report-contract.sh'
