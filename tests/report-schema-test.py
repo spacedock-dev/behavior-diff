@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import copy
 import json
 import sys
 from pathlib import Path
@@ -188,6 +189,52 @@ def main():
         assert str(error) == "unsupported report-data schema version: 2"
     else:
         raise AssertionError("schema version 2 was accepted")
+
+    invalid_cases = (
+        (
+            dict(raw, schema_version=True),
+            "invalid report-data field schema_version: expected integer",
+        ),
+        (
+            dict(raw, schema_version=1.0),
+            "invalid report-data field schema_version: expected integer",
+        ),
+    )
+    for invalid, message in invalid_cases:
+        try:
+            ReportData.from_dict(invalid)
+        except ValueError as error:
+            assert str(error) == message
+        else:
+            raise AssertionError("invalid schema version was accepted")
+
+    invalid_commands = copy.deepcopy(raw)
+    invalid_commands["variants"]["before"]["trials"][0]["commands"] = "read AGENTS.md"
+    invalid_model = copy.deepcopy(raw)
+    invalid_model["metadata"]["model"] = ["synthetic/model"]
+    invalid_count = copy.deepcopy(raw)
+    invalid_count["command_flow"]["before"]["paths"][0]["count"] = True
+    invalid_fields = (
+        (
+            invalid_commands,
+            "invalid report-data field variants.before.trials[0].commands: expected list",
+        ),
+        (
+            invalid_model,
+            "invalid report-data field metadata.model: expected string",
+        ),
+        (
+            invalid_count,
+            "invalid report-data field command_flow.before.paths[0].count: expected integer",
+        ),
+    )
+    for invalid, message in invalid_fields:
+        try:
+            ReportData.from_dict(invalid)
+        except ValueError as error:
+            assert str(error) == message
+        else:
+            raise AssertionError("invalid report data was accepted")
 
 
 if __name__ == "__main__":

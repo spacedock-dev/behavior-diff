@@ -133,111 +133,29 @@ class ReportData:
 
     @classmethod
     def from_dict(cls, data: Dict[str, object]) -> "ReportData":
-        version = data.get("schema_version")
+        data = _expect_dict(data, "report-data")
+        version = _expect_int(_field(data, "schema_version", "report-data"), "schema_version")
         if version != SCHEMA_VERSION:
             raise ValueError("unsupported report-data schema version: {0}".format(version))
 
-        metadata_data = data["metadata"]
-        content_data = data["content"]
-        result_data = data["result"]
-        variants_data = data["variants"]
-        command_flow_data = data["command_flow"]
-        decisions_data = data["decisions"]
-
-        def trial(raw):
-            return TrialData(
-                name=raw["name"],
-                verdict=raw["verdict"],
-                actions=raw["actions"],
-                commands=tuple(raw["commands"]),
-                final=raw["final"],
-                outcome=raw["outcome"],
-            )
-
-        def variant(raw):
-            return VariantData(
-                label=raw["label"],
-                note=raw["note"],
-                passed=raw["passed"],
-                blocked=raw["blocked"],
-                valid=raw["valid"],
-                total=raw["total"],
-                count_text=raw["count_text"],
-                count_emphasized=raw["count_emphasized"],
-                trials=tuple(trial(item) for item in raw["trials"]),
-            )
-
-        def flow_path(raw):
-            return FlowPathData(steps=tuple(raw["steps"]), count=raw["count"])
-
-        def flow_branch(raw):
-            return FlowBranchData(
-                prefix=tuple(raw["prefix"]),
-                paths=tuple(flow_path(item) for item in raw["paths"]),
-                total=raw["total"],
-            )
-
-        def decision_choice(raw):
-            return DecisionChoiceData(choice=raw["choice"], count=raw["count"])
-
-        def decision_row(raw):
-            return DecisionRowData(
-                decision=raw["decision"],
-                topic=raw["topic"],
-                anchor=raw["anchor"],
-                diverges=raw["diverges"],
-                note=raw["note"],
-                before=tuple(decision_choice(item) for item in raw["before"]),
-                after=tuple(decision_choice(item) for item in raw["after"]),
-            )
-
         return cls(
             schema_version=version,
-            metadata=MetadataData(
-                model=metadata_data["model"],
-                mode=metadata_data["mode"],
-                vocab=metadata_data["vocab"],
-                trace_source=metadata_data["trace_source"],
-                target_file=metadata_data["target_file"],
-                before_label=metadata_data["before_label"],
-                after_label=metadata_data["after_label"],
+            metadata=_metadata(
+                _field(data, "metadata", "report-data"), "metadata"
             ),
-            content=ContentData(
-                title=content_data["title"],
-                subtitle=content_data["subtitle"],
-                observation=content_data["observation"],
-                scenario_heading=content_data["scenario_heading"],
-                scenario=content_data["scenario"],
-                expected_heading=content_data["expected_heading"],
-                expected=content_data["expected"],
-                diff_heading=content_data["diff_heading"],
-                decision_heading=content_data["decision_heading"],
-                decision_blurb=content_data["decision_blurb"],
-                flow_heading=content_data["flow_heading"],
-                result_heading=content_data["result_heading"],
-                boundary=content_data["boundary"],
+            content=_content(_field(data, "content", "report-data"), "content"),
+            rule_diff=_expect_str(
+                _field(data, "rule_diff", "report-data"), "rule_diff"
             ),
-            rule_diff=data["rule_diff"],
-            result=ResultData(text=result_data["text"], kind=result_data["kind"]),
-            variants=VariantsData(
-                before=variant(variants_data["before"]),
-                after=variant(variants_data["after"]),
+            result=_result(_field(data, "result", "report-data"), "result"),
+            variants=_variants(
+                _field(data, "variants", "report-data"), "variants"
             ),
-            command_flow=CommandFlowData(
-                enabled=command_flow_data["enabled"],
-                same=command_flow_data["same"],
-                shared=tuple(command_flow_data["shared"]),
-                before=flow_branch(command_flow_data["before"]),
-                after=flow_branch(command_flow_data["after"]),
+            command_flow=_command_flow(
+                _field(data, "command_flow", "report-data"), "command_flow"
             ),
-            decisions=DecisionData(
-                rows=tuple(decision_row(item) for item in decisions_data["rows"]),
-                fork=decisions_data["fork"],
-                fork_note=decisions_data["fork_note"],
-                dropped=decisions_data["dropped"],
-                extractor=decisions_data["extractor"],
-                before_count=decisions_data["before_count"],
-                after_count=decisions_data["after_count"],
+            decisions=_decisions(
+                _field(data, "decisions", "report-data"), "decisions"
             ),
         )
 
@@ -246,6 +164,282 @@ class ReportData:
 
     def to_json(self):
         return json.dumps(self.to_dict(), indent=2, sort_keys=True) + "\n"
+
+
+def _metadata(value, path):
+    value = _expect_dict(value, path)
+    return MetadataData(
+        model=_expect_str(_field(value, "model", path), path + ".model"),
+        mode=_expect_str(_field(value, "mode", path), path + ".mode"),
+        vocab=_expect_str(_field(value, "vocab", path), path + ".vocab"),
+        trace_source=_expect_str(
+            _field(value, "trace_source", path), path + ".trace_source"
+        ),
+        target_file=_expect_str(
+            _field(value, "target_file", path), path + ".target_file"
+        ),
+        before_label=_expect_str(
+            _field(value, "before_label", path), path + ".before_label"
+        ),
+        after_label=_expect_str(
+            _field(value, "after_label", path), path + ".after_label"
+        ),
+    )
+
+
+def _content(value, path):
+    value = _expect_dict(value, path)
+    return ContentData(
+        title=_expect_str(_field(value, "title", path), path + ".title"),
+        subtitle=_expect_str(_field(value, "subtitle", path), path + ".subtitle"),
+        observation=_expect_str(
+            _field(value, "observation", path), path + ".observation"
+        ),
+        scenario_heading=_expect_str(
+            _field(value, "scenario_heading", path), path + ".scenario_heading"
+        ),
+        scenario=_expect_str(
+            _field(value, "scenario", path), path + ".scenario"
+        ),
+        expected_heading=_expect_str(
+            _field(value, "expected_heading", path), path + ".expected_heading"
+        ),
+        expected=_expect_optional_str(
+            _field(value, "expected", path), path + ".expected"
+        ),
+        diff_heading=_expect_str(
+            _field(value, "diff_heading", path), path + ".diff_heading"
+        ),
+        decision_heading=_expect_str(
+            _field(value, "decision_heading", path), path + ".decision_heading"
+        ),
+        decision_blurb=_expect_str(
+            _field(value, "decision_blurb", path), path + ".decision_blurb"
+        ),
+        flow_heading=_expect_str(
+            _field(value, "flow_heading", path), path + ".flow_heading"
+        ),
+        result_heading=_expect_str(
+            _field(value, "result_heading", path), path + ".result_heading"
+        ),
+        boundary=_expect_str(
+            _field(value, "boundary", path), path + ".boundary"
+        ),
+    )
+
+
+def _result(value, path):
+    value = _expect_dict(value, path)
+    return ResultData(
+        text=_expect_str(_field(value, "text", path), path + ".text"),
+        kind=_expect_str(_field(value, "kind", path), path + ".kind"),
+    )
+
+
+def _variants(value, path):
+    value = _expect_dict(value, path)
+    return VariantsData(
+        before=_variant(_field(value, "before", path), path + ".before"),
+        after=_variant(_field(value, "after", path), path + ".after"),
+    )
+
+
+def _variant(value, path):
+    value = _expect_dict(value, path)
+    trials = _expect_list(_field(value, "trials", path), path + ".trials")
+    return VariantData(
+        label=_expect_str(_field(value, "label", path), path + ".label"),
+        note=_expect_str(_field(value, "note", path), path + ".note"),
+        passed=_expect_int(_field(value, "passed", path), path + ".passed"),
+        blocked=_expect_int(_field(value, "blocked", path), path + ".blocked"),
+        valid=_expect_int(_field(value, "valid", path), path + ".valid"),
+        total=_expect_int(_field(value, "total", path), path + ".total"),
+        count_text=_expect_str(
+            _field(value, "count_text", path), path + ".count_text"
+        ),
+        count_emphasized=_expect_bool(
+            _field(value, "count_emphasized", path), path + ".count_emphasized"
+        ),
+        trials=tuple(
+            _trial(item, "{0}.trials[{1}]".format(path, index))
+            for index, item in enumerate(trials)
+        ),
+    )
+
+
+def _trial(value, path):
+    value = _expect_dict(value, path)
+    return TrialData(
+        name=_expect_str(_field(value, "name", path), path + ".name"),
+        verdict=_expect_str(_field(value, "verdict", path), path + ".verdict"),
+        actions=_expect_str(_field(value, "actions", path), path + ".actions"),
+        commands=_string_tuple(
+            _field(value, "commands", path), path + ".commands"
+        ),
+        final=_expect_str(_field(value, "final", path), path + ".final"),
+        outcome=_expect_optional_str(
+            _field(value, "outcome", path), path + ".outcome"
+        ),
+    )
+
+
+def _command_flow(value, path):
+    value = _expect_dict(value, path)
+    return CommandFlowData(
+        enabled=_expect_bool(_field(value, "enabled", path), path + ".enabled"),
+        same=_expect_bool(_field(value, "same", path), path + ".same"),
+        shared=_string_tuple(_field(value, "shared", path), path + ".shared"),
+        before=_flow_branch(_field(value, "before", path), path + ".before"),
+        after=_flow_branch(_field(value, "after", path), path + ".after"),
+    )
+
+
+def _flow_branch(value, path):
+    value = _expect_dict(value, path)
+    paths = _expect_list(_field(value, "paths", path), path + ".paths")
+    return FlowBranchData(
+        prefix=_string_tuple(_field(value, "prefix", path), path + ".prefix"),
+        paths=tuple(
+            _flow_path(item, "{0}.paths[{1}]".format(path, index))
+            for index, item in enumerate(paths)
+        ),
+        total=_expect_int(_field(value, "total", path), path + ".total"),
+    )
+
+
+def _flow_path(value, path):
+    value = _expect_dict(value, path)
+    return FlowPathData(
+        steps=_string_tuple(_field(value, "steps", path), path + ".steps"),
+        count=_expect_int(_field(value, "count", path), path + ".count"),
+    )
+
+
+def _decisions(value, path):
+    value = _expect_dict(value, path)
+    rows = _expect_list(_field(value, "rows", path), path + ".rows")
+    return DecisionData(
+        rows=tuple(
+            _decision_row(item, "{0}.rows[{1}]".format(path, index))
+            for index, item in enumerate(rows)
+        ),
+        fork=_expect_optional_int(_field(value, "fork", path), path + ".fork"),
+        fork_note=_expect_str(
+            _field(value, "fork_note", path), path + ".fork_note"
+        ),
+        dropped=_expect_int(_field(value, "dropped", path), path + ".dropped"),
+        extractor=_expect_str(
+            _field(value, "extractor", path), path + ".extractor"
+        ),
+        before_count=_expect_int(
+            _field(value, "before_count", path), path + ".before_count"
+        ),
+        after_count=_expect_int(
+            _field(value, "after_count", path), path + ".after_count"
+        ),
+    )
+
+
+def _decision_row(value, path):
+    value = _expect_dict(value, path)
+    before = _expect_list(_field(value, "before", path), path + ".before")
+    after = _expect_list(_field(value, "after", path), path + ".after")
+    return DecisionRowData(
+        decision=_expect_str(
+            _field(value, "decision", path), path + ".decision"
+        ),
+        topic=_expect_str(_field(value, "topic", path), path + ".topic"),
+        anchor=_expect_anchor(_field(value, "anchor", path), path + ".anchor"),
+        diverges=_expect_bool(
+            _field(value, "diverges", path), path + ".diverges"
+        ),
+        note=_expect_str(_field(value, "note", path), path + ".note"),
+        before=tuple(
+            _decision_choice(item, "{0}.before[{1}]".format(path, index))
+            for index, item in enumerate(before)
+        ),
+        after=tuple(
+            _decision_choice(item, "{0}.after[{1}]".format(path, index))
+            for index, item in enumerate(after)
+        ),
+    )
+
+
+def _decision_choice(value, path):
+    value = _expect_dict(value, path)
+    return DecisionChoiceData(
+        choice=_expect_str(_field(value, "choice", path), path + ".choice"),
+        count=_expect_int(_field(value, "count", path), path + ".count"),
+    )
+
+
+def _field(value, name, path):
+    try:
+        return value[name]
+    except KeyError:
+        _invalid(path + "." + name, "present field")
+
+
+def _expect_dict(value, path):
+    if type(value) is not dict:
+        _invalid(path, "dict")
+    return value
+
+
+def _expect_list(value, path):
+    if type(value) is not list:
+        _invalid(path, "list")
+    return value
+
+
+def _expect_str(value, path):
+    if type(value) is not str:
+        _invalid(path, "string")
+    return value
+
+
+def _expect_bool(value, path):
+    if type(value) is not bool:
+        _invalid(path, "boolean")
+    return value
+
+
+def _expect_int(value, path):
+    if type(value) is not int:
+        _invalid(path, "integer")
+    return value
+
+
+def _expect_optional_str(value, path):
+    if value is None:
+        return None
+    return _expect_str(value, path)
+
+
+def _expect_optional_int(value, path):
+    if value is None:
+        return None
+    return _expect_int(value, path)
+
+
+def _expect_anchor(value, path):
+    if type(value) is int or type(value) is str:
+        return value
+    _invalid(path, "integer or string")
+
+
+def _string_tuple(value, path):
+    value = _expect_list(value, path)
+    return tuple(
+        _expect_str(item, "{0}[{1}]".format(path, index))
+        for index, item in enumerate(value)
+    )
+
+
+def _invalid(path, expected):
+    raise ValueError(
+        "invalid report-data field {0}: expected {1}".format(path, expected)
+    )
 
 
 def _json_value(value):
