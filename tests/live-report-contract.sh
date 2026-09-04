@@ -105,6 +105,11 @@ progress() {
   printf '[report] %s\n' "$1"
 }
 
+usage() {
+  printf 'Usage: %s [--update-report-fixtures]\n' "$0" >&2
+  exit 2
+}
+
 
 copy_report_fixtures() {
   local mode=$1
@@ -135,12 +140,32 @@ require_exact_report() {
 case $# in
   0) ;;
   1)
-    [[ $1 == --update-report-fixtures ]] ||
-      fail "usage: $0 [--update-report-fixtures]"
+    [[ $1 == --update-report-fixtures ]] || usage
     update_report_fixtures=true
     ;;
-  *) fail "usage: $0 [--update-report-fixtures]" ;;
+  *) usage ;;
 esac
+
+require_usage() {
+  local stderr=$tmp/usage-stderr.txt
+  local stdout=$tmp/usage-stdout.txt
+  local expected=$tmp/usage-expected.txt
+  local status
+
+  if bash "$0" "$@" >"$stdout" 2>"$stderr"; then
+    fail "invalid arguments succeeded: $*"
+  else
+    status=$?
+  fi
+  [[ $status == 2 ]] || fail "invalid arguments returned $status instead of 2: $*"
+  [[ ! -s $stdout ]] || fail "invalid arguments wrote to stdout: $*"
+  printf 'Usage: %s [--update-report-fixtures]\n' "$0" >"$expected"
+  cmp -s "$expected" "$stderr" ||
+    fail "invalid arguments did not print the exact usage diagnostic: $*"
+}
+
+require_usage --unknown-option
+require_usage --update-report-fixtures surplus
 progress 'Validate manifests and live-skill reporting contract'
 [[ -x $spacedock_fixture_script ]] ||
   fail 'renamed Spacedock fixture builder is missing or not executable'
