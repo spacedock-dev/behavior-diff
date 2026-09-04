@@ -166,6 +166,8 @@ require_usage() {
 
 require_usage --unknown-option
 require_usage --update-report-fixtures surplus
+python3 "$here/report-schema-test.py"
+
 progress 'Validate manifests and live-skill reporting contract'
 [[ -x $spacedock_fixture_script ]] ||
   fail 'renamed Spacedock fixture builder is missing or not executable'
