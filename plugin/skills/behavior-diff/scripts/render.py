@@ -10,6 +10,7 @@ from pathlib import Path
 
 from reporting import content
 from reporting.load import load_report
+from reporting.render_markdown import render_markdown
 
 
 run = Path(sys.argv[1]).resolve()
@@ -62,20 +63,6 @@ variants = {
 }
 b = variants["before"]
 a = variants["after"]
-count_line = {
-    name: (
-        (
-            "**" + variant.count_text + "**"
-            if variant.count_emphasized
-            else variant.count_text
-        )
-        + variant.count_suffix
-    )
-    for name, variant in (
-        ("before", report.variants.before),
-        ("after", report.variants.after),
-    )
-}
 
 flow = report.command_flow
 shared = flow.shared
@@ -130,159 +117,7 @@ def branch_str(brs, n):
 
 dnb = dec["counts"]["before"]
 dna = dec["counts"]["after"]
-dec_md = []
-if dec["chain"]:
-    fork = dec["fork"]
-    lead_n = 0
-    for row in dec["chain"]:
-        if row["diverges"]:
-            break
-        lead_n += 1
-    dec_md += [f"## {report_content.decision_heading}\n", dec_blurb + "\n"]
-    if lead_n:
-        dec_md.append("Decided the same way on both sides:\n")
-        for i, row in enumerate(dec["chain"][:lead_n], 1):
-            before_choice = branch_str(row["before"], dnb)
-            after_choice = branch_str(row["after"], dna)
-            choice = (
-                before_choice
-                if before_choice == after_choice
-                else f"before: {before_choice} · after: {after_choice}"
-            )
-            note = f" — {row['note']}" if row["note"] else ""
-            when = " *(in the final answer)*" if row["anchor"] == "answer" else ""
-            title = row["topic"] or row["decision"]
-            dec_md.append(f"- {i}. **{title}**{when} → {choice}{note}")
-        dec_md.append("")
-    if lead_n < len(dec["chain"]):
-        dec_md.append("Diverging from here:\n")
-        for i, row in enumerate(dec["chain"][lead_n:], lead_n + 1):
-            mark = " ⟵ root behavior change" if i == fork else (
-                " *(downstream)*" if row["diverges"] and fork and i > fork else ""
-            )
-            mark += " *(in the final answer)*" if row["anchor"] == "answer" else ""
-            title = (
-                f"**{row['topic']}** — {row['decision']}"
-                if row["topic"]
-                else row["decision"]
-            )
-            if row["diverges"]:
-                dec_md.append(f"- {i}. {title}{mark}")
-                dec_md.append(f"  - BEFORE: {branch_str(row['before'], dnb)}")
-                dec_md.append(f"  - AFTER: {branch_str(row['after'], dna)}")
-            else:
-                dec_md.append(
-                    f"- {i}. {row['decision']} *(same)* → "
-                    f"{branch_str(row['before'], dnb)}"
-                )
-            if row["note"]:
-                dec_md.append(f"  - note: {row['note']}")
-        dec_md.append("")
-    dec_md.append(content.decision_footer(report.decisions.rows, report.decisions.fork))
-    if report.decisions.fork_note:
-        dec_md.append("\n" + report.decisions.fork_note)
-    if report.decisions.dropped:
-        dec_md.append("\n" + content.dropped_rows(report.decisions.dropped))
-    dec_md.append("")
-# ---------- report.md ----------
-md = [f"# {TITLE}\n", SUB + "\n"]
-if obs_md:
-    md.append("**" + obs_md + "**\n")
-md += [
-    f"Model: {model} · {b['total']} trial(s) per variant.\n",
-    f"## {report_content.scenario_heading}\n",
-    scenario + "\n",
-]
-if EXPECTED:
-    md += [f"## {report_content.expected_heading}\n", EXPECTED + "\n"]
-md += [
-    f"## {report_content.diff_heading}\n",
-    "```diff\n" + rule_diff.rstrip() + "\n```\n",
-]
-md += dec_md
-if not SELF_REPORTED:
-    flow_md = [
-        f"## {report_content.flow_heading}\n",
-        (
-            "Steps are described from the agents' actual commands; a "
-            "path is a sequence at least one trial literally took. Full "
-            "commands are in the trial sections below.\n"
-        ),
-    ]
-    if same_flow:
-        flow_md.append(
-            "Every trial in both variants took the same steps: "
-            + " → ".join(step_text(k) for k in shared)
-            + ". Differences, if any, are in the final answers below.\n"
-        )
-    else:
-        flow_md.append("Shared flow (every trial, both variants):\n")
-        for k in shared:
-            flow_md.append(f"- {step_text(k)}")
-        flow_md.append("\nDivergence:\n")
-
-        def md_branch(tag, prefix, paths, n):
-            if not paths:
-                flow_md.append(
-                    f"- {tag}, all {n} trials → "
-                    + (
-                        " → ".join(step_text(step) for step in prefix)
-                        or "(same steps as the shared flow)"
-                    )
-                )
-                return
-            lead = f"- {tag}"
-            if prefix:
-                lead += ", all trials → " + " → ".join(
-                    step_text(step) for step in prefix
-                )
-            flow_md.append(lead + ", then splits:")
-            for path, count in paths:
-                flow_md.append(
-                    f"  - {count} of {n} trials → "
-                    + " → ".join(step_text(step) for step in path)
-                )
-
-        md_branch("BEFORE", bprefix, bpaths, nb)
-        md_branch("AFTER", aprefix, apaths, na)
-    flow_md.append("")
-    if dec_md:
-        md.append("<details><summary>" + content.flow_fold_summary() + "</summary>\n")
-        md += flow_md
-        md.append("</details>\n")
-    else:
-        md += flow_md
-for variant_name, label in (
-    ("before", f"BEFORE — {metadata.before_label}"),
-    ("after", f"AFTER — {metadata.after_label}"),
-):
-    variant = variants[variant_name]
-    md.append(f"## {label}\n")
-    md.append(count_line[variant_name] + "\n")
-    for trial in variant["trials"]:
-        md.append(f"### {trial['name']} — {trial['verdict']}\n")
-        if trial["actions"] != "-":
-            md.append(trial["actions"] + "\n")
-        action_label = (
-            "self-reported actions" if SELF_REPORTED else "commands the agent ran"
-        )
-        md.append(
-            f"<details><summary>{action_label} "
-            f"({len(trial['cmds'])})</summary>\n\n```\n"
-            + "\n\n".join(command[:500] for command in trial["cmds"])
-            + "\n```\n</details>\n"
-        )
-        md.append(
-            "<details><summary>final answer to the user</summary>\n\n"
-            + trial["final"].strip()
-            + "\n\n</details>\n"
-        )
-md += [
-    f"## {report_content.result_heading}\n",
-    f"**{result}**\n",
-    BOUNDARY + "\n",
-]
-markdown = "\n".join(md)
+markdown = render_markdown(report)
 
 # ---------- HTML ----------
 esc = html.escape
