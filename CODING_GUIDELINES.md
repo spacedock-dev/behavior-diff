@@ -154,7 +154,8 @@ shellcheck \
   tests/*.sh
 python3 -m py_compile \
   plugin/skills/behavior-diff/scripts/decisions.py \
-  plugin/skills/behavior-diff/scripts/render.py
+  plugin/skills/behavior-diff/scripts/render.py \
+  plugin/skills/behavior-diff/scripts/reporting/*.py
 bash tests/hooks-test.sh
 python3 plugin/skills/behavior-diff/scripts/decisions.py --check
 bash tests/live-report-contract.sh

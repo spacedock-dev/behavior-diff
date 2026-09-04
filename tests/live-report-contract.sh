@@ -16,6 +16,8 @@ claude_manifest=$here/../plugin/.claude-plugin/plugin.json
 codex_manifest=$here/../plugin/.codex-plugin/plugin.json
 readme=$here/../README.md
 
+fixture_root=$here/fixtures/report-rendering
+update_report_fixtures=false
 require_output() {
   grep -qF -- "$1" "$2" || fail "$3"
 }
@@ -102,6 +104,69 @@ fail() {
 progress() {
   printf '[report] %s\n' "$1"
 }
+
+usage() {
+  printf 'Usage: %s [--update-report-fixtures]\n' "$0" >&2
+  exit 2
+}
+
+copy_report_fixtures() {
+  local mode=$1
+  local run=$2
+  local fixture_dir=$fixture_root/$mode
+
+  mkdir -p "$fixture_dir"
+  cp "$run/report.md" "$fixture_dir/report.md"
+  cp "$run/report.html" "$fixture_dir/report.html"
+  cp "$run/report-artifact.html" "$fixture_dir/report-artifact.html"
+}
+
+require_exact_report() {
+  local mode=$1
+  local report=$2
+  local fixture
+  fixture=$fixture_root/$mode/$(basename "$report")
+
+  if ! cmp -s "$fixture" "$report"; then
+    printf 'Rendered report differs from fixture: %s\n' "$fixture" >&2
+    if diff -u "$fixture" "$report" >&2; then
+      fail "rendered report comparison failed unexpectedly: $report"
+    else
+      fail "rendered report differs from fixture: $report"
+    fi
+  fi
+}
+
+case $# in
+  0) ;;
+  1)
+    [[ $1 == --update-report-fixtures ]] || usage
+    update_report_fixtures=true
+    ;;
+  *) usage ;;
+esac
+
+require_usage() {
+  local stderr=$tmp/usage-stderr.txt
+  local stdout=$tmp/usage-stdout.txt
+  local expected=$tmp/usage-expected.txt
+  local status
+
+  if bash "$0" "$@" >"$stdout" 2>"$stderr"; then
+    fail "invalid arguments succeeded: $*"
+  else
+    status=$?
+  fi
+  [[ $status == 2 ]] || fail "invalid arguments returned $status instead of 2: $*"
+  [[ ! -s $stdout ]] || fail "invalid arguments wrote to stdout: $*"
+  printf 'Usage: %s [--update-report-fixtures]\n' "$0" >"$expected"
+  cmp -s "$expected" "$stderr" ||
+    fail "invalid arguments did not print the exact usage diagnostic: $*"
+}
+
+require_usage --unknown-option
+require_usage --update-report-fixtures surplus
+python3 "$here/report-schema-test.py"
 
 progress 'Validate manifests and live-skill reporting contract'
 [[ -x $spacedock_fixture_script ]] ||
@@ -328,9 +393,66 @@ reject_output 'A decision is not an action' "$captured_prompt" \
 progress 'Render captured and self-reported reports'
 
 python3 "$renderer" "$self_run" "$self_run" contract \
-  "$self_run/config.json" >/dev/null
+  "$self_run/config.json" >"$self_run/render.stdout"
+self_run_path=$(cd "$self_run" && pwd -P)
+if ! printf '%s\n' \
+  'mode review · BEFORE pass 0/1 · AFTER pass 0/1 → No automatic verdict — compare the reported actions, decision diff, and final answers' \
+  "report: $self_run_path/report.md" \
+  "page:   $self_run_path/report.html" |
+  cmp -s - "$self_run/render.stdout"; then
+  fail 'renderer stdout changed'
+fi
 python3 "$renderer" "$captured_run" "$captured_run" contract \
   "$captured_run/config.json" >/dev/null
+if [[ $update_report_fixtures == true ]]; then
+  copy_report_fixtures captured "$captured_run"
+  copy_report_fixtures self-reported "$self_run"
+fi
+
+for run in "$self_run" "$captured_run"; do
+  [[ -f $run/report-data.json ]] ||
+    fail "renderer did not write report-data.json: $run"
+  python3 "$here/report-schema-test.py" "$run/report-data.json"
+done
+
+[[ $(jq -r '.schema_version' "$captured_run/report-data.json") == 1 ]] ||
+  fail 'captured report data schema version is not 1'
+[[ $(jq -r '.metadata.trace_source' "$captured_run/report-data.json") == captured ]] ||
+  fail 'captured report data provenance is not captured'
+[[ $(jq -r '.metadata.trace_source' "$self_run/report-data.json") == self-reported ]] ||
+  fail 'self-reported report data provenance is not self-reported'
+[[ $(jq -r '.variants.after.trials[0].commands | join("|")' "$captured_run/report-data.json") == 'Read: AGENTS.md|Test: bash behavior-diff/tests/live-report-contract.sh' ]] ||
+  fail 'report data does not preserve after commands in order'
+[[ $(jq -r '.command_flow.enabled == false and (.command_flow.shared | length == 0) and (.command_flow.before.prefix | length == 0) and (.command_flow.before.paths | length == 0) and (.command_flow.after.prefix | length == 0) and (.command_flow.after.paths | length == 0)' "$self_run/report-data.json") == true ]] ||
+  fail 'self-reported report data must disable and empty command flow'
+
+graded_run=$tmp/graded
+build_run "$graded_run" captured
+python3 "$renderer" "$graded_run" "$graded_run" contract >/dev/null
+require_output '**0 of 1 valid trials met the expectation** (blocked: 0)' \
+  "$graded_run/report.md" \
+  'graded Markdown count must emphasize only the expectation result'
+
+invalid_decisions_run=$tmp/invalid-decisions
+build_run "$invalid_decisions_run" captured
+printf '%s\n' '{"chain":[{"decision":"Synthetic decision","topic":"","anchor":"work","before":[{"choice":"before","n":1}],"after":[{"choice":"after","n":1}],"diverges":true}],"fork":2,"counts":{"before":1,"after":1}}' \
+  >"$invalid_decisions_run/decisions.json"
+cat >"$invalid_decisions_run/before-1/trace.jsonl" <<'JSON'
+{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Bash","input":{"command":"Read: AGENTS.md"}}]}}
+[]
+{"type":"assistant","message":[]}
+{"type":"assistant","message":{"content":[null,{"type":"tool_use","input":null},{"type":"tool_use","input":{"command":17}},{"type":"tool_use","name":17,"input":{"file_path":"AGENTS.md"}}]}}
+{"type":"result","result":"Before answer"}
+JSON
+python3 "$renderer" "$invalid_decisions_run" "$invalid_decisions_run" contract \
+  "$invalid_decisions_run/config.json" >/dev/null
+[[ $(jq '.decisions.rows | length' "$invalid_decisions_run/report-data.json") == 0 ]] ||
+  fail 'out-of-range decision fork must fall back to empty decisions'
+
+for report in report.md report.html report-artifact.html; do
+  require_exact_report captured "$captured_run/$report"
+  require_exact_report self-reported "$self_run/$report"
+done
 
 read_action='Read: AGENTS.md'
 test_action='Test: bash behavior-diff/tests/live-report-contract.sh'
