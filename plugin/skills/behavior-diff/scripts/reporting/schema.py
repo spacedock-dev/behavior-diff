@@ -5,6 +5,7 @@ from dataclasses import asdict, dataclass
 from typing import Dict, Optional, Tuple, Union
 
 SCHEMA_VERSION = 1
+RESULT_KINDS = ("good", "bad", "neutral")
 
 
 @dataclass(frozen=True)
@@ -225,9 +226,12 @@ def _content(value, path):
 
 def _result(value, path):
     value = _expect_dict(value, path)
+    kind = _expect_str(_field(value, "kind", path), path + ".kind")
+    if kind not in RESULT_KINDS:
+        _invalid(path + ".kind", "one of " + ", ".join(RESULT_KINDS))
     return ResultData(
         text=_expect_str(_field(value, "text", path), path + ".text"),
-        kind=_expect_str(_field(value, "kind", path), path + ".kind"),
+        kind=kind,
     )
 
 

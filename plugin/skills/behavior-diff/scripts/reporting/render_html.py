@@ -16,6 +16,8 @@ _RESULT_BACKGROUNDS = {
 def _resolve_css(css: str, result_kind: str) -> str:
     if css.count("__RESULT_BG__") != 1:
         raise ValueError("report.css must contain __RESULT_BG__ exactly once")
+    if result_kind not in _RESULT_BACKGROUNDS:
+        raise ValueError("unsupported report result kind: {0}".format(result_kind))
     return css.replace("__RESULT_BG__", _RESULT_BACKGROUNDS[result_kind])
 
 

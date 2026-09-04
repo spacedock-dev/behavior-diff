@@ -12,6 +12,7 @@ from pathlib import Path
 scripts = Path(__file__).resolve().parents[1] / "plugin/skills/behavior-diff/scripts"
 sys.path.insert(0, str(scripts))
 
+from reporting import content  # noqa: E402
 from reporting.schema import (  # noqa: E402
     CommandFlowData,
     DecisionChoiceData,
@@ -226,6 +227,23 @@ def main():
         ("Explain",),
     ]
     assert [row.anchor for row in report.decisions.rows] == [2, "final answer"]
+    caution = "CAUTION — one trial per side"
+    for before_total, after_total, expected in (
+        (1, 2, False),
+        (2, 1, False),
+        (1, 1, True),
+    ):
+        report_content = content.build_content(
+            {},
+            "Synthetic scenario",
+            "review",
+            "captured",
+            "AGENTS.md",
+            report.decisions,
+            before_total,
+            after_total,
+        )
+        assert (caution in report_content.decision_blurb) is expected
     assert [choice.choice for choice in report.decisions.rows[0].before] == [
         "read only",
         "search",
@@ -268,6 +286,18 @@ def main():
         invalid_suffix,
         "invalid report-data field variants.after.count_suffix: expected string",
     )
+    invalid_result_kind = copy.deepcopy(raw)
+    invalid_result_kind["result"]["kind"] = "future"
+    assert_rejected(
+        invalid_result_kind,
+        "invalid report-data field result.kind: expected one of good, bad, neutral",
+    )
+    invalid_result_kind_type = copy.deepcopy(raw)
+    invalid_result_kind_type["result"]["kind"] = None
+    assert_rejected(
+        invalid_result_kind_type,
+        "invalid report-data field result.kind: expected string",
+    )
 
     from reporting.render_html import _resolve_css, render_artifact, render_document
 
@@ -280,6 +310,18 @@ def main():
     assert _resolve_css(".result { background:__RESULT_BG__; }", "neutral") == (
         ".result { background:var(--accent); }"
     )
+    try:
+        _resolve_css(".result { background:__RESULT_BG__; }", "future")
+    except ValueError as error:
+        assert str(error) == "unsupported report result kind: future"
+    else:
+        raise AssertionError("unsupported report result kind was accepted")
+    try:
+        _resolve_css(".result {}", "future")
+    except ValueError as error:
+        assert str(error) == "report.css must contain __RESULT_BG__ exactly once"
+    else:
+        raise AssertionError("CSS token validation lost precedence")
     for css in (".result {}", "__RESULT_BG__ __RESULT_BG__"):
         try:
             _resolve_css(css, "good")

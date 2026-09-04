@@ -77,7 +77,7 @@ def count_data(mode, passed, valid, blocked):
     )
 
 
-def decision_blurb(self_reported, trial_count):
+def decision_blurb(self_reported, single_trial):
     if self_reported:
         blurb = (
             "A decision is a point where the agent had a real choice. The "
@@ -97,7 +97,7 @@ def decision_blurb(self_reported, trial_count):
             "and main divergences are stable across extractions; minor rows "
             "can vary run to run."
         )
-    if trial_count == 1:
+    if single_trial:
         blurb += (
             " CAUTION — one trial per side: any divergence here can be "
             "run-to-run variation rather than a rule effect; confirm with "
@@ -192,7 +192,9 @@ def build_content(
         ),
         diff_heading=names["diff"],
         decision_heading=names["decision"],
-        decision_blurb=decision_blurb(self_reported, before_total),
+        decision_blurb=decision_blurb(
+            self_reported, before_total == 1 and after_total == 1
+        ),
         flow_heading=names["flow"],
         result_heading=names["result"],
         boundary=boundary(),
