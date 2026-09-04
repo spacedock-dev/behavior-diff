@@ -120,10 +120,10 @@ Own shared human-readable copy:
 - result text;
 - count text;
 - observation text;
-- decision and flow explanations;
+- the decision explanation;
 - the simulation boundary.
 
-HTML and Markdown use this copy unless the current outputs intentionally differ. Existing intentional differences remain renderer-owned. Examples include HTML's captured-command `$ ` prefix and the formats' different heading markup.
+HTML and Markdown use this copy unless the current outputs intentionally differ. Existing intentional differences remain renderer-owned. These include HTML's captured-command `$ ` prefix, the formats' different heading markup, and their currently different flow explanations.
 
 ### `reporting/render_markdown.py`
 
@@ -165,7 +165,7 @@ It does not read run files or write output files.
 
 ### `reporting/report.css`
 
-Contain the current static CSS exactly as it appears in generated HTML. `render.py` reads this source and passes it to the HTML renderer. The renderer inlines it, so generated HTML stays portable.
+Contain the current CSS in generated form, with one `__RESULT_BG__` token where the result color varies by `result.kind`. `render.py` reads this source and passes it to the HTML renderer. The renderer must find the token exactly once, replace it with the current allowed CSS variable, and inline the result. Generated HTML stays byte-for-byte compatible and portable.
 
 ### `render.py`
 
@@ -243,7 +243,7 @@ The committed fixtures remain synthetic and must not contain customer data, priv
 2. Add a failing contract for the missing `report-data.json` and typed round trip.
 3. Add `schema.py`, `load.py`, and `content.py`. Keep the existing Markdown and HTML blocks in `render.py` until the report data and JSON contract pass.
 4. Move Markdown assembly to `render_markdown.py`. Confirm the Markdown fixtures remain exact.
-5. Move HTML assembly and static CSS to `render_html.py` and `report.css`. Confirm both HTML fixtures remain exact.
+5. Move HTML assembly and the CSS source to `render_html.py` and `report.css`. Confirm both HTML fixtures remain exact.
 6. Reduce `render.py` to argument handling, orchestration, writes, and existing stdout.
 7. Run the complete deterministic suite and inspect both generated formats from the same synthetic run.
 
@@ -277,7 +277,7 @@ Each move is a clean cutover. Do not leave duplicate renderers, compatibility al
 | Moving strings changes whitespace or escaping | Exact captured and self-reported fixtures for all three current files |
 | Shared copy changes one format unintentionally | `content.py` owns shared wording; intentional differences are named in renderer tests |
 | JSON becomes an accidental public API | Mark it internal in code and docs; include a version instead of compatibility shims |
-| HTML source CSS becomes detached from generated output | `render.py` always reads and inlines the bundled `report.css` |
+| HTML source CSS becomes detached from generated output | `render_html.py` requires one result-color token; `render.py` always reads and inlines the bundled `report.css` |
 | Self-reported actions leak into command flow | Keep provenance in `ReportData` and preserve the current no-flow contract |
 | Optional decisions break the whole report | Preserve the current missing/malformed decisions fallback |
 | Partial writes mix old and new reports | Render every string before writing any output file |
