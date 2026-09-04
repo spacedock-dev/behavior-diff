@@ -76,6 +76,7 @@ def count_data(mode, passed, valid, blocked):
         True,
     )
 
+
 def decision_blurb(self_reported, trial_count):
     if self_reported:
         blurb = (
@@ -119,12 +120,15 @@ def observation(mode, decisions, before_count, after_count):
 
 
 def branch_text(choices, total):
-    return " · ".join(
-        choice.choice
-        if choice.count == total
-        else "{0} ({1}/{2})".format(choice.choice, choice.count, total)
-        for choice in choices
-    ) or "—"
+    return (
+        " · ".join(
+            choice.choice
+            if choice.count == total
+            else "{0} ({1}/{2})".format(choice.choice, choice.count, total)
+            for choice in choices
+        )
+        or "—"
+    )
 
 
 def headings(target_file):
@@ -140,11 +144,8 @@ def headings(target_file):
     }
 
 
-
-
 def flow_fold_summary():
     return "Flow diff — command-derived (deterministic, no model involved)"
-
 
 
 def decision_footer(rows, fork):
@@ -162,7 +163,6 @@ def dropped_rows(dropped):
     return (
         "{0} extractor row(s) were dropped because their counts did not match the trials."
     ).format(dropped)
-
 
 
 def build_content(

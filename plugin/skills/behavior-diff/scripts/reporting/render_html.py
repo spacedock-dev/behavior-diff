@@ -33,11 +33,11 @@ def _trial_card(trial, self_reported: bool, mode: str) -> str:
     if self_reported:
         evidence = "\n\n".join(trial.commands) or "(no self-reported actions)"
     else:
-        evidence = "\n\n".join("$ " + command for command in trial.commands) or "(no commands)"
+        evidence = (
+            "\n\n".join("$ " + command for command in trial.commands) or "(no commands)"
+        )
     actions = (
-        ""
-        if trial.actions == "-"
-        else f'<p class="acts">{escaped(trial.actions)}</p>'
+        "" if trial.actions == "-" else f'<p class="acts">{escaped(trial.actions)}</p>'
     )
     return (
         f'<article class="trial">'
@@ -56,17 +56,24 @@ def _lane(steps, css_class: str) -> str:
     for index, step in enumerate(steps):
         if index:
             boxes.append('<div class="farrow">↓</div>')
-        boxes.append(f'<div class="fstep {css_class}"><span>{html.escape(step)}</span></div>')
+        boxes.append(
+            f'<div class="fstep {css_class}"><span>{html.escape(step)}</span></div>'
+        )
     return "".join(boxes)
 
 
 def _branch_html(prefix, paths, total: int, css_class: str) -> str:
     rendered = ""
     if not paths:
-        body = _lane(prefix, css_class) or '<p class="fnote">(same steps as the shared flow)</p>'
+        body = (
+            _lane(prefix, css_class)
+            or '<p class="fnote">(same steps as the shared flow)</p>'
+        )
         return f'<div class="fbranch"><p class="fpath-head">all {total} trials</p>{body}</div>'
     if prefix:
-        rendered += f'<p class="fpath-head">all {total} trials</p>' + _lane(prefix, css_class)
+        rendered += f'<p class="fpath-head">all {total} trials</p>' + _lane(
+            prefix, css_class
+        )
         rendered += '<div class="farrow">↓</div>'
     rendered += f'<div class="fsplit">splits into {len(paths)} paths</div>'
     lanes = "".join(
@@ -84,7 +91,11 @@ def _branch_html(prefix, paths, total: int, css_class: str) -> str:
 def _decision_choices(choices, total: int, css_class: str) -> str:
     lines = []
     for choice in choices:
-        count = "" if choice.count == total else f' <span class="fcount">{choice.count}/{total}</span>'
+        count = (
+            ""
+            if choice.count == total
+            else f' <span class="fcount">{choice.count}/{total}</span>'
+        )
         lines.append(f'<div class="dline">{html.escape(choice.choice)}{count}</div>')
     return f'<div class="fstep {css_class} dcell">' + ("".join(lines) or "—") + "</div>"
 
@@ -132,7 +143,10 @@ def render_artifact(report: ReportData, css: str) -> str:
             f'<section class="col"><header class="col-head"><h2>{label}</h2>'
             f'<span class="col-note">{escaped(variant.note)}</span></header>'
             f'<p class="count">{escaped(variant.count_text + variant.count_suffix)}</p>'
-            + "".join(_trial_card(trial, self_reported, metadata.mode) for trial in variant.trials)
+            + "".join(
+                _trial_card(trial, self_reported, metadata.mode)
+                for trial in variant.trials
+            )
             + "</section>"
         )
 
@@ -178,7 +192,11 @@ def render_artifact(report: ReportData, css: str) -> str:
         for index, row in enumerate(report.decisions.rows[:lead_count], 1):
             before_choices = content.branch_text(row.before, decision_before_total)
             after_choices = content.branch_text(row.after, decision_after_total)
-            choice = before_choices if before_choices == after_choices else f"before: {before_choices} · after: {after_choices}"
+            choice = (
+                before_choices
+                if before_choices == after_choices
+                else f"before: {before_choices} · after: {after_choices}"
+            )
             parts.append(_decision_label(index, row, fork))
             parts.append(
                 f'<div class="fstep shared"><span>{escaped(choice)}</span>'
@@ -193,15 +211,21 @@ def render_artifact(report: ReportData, css: str) -> str:
             for offset, row in enumerate(rest):
                 index = lead_count + offset + 1
                 if offset:
-                    grid.append('<div class="farrow">↓</div><div class="farrow">↓</div>')
+                    grid.append(
+                        '<div class="farrow">↓</div><div class="farrow">↓</div>'
+                    )
                 grid.append(_decision_label(index, row, fork))
                 if row.diverges:
-                    grid.append(_decision_choices(row.before, decision_before_total, "b"))
+                    grid.append(
+                        _decision_choices(row.before, decision_before_total, "b")
+                    )
                     grid.append(_decision_choices(row.after, decision_after_total, "a"))
                 else:
                     grid.append(
                         '<div class="fstep shared dspan"><span>'
-                        + escaped(content.branch_text(row.before, decision_before_total))
+                        + escaped(
+                            content.branch_text(row.before, decision_before_total)
+                        )
                         + "</span></div>"
                     )
             parts.append(f'<div class="dgrid">{"".join(grid)}</div>')
@@ -238,7 +262,11 @@ def render_artifact(report: ReportData, css: str) -> str:
                 + "</details>"
             )
 
-    observation_html = f'<p class="obs">{escaped(report_content.observation)}</p>' if report_content.observation else ""
+    observation_html = (
+        f'<p class="obs">{escaped(report_content.observation)}</p>'
+        if report_content.observation
+        else ""
+    )
     expected_html = (
         ""
         if not report_content.expected

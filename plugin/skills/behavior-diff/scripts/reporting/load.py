@@ -25,7 +25,9 @@ from reporting.schema import (
 )
 
 
-def load_report(run: Path, capsule: Path, model: str, config_path: Optional[Path]) -> ReportData:
+def load_report(
+    run: Path, capsule: Path, model: str, config_path: Optional[Path]
+) -> ReportData:
     config = _read_config(config_path)
     metadata = _metadata(config, model)
     grades = _read_grades(run)
@@ -33,7 +35,9 @@ def load_report(run: Path, capsule: Path, model: str, config_path: Optional[Path
     before = variants.before
     after = variants.after
     command_flow = _command_flow(before, after, metadata)
-    decisions = _read_decisions(run, command_flow.before.total, command_flow.after.total)
+    decisions = _read_decisions(
+        run, command_flow.before.total, command_flow.after.total
+    )
     result_text, result_kind = content.result_data(
         metadata.mode,
         metadata.trace_source == "self-reported",
@@ -188,6 +192,8 @@ def _outcome_label(verdict, actions, mode):
     if "unverified" in actions:
         return "Say the behavior is unverified, claim nothing"
     return "Claim complete, with functional evidence"
+
+
 def _command_flow(before, after, metadata):
     if metadata.trace_source == "self-reported":
         empty_before = FlowBranchData(prefix=(), paths=(), total=before.total)
@@ -227,7 +233,14 @@ def _classifier(vocab):
             keys = set()
             if "monitor" in lowered and any(
                 key in lowered
-                for key in ("pty", "expect", "script -q", "tui-smoke", "\\x1b[", "\\033[")
+                for key in (
+                    "pty",
+                    "expect",
+                    "script -q",
+                    "tui-smoke",
+                    "\\x1b[",
+                    "\\033[",
+                )
             ):
                 keys.add("func")
             if "smoke" in lowered or "scripts" in lowered:
@@ -255,7 +268,13 @@ def _classifier(vocab):
         "run": "Run the app or a script",
     }
     if vocab == "spacedock":
-        order += ["entity_write", "state_commit", "gate_prepare", "gate_record", "dispatch"]
+        order += [
+            "entity_write",
+            "state_commit",
+            "gate_prepare",
+            "gate_record",
+            "dispatch",
+        ]
         labels.update(
             {
                 "entity_write": "Write entity state (new / status --set)",
@@ -271,7 +290,10 @@ def _classifier(vocab):
         keys = set()
         if re.search(r"(^|[;&|(]\s*)git ", lowered):
             keys.add("inspect")
-        if lowered.startswith(("[read]", "cat ", "head ", "less ")) or "sed -n" in lowered:
+        if (
+            lowered.startswith(("[read]", "cat ", "head ", "less "))
+            or "sed -n" in lowered
+        ):
             keys.add("read")
         if re.search(r"\b(grep|rg|find|ag)\b", lowered):
             keys.add("search")
@@ -293,6 +315,8 @@ def _classifier(vocab):
         return keys
 
     return tuple(order), labels, classify
+
+
 def _trial_sequence(trial, step_order, labels, classify):
     seen = set()
     for command in trial.commands:
@@ -377,7 +401,9 @@ def _convert_decisions(raw, before_default, after_default):
         fork < 1 or fork > len(rows) or not rows[fork - 1].diverges
     ):
         raise ValueError("malformed fork")
-    return DecisionData(rows, fork, fork_note, dropped, extractor, before_count, after_count)
+    return DecisionData(
+        rows, fork, fork_note, dropped, extractor, before_count, after_count
+    )
 
 
 def _decision_row(raw):

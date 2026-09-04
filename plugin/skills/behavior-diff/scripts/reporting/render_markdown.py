@@ -49,9 +49,7 @@ def _decision_markdown(report):
                 )
             )
             mark += " *(in the final answer)*" if row.anchor == "answer" else ""
-            title = (
-                f"**{row.topic}** — {row.decision}" if row.topic else row.decision
-            )
+            title = f"**{row.topic}** — {row.decision}" if row.topic else row.decision
             if row.diverges:
                 markdown.append(f"- {index}. {title}{mark}")
                 markdown.append(
@@ -101,10 +99,7 @@ def _flow_markdown(report):
             if not branch.paths:
                 markdown.append(
                     f"- {tag}, all {branch.total} trials → "
-                    + (
-                        " → ".join(branch.prefix)
-                        or "(same steps as the shared flow)"
-                    )
+                    + (" → ".join(branch.prefix) or "(same steps as the shared flow)")
                 )
                 continue
             lead = f"- {tag}"
@@ -121,7 +116,9 @@ def _flow_markdown(report):
 
 
 def _count_line(variant):
-    count = f"**{variant.count_text}**" if variant.count_emphasized else variant.count_text
+    count = (
+        f"**{variant.count_text}**" if variant.count_emphasized else variant.count_text
+    )
     return count + variant.count_suffix
 
 
@@ -139,7 +136,10 @@ def render_markdown(report: ReportData) -> str:
         content_data.scenario + "\n",
     ]
     if content_data.expected:
-        markdown += [f"## {content_data.expected_heading}\n", content_data.expected + "\n"]
+        markdown += [
+            f"## {content_data.expected_heading}\n",
+            content_data.expected + "\n",
+        ]
     markdown += [
         f"## {content_data.diff_heading}\n",
         "```diff\n" + report.rule_diff.rstrip() + "\n```\n",
@@ -149,9 +149,7 @@ def render_markdown(report: ReportData) -> str:
         flow = _flow_markdown(report)
         if decisions:
             markdown.append(
-                "<details><summary>"
-                + content.flow_fold_summary()
-                + "</summary>\n"
+                "<details><summary>" + content.flow_fold_summary() + "</summary>\n"
             )
             markdown += flow
             markdown.append("</details>\n")

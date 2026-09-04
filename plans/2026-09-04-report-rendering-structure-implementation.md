@@ -229,14 +229,16 @@ def main():
                     "count_text": "1 valid trial(s)",
                     "count_suffix": " (blocked: 0)",
                     "count_emphasized": False,
-                    "trials": [{
-                        "name": "before-1",
-                        "verdict": "REVIEW",
-                        "actions": "-",
-                        "commands": ["read AGENTS.md"],
-                        "final": "Before answer",
-                        "outcome": None,
-                    }],
+                    "trials": [
+                        {
+                            "name": "before-1",
+                            "verdict": "REVIEW",
+                            "actions": "-",
+                            "commands": ["read AGENTS.md"],
+                            "final": "Before answer",
+                            "outcome": None,
+                        }
+                    ],
                 },
                 "after": {
                     "label": "After",
@@ -248,14 +250,16 @@ def main():
                     "count_text": "1 valid trial(s)",
                     "count_suffix": " (blocked: 0)",
                     "count_emphasized": False,
-                    "trials": [{
-                        "name": "after-1",
-                        "verdict": "REVIEW",
-                        "actions": "-",
-                        "commands": ["read AGENTS.md", "run tests"],
-                        "final": "After answer",
-                        "outcome": None,
-                    }],
+                    "trials": [
+                        {
+                            "name": "after-1",
+                            "verdict": "REVIEW",
+                            "actions": "-",
+                            "commands": ["read AGENTS.md", "run tests"],
+                            "final": "After answer",
+                            "outcome": None,
+                        }
+                    ],
                 },
             },
             "command_flow": {
@@ -324,6 +328,7 @@ from typing import Dict, Optional, Tuple, Union
 
 SCHEMA_VERSION = 1
 
+
 @dataclass(frozen=True)
 class TrialData:
     name: str
@@ -332,6 +337,7 @@ class TrialData:
     commands: Tuple[str, ...]
     final: str
     outcome: Optional[str]
+
 
 @dataclass(frozen=True)
 class VariantData:
@@ -346,21 +352,25 @@ class VariantData:
     count_emphasized: bool
     trials: Tuple[TrialData, ...]
 
+
 @dataclass(frozen=True)
 class VariantsData:
     before: VariantData
     after: VariantData
+
 
 @dataclass(frozen=True)
 class FlowPathData:
     steps: Tuple[str, ...]
     count: int
 
+
 @dataclass(frozen=True)
 class FlowBranchData:
     prefix: Tuple[str, ...]
     paths: Tuple[FlowPathData, ...]
     total: int
+
 
 @dataclass(frozen=True)
 class CommandFlowData:
@@ -370,10 +380,12 @@ class CommandFlowData:
     before: FlowBranchData
     after: FlowBranchData
 
+
 @dataclass(frozen=True)
 class DecisionChoiceData:
     choice: str
     count: int
+
 
 @dataclass(frozen=True)
 class DecisionRowData:
@@ -385,6 +397,7 @@ class DecisionRowData:
     before: Tuple[DecisionChoiceData, ...]
     after: Tuple[DecisionChoiceData, ...]
 
+
 @dataclass(frozen=True)
 class DecisionData:
     rows: Tuple[DecisionRowData, ...]
@@ -394,6 +407,7 @@ class DecisionData:
     extractor: str
     before_count: int
     after_count: int
+
 
 @dataclass(frozen=True)
 class MetadataData:
@@ -422,10 +436,12 @@ class ContentData:
     result_heading: str
     boundary: str
 
+
 @dataclass(frozen=True)
 class ResultData:
     text: str
     kind: str
+
 
 @dataclass(frozen=True)
 class ReportData:

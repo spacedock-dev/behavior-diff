@@ -298,13 +298,12 @@ def main():
         ReportData.from_dict(escaping_raw),
         ".result { background:__RESULT_BG__; }",
     )
-    assert '<script>' not in escaping_artifact
+    assert "<script>" not in escaping_artifact
     assert 'class="badge review&quot;&gt;&lt;script&gt;&amp;"' in escaping_artifact
-    assert 'REVIEW&quot;&gt;&lt;script&gt;&amp;</span>' in escaping_artifact
+    assert "REVIEW&quot;&gt;&lt;script&gt;&amp;</span>" in escaping_artifact
 
     if len(sys.argv) == 2:
         assert_file_round_trip(sys.argv[1])
-
 
 
 def assert_file_round_trip(path):
@@ -325,8 +324,6 @@ def assert_file_round_trip(path):
     artifact = render_artifact(report, css)
     assert artifact == artifact_path.read_text()
     assert render_document(artifact) == document_path.read_text()
-
-
 
 
 if __name__ == "__main__":

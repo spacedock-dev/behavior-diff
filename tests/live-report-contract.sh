@@ -110,7 +110,6 @@ usage() {
   exit 2
 }
 
-
 copy_report_fixtures() {
   local mode=$1
   local run=$2
@@ -125,7 +124,8 @@ copy_report_fixtures() {
 require_exact_report() {
   local mode=$1
   local report=$2
-  local fixture=$fixture_root/$mode/$(basename "$report")
+  local fixture
+  fixture=$fixture_root/$mode/$(basename "$report")
 
   if ! cmp -s "$fixture" "$report"; then
     printf 'Rendered report differs from fixture: %s\n' "$fixture" >&2
@@ -390,7 +390,6 @@ require_output \
 reject_output 'A decision is not an action' "$captured_prompt" \
   'captured prompt uses self-reported action wording'
 
-
 progress 'Render captured and self-reported reports'
 
 python3 "$renderer" "$self_run" "$self_run" contract \
@@ -422,9 +421,7 @@ done
   fail 'captured report data provenance is not captured'
 [[ $(jq -r '.metadata.trace_source' "$self_run/report-data.json") == self-reported ]] ||
   fail 'self-reported report data provenance is not self-reported'
-[[ $(jq -r '.variants.after.trials[0].commands | join("|")' \
-  "$captured_run/report-data.json") == \
-  'Read: AGENTS.md|Test: bash behavior-diff/tests/live-report-contract.sh' ]] ||
+[[ $(jq -r '.variants.after.trials[0].commands | join("|")' "$captured_run/report-data.json") == 'Read: AGENTS.md|Test: bash behavior-diff/tests/live-report-contract.sh' ]] ||
   fail 'report data does not preserve after commands in order'
 [[ $(jq -r '.command_flow.enabled == false and (.command_flow.shared | length == 0) and (.command_flow.before.prefix | length == 0) and (.command_flow.before.paths | length == 0) and (.command_flow.after.prefix | length == 0) and (.command_flow.after.paths | length == 0)' "$self_run/report-data.json") == true ]] ||
   fail 'self-reported report data must disable and empty command flow'
@@ -435,7 +432,6 @@ python3 "$renderer" "$graded_run" "$graded_run" contract >/dev/null
 require_output '**0 of 1 valid trials met the expectation** (blocked: 0)' \
   "$graded_run/report.md" \
   'graded Markdown count must emphasize only the expectation result'
-
 
 invalid_decisions_run=$tmp/invalid-decisions
 build_run "$invalid_decisions_run" captured

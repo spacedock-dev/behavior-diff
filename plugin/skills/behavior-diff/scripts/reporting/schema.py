@@ -135,29 +135,27 @@ class ReportData:
     @classmethod
     def from_dict(cls, data: Dict[str, object]) -> "ReportData":
         data = _expect_dict(data, "report-data")
-        version = _expect_int(_field(data, "schema_version", "report-data"), "schema_version")
+        version = _expect_int(
+            _field(data, "schema_version", "report-data"), "schema_version"
+        )
         if version != SCHEMA_VERSION:
-            raise ValueError("unsupported report-data schema version: {0}".format(version))
+            raise ValueError(
+                "unsupported report-data schema version: {0}".format(version)
+            )
 
         return cls(
             schema_version=version,
-            metadata=_metadata(
-                _field(data, "metadata", "report-data"), "metadata"
-            ),
+            metadata=_metadata(_field(data, "metadata", "report-data"), "metadata"),
             content=_content(_field(data, "content", "report-data"), "content"),
             rule_diff=_expect_str(
                 _field(data, "rule_diff", "report-data"), "rule_diff"
             ),
             result=_result(_field(data, "result", "report-data"), "result"),
-            variants=_variants(
-                _field(data, "variants", "report-data"), "variants"
-            ),
+            variants=_variants(_field(data, "variants", "report-data"), "variants"),
             command_flow=_command_flow(
                 _field(data, "command_flow", "report-data"), "command_flow"
             ),
-            decisions=_decisions(
-                _field(data, "decisions", "report-data"), "decisions"
-            ),
+            decisions=_decisions(_field(data, "decisions", "report-data"), "decisions"),
         )
 
     def to_dict(self):
@@ -199,9 +197,7 @@ def _content(value, path):
         scenario_heading=_expect_str(
             _field(value, "scenario_heading", path), path + ".scenario_heading"
         ),
-        scenario=_expect_str(
-            _field(value, "scenario", path), path + ".scenario"
-        ),
+        scenario=_expect_str(_field(value, "scenario", path), path + ".scenario"),
         expected_heading=_expect_str(
             _field(value, "expected_heading", path), path + ".expected_heading"
         ),
@@ -223,9 +219,7 @@ def _content(value, path):
         result_heading=_expect_str(
             _field(value, "result_heading", path), path + ".result_heading"
         ),
-        boundary=_expect_str(
-            _field(value, "boundary", path), path + ".boundary"
-        ),
+        boundary=_expect_str(_field(value, "boundary", path), path + ".boundary"),
     )
 
 
@@ -255,9 +249,7 @@ def _variant(value, path):
         blocked=_expect_int(_field(value, "blocked", path), path + ".blocked"),
         valid=_expect_int(_field(value, "valid", path), path + ".valid"),
         total=_expect_int(_field(value, "total", path), path + ".total"),
-        count_text=_expect_str(
-            _field(value, "count_text", path), path + ".count_text"
-        ),
+        count_text=_expect_str(_field(value, "count_text", path), path + ".count_text"),
         count_suffix=_expect_str(
             _field(value, "count_suffix", path), path + ".count_suffix"
         ),
@@ -277,13 +269,9 @@ def _trial(value, path):
         name=_expect_str(_field(value, "name", path), path + ".name"),
         verdict=_expect_str(_field(value, "verdict", path), path + ".verdict"),
         actions=_expect_str(_field(value, "actions", path), path + ".actions"),
-        commands=_string_tuple(
-            _field(value, "commands", path), path + ".commands"
-        ),
+        commands=_string_tuple(_field(value, "commands", path), path + ".commands"),
         final=_expect_str(_field(value, "final", path), path + ".final"),
-        outcome=_expect_optional_str(
-            _field(value, "outcome", path), path + ".outcome"
-        ),
+        outcome=_expect_optional_str(_field(value, "outcome", path), path + ".outcome"),
     )
 
 
@@ -328,13 +316,9 @@ def _decisions(value, path):
             for index, item in enumerate(rows)
         ),
         fork=_expect_optional_int(_field(value, "fork", path), path + ".fork"),
-        fork_note=_expect_str(
-            _field(value, "fork_note", path), path + ".fork_note"
-        ),
+        fork_note=_expect_str(_field(value, "fork_note", path), path + ".fork_note"),
         dropped=_expect_int(_field(value, "dropped", path), path + ".dropped"),
-        extractor=_expect_str(
-            _field(value, "extractor", path), path + ".extractor"
-        ),
+        extractor=_expect_str(_field(value, "extractor", path), path + ".extractor"),
         before_count=_expect_int(
             _field(value, "before_count", path), path + ".before_count"
         ),
@@ -349,14 +333,10 @@ def _decision_row(value, path):
     before = _expect_list(_field(value, "before", path), path + ".before")
     after = _expect_list(_field(value, "after", path), path + ".after")
     return DecisionRowData(
-        decision=_expect_str(
-            _field(value, "decision", path), path + ".decision"
-        ),
+        decision=_expect_str(_field(value, "decision", path), path + ".decision"),
         topic=_expect_str(_field(value, "topic", path), path + ".topic"),
         anchor=_expect_anchor(_field(value, "anchor", path), path + ".anchor"),
-        diverges=_expect_bool(
-            _field(value, "diverges", path), path + ".diverges"
-        ),
+        diverges=_expect_bool(_field(value, "diverges", path), path + ".diverges"),
         note=_expect_str(_field(value, "note", path), path + ".note"),
         before=tuple(
             _decision_choice(item, "{0}.before[{1}]".format(path, index))
