@@ -18,8 +18,9 @@ Do not duplicate its content here — read it if a step needs context.
 Stop and say what is wrong if any of these fail. Do not improvise a fix
 mid-demo.
 
-1. `HERDR_ENV` is `1` and `herdr` is on PATH. If not, this skill does not
-   apply — offer the plain terminal steps from the e2e README instead.
+1. `HERDR_ENV` is `1` and `herdr` is on PATH. If not, you cannot drive a
+   pane — go to **Headless fallback** below rather than stopping. Steps 2-4
+   still apply there.
 2. **Ask which agent drives the session** unless the user already said:
    `claude` (default model sonnet) or `codex` (default gpt-5.6-terra).
    Both carry the nudge hooks. The ask rate is a property of the agent, so
@@ -189,6 +190,38 @@ the state directory the reports live in.
 
     herdr pane close "$NEW"
     NUDGE_E2E_FIXTURE=<fixture> tests/nudge-e2e.sh reset
+
+## Headless fallback — no herdr
+
+Without a pane you cannot put the ask on screen, so do not promise that beat.
+What you can still do is prove the chain end to end — the hook fires, the
+whisper reaches a live agent, the agent asks unprompted — and measure how
+often it asks, which is the number this journey exists to produce.
+
+    NUDGE_E2E_FIXTURE=<fixture> tests/nudge-e2e.sh headless 3
+    # NUDGE_E2E_AGENT=codex for the Codex stack
+
+Each trial rebuilds the sandbox, runs one `claude -p` or `codex exec` turn
+with the same edit prompt a person would paste, and looks for the ask in the
+agent's final message. It prints one line per trial, then the ask count, then
+the journey B commands for the sandbox it leaves behind. A trial that did not
+ask prints the agent's final message so you can check the call yourself.
+
+Report these boundaries with the result:
+
+- The ask arrived as text in a transcript, not as an on-screen prompt. Both
+  are the agent asking; only the second is the demo beat.
+- A low ask rate is a finding, not a failure. Do not re-prompt to improve it.
+- The Stop line (journey B) reaches `claude -p` only under
+  `--output-format stream-json --verbose`, and never reaches `codex exec
+  --json` at all. On both hosts the durable evidence is the state file
+  becoming `*.edits.spoken`, so assert that rather than the line.
+- This is a maintainer tool. Never wire it into CI — invariant 5 forbids CI
+  from invoking an agent or a live journey.
+
+Clean up with `reset`, exactly as the herdr path does. If someone wants the
+full demo with the ask visible on screen, that needs a second terminal and a
+person: `e2e/README.md` sections 1-2.
 
 ## When it goes wrong on stage
 

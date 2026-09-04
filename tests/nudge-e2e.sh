@@ -11,7 +11,15 @@
 #   nudge-e2e.sh setup          sandbox repo + isolated state, prints the prompt
 #   nudge-e2e.sh check          assert the nudge state left by the last turn
 #   nudge-e2e.sh drop-whisper   remove the whisper marker (arms the Stop line)
+#   nudge-e2e.sh headless [N]   run journey A N times with no operator, count asks
 #   nudge-e2e.sh reset          delete the sandbox
+#
+# `headless` is the path for a machine with no herdr and no person watching:
+# one `claude -p` or `codex exec` turn per trial, and the agent's ask lands in
+# its final message where a grep can see it. It measures the ask rate, which
+# is the finding this journey exists to produce. It cannot show the ask as an
+# on-screen prompt — that beat needs a real session. Never call it from CI:
+# invariant 5 forbids CI from invoking an agent or a live journey.
 #
 # Override paths with NUDGE_E2E_REPO / NUDGE_E2E_STATE. Both are deleted by
 # setup and reset, so each must carry the sandbox marker written at setup.
@@ -100,10 +108,11 @@ info() { printf '  --    %s\n' "$1"; }
 
 usage() {
   cat >&2 <<'EOF'
-usage: nudge-e2e.sh setup | check | drop-whisper | reset
+usage: nudge-e2e.sh setup | check | drop-whisper | headless [N] | reset
   setup          sandbox repo + isolated state, prints the prompt
   check          assert the nudge state left by the last turn
   drop-whisper   remove the whisper marker (arms the Stop line)
+  headless [N]   run journey A N times with no operator, count asks
   reset          delete the sandbox
 EOF
   exit 2
@@ -140,7 +149,23 @@ newest() {
   printf '%s' "$found"
 }
 
-cmd_setup() {
+# The edit-turn prompt, unindented and from one source: setup prints it for a
+# person to paste, headless feeds it to the agent. Two copies would drift.
+edit_prompt() {
+  if [[ -f $fixture_dir/edit-prompt.md ]]; then
+    cat -- "$fixture_dir/edit-prompt.md"
+  else
+    printf 'Add this to %s:\n' "$instruction_file"
+    cat -- "$fixture_dir/rule.md"
+  fi
+  cat <<'EOF'
+
+Make only this instruction-file edit. Do not start any other work in this
+turn, and do not open any project record.
+EOF
+}
+
+build_sandbox() {
   command -v git >/dev/null 2>&1 || die "git is required"
   [[ -d $capsule ]] || die "$fixture fixture missing: $capsule"
   [[ -f $capsule/$instruction_file ]] ||
@@ -166,6 +191,10 @@ cmd_setup() {
   git -C "$repo" add -A
   git -C "$repo" -c user.name=nudge-e2e -c user.email=nudge-e2e@invalid \
     commit -qm "init"
+}
+
+cmd_setup() {
+  build_sandbox
 
   cat <<EOF
 
@@ -184,15 +213,7 @@ $mode_note
    Do NOT mention behavior-diff, or the prompt causes the ask instead of the
    hook:
 
-$(if [[ -f $fixture_dir/edit-prompt.md ]]; then
-    sed 's/^/       /' "$fixture_dir/edit-prompt.md"
-  else
-    printf '       Add this to %s:\n' "$instruction_file"
-    sed 's/^/       /' "$fixture_dir/rule.md"
-  fi)
-
-       Make only this instruction-file edit. Do not start any other work in
-       this turn, and do not open any project record.
+$(edit_prompt | sed 's/^/       /')
 
    Expect the agent to ask, unprompted, whether to run behavior-diff.
 
@@ -282,11 +303,110 @@ cmd_drop_whisper() {
   pass "whisper marker removed — end a turn to expect the Stop reminder"
 }
 
-[[ $# -eq 1 ]] || usage
+# One headless turn in the sandbox with the nudge hooks live —
+# BEHAVIOR_DIFF_TRIAL stays unset on purpose, because the whisper is the thing
+# under test. Raw stream goes to $1; the agent's final message goes to stdout.
+run_headless_turn() {
+  local out=$1 prompt
+  prompt=$(edit_prompt)
+  if [[ $agent == claude ]]; then
+    # Without --allowedTools the edit never lands, and no edit means no hook,
+    # which reads exactly like the nudge being broken.
+    (cd -- "$repo" && BEHAVIOR_DIFF_HOME=$state \
+      claude -p "$prompt" --model "${NUDGE_E2E_MODEL:-sonnet}" \
+      --allowedTools "Read,Edit,Write" \
+      --output-format stream-json --verbose) \
+      >"$out/trace.jsonl" 2>"$out/stderr.log" || return 1
+    jq -r 'select(.type == "result") | .result // empty' "$out/trace.jsonl"
+  else
+    (cd -- "$repo" && BEHAVIOR_DIFF_HOME=$state \
+      codex exec --skip-git-repo-check -s workspace-write \
+      -m "${NUDGE_E2E_MODEL:-gpt-5.6-terra}" --json "$prompt" </dev/null) \
+      >"$out/trace.jsonl" 2>"$out/stderr.log" || return 1
+    jq -r 'select((.item.item_type // .item.type) == "agent_message")
+           | .item.text // empty' "$out/trace.jsonl" | tail -1
+  fi
+}
+
+# Did the agent ask? Heuristic, and it has a ceiling: it wants the product
+# named and a question asked in the same message. A reply that names
+# behavior-diff without offering to run it would read as an ask. Every
+# no-ask trial prints its final message so a person can check the call.
+asked_for_diff() {
+  printf '%s' "$1" | grep -qiE 'behaviou?r[ _-]?diff' &&
+    printf '%s' "$1" | grep -qF '?'
+}
+
+cmd_headless() {
+  local trials=$1 i out text asked=0 session=''
+  [[ $trials =~ ^[1-9][0-9]*$ ]] ||
+    die "headless takes a positive trial count: $trials"
+  command -v jq >/dev/null 2>&1 || die "jq is required by headless"
+  command -v "$agent" >/dev/null 2>&1 || die "$agent is not on PATH"
+
+  printf '\nHeadless journey A — %s fixture, %s, %d trial(s)\n\n' \
+    "$fixture" "$session_cmd" "$trials"
+
+  for ((i = 1; i <= trials; i++)); do
+    build_sandbox
+    out=$state/headless
+    mkdir -p -- "$out"
+
+    if ! text=$(run_headless_turn "$out"); then
+      fail "trial $i: $agent exited nonzero — $(tail -1 "$out/stderr.log" 2>/dev/null)"
+      continue
+    fi
+    if [[ -z $(newest "$nudge/*.edits") ]]; then
+      fail "trial $i: nothing recorded — the PostToolUse hook did not fire (plugin enabled?)"
+      continue
+    fi
+    if asked_for_diff "$text"; then
+      asked=$((asked + 1))
+      pass "trial $i: hook fired, agent asked"
+    else
+      info "trial $i: hook fired, agent did not ask — its final message was:"
+      printf '%s\n' "$text" | sed 's/^/          /'
+    fi
+    [[ $agent == claude ]] &&
+      session=$(jq -r 'select(.type == "result") | .session_id // empty' \
+        "$out/trace.jsonl" | tail -1)
+  done
+
+  printf '\n'
+  info "asked $asked of $trials trial(s) — this rate is the finding, not a pass/fail"
+  info "the sandbox holds the last trial; for journey B (the Stop line) run:"
+  printf '        NUDGE_E2E_FIXTURE=%s NUDGE_E2E_REPO=%s \\\n' "$fixture" "$repo"
+  printf '          NUDGE_E2E_STATE=%s %s drop-whisper\n' "$state" "$0"
+  printf '        cd %s && BEHAVIOR_DIFF_HOME=%s \\\n' "$repo" "$state"
+  if [[ $agent == claude ]]; then
+    # The Stop line reaches stream-json only. Plain -p output drops it, and
+    # the hook still fires, so a missing line there proves nothing.
+    printf "          claude -p --resume %s 'say ok' \\\\\n" \
+      "${session:-<session-id>}"
+    printf '            --output-format stream-json --verbose | grep "Stop says"\n'
+  else
+    printf "          codex exec --skip-git-repo-check -s workspace-write resume --last --json 'say ok'\n"
+    info "on codex the Stop line never reaches --json at all; assert *.edits.spoken"
+  fi
+  info "either way the durable evidence is the state file becoming *.edits.spoken"
+
+  if [[ $failures -gt 0 ]]; then
+    printf '\n%d check(s) failed\n' "$failures" >&2
+    exit 1
+  fi
+}
+
+[[ $# -ge 1 ]] || usage
+# Only headless takes an argument; every other subcommand stays strict.
+[[ $1 == headless || $# -eq 1 ]] || usage
 case $1 in
   setup) cmd_setup ;;
   check) cmd_check ;;
   drop-whisper) cmd_drop_whisper ;;
+  headless)
+    [[ $# -le 2 ]] || usage
+    cmd_headless "${2:-1}"
+    ;;
   reset)
     remove_sandbox "$repo" NUDGE_E2E_REPO
     remove_sandbox "$state" NUDGE_E2E_STATE
