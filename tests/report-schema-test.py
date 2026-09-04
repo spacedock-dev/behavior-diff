@@ -247,11 +247,10 @@ def assert_file_round_trip(path):
     assert report.to_dict() == raw
     assert json.loads(report.to_json()) == raw
 
-    markdown_path = Path(path).with_name("report.md")
-    if markdown_path.exists():
-        from reporting.render_markdown import render_markdown
+    from reporting.render_markdown import render_markdown
 
-        assert render_markdown(report) == markdown_path.read_text()
+    markdown_path = Path(path).with_name("report.md")
+    assert render_markdown(report) == markdown_path.read_text()
 
 
 
