@@ -47,6 +47,12 @@ is authoritative when a Behavior Diff rule differs from an Engram rule.
 - `.agents/skills/` — repository-maintainer skills, not plugin payload.
 - `RETRO_NOTES.md` — durable tool lessons with no transcript excerpts.
 
+## Maintainer workflows
+
+- To run an end-to-end demo, use the local
+  `run-behavior-diff-demo-journey` skill.
+- To release Behavior Diff, use the local `release-behavior-diff` skill.
+
 ## Verification
 
 Check Bash and Python formatting from the repository root:
