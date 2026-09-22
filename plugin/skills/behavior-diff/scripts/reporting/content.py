@@ -82,33 +82,18 @@ def count_data(mode, passed, valid, blocked):
     )
 
 
-def decision_blurb(self_reported, single_trial):
-    if self_reported:
-        blurb = (
-            "A decision is a point where the agent had a real choice. The "
-            "decisions come from self-reported actions and final answers. Some "
-            "decisions leave no reported action behind. Order follows the "
-            "report: decisions visible in actions come in reported action "
-            "order, and decisions visible only in the final answer come last. "
-            "Extractor output can vary from run to run."
-        )
-    else:
-        blurb = (
-            "A decision is a point where the agent had a real choice. These "
-            "are recovered from what the trials did and said, not from the "
-            "instruction diff, and some of them leave no command behind. Order "
-            "is real: decisions visible in commands come in command order, and "
-            "decisions visible only in the final answer come last. The fork "
-            "and main divergences are stable across extractions; minor rows "
-            "can vary run to run."
-        )
+def decision_blurb(single_trial):
+    purpose = (
+        "A model read every trial and named the points where the agent had "
+        "a real choice. This is the answer to what your edit changed."
+    )
     if single_trial:
-        blurb += (
+        purpose += (
             " CAUTION — one trial per side: any divergence here can be "
             "run-to-run variation rather than a rule effect; confirm with "
             "repeated trials (behavior-diff 3+3) before acting on it."
         )
-    return blurb
+    return purpose
 
 
 def flow_purpose():
@@ -123,17 +108,56 @@ def flow_kinds_heading(kinds):
     return "Every command is put into one of these {0} kinds:".format(len(kinds))
 
 
+def tag_legend():
+    """What each tag on a decision row means."""
+    return (
+        ("root", "first difference", "the first decision where before and after split"),
+        (
+            "down",
+            "follows from it",
+            "this split happens because of the first difference",
+        ),
+        ("same", "same before and after", "before and after chose the same thing"),
+        ("cmd", "from a command", "this row comes from a command the agent ran"),
+        ("ans", "from the reply", "this row comes from what the agent wrote"),
+    )
+
+
 def observation(mode, decisions, before_count, after_count):
+    """The headline finding as plain aligned text, identical in every format."""
     if mode != "review" or not decisions.rows or not decisions.fork:
         return ""
     row = decisions.rows[decisions.fork - 1]
-    title = row.topic or row.decision
-    before = branch_text(row.before, decisions.before_count or before_count)
-    after = branch_text(row.after, decisions.after_count or after_count)
-    return (
-        "Observed in this run — {0}: BEFORE {1} · AFTER {2}. "
-        "Single-run observation, not a verdict."
-    ).format(title, before, after)
+    before_total = decisions.before_count or before_count
+    after_total = decisions.after_count or after_count
+    caveat = (
+        "One run: {0} trials before, {1} after. A model read the trials and "
+        "named this choice. Not a verdict."
+    ).format(before_total, after_total)
+    rows = []
+    for side, choices, total in (
+        ("BEFORE", row.before, before_total),
+        ("AFTER", row.after, after_total),
+    ):
+        for index, choice in enumerate(choices):
+            rows.append(
+                (
+                    side if index == 0 else "",
+                    "{0}/{1}".format(choice.count, total),
+                    choice.choice,
+                )
+            )
+    side_width = max((len(item[0]) for item in rows), default=0)
+    count_width = max((len(item[1]) for item in rows), default=0)
+    lines = [row.decision or row.topic, ""]
+    lines += [
+        "{0}  {1}  {2}".format(
+            side.ljust(side_width), count.rjust(count_width), choice
+        ).rstrip()
+        for side, count, choice in rows
+    ]
+    lines += ["", caveat]
+    return "\n".join(lines)
 
 
 def branch_text(choices, total):
@@ -150,12 +174,11 @@ def branch_text(choices, total):
 
 def headings(target_file):
     return {
+        "observation": "Observed in this run",
         "scenario": "Scenario",
         "expected": "Expected behavior",
-        "diff": "Diff of {0} — the only difference between the variants".format(
-            target_file
-        ),
-        "decision": "Decision diff — top divergences",
+        "diff": "Diff of {0}".format(target_file),
+        "decision": "Decision diff: what the agent chose, before and after your edit",
         "flow": "Flow diff: which kinds of command each side used",
         "result": "Result",
     }
@@ -169,11 +192,14 @@ def decision_footer(rows, fork):
     divergent = sum(row.diverges for row in rows)
     if fork:
         rest = divergent - 1
+        if not rest:
+            return "Before and after first differ at decision #{0}.".format(fork)
         return (
-            "One target decision changed (#{0}); {1} later difference{2} diverge "
-            "downstream of it (the extractor's causal reading, not a measured chain)."
+            "Before and after first differ at decision #{0}. {1} later "
+            "decision{2} also differ. The model reads them as following from "
+            "#{0}, which is its reading, not something the run measured."
         ).format(fork, rest, "s" if rest != 1 else "")
-    return "{0} of {1} decisions diverge.".format(divergent, len(rows))
+    return "{0} of {1} decisions differ.".format(divergent, len(rows))
 
 
 def dropped_rows(dropped):
@@ -191,7 +217,6 @@ def build_content(
     after_total,
 ):
     mode = metadata.mode
-    self_reported = metadata.trace_source == "self-reported"
     names = headings(metadata.target_file)
     facts = meta(metadata, before_total, after_total)
     return ContentData(
@@ -199,6 +224,7 @@ def build_content(
         subtitle=subtitle(facts),
         meta=facts,
         note=config.get("sub", ""),
+        observation_heading=names["observation"],
         observation=observation(mode, decisions, before_total, after_total),
         scenario_heading=names["scenario"],
         scenario=scenario,
@@ -211,9 +237,8 @@ def build_content(
         ),
         diff_heading=names["diff"],
         decision_heading=names["decision"],
-        decision_blurb=decision_blurb(
-            self_reported, before_total == 1 and after_total == 1
-        ),
+        decision_blurb=decision_blurb(before_total == 1 and after_total == 1),
+        tag_legend=tag_legend(),
         flow_heading=names["flow"],
         flow_purpose=flow_purpose(),
         result_heading=names["result"],

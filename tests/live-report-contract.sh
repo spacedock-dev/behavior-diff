@@ -479,14 +479,11 @@ for report in "$self_run/report.md" "$self_run/report.html"; do
     "$report" "self-reported report directs readers to removed flows: $report"
   reject_output 'No automatic verdict — compare the flows and final answers' \
     "$report" "self-reported report kept the captured-mode result: $report"
-  require_output \
-    'The decisions come from self-reported actions and final answers.' \
-    "$report" "self-reported decision blurb does not disclose its evidence: $report"
-  require_output 'Extractor output can vary from run to run.' "$report" \
-    "self-reported decision blurb claims deterministic extraction: $report"
+  require_output 'self-reported actions' \
+    "$report" "self-reported report does not disclose its evidence: $report"
   reject_output 'stable across extractions' "$report" \
     "self-reported report claims extractor output is stable: $report"
-  require_output 'Decision diff — top divergences' "$report" \
+  require_output 'Decision diff: what the agent chose, before and after your edit' "$report" \
     "self-reported report dropped the decision diff: $report"
   case $report in
     *.md)
@@ -536,9 +533,6 @@ for report in "$captured_run/report.md" "$captured_run/report.html"; do
   reject_output \
     'No automatic verdict — compare the reported actions, decision diff, and final answers' \
     "$report" "captured report used the self-reported review result: $report"
-  require_output \
-    'The fork and main divergences are stable across extractions; minor rows can vary run to run.' \
-    "$report" "captured report changed its extraction stability wording: $report"
   case $report in
     *.md)
       after_marker='## AFTER — your change applied'

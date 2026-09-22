@@ -17,9 +17,15 @@ def _decision_markdown(report):
             break
         lead_count += 1
 
+    legend = "\n".join(
+        "- **{0}** — {1}".format(label, meaning)
+        for _, label, meaning in report.content.tag_legend
+    )
     markdown = [
         f"## {report.content.decision_heading}\n",
         report.content.decision_blurb + "\n",
+        "Tags:\n",
+        legend + "\n",
     ]
     if lead_count:
         markdown.append("Decided the same way on both sides:\n")
@@ -32,24 +38,32 @@ def _decision_markdown(report):
                 else f"before: {before_choice} · after: {after_choice}"
             )
             note = f" — {row.note}" if row.note else ""
-            when = " *(in the final answer)*" if row.anchor == "answer" else ""
-            title = row.topic or row.decision
+            when = (
+                " *(from the reply)*"
+                if row.anchor == "answer"
+                else " *(from a command)*"
+            )
+            title = row.decision or row.topic
             markdown.append(f"- {index}. **{title}**{when} → {choice}{note}")
         markdown.append("")
     if lead_count < len(decisions.rows):
         markdown.append("Diverging from here:\n")
         for index, row in enumerate(decisions.rows[lead_count:], lead_count + 1):
             mark = (
-                " ⟵ root behavior change"
+                " *(first difference)*"
                 if index == decisions.fork
                 else (
-                    " *(downstream)*"
+                    " *(follows from it)*"
                     if row.diverges and decisions.fork and index > decisions.fork
                     else ""
                 )
             )
-            mark += " *(in the final answer)*" if row.anchor == "answer" else ""
-            title = f"**{row.topic}** — {row.decision}" if row.topic else row.decision
+            mark += (
+                " *(from the reply)*"
+                if row.anchor == "answer"
+                else " *(from a command)*"
+            )
+            title = f"**{row.decision or row.topic}**"
             if row.diverges:
                 markdown.append(f"- {index}. {title}{mark}")
                 markdown.append(
@@ -60,7 +74,7 @@ def _decision_markdown(report):
                 )
             else:
                 markdown.append(
-                    f"- {index}. {row.decision} *(same)* → "
+                    f"- {index}. {row.decision} *(same before and after)* → "
                     f"{content.branch_text(row.before, before_total)}"
                 )
             if row.note:
@@ -130,7 +144,8 @@ def render_markdown(report: ReportData) -> str:
     if content_data.note:
         markdown.append(content_data.note + "\n")
     if content_data.observation:
-        markdown.append("**" + content_data.observation + "**\n")
+        markdown.append(f"## {content_data.observation_heading}\n")
+        markdown.append("```\n" + content_data.observation + "\n```\n")
     markdown += [
         f"## {content_data.scenario_heading}\n",
         content_data.scenario + "\n",
@@ -141,8 +156,9 @@ def render_markdown(report: ReportData) -> str:
             content_data.expected + "\n",
         ]
     markdown += [
-        f"## {content_data.diff_heading}\n",
+        f"<details><summary>{content_data.diff_heading}</summary>\n",
         "```diff\n" + report.rule_diff.rstrip() + "\n```\n",
+        "</details>\n",
     ]
     markdown += decisions
     if metadata.trace_source != "self-reported":
