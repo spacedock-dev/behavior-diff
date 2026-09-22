@@ -46,7 +46,8 @@ def synthetic_raw():
             "diff_heading": "Diff of AGENTS.md — the only difference between the variants",
             "decision_heading": "Decision diff — top divergences",
             "decision_blurb": "Synthetic decision explanation.",
-            "flow_heading": "Flow diff — where the variants diverge",
+            "flow_heading": "Flow diff: what kinds of commands each side ran",
+            "flow_purpose": "Synthetic flow explanation.",
             "result_heading": "Result",
             "boundary": "Synthetic evidence only.",
         },
@@ -115,6 +116,7 @@ def synthetic_raw():
         "command_flow": {
             "enabled": True,
             "same": False,
+            "kinds": ["Inspect git history and status", "Read files"],
             "shared": ["Read files", "Compare output"],
             "before": {
                 "prefix": ["Review result"],

@@ -106,6 +106,18 @@ def decision_blurb(self_reported, single_trial):
     return blurb
 
 
+def flow_purpose():
+    return (
+        "A cross-check on the decision diff above, built from the actual "
+        "commands the agents ran and sorted by rule. This section lists "
+        "which kinds appeared on each side."
+    )
+
+
+def flow_kinds_heading(kinds):
+    return "Every command is put into one of these {0} kinds:".format(len(kinds))
+
+
 def observation(mode, decisions, before_count, after_count):
     if mode != "review" or not decisions.rows or not decisions.fork:
         return ""
@@ -139,13 +151,13 @@ def headings(target_file):
             target_file
         ),
         "decision": "Decision diff — top divergences",
-        "flow": "Flow diff — where the variants diverge",
+        "flow": "Flow diff: which kinds of command each side used",
         "result": "Result",
     }
 
 
 def flow_fold_summary():
-    return "Flow diff — command-derived (deterministic, no model involved)"
+    return "Flow diff: which kinds of command each side used (no model involved)"
 
 
 def decision_footer(rows, fork):
@@ -196,6 +208,7 @@ def build_content(
             self_reported, before_total == 1 and after_total == 1
         ),
         flow_heading=names["flow"],
+        flow_purpose=flow_purpose(),
         result_heading=names["result"],
         boundary=boundary(),
     )

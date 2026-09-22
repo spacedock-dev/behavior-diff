@@ -198,7 +198,7 @@ def _command_flow(before, after, metadata):
     if metadata.trace_source == "self-reported":
         empty_before = FlowBranchData(prefix=(), paths=(), total=before.total)
         empty_after = FlowBranchData(prefix=(), paths=(), total=after.total)
-        return CommandFlowData(False, True, (), empty_before, empty_after)
+        return CommandFlowData(False, True, (), (), empty_before, empty_after)
     step_order, labels, classify = _classifier(metadata.vocab)
     before_sequences = tuple(
         _trial_sequence(trial, step_order, labels, classify) for trial in before.trials
@@ -215,7 +215,14 @@ def _command_flow(before, after, metadata):
         or after_branch.prefix
         or after_branch.paths
     )
-    return CommandFlowData(True, same, shared, before_branch, after_branch)
+    kinds = tuple(labels[key] for key in step_order)
+    return CommandFlowData(True, same, kinds, shared, before_branch, after_branch)
+
+
+# `2>/dev/null` and `>/dev/null` are not file writes; a digit or `&` before
+# the arrow marks a stream redirect, not a path.
+_FILE_REDIRECT = re.compile(r"(?<![0-9&])>>?\s*(?!/dev/null)\S")
+_CAT_TO_FILE = re.compile(r"cat\s*>")
 
 
 def _classifier(vocab):
@@ -259,11 +266,12 @@ def _classifier(vocab):
 
         return order, labels, classify
 
-    order = ["inspect", "read", "search", "tests", "run"]
+    order = ["inspect", "read", "search", "write", "tests", "run"]
     labels = {
         "inspect": "Inspect git history and status",
         "read": "Read files",
         "search": "Search the codebase",
+        "write": "Write or edit a file",
         "tests": "Run tests",
         "run": "Run the app or a script",
     }
@@ -293,10 +301,14 @@ def _classifier(vocab):
         if (
             lowered.startswith(("[read]", "cat ", "head ", "less "))
             or "sed -n" in lowered
-        ):
+        ) and not _CAT_TO_FILE.match(lowered):
             keys.add("read")
         if re.search(r"\b(grep|rg|find|ag)\b", lowered):
             keys.add("search")
+        if lowered.startswith(("[write]", "[edit]", "[notebookedit]")) or (
+            _FILE_REDIRECT.search(lowered)
+        ):
+            keys.add("write")
         if "pytest" in lowered or re.search(r"\btest[s_]?\b", lowered):
             keys.add("tests")
         elif re.search(r"\b(python3?|bash|sh|node|npm|make|cargo|go)\b", lowered):
@@ -331,7 +343,10 @@ def _flow_branch(sequences, shared):
     remainders = [sequence[len(shared) :] for sequence in sequences]
     prefix = _common_prefix(remainders)
     paths = Counter(tuple(item[len(prefix) :]) for item in remainders)
-    paths.pop((), None)
+    # A trial that added no further step is still a trial: drop the empty
+    # group only when it is the whole branch, so a split's counts add up.
+    if len(paths) < 2:
+        paths.pop((), None)
     return FlowBranchData(
         prefix=prefix,
         paths=tuple(
