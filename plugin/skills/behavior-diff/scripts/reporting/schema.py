@@ -55,6 +55,7 @@ class FlowBranchData:
 class CommandFlowData:
     enabled: bool
     same: bool
+    kinds: Tuple[str, ...]
     shared: Tuple[str, ...]
     before: FlowBranchData
     after: FlowBranchData
@@ -112,6 +113,7 @@ class ContentData:
     decision_heading: str
     decision_blurb: str
     flow_heading: str
+    flow_purpose: str
     result_heading: str
     boundary: str
 
@@ -217,6 +219,7 @@ def _content(value, path):
         flow_heading=_expect_str(
             _field(value, "flow_heading", path), path + ".flow_heading"
         ),
+        flow_purpose=_optional_str(value, "flow_purpose", path),
         result_heading=_expect_str(
             _field(value, "result_heading", path), path + ".result_heading"
         ),
@@ -284,6 +287,11 @@ def _command_flow(value, path):
     return CommandFlowData(
         enabled=_expect_bool(_field(value, "enabled", path), path + ".enabled"),
         same=_expect_bool(_field(value, "same", path), path + ".same"),
+        kinds=(
+            ()
+            if value.get("kinds") is None
+            else _string_tuple(value["kinds"], path + ".kinds")
+        ),
         shared=_string_tuple(_field(value, "shared", path), path + ".shared"),
         before=_flow_branch(_field(value, "before", path), path + ".before"),
         after=_flow_branch(_field(value, "after", path), path + ".after"),
@@ -414,6 +422,13 @@ def _expect_anchor(value, path):
     if type(value) is int or type(value) is str:
         return value
     _invalid(path, "integer or string")
+
+
+def _optional_str(value, name, path):
+    """A field added after schema version 1: absent means empty."""
+    if value.get(name) is None:
+        return ""
+    return _expect_str(value[name], path + "." + name)
 
 
 def _string_tuple(value, path):

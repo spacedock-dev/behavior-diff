@@ -53,15 +53,16 @@ def _trial_card(trial, self_reported: bool, mode: str) -> str:
     )
 
 
+_NO_EXTRA_STEPS = '<p class="fnote">(no other kind of command)</p>'
+
+
 def _lane(steps, css_class: str) -> str:
-    boxes = []
-    for index, step in enumerate(steps):
-        if index:
-            boxes.append('<div class="farrow">↓</div>')
-        boxes.append(
-            f'<div class="fstep {css_class}"><span>{html.escape(step)}</span></div>'
-        )
-    return "".join(boxes)
+    # No arrows between steps: the order here is the report's fixed listing
+    # order, not the order the agent ran the commands in.
+    return "".join(
+        f'<div class="fstep {css_class}"><span>{html.escape(step)}</span></div>'
+        for step in steps
+    )
 
 
 def _branch_html(prefix, paths, total: int, css_class: str) -> str:
@@ -77,10 +78,10 @@ def _branch_html(prefix, paths, total: int, css_class: str) -> str:
             prefix, css_class
         )
         rendered += '<div class="farrow">↓</div>'
-    rendered += f'<div class="fsplit">splits into {len(paths)} paths</div>'
+    rendered += f'<div class="fsplit">{len(paths)} groups of trials</div>'
     lanes = "".join(
         f'<div class="fpath"><p class="fpath-head">{path.count} of {total} trials</p>'
-        f"{_lane(path.steps, css_class)}</div>"
+        f"{_lane(path.steps, css_class) or _NO_EXTRA_STEPS}</div>"
         for path in paths
     )
     rendered += (
@@ -165,15 +166,14 @@ def render_artifact(report: ReportData, css: str) -> str:
     if flow.same:
         flow_html = (
             f'<div class="flow">{shared_html}'
-            f'<p class="fnote">Both variants used the same command '
-            f"categories; the buckets are coarse, so their actual work "
-            f"paths and depth may still differ — see the decision diff "
-            f"and the trial cards.</p></div>"
+            f'<p class="fnote">Both sides used the same kinds of command. '
+            f"The kinds are coarse, so the actual work can still differ: "
+            f"see the decision diff and the trial cards.</p></div>"
         )
     else:
         flow_html = (
             f'<div class="flow">{shared_html}'
-            f'<div class="fork-label">paths diverge here</div>'
+            f'<div class="fork-label">kinds used on only one side</div>'
             f'<div class="fork">'
             f'<div><p class="fork-side">BEFORE</p>'
             f"{_branch_html(flow.before.prefix, flow.before.paths, before_total, 'b')}</div>"
@@ -247,12 +247,11 @@ def render_artifact(report: ReportData, css: str) -> str:
     if not self_reported:
         flow_section = (
             f'<p class="section-label">{escaped(report_content.flow_heading)}</p>'
-            + (
-                '<p class="sub">Steps are described from the agents\' actual commands. '
-                "A path is a sequence at least one trial literally took — arrows "
-                "connect steps inside a path, and a split shows where trials went "
-                "different ways. Full commands are in the trial cards below.</p>"
-            )
+            + f'<p class="sub">{escaped(report_content.flow_purpose)}</p>'
+            + f'<p class="kinds-head">{escaped(content.flow_kinds_heading(flow.kinds))}</p>'
+            + '<ul class="kinds">'
+            + "".join(f"<li>{escaped(kind)}</li>" for kind in flow.kinds)
+            + "</ul>"
             + flow_html
         )
         if decisions_html:

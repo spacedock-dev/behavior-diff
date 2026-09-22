@@ -34,19 +34,28 @@ One target decision changed (#1); 0 later differences diverge downstream of it (
 
 Synthetic fixture.
 
-<details><summary>Flow diff — command-derived (deterministic, no model involved)</summary>
+<details><summary>Flow diff: which kinds of command each side used (no model involved)</summary>
 
-## Flow diff — where the variants diverge
+## Flow diff: which kinds of command each side used
 
-Steps are described from the agents' actual commands; a path is a sequence at least one trial literally took. Full commands are in the trial sections below.
+A cross-check on the decision diff above, built from the actual commands the agents ran and sorted by rule. This section lists which kinds appeared on each side.
 
-Shared flow (every trial, both variants):
+Every command is put into one of these 6 kinds:
+
+- Inspect git history and status
+- Read files
+- Search the codebase
+- Write or edit a file
+- Run tests
+- Run the app or a script
+
+Used by every trial, both sides:
 
 
-Divergence:
+Used on only one side:
 
-- BEFORE, all 1 trials → (same steps as the shared flow)
-- AFTER, all 1 trials → Run tests
+- BEFORE, all 1 trials: (no other kind of command)
+- AFTER, all 1 trials: Run tests
 
 </details>
 

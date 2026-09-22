@@ -79,37 +79,36 @@ def _flow_markdown(report):
     flow = report.command_flow
     markdown = [
         f"## {report.content.flow_heading}\n",
-        (
-            "Steps are described from the agents' actual commands; a "
-            "path is a sequence at least one trial literally took. Full "
-            "commands are in the trial sections below.\n"
-        ),
+        report.content.flow_purpose + "\n",
+        content.flow_kinds_heading(flow.kinds) + "\n",
     ]
+    markdown += [f"- {kind}" for kind in flow.kinds]
+    markdown.append("")
     if flow.same:
         markdown.append(
-            "Every trial in both variants took the same steps: "
-            + " → ".join(flow.shared)
+            "Every trial on both sides used the same kinds of command: "
+            + ", ".join(flow.shared)
             + ". Differences, if any, are in the final answers below.\n"
         )
     else:
-        markdown.append("Shared flow (every trial, both variants):\n")
+        markdown.append("Used by every trial, both sides:\n")
         markdown.extend(f"- {step}" for step in flow.shared)
-        markdown.append("\nDivergence:\n")
+        markdown.append("\nUsed on only one side:\n")
         for tag, branch in (("BEFORE", flow.before), ("AFTER", flow.after)):
             if not branch.paths:
                 markdown.append(
-                    f"- {tag}, all {branch.total} trials → "
-                    + (" → ".join(branch.prefix) or "(same steps as the shared flow)")
+                    f"- {tag}, all {branch.total} trials: "
+                    + (", ".join(branch.prefix) or "(no other kind of command)")
                 )
                 continue
             lead = f"- {tag}"
             if branch.prefix:
-                lead += ", all trials → " + " → ".join(branch.prefix)
+                lead += ", all trials: " + ", ".join(branch.prefix)
             markdown.append(lead + ", then splits:")
             for path in branch.paths:
                 markdown.append(
-                    f"  - {path.count} of {branch.total} trials → "
-                    + " → ".join(path.steps)
+                    f"  - {path.count} of {branch.total} trials: "
+                    + (", ".join(path.steps) or "(no other kind of command)")
                 )
     markdown.append("")
     return markdown

@@ -464,8 +464,8 @@ for report in "$self_run/report.md" "$self_run/report.html"; do
     "self-reported report does not label its evidence as self-reported actions: $report"
   reject_output 'actual commands' "$report" \
     "self-reported report claims to contain actual commands: $report"
-  reject_output 'command-derived' "$report" \
-    "self-reported report includes command-derived flow: $report"
+  reject_output 'Flow diff: which kinds of command each side used' "$report" \
+    "self-reported report includes the command-derived flow section: $report"
   require_output "$read_action" "$report" \
     "self-reported report dropped the read action: $report"
   require_output "$test_action" "$report" \
@@ -517,8 +517,8 @@ progress 'Validate captured flow, labels, and command order'
 for report in "$captured_run/report.md" "$captured_run/report.html"; do
   require_output 'actual commands' "$report" \
     "captured report lost its actual commands wording: $report"
-  require_output 'command-derived' "$report" \
-    "captured report lost its command-derived flow: $report"
+  require_output 'Flow diff: which kinds of command each side used' "$report" \
+    "captured report lost its command-derived flow section: $report"
   require_output "$read_action" "$report" \
     "captured report dropped the raw read command: $report"
   require_output "$test_action" "$report" \
@@ -546,8 +546,8 @@ for report in "$captured_run/report.md" "$captured_run/report.html"; do
         "captured Markdown added a read command prompt prefix: $report"
       reject_output "\$ $test_action" "$report" \
         "captured Markdown added a test command prompt prefix: $report"
-      require_order_after 'Flow diff — command-derived' 'Divergence:' \
-        'AFTER, all 1 trials → Run tests' "$report" \
+      require_order_after 'Flow diff: which kinds of command each side used (no model involved)' 'Used on only one side:' \
+        'AFTER, all 1 trials: Run tests' "$report" \
         "captured Markdown lost the classified flow divergence: $report"
       ;;
     *)
@@ -556,7 +556,7 @@ for report in "$captured_run/report.md" "$captured_run/report.html"; do
         "captured HTML lost the read command prompt prefix: $report"
       require_output "\$ $test_action" "$report" \
         "captured HTML lost the test command prompt prefix: $report"
-      require_order_after 'Flow diff — command-derived' 'paths diverge here' \
+      require_order_after 'Flow diff: which kinds of command each side used (no model involved)' 'kinds used on only one side' \
         'Run tests' "$report" \
         "captured HTML lost the classified flow divergence: $report"
       ;;
