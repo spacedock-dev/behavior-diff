@@ -16,7 +16,7 @@ h1 { font-size:1.7rem; font-weight:700; letter-spacing:-.01em;
 h2 { font-size:1.02rem; font-weight:600; margin:0; }
 .section-label { font-size:.72rem; font-weight:600; letter-spacing:.09em;
   text-transform:uppercase; color:var(--accent); margin:2rem 0 .5rem; }
-.sub { color:var(--muted); margin:.2rem 0 0; max-width:62ch; }
+.sub { color:var(--muted); margin:.2rem 0 0; }
 .meta { display:flex; flex-wrap:wrap; gap:.25rem .9rem; margin:.45rem 0 0;
   color:var(--muted); font-size:.85rem;
   font-family:"IBM Plex Mono", ui-monospace, monospace; }
@@ -28,9 +28,9 @@ pre { background:var(--code-bg); border:1px solid var(--border);
   font:12.5px/1.55 "IBM Plex Mono", ui-monospace, monospace; }
 .scenario { background:var(--panel); border:1px solid var(--border);
   border-left:3px solid var(--accent); border-radius:6px;
-  padding:.85rem 1rem; max-width:62ch; white-space:pre-wrap; margin:0;
+  padding:.85rem 1rem; white-space:pre-wrap; margin:0;
   font:13.5px/1.6 "IBM Plex Mono", ui-monospace, monospace; }
-.flow { max-width:760px; margin:.4rem auto 0; }
+.flow { margin:.4rem 0 0; }
 .fstep { display:flex; justify-content:space-between; align-items:baseline;
   gap:1rem; background:var(--panel); border:1px solid var(--border);
   border-radius:6px; padding:.5rem .8rem; }
@@ -61,25 +61,33 @@ pre { background:var(--code-bg); border:1px solid var(--border);
   color:var(--panel); background:var(--accent); border-radius:3px;
   padding:.05rem .3rem; vertical-align:.08rem; }
 .dtag-same { background:var(--blocked); }
+.dtag-down { background:var(--muted); }
+.dtag-src { background:transparent; color:var(--muted);
+  box-shadow:inset 0 0 0 1px var(--border); }
+.legend { display:grid; grid-template-columns:max-content 1fr;
+  gap:.4rem .8rem; align-items:baseline; margin:.8rem 0 1.1rem;
+  color:var(--muted); font-size:.82rem; }
+.legend > span { display:contents; }
+.dtag-key { margin-left:0; justify-self:start; }
 .dcell { display:block; }
 .dline { padding:.05rem 0; }
-.obs { background:var(--accent-soft); border-left:3px solid var(--accent);
-  border-radius:6px; padding:.6rem .9rem; margin:.8rem 0 0;
-  font-weight:600; max-width:72ch; }
-.dwhen { margin-left:.45rem; font-size:.72rem; font-weight:400;
-  color:var(--muted); letter-spacing:.02em; }
+.obs { background:var(--accent-soft); border:1px solid var(--accent-soft);
+  border-left:3px solid var(--accent); border-radius:6px;
+  padding:.85rem 1rem; margin:0;
+  font:500 13.5px/1.7 "IBM Plex Mono", ui-monospace, monospace; }
 .kinds-head { color:var(--muted); margin:.7rem 0 .3rem; }
 .kinds { margin:0 0 1.1rem; padding-left:1.1rem; color:var(--muted);
   columns:2; column-gap:2.5rem; }
 .kinds li { break-inside:avoid; }
-.flowfold { margin-top:2rem; }
-.flowfold > summary { font-size:.9rem; font-weight:600; }
+.flowfold, .difffold { margin-top:2rem; }
+.flowfold > summary, .difffold > summary { font-size:.9rem;
+  font-weight:600; }
 .flowfold .section-label { margin-top:.8rem; }
-.dfoot { margin:.6rem 0 0; }
-.fork-label { text-align:center; color:var(--muted); font-size:.78rem;
+.dfoot { margin:.8rem 0 0; text-align:left; }
+.fork-label { text-align:left; color:var(--muted); font-size:.78rem;
   letter-spacing:.08em; text-transform:uppercase; margin:.2rem 0 .6rem; }
 .fork { display:grid; grid-template-columns:1fr 1fr; gap:1rem; }
-.fork-side { text-align:center; font-size:.75rem; font-weight:700;
+.fork-side { text-align:left; font-size:.75rem; font-weight:700;
   letter-spacing:.08em; color:var(--muted); margin:0 0 .4rem; }
 .fbranch { min-width:0; }
 .cols { display:grid; grid-template-columns:1fr 1fr; gap:1.1rem;
@@ -118,21 +126,26 @@ details { margin-bottom:.25rem; }
 <h1>Live contract</h1>
 <p class="meta"><span><b>before</b>parent snapshot &lt;baseline&gt;</span><span><b>after</b>target snapshot &lt;candidate&gt;</span><span><b>model</b>contract</span><span><b>trials</b>1 before, 1 after</span><span><b>evidence</b>self-reported actions</span></p>
 <p class="note">Synthetic contract fixture.</p>
-<p class="obs">Observed in this run — Evidence choice: BEFORE read only · AFTER read and test. Single-run observation, not a verdict.</p>
+<p class="section-label">Observed in this run</p><pre class="obs">Which evidence was used?
+
+BEFORE  1/1  read only
+AFTER   1/1  read and test
+
+One run: 1 trials before, 1 after. A model read the trials and named this choice. Not a verdict.</pre>
 
 <p class="section-label">Scenario</p>
 <pre class="scenario">Compare the two instruction snapshots.</pre>
 
 
-<p class="section-label">Diff of AGENTS.md — the only difference between the variants</p>
+<details class="difffold"><summary>Diff of AGENTS.md</summary>
 <pre><span class="d-del">--- AGENTS.md (before)</span>
 <span class="d-add">+++ AGENTS.md (after)</span>
 <span class="d-ctx">@@ -1 +1 @@</span>
 <span class="d-del">-Original project instructions.</span>
 <span class="d-add">+Updated project instructions.</span>
-</pre>
+</pre></details>
 
-<p class="section-label">Decision diff — top divergences</p><p class="sub">A decision is a point where the agent had a real choice. The decisions come from self-reported actions and final answers. Some decisions leave no reported action behind. Order follows the report: decisions visible in actions come in reported action order, and decisions visible only in the final answer come last. Extractor output can vary from run to run. CAUTION — one trial per side: any divergence here can be run-to-run variation rather than a rule effect; confirm with repeated trials (behavior-diff 3+3) before acting on it.</p><div class="flow"><div class="fork-label">paths diverge here</div><div class="dgrid"><p class="fork-side">BEFORE</p><p class="fork-side">AFTER</p><p class="dq dspan">1 · Evidence choice<span class="dtag">root change</span><span class="dwhen">during the work</span><span class="dnote">Which evidence was used?</span></p><div class="fstep b dcell"><div class="dline">read only</div></div><div class="fstep a dcell"><div class="dline">read and test</div></div></div></div><p class="fnote dfoot">One target decision changed (#1); 0 later differences diverge downstream of it (the extractor&#x27;s causal reading, not a measured chain). Synthetic fixture.</p>
+<p class="section-label">Decision diff: what the agent chose, before and after your edit</p><p class="sub">A model read every trial and named the points where the agent had a real choice. This is the answer to what your edit changed. CAUTION — one trial per side: any divergence here can be run-to-run variation rather than a rule effect; confirm with repeated trials (behavior-diff 3+3) before acting on it.</p><p class="legend"><span><span class="dtag dtag-key">first difference</span>the first decision where before and after split</span><span><span class="dtag dtag-down dtag-key">follows from it</span>this split happens because of the first difference</span><span><span class="dtag dtag-same dtag-key">same before and after</span>before and after chose the same thing</span><span><span class="dtag dtag-src dtag-key">from a command</span>this row comes from a command the agent ran</span><span><span class="dtag dtag-src dtag-key">from the reply</span>this row comes from what the agent wrote</span></p><div class="flow"><div class="fork-label">before and after split here</div><div class="dgrid"><p class="fork-side">BEFORE</p><p class="fork-side">AFTER</p><p class="dq dspan">1 · Which evidence was used?<span class="dtag">first difference</span><span class="dtag dtag-src">from a command</span></p><div class="fstep b dcell"><div class="dline">read only</div></div><div class="fstep a dcell"><div class="dline">read and test</div></div></div></div><p class="fnote dfoot">Before and after first differ at decision #1. Synthetic fixture.</p>
 
 
 

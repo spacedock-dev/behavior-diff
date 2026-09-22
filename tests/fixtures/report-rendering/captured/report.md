@@ -4,13 +4,22 @@ before: current file · after: your change applied · model: contract · trials:
 
 Synthetic contract fixture.
 
-**Observed in this run — Evidence choice: BEFORE read only · AFTER read and test. Single-run observation, not a verdict.**
+## Observed in this run
+
+```
+Which evidence was used?
+
+BEFORE  1/1  read only
+AFTER   1/1  read and test
+
+One run: 1 trials before, 1 after. A model read the trials and named this choice. Not a verdict.
+```
 
 ## Scenario
 
 Compare the two instruction snapshots.
 
-## Diff of AGENTS.md — the only difference between the variants
+<details><summary>Diff of AGENTS.md</summary>
 
 ```diff
 --- AGENTS.md (before)
@@ -20,17 +29,27 @@ Compare the two instruction snapshots.
 +Updated project instructions.
 ```
 
-## Decision diff — top divergences
+</details>
 
-A decision is a point where the agent had a real choice. These are recovered from what the trials did and said, not from the instruction diff, and some of them leave no command behind. Order is real: decisions visible in commands come in command order, and decisions visible only in the final answer come last. The fork and main divergences are stable across extractions; minor rows can vary run to run. CAUTION — one trial per side: any divergence here can be run-to-run variation rather than a rule effect; confirm with repeated trials (behavior-diff 3+3) before acting on it.
+## Decision diff: what the agent chose, before and after your edit
+
+A model read every trial and named the points where the agent had a real choice. This is the answer to what your edit changed. CAUTION — one trial per side: any divergence here can be run-to-run variation rather than a rule effect; confirm with repeated trials (behavior-diff 3+3) before acting on it.
+
+Tags:
+
+- **first difference** — the first decision where before and after split
+- **follows from it** — this split happens because of the first difference
+- **same before and after** — before and after chose the same thing
+- **from a command** — this row comes from a command the agent ran
+- **from the reply** — this row comes from what the agent wrote
 
 Diverging from here:
 
-- 1. **Evidence choice** — Which evidence was used? ⟵ root behavior change
+- 1. **Which evidence was used?** *(first difference)* *(from a command)*
   - BEFORE: read only
   - AFTER: read and test
 
-One target decision changed (#1); 0 later differences diverge downstream of it (the extractor's causal reading, not a measured chain).
+Before and after first differ at decision #1.
 
 Synthetic fixture.
 

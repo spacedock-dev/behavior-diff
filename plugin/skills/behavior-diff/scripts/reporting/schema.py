@@ -106,6 +106,7 @@ class ContentData:
     subtitle: str
     meta: Tuple[Tuple[str, str], ...]
     note: str
+    observation_heading: str
     observation: str
     scenario_heading: str
     scenario: str
@@ -114,6 +115,7 @@ class ContentData:
     diff_heading: str
     decision_heading: str
     decision_blurb: str
+    tag_legend: Tuple[Tuple[str, str, str], ...]
     flow_heading: str
     flow_purpose: str
     result_heading: str
@@ -198,6 +200,7 @@ def _content(value, path):
         subtitle=_expect_str(_field(value, "subtitle", path), path + ".subtitle"),
         meta=_optional_rows(value, "meta", path, 2),
         note=_optional_str(value, "note", path),
+        observation_heading=_optional_str(value, "observation_heading", path),
         observation=_expect_str(
             _field(value, "observation", path), path + ".observation"
         ),
@@ -220,6 +223,7 @@ def _content(value, path):
         decision_blurb=_expect_str(
             _field(value, "decision_blurb", path), path + ".decision_blurb"
         ),
+        tag_legend=_optional_rows(value, "tag_legend", path, 3),
         flow_heading=_expect_str(
             _field(value, "flow_heading", path), path + ".flow_heading"
         ),

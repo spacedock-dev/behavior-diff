@@ -104,26 +104,41 @@ def _decision_choices(choices, total: int, css_class: str) -> str:
 
 
 def _decision_label(index: int, row, fork: int | None) -> str:
-    when = (
-        '<span class="dwhen">in the final answer</span>'
-        if row.anchor == "answer"
-        else '<span class="dwhen">during the work</span>'
-    )
     if index == fork:
-        tag = '<span class="dtag">root change</span>'
+        tags = '<span class="dtag">first difference</span>'
     elif not row.diverges:
-        tag = '<span class="dtag dtag-same">same</span>'
+        tags = '<span class="dtag dtag-same">same before and after</span>'
     elif fork and index > fork:
-        tag = '<span class="dwhen">downstream</span>'
+        tags = '<span class="dtag dtag-down">follows from it</span>'
     else:
-        tag = ""
-    tag += when
-    title = row.topic or row.decision
-    subtitle = row.decision if row.topic else ""
-    if row.note:
-        subtitle = f"{subtitle} — {row.note}" if subtitle else row.note
-    note = f'<span class="dnote">{html.escape(subtitle)}</span>' if subtitle else ""
-    return f'<p class="dq dspan">{index} · {html.escape(title)}{tag}{note}</p>'
+        tags = ""
+    tags += (
+        '<span class="dtag dtag-src">from the reply</span>'
+        if row.anchor == "answer"
+        else '<span class="dtag dtag-src">from a command</span>'
+    )
+    # The question is what the reader scans; the topic only renames it.
+    title = row.decision or row.topic
+    note = f'<span class="dnote">{html.escape(row.note)}</span>' if row.note else ""
+    return f'<p class="dq dspan">{index} · {html.escape(title)}{tags}{note}</p>'
+
+
+_TAG_CLASS = {
+    "root": "dtag",
+    "down": "dtag dtag-down",
+    "same": "dtag dtag-same",
+    "cmd": "dtag dtag-src",
+    "ans": "dtag dtag-src",
+}
+
+
+def _tag_legend(legend) -> str:
+    items = "".join(
+        f'<span><span class="{_TAG_CLASS[kind]} dtag-key">{html.escape(label)}</span>'
+        f"{html.escape(meaning)}</span>"
+        for kind, label, meaning in legend
+    )
+    return f'<p class="legend">{items}</p>'
 
 
 def render_artifact(report: ReportData, css: str) -> str:
@@ -208,7 +223,7 @@ def render_artifact(report: ReportData, css: str) -> str:
             parts.append('<div class="fline"></div>')
         rest = report.decisions.rows[lead_count:]
         if rest:
-            parts.append('<div class="fork-label">paths diverge here</div>')
+            parts.append('<div class="fork-label">before and after split here</div>')
             grid = ['<p class="fork-side">BEFORE</p><p class="fork-side">AFTER</p>']
             for offset, row in enumerate(rest):
                 index = lead_count + offset + 1
@@ -239,6 +254,7 @@ def render_artifact(report: ReportData, css: str) -> str:
         decisions_html = (
             f'<p class="section-label">{escaped(report_content.decision_heading)}</p>'
             f'<p class="sub">{escaped(report_content.decision_blurb)}</p>'
+            f"{_tag_legend(report_content.tag_legend)}"
             f'<div class="flow">{"".join(parts)}</div>'
             f'<p class="fnote dfoot">{escaped(footer)}</p>'
         )
@@ -264,7 +280,8 @@ def render_artifact(report: ReportData, css: str) -> str:
             )
 
     observation_html = (
-        f'<p class="obs">{escaped(report_content.observation)}</p>'
+        f'<p class="section-label">{escaped(report_content.observation_heading)}</p>'
+        f'<pre class="obs">{escaped(report_content.observation)}</pre>'
         if report_content.observation
         else ""
     )
@@ -304,8 +321,8 @@ def render_artifact(report: ReportData, css: str) -> str:
 <pre class="scenario">{escaped(report_content.scenario)}</pre>
 {expected_html}
 
-<p class="section-label">{escaped(report_content.diff_heading)}</p>
-<pre>{diff_html}</pre>
+<details class="difffold"><summary>{escaped(report_content.diff_heading)}</summary>
+<pre>{diff_html}</pre></details>
 
 {decisions_html}
 
