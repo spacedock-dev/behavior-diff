@@ -49,9 +49,7 @@ def load_report(
     report_content = content.build_content(
         config,
         _scenario(config, capsule),
-        metadata.mode,
-        metadata.trace_source,
-        metadata.target_file,
+        metadata,
         decisions,
         before.total,
         after.total,

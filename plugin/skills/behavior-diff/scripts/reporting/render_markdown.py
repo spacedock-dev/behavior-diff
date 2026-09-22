@@ -127,10 +127,11 @@ def render_markdown(report: ReportData) -> str:
     content_data = report.content
     decisions = _decision_markdown(report)
     markdown = [f"# {content_data.title}\n", content_data.subtitle + "\n"]
+    if content_data.note:
+        markdown.append(content_data.note + "\n")
     if content_data.observation:
         markdown.append("**" + content_data.observation + "**\n")
     markdown += [
-        f"Model: {metadata.model} · {report.variants.before.total} trial(s) per variant.\n",
         f"## {content_data.scenario_heading}\n",
         content_data.scenario + "\n",
     ]

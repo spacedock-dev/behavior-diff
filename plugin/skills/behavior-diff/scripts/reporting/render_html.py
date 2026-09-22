@@ -276,6 +276,19 @@ def render_artifact(report: ReportData, css: str) -> str:
             f'<p class="sub">{escaped(report_content.expected)}</p>'
         )
     )
+    note_html = (
+        f'<p class="note">{escaped(report_content.note)}</p>'
+        if report_content.note
+        else ""
+    )
+    meta_html = (
+        '<p class="meta">'
+        + "".join(
+            f"<span><b>{escaped(label)}</b>{escaped(value)}</span>"
+            for label, value in report_content.meta
+        )
+        + "</p>"
+    )
     resolved_css = _resolve_css(css, report.result.kind)
     return f"""<title>{escaped(report_content.title)}</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
@@ -283,7 +296,8 @@ def render_artifact(report: ReportData, css: str) -> str:
 {resolved_css}</style>
 
 <h1>{escaped(report_content.title)}</h1>
-<p class="sub">{escaped(report_content.subtitle)}</p>
+{meta_html}
+{note_html}
 {observation_html}
 
 <p class="section-label">{escaped(report_content.scenario_heading)}</p>

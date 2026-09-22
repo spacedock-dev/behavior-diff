@@ -37,7 +37,9 @@ def synthetic_raw():
         },
         "content": {
             "title": "Synthetic report",
-            "subtitle": "Synthetic subtitle.",
+            "subtitle": "before: current file · after: your change applied",
+            "meta": [["before", "current file"], ["after", "your change applied"]],
+            "note": "",
             "observation": "Synthetic observation.",
             "scenario_heading": "Scenario",
             "scenario": "Compare two synthetic files.",
@@ -238,9 +240,7 @@ def main():
         report_content = content.build_content(
             {},
             "Synthetic scenario",
-            "review",
-            "captured",
-            "AGENTS.md",
+            report.metadata,
             report.decisions,
             before_total,
             after_total,
