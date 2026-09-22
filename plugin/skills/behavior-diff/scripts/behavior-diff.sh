@@ -201,15 +201,25 @@ run=$runs_root/runs/diff-$(date +%Y%m%d-%H%M%S)
 mkdir -p "$run"
 printf '%s\n' "$task" >"$run/task.md"
 case "$before_mode" in
-  head) sub="Same task, same settings, fresh agent runs. Before is the repo at HEAD; After adds only your uncommitted change to $rel. No automatic grading — compare what the agents did and said." ;;
-  file) sub="Same task, same settings, fresh agent runs. Before is your saved original of $rel ($before_file); After is the same world with your current $rel. No automatic grading — compare what the agents did and said." ;;
-  absent) sub="Same task, same settings, fresh agent runs. Before has no $rel (the file did not exist yet); After adds your current $rel. No automatic grading — compare what the agents did and said." ;;
+  head)
+    before_label="commit $(git -C "$repo" rev-parse --short HEAD)"
+    after_label="$abs (uncommitted)"
+    ;;
+  file)
+    before_label="$before_file"
+    after_label="$abs"
+    ;;
+  absent)
+    before_label="the file did not exist yet"
+    after_label="$abs"
+    ;;
 esac
 jq -n --arg f "$rel" --arg task "$task" --arg vocab "$vocab" \
   --arg title "Behavior Diff — $rel" \
-  --arg sub "$sub" \
-  '{title:$title, sub:$sub, scenario:$task, expected:null,
-    target_file:$f, mode:"review", vocab:$vocab}' >"$run/config.json"
+  --arg before_label "$before_label" --arg after_label "$after_label" \
+  '{title:$title, scenario:$task, expected:null,
+    target_file:$f, mode:"review", vocab:$vocab,
+    before_label:$before_label, after_label:$after_label}' >"$run/config.json"
 
 # Conservative read/run allowlist; no Write/Edit, no network tools.
 ALLOWED='Bash(pytest:*),Bash(python3:*),Bash(python:*),Bash(bash:*),Bash(sh:*),Bash(node:*),Bash(npm:*),Bash(make:*),Bash(go:*),Bash(cargo:*),Bash(printf:*),Bash(echo:*),Bash(ls:*),Bash(cat:*),Bash(head:*),Bash(sed:*),Bash(git:*),Bash(find:*),Bash(grep:*),Bash(rg:*),Read,Grep,Glob'

@@ -1,10 +1,10 @@
 # Live contract
 
+before: parent snapshot <baseline> · after: target snapshot <candidate> · model: contract · trials: 1 before, 1 after · evidence: self-reported actions
+
 Synthetic contract fixture.
 
 **Observed in this run — Evidence choice: BEFORE read only · AFTER read and test. Single-run observation, not a verdict.**
-
-Model: contract · 1 trial(s) per variant.
 
 ## Scenario
 

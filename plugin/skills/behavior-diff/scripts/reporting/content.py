@@ -3,19 +3,24 @@
 from reporting.schema import ContentData
 
 
-def subtitle(self_reported):
-    if self_reported:
-        return (
-            "Same scenario, same recorded settings, six fresh agent runs. "
-            "The only difference between the two columns is one proposed "
-            "rule in the project's CLAUDE.md. Each trial shows the agent's "
-            "self-reported actions, not captured traces."
-        )
+def subtitle(facts):
+    """The header facts as one line, for formats that cannot lay out a row."""
+    return " · ".join("{0}: {1}".format(label, value) for label, value in facts)
+
+
+def meta(metadata, before_total, after_total):
+    """Labeled facts for the report header, one per column."""
+    trace = (
+        "self-reported actions"
+        if metadata.trace_source == "self-reported"
+        else "captured tool calls"
+    )
     return (
-        "Same scenario, same recorded settings, six fresh agent runs. "
-        "The only difference between the two columns is one proposed "
-        "rule in the project's CLAUDE.md. Each trial is graded from "
-        "the agent's actual tool calls, never its self-report."
+        ("before", metadata.before_label),
+        ("after", metadata.after_label),
+        ("model", metadata.model),
+        ("trials", "{0} before, {1} after".format(before_total, after_total)),
+        ("evidence", trace),
     )
 
 
@@ -180,18 +185,20 @@ def dropped_rows(dropped):
 def build_content(
     config,
     scenario,
-    mode,
-    trace_source,
-    target_file,
+    metadata,
     decisions,
     before_total,
     after_total,
 ):
-    self_reported = trace_source == "self-reported"
-    names = headings(target_file)
+    mode = metadata.mode
+    self_reported = metadata.trace_source == "self-reported"
+    names = headings(metadata.target_file)
+    facts = meta(metadata, before_total, after_total)
     return ContentData(
         title=config.get("title", "rk-monitor Behavior Check"),
-        subtitle=config.get("sub", subtitle(self_reported)),
+        subtitle=subtitle(facts),
+        meta=facts,
+        note=config.get("sub", ""),
         observation=observation(mode, decisions, before_total, after_total),
         scenario_heading=names["scenario"],
         scenario=scenario,

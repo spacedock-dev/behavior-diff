@@ -104,6 +104,8 @@ class MetadataData:
 class ContentData:
     title: str
     subtitle: str
+    meta: Tuple[Tuple[str, str], ...]
+    note: str
     observation: str
     scenario_heading: str
     scenario: str
@@ -194,6 +196,8 @@ def _content(value, path):
     return ContentData(
         title=_expect_str(_field(value, "title", path), path + ".title"),
         subtitle=_expect_str(_field(value, "subtitle", path), path + ".subtitle"),
+        meta=_optional_rows(value, "meta", path, 2),
+        note=_optional_str(value, "note", path),
         observation=_expect_str(
             _field(value, "observation", path), path + ".observation"
         ),
@@ -429,6 +433,30 @@ def _optional_str(value, name, path):
     if value.get(name) is None:
         return ""
     return _expect_str(value[name], path + "." + name)
+
+
+def _optional_rows(value, name, path, width):
+    """A field added after schema version 1: absent means no rows."""
+    if value.get(name) is None:
+        return ()
+    return _row_tuple(value[name], path + "." + name, width)
+
+
+def _row_tuple(value, path, width):
+    items = _expect_list(value, path)
+    rows = []
+    for index, item in enumerate(items):
+        item_path = "{0}[{1}]".format(path, index)
+        row = _expect_list(item, item_path)
+        if len(row) != width:
+            _invalid(item_path, "{0} strings".format(width))
+        rows.append(
+            tuple(
+                _expect_str(row[position], "{0}[{1}]".format(item_path, position))
+                for position in range(width)
+            )
+        )
+    return tuple(rows)
 
 
 def _string_tuple(value, path):

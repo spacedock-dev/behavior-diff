@@ -14,6 +14,11 @@ h2 { font-size:1.02rem; font-weight:600; margin:0; }
 .section-label { font-size:.72rem; font-weight:600; letter-spacing:.09em;
   text-transform:uppercase; color:var(--accent); margin:2rem 0 .5rem; }
 .sub { color:var(--muted); margin:.2rem 0 0; max-width:62ch; }
+.meta { display:flex; flex-wrap:wrap; gap:.25rem .9rem; margin:.45rem 0 0;
+  color:var(--muted); font-size:.85rem;
+  font-family:"IBM Plex Mono", ui-monospace, monospace; }
+.meta b { font-weight:500; color:var(--ink); margin-right:.35rem; }
+.note { color:var(--muted); margin:.5rem 0 0; }
 pre { background:var(--code-bg); border:1px solid var(--border);
   border-radius:6px; padding:.7rem .85rem; overflow-x:auto;
   white-space:pre-wrap; margin:.5rem 0 0;
