@@ -503,6 +503,12 @@ for report in "$self_run/report.md" "$self_run/report.html"; do
         "self-reported HTML contains an unescaped before label: $report"
       reject_output 'target snapshot <candidate>' "$report" \
         "self-reported HTML contains an unescaped after label: $report"
+      for tab in summary decision trials; do
+        require_output "id=\"tab-$tab\"" "$report" \
+          "self-reported HTML lost the $tab tab: $report"
+      done
+      reject_output 'id="tab-flow"' "$report" \
+        "self-reported HTML shows a flow diff tab without command evidence: $report"
       ;;
   esac
   require_order_after "$after_marker" "$read_action" "$test_action" "$report" \
@@ -553,6 +559,18 @@ for report in "$captured_run/report.md" "$captured_run/report.html"; do
       require_order_after 'Flow diff: which kinds of command each side used (no model involved)' 'kinds used on only one side' \
         'Run tests' "$report" \
         "captured HTML lost the classified flow divergence: $report"
+      for tab in summary decision flow trials; do
+        require_output "id=\"tab-$tab\"" "$report" \
+          "captured HTML lost the $tab tab: $report"
+      done
+      require_output 'id="tab-summary" class="tab-input" checked' "$report" \
+        "captured HTML does not open on the summary tab: $report"
+      reject_output '<script' "$report" \
+        "captured HTML tabs must work without script: $report"
+      reject_output 'class="cols"' "$report" \
+        "captured HTML kept the old two-column trial layout: $report"
+      require_output 'class="run"' "$report" \
+        "captured HTML lost the one-card-per-run trial layout: $report"
       ;;
   esac
   require_order_after "$after_marker" "$read_action" "$test_action" "$report" \

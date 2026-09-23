@@ -1,6 +1,7 @@
 """Pure HTML renderers for Behavior Diff reports."""
 
 import html
+from itertools import zip_longest
 
 from reporting import content
 from reporting.schema import ReportData
@@ -43,9 +44,10 @@ def _trial_card(trial, self_reported: bool, mode: str) -> str:
     )
     return (
         f'<article class="trial">'
-        f'<p class="trial-head"><span class="badge {verdict_class}">{escaped(trial.verdict)}'
-        f"</span><strong>{escaped(trial.name)}</strong></p>{actions}"
-        f"<details><summary>{'self-reported actions' if self_reported else 'Commands the agent ran'} "
+        f'<p class="trial-head"><strong>{escaped(trial.name)}</strong>'
+        f'<span class="badge {verdict_class}">{escaped(trial.verdict)}</span></p>{actions}'
+        f"<details {'open' if mode == 'review' else ''}>"
+        f"<summary>{'self-reported actions' if self_reported else 'Commands the agent ran'} "
         f"({len(trial.commands)})</summary><pre>{escaped(evidence)}</pre></details>"
         f"<details {'open' if mode == 'review' else ''}>"
         f"<summary>Final answer to the user</summary>"
@@ -138,7 +140,67 @@ def _tag_legend(legend) -> str:
         f"{html.escape(meaning)}</span>"
         for kind, label, meaning in legend
     )
-    return f'<p class="legend">{items}</p>'
+    return f'<div class="legend">{items}</div>'
+
+
+_INFO_ICON = (
+    '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" '
+    'stroke="currentColor" stroke-width="2.2" stroke-linecap="round" '
+    'aria-hidden="true"><circle cx="12" cy="12" r="10"></circle>'
+    '<line x1="12" y1="11" x2="12" y2="17"></line>'
+    '<line x1="12" y1="7.5" x2="12" y2="7.6"></line></svg>'
+)
+
+
+def _info(pop_id: str, label: str, body: str) -> str:
+    """An info icon whose popover opens on hover, focus, or tap."""
+    return (
+        f'<div class="info"><button type="button" aria-label="{html.escape(label)}" '
+        f'aria-describedby="{pop_id}">{_INFO_ICON}</button>'
+        f'<div class="pop" id="{pop_id}" role="note">'
+        f'<p class="pop-title">{html.escape(label)}</p>{body}</div></div>'
+    )
+
+
+_CHEVRON = (
+    '<svg class="chev" width="14" height="14" viewBox="0 0 24 24" fill="none" '
+    'stroke="currentColor" stroke-width="2.5" stroke-linecap="round" '
+    'stroke-linejoin="round" aria-hidden="true">'
+    '<polyline points="9 6 15 12 9 18"></polyline></svg>'
+)
+
+
+def _diff_stats(diff: str) -> str:
+    # Only the file header sits before the first hunk; a content line that
+    # starts with "---" or "+++" must still count.
+    lines = diff.rstrip().splitlines()
+    start = next(
+        (i for i, line in enumerate(lines) if line.startswith("@@")), len(lines)
+    )
+    body = lines[start:]
+    added = sum(line.startswith("+") for line in body)
+    removed = sum(line.startswith("-") for line in body)
+    return f"+{added} −{removed} lines"
+
+
+def _tabs(tabs) -> str:
+    """Radio-driven tabs: (id, label, count, panel_html) per tab, no script."""
+    inputs = "".join(
+        f'<input type="radio" name="tab" id="tab-{tab_id}" class="tab-input"'
+        f"{' checked' if index == 0 else ''}>"
+        for index, (tab_id, _, _, _) in enumerate(tabs)
+    )
+    labels = "".join(
+        f'<label for="tab-{tab_id}">{html.escape(label)}'
+        + (f'<span class="tab-count">{html.escape(count)}</span>' if count else "")
+        + "</label>"
+        for tab_id, label, count, _ in tabs
+    )
+    panels = "".join(
+        f'<section class="panel" id="panel-{tab_id}">{panel}</section>'
+        for tab_id, _, _, panel in tabs
+    )
+    return f'<div class="tabs">{inputs}<nav class="tabbar">{labels}</nav>{panels}</div>'
 
 
 def render_artifact(report: ReportData, css: str) -> str:
@@ -155,18 +217,33 @@ def render_artifact(report: ReportData, css: str) -> str:
     decision_before_total = report.decisions.before_count
     decision_after_total = report.decisions.after_count
 
-    columns = ""
-    for label, variant in (("Before", before), ("After", after)):
-        columns += (
-            f'<section class="col"><header class="col-head"><h2>{label}</h2>'
-            f'<span class="col-note">{escaped(variant.note)}</span></header>'
-            f'<p class="count">{escaped(variant.count_text + variant.count_suffix)}</p>'
-            + "".join(
+    before_note = f'<span class="col-note">{escaped(before.note)}</span>'
+    after_note = f'<span class="col-note">{escaped(after.note)}</span>'
+    runs = ""
+    for index, (before_trial, after_trial) in enumerate(
+        zip_longest(before.trials, after.trials), 1
+    ):
+        halves = ""
+        for trial, css_class in ((before_trial, "b"), (after_trial, "a")):
+            body = (
                 _trial_card(trial, self_reported, metadata.mode)
-                for trial in variant.trials
+                if trial
+                else '<p class="fnote">(no trial on this side)</p>'
             )
-            + "</section>"
-        )
+            halves += f'<div class="half {css_class}">{body}</div>'
+        runs += f'<article class="run"><p class="run-label">Run {index}</p>{halves}</article>'
+    trials_html = (
+        f'<p class="section-label">Trials result: what each agent ran and answered</p>'
+        f'<p class="sub">Raw evidence, one card per run. Each run is an independent '
+        f"trial. Rows pair runs by number so before and after sit side by side; "
+        f"run 1 before is not the same run as run 1 after.</p>"
+        f'<div class="run run-head"><span></span>'
+        f'<div class="half-head b"><h2>Before</h2>{before_note}'
+        f'<span class="count">{escaped(before.count_text + before.count_suffix)}</span></div>'
+        f'<div class="half-head a"><h2>After</h2>{after_note}'
+        f'<span class="count">{escaped(after.count_text + after.count_suffix)}</span></div>'
+        f"</div>{runs}"
+    )
 
     diff_html = "".join(
         f'<span class="{_diff_line_class(line)}">{escaped(line)}</span>\n'
@@ -252,32 +329,26 @@ def render_artifact(report: ReportData, css: str) -> str:
         if report.decisions.dropped:
             footer += " " + content.dropped_rows(report.decisions.dropped)
         decisions_html = (
-            f'<p class="section-label">{escaped(report_content.decision_heading)}</p>'
+            f'<div class="section-label">{escaped(report_content.decision_heading)}'
+            f"{_info('pop-decision', 'What the tags on each decision mean', _tag_legend(report_content.tag_legend))}</div>"
             f'<p class="sub">{escaped(report_content.decision_blurb)}</p>'
-            f"{_tag_legend(report_content.tag_legend)}"
             f'<div class="flow">{"".join(parts)}</div>'
             f'<p class="fnote dfoot">{escaped(footer)}</p>'
         )
 
     flow_section = ""
     if not self_reported:
-        flow_section = (
-            f'<p class="section-label">{escaped(report_content.flow_heading)}</p>'
-            + f'<p class="sub">{escaped(report_content.flow_purpose)}</p>'
-            + f'<p class="kinds-head">{escaped(content.flow_kinds_heading(flow.kinds))}</p>'
-            + '<ul class="kinds">'
+        kinds_html = (
+            '<ul class="kinds">'
             + "".join(f"<li>{escaped(kind)}</li>" for kind in flow.kinds)
             + "</ul>"
+        )
+        flow_section = (
+            f'<div class="section-label">{escaped(content.flow_fold_summary())}'
+            f"{_info('pop-flow', content.flow_kinds_heading(flow.kinds).rstrip(':'), kinds_html)}</div>"
+            + f'<p class="sub">{escaped(report_content.flow_purpose)}</p>'
             + flow_html
         )
-        if decisions_html:
-            flow_section = (
-                '<details class="flowfold"><summary>'
-                + content.flow_fold_summary()
-                + "</summary>"
-                + flow_section
-                + "</details>"
-            )
 
     observation_html = (
         f'<p class="section-label">{escaped(report_content.observation_heading)}</p>'
@@ -306,6 +377,33 @@ def render_artifact(report: ReportData, css: str) -> str:
         )
         + "</p>"
     )
+    summary_html = f"""{observation_html}
+<p class="section-label">{escaped(report_content.scenario_heading)}</p>
+<pre class="scenario">{escaped(report_content.scenario)}</pre>
+{expected_html}
+<details class="fold"><summary>{_CHEVRON}{escaped(report_content.diff_heading)}
+<span class="fold-stat">{_diff_stats(report.rule_diff)}</span>
+<span class="fold-hint"><span class="hint-show">Show the diff</span><span class="hint-hide">Hide the diff</span></span></summary>
+<pre>{diff_html}</pre></details>
+<p class="section-label">{escaped(report_content.result_heading)}</p>
+<div class="result">{escaped(report.result.text)}</div>"""
+
+    tabs = [("summary", "Summary", "", summary_html)]
+    if decisions_html:
+        tabs.append(
+            (
+                "decision",
+                "Decision diff",
+                f"{len(report.decisions.rows)} decision{'s' if len(report.decisions.rows) != 1 else ''}",
+                decisions_html,
+            )
+        )
+    if flow_section:
+        tabs.append(("flow", "Flow diff", "", flow_section))
+    tabs.append(
+        ("trials", "Trials result", f"{before.total} + {after.total}", trials_html)
+    )
+
     resolved_css = _resolve_css(css, report.result.kind)
     return f"""<title>{escaped(report_content.title)}</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
@@ -315,24 +413,8 @@ def render_artifact(report: ReportData, css: str) -> str:
 <h1>{escaped(report_content.title)}</h1>
 {meta_html}
 {note_html}
-{observation_html}
 
-<p class="section-label">{escaped(report_content.scenario_heading)}</p>
-<pre class="scenario">{escaped(report_content.scenario)}</pre>
-{expected_html}
-
-<details class="difffold"><summary>{escaped(report_content.diff_heading)}</summary>
-<pre>{diff_html}</pre></details>
-
-{decisions_html}
-
-{flow_section}
-
-<p class="section-label">Trials</p>
-<div class="cols">{columns}</div>
-
-<p class="section-label">{escaped(report_content.result_heading)}</p>
-<div class="result">{escaped(report.result.text)}</div>
+{_tabs(tabs)}
 
 <p class="footer">Simulation evidence from Behavior Diff
 (model: {escaped(metadata.model)}, {before.total} trial(s) per variant).
