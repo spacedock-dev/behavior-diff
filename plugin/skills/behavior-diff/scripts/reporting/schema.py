@@ -4,7 +4,7 @@ import json
 from dataclasses import asdict, dataclass
 from typing import Dict, Optional, Tuple, Union
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 RESULT_KINDS = ("good", "bad", "neutral")
 
 
@@ -79,6 +79,12 @@ class DecisionRowData:
 
 
 @dataclass(frozen=True)
+class EvidenceClaimData:
+    text: str
+    decisions: Tuple[int, ...]
+
+
+@dataclass(frozen=True)
 class DecisionData:
     rows: Tuple[DecisionRowData, ...]
     fork: Optional[int]
@@ -87,6 +93,8 @@ class DecisionData:
     extractor: str
     before_count: int
     after_count: int
+    outcome: Optional[int]
+    implications: Tuple[EvidenceClaimData, ...]
 
 
 @dataclass(frozen=True)
@@ -106,8 +114,8 @@ class ContentData:
     subtitle: str
     meta: Tuple[Tuple[str, str], ...]
     note: str
-    observation_heading: str
-    observation: str
+    behavior_heading: str
+    limits_heading: str
     scenario_heading: str
     scenario: str
     expected_heading: str
@@ -126,6 +134,11 @@ class ContentData:
 class ResultData:
     text: str
     kind: str
+    summary: str
+    outcomes: Tuple[int, ...]
+    behavior: Tuple[int, ...]
+    implications: Tuple[EvidenceClaimData, ...]
+    limits: Tuple[str, ...]
 
 
 @dataclass(frozen=True)
@@ -150,6 +163,10 @@ class ReportData:
                 "unsupported report-data schema version: {0}".format(version)
             )
 
+        decisions = _decisions(_field(data, "decisions", "report-data"), "decisions")
+        result = _result(
+            _field(data, "result", "report-data"), "result", len(decisions.rows)
+        )
         return cls(
             schema_version=version,
             metadata=_metadata(_field(data, "metadata", "report-data"), "metadata"),
@@ -157,12 +174,12 @@ class ReportData:
             rule_diff=_expect_str(
                 _field(data, "rule_diff", "report-data"), "rule_diff"
             ),
-            result=_result(_field(data, "result", "report-data"), "result"),
+            result=result,
             variants=_variants(_field(data, "variants", "report-data"), "variants"),
             command_flow=_command_flow(
                 _field(data, "command_flow", "report-data"), "command_flow"
             ),
-            decisions=_decisions(_field(data, "decisions", "report-data"), "decisions"),
+            decisions=decisions,
         )
 
     def to_dict(self):
@@ -200,9 +217,11 @@ def _content(value, path):
         subtitle=_expect_str(_field(value, "subtitle", path), path + ".subtitle"),
         meta=_optional_rows(value, "meta", path, 2),
         note=_optional_str(value, "note", path),
-        observation_heading=_optional_str(value, "observation_heading", path),
-        observation=_expect_str(
-            _field(value, "observation", path), path + ".observation"
+        behavior_heading=_expect_str(
+            _field(value, "behavior_heading", path), path + ".behavior_heading"
+        ),
+        limits_heading=_expect_str(
+            _field(value, "limits_heading", path), path + ".limits_heading"
         ),
         scenario_heading=_expect_str(
             _field(value, "scenario_heading", path), path + ".scenario_heading"
@@ -235,7 +254,7 @@ def _content(value, path):
     )
 
 
-def _result(value, path):
+def _result(value, path, row_count):
     value = _expect_dict(value, path)
     kind = _expect_str(_field(value, "kind", path), path + ".kind")
     if kind not in RESULT_KINDS:
@@ -243,6 +262,17 @@ def _result(value, path):
     return ResultData(
         text=_expect_str(_field(value, "text", path), path + ".text"),
         kind=kind,
+        summary=_expect_str(_field(value, "summary", path), path + ".summary"),
+        outcomes=_references(
+            _field(value, "outcomes", path), path + ".outcomes", row_count
+        ),
+        behavior=_references(
+            _field(value, "behavior", path), path + ".behavior", row_count
+        ),
+        implications=_claims(
+            _field(value, "implications", path), path + ".implications", row_count
+        ),
+        limits=_string_tuple(_field(value, "limits", path), path + ".limits"),
     )
 
 
@@ -335,7 +365,9 @@ def _decisions(value, path):
             _decision_row(item, "{0}.rows[{1}]".format(path, index))
             for index, item in enumerate(rows)
         ),
-        fork=_expect_optional_int(_field(value, "fork", path), path + ".fork"),
+        fork=_optional_reference(
+            _field(value, "fork", path), path + ".fork", len(rows)
+        ),
         fork_note=_expect_str(_field(value, "fork_note", path), path + ".fork_note"),
         dropped=_expect_int(_field(value, "dropped", path), path + ".dropped"),
         extractor=_expect_str(_field(value, "extractor", path), path + ".extractor"),
@@ -344,6 +376,12 @@ def _decisions(value, path):
         ),
         after_count=_expect_int(
             _field(value, "after_count", path), path + ".after_count"
+        ),
+        outcome=_optional_reference(
+            _field(value, "outcome", path), path + ".outcome", len(rows)
+        ),
+        implications=_claims(
+            _field(value, "implications", path), path + ".implications", len(rows)
         ),
     )
 
@@ -375,6 +413,47 @@ def _decision_choice(value, path):
         choice=_expect_str(_field(value, "choice", path), path + ".choice"),
         count=_expect_int(_field(value, "count", path), path + ".count"),
     )
+
+
+def _optional_reference(value, path, row_count):
+    if value is None:
+        return None
+    return _reference(value, path, row_count)
+
+
+def _reference(value, path, row_count):
+    value = _expect_int(value, path)
+    if not 1 <= value <= row_count:
+        _invalid(path, "1-based decision row index")
+    return value
+
+
+def _references(value, path, row_count):
+    values = _expect_list(value, path)
+    references = tuple(
+        _reference(item, "{0}[{1}]".format(path, index), row_count)
+        for index, item in enumerate(values)
+    )
+    if len(set(references)) != len(references):
+        _invalid(path, "unique decision row indexes")
+    return references
+
+
+def _claims(value, path, row_count):
+    claims = []
+    for index, item in enumerate(_expect_list(value, path)):
+        item_path = "{0}[{1}]".format(path, index)
+        item = _expect_dict(item, item_path)
+        text = _expect_str(_field(item, "text", item_path), item_path + ".text")
+        if not text.strip():
+            _invalid(item_path + ".text", "nonblank string")
+        references = _references(
+            _field(item, "decisions", item_path), item_path + ".decisions", row_count
+        )
+        if not references:
+            _invalid(item_path + ".decisions", "nonempty decision row indexes")
+        claims.append(EvidenceClaimData(text, references))
+    return tuple(claims)
 
 
 def _field(value, name, path):
@@ -418,12 +497,6 @@ def _expect_optional_str(value, path):
     if value is None:
         return None
     return _expect_str(value, path)
-
-
-def _expect_optional_int(value, path):
-    if value is None:
-        return None
-    return _expect_int(value, path)
 
 
 def _expect_anchor(value, path):

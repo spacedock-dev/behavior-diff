@@ -14,11 +14,11 @@ from reporting.schema import (
     DecisionChoiceData,
     DecisionData,
     DecisionRowData,
+    EvidenceClaimData,
     FlowBranchData,
     FlowPathData,
     MetadataData,
     ReportData,
-    ResultData,
     TrialData,
     VariantData,
     VariantsData,
@@ -38,14 +38,6 @@ def load_report(
     decisions = _read_decisions(
         run, command_flow.before.total, command_flow.after.total
     )
-    result_text, result_kind = content.result_data(
-        metadata.mode,
-        metadata.trace_source == "self-reported",
-        _variant_counts(before),
-        _variant_counts(after),
-        before.total,
-        bool(decisions.rows),
-    )
     report_content = content.build_content(
         config,
         _scenario(config, capsule),
@@ -59,7 +51,9 @@ def load_report(
         metadata=metadata,
         content=report_content,
         rule_diff=_rule_diff(run, capsule, metadata.target_file),
-        result=ResultData(text=result_text, kind=result_kind),
+        result=content.result_data(
+            metadata, variants, decisions, report_content.expected
+        ),
         variants=variants,
         command_flow=command_flow,
         decisions=decisions,
@@ -390,9 +384,7 @@ def _convert_decisions(raw, before_default, after_default):
         or after_count < 0
     ):
         raise ValueError("malformed counts")
-    fork = raw.get("fork")
-    if fork is not None and not _is_int(fork):
-        raise ValueError("malformed fork")
+    raw_fork = raw.get("fork")
     fork_note = raw.get("fork_note", "")
     dropped = raw.get("dropped", 0)
     extractor = raw.get("extractor", "")
@@ -404,18 +396,36 @@ def _convert_decisions(raw, before_default, after_default):
     ):
         raise ValueError("malformed decisions")
     rows = tuple(_decision_row(row) for row in raw["chain"])
+    if raw_fork is not None and (
+        not _is_int(raw_fork) or not 1 <= raw_fork <= len(rows)
+    ):
+        raise ValueError("malformed fork")
     if any(
         sum(choice.count for choice in row.before) != before_count
         or sum(choice.count for choice in row.after) != after_count
         for row in rows
     ):
         raise ValueError("decision counts do not match")
-    if fork is not None and (
-        fork < 1 or fork > len(rows) or not rows[fork - 1].diverges
-    ):
-        raise ValueError("malformed fork")
+    first_difference = next(
+        (index for index, row in enumerate(rows, 1) if row.diverges), None
+    )
+    fork = raw_fork if raw_fork == first_difference else None
+    if fork is None:
+        fork_note = ""
+    outcome = raw.get("outcome")
+    if not _is_int(outcome) or not 1 <= outcome <= len(rows):
+        outcome = None
+    implications = _decision_implications(raw.get("implications"), len(rows))
     return DecisionData(
-        rows, fork, fork_note, dropped, extractor, before_count, after_count
+        rows,
+        fork,
+        fork_note,
+        dropped,
+        extractor,
+        before_count,
+        after_count,
+        outcome,
+        implications,
     )
 
 
@@ -435,14 +445,16 @@ def _decision_row(raw):
         or type(note) is not str
     ):
         raise ValueError("malformed decision row")
+    before = _decision_choices(raw["before"])
+    after = _decision_choices(raw["after"])
     return DecisionRowData(
         decision,
         topic,
         anchor,
-        diverges,
+        content.choices_changed(before, after),
         note,
-        _decision_choices(raw["before"]),
-        _decision_choices(raw["after"]),
+        before,
+        after,
     )
 
 
@@ -462,21 +474,37 @@ def _decision_choices(raw):
     return tuple(choices)
 
 
+def _decision_implications(raw, row_count):
+    if type(raw) is not list:
+        return ()
+    claims = []
+    for item in raw:
+        if type(item) is not dict:
+            continue
+        text = item.get("text")
+        references = item.get("decisions")
+        if (
+            type(text) is not str
+            or not text.strip()
+            or type(references) is not list
+            or not references
+            or any(
+                not _is_int(index) or not 1 <= index <= row_count
+                for index in references
+            )
+            or len(set(references)) != len(references)
+        ):
+            continue
+        claims.append(EvidenceClaimData(text.strip(), tuple(references)))
+    return tuple(claims)
+
+
 def _empty_decisions(before_count, after_count):
-    return DecisionData((), None, "", 0, "", before_count, after_count)
+    return DecisionData((), None, "", 0, "", before_count, after_count, None, ())
 
 
 def _is_int(value):
     return type(value) is int
-
-
-def _variant_counts(variant):
-    return {
-        "passed": variant.passed,
-        "blocked": variant.blocked,
-        "valid": variant.valid,
-        "total": variant.total,
-    }
 
 
 def _scenario(config, capsule):

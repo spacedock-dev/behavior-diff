@@ -114,17 +114,33 @@ report.
 
 Each run creates a local HTML report, one file with up to four tabs:
 
-- **Summary** opens first. It shows the headline finding, the scenario, the
-  instruction-file diff (folded, click to open), and the result line.
+- **Summary** opens first. It starts with the observed result and before/after
+  counts. It then shows the behavior change, scenario, instruction diff, and
+  evidence limits.
 - **Decision diff** lists the main decisions that changed.
 - **Flow diff** lists the kinds of command each side used. It appears only
   when the run captured tool calls.
 - **Trials result** shows one card per run, before on the left and after on
   the right, with the commands and the final answer from every trial.
 
-Start with the Summary. Then open the Decision diff and find the first point
-where the runs separate. Compare the evidence and final answers from that
-point in Trials result.
+Start with the Result. Follow its evidence links to the supporting decisions
+and trial records. The Behavior change section explains the process separately
+from the outcome. The Markdown report uses the same summary order.
+
+The existing extraction call identifies the primary outcome and any supported
+implications. The report labels these explanations as model interpretations.
+A changed outcome is not an automatic success or failure.
+
+Mixed outcomes show their distributions. Missing, blocked, or incomplete
+evidence produces an insufficient-evidence result. Without a primary outcome,
+the report compares answer dimensions instead of guessing the task result.
+
+Expected behavior appears only when supplied. The evidence limits state the
+trial counts, provenance, and grading limits. Self-reported actions remain
+distinct from captured tool calls.
+
+The structured `report-data.json` uses schema version 2. Regenerate reports
+from their run artifacts to use this format.
 
 If both sides follow the same path, the task can miss the situation that the
 rule targets. Use a task that starts closer to the decision that you want to
