@@ -112,16 +112,19 @@ report.
 
 ## Read the report
 
-Each run creates a local HTML report. The report contains:
+Each run creates a local HTML report, one file with up to four tabs:
 
-- The instruction-file diff.
-- The flow of each trial.
-- The main decisions that changed.
-- The commands and tools that each trial used.
-- The final answer from every trial.
+- **Summary** opens first. It shows the headline finding, the scenario, the
+  instruction-file diff (folded, click to open), and the result line.
+- **Decision diff** lists the main decisions that changed.
+- **Flow diff** lists the kinds of command each side used. It appears only
+  when the run captured tool calls.
+- **Trials result** shows one card per run, before on the left and after on
+  the right, with the commands and the final answer from every trial.
 
-Start with the flow difference. Find the first point where the runs separate.
-Then compare the evidence and final answers from that point.
+Start with the Summary. Then open the Decision diff and find the first point
+where the runs separate. Compare the evidence and final answers from that
+point in Trials result.
 
 If both sides follow the same path, the task can miss the situation that the
 rule targets. Use a task that starts closer to the decision that you want to
