@@ -7,6 +7,8 @@ import json
 import os
 import sys
 import tempfile
+from dataclasses import replace
+from html.parser import HTMLParser
 from pathlib import Path
 
 scripts = Path(__file__).resolve().parents[1] / "plugin/skills/behavior-diff/scripts"
@@ -25,7 +27,7 @@ from reporting.schema import (  # noqa: E402
 
 def synthetic_raw():
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "metadata": {
             "model": "synthetic/model",
             "mode": "review",
@@ -40,8 +42,8 @@ def synthetic_raw():
             "subtitle": "before: current file · after: your change applied",
             "meta": [["before", "current file"], ["after", "your change applied"]],
             "note": "",
-            "observation_heading": "Observed in this run",
-            "observation": "Which evidence was used?",
+            "behavior_heading": "Behavior change",
+            "limits_heading": "Evidence limits",
             "scenario_heading": "Scenario",
             "scenario": "Compare two synthetic files.",
             "expected_heading": "Expected behavior",
@@ -58,7 +60,17 @@ def synthetic_raw():
             "boundary": "Synthetic evidence only.",
         },
         "rule_diff": "--- before\n+++ after\n",
-        "result": {"text": "No automatic verdict", "kind": "neutral"},
+        "result": {
+            "text": "Same outcome; process changed",
+            "kind": "neutral",
+            "summary": "The reported outcome stayed the same.",
+            "outcomes": [2],
+            "behavior": [1],
+            "implications": [
+                {"text": "The evidence method changed.", "decisions": [1, 2]}
+            ],
+            "limits": ["Synthetic evidence only."],
+        },
         "variants": {
             "before": {
                 "label": "Before",
@@ -147,7 +159,7 @@ def synthetic_raw():
                     "diverges": True,
                     "note": "Synthetic divergence.",
                     "before": [
-                        {"choice": "read only", "count": 2},
+                        {"choice": "read only", "count": 1},
                         {"choice": "search", "count": 1},
                     ],
                     "after": [{"choice": "read and test", "count": 2}],
@@ -155,7 +167,7 @@ def synthetic_raw():
                 {
                     "decision": "State result",
                     "topic": "Delivery",
-                    "anchor": "final answer",
+                    "anchor": "answer",
                     "diverges": False,
                     "note": "",
                     "before": [{"choice": "explain", "count": 2}],
@@ -168,13 +180,16 @@ def synthetic_raw():
             "extractor": "synthetic extractor",
             "before_count": 2,
             "after_count": 2,
+            "outcome": 2,
+            "implications": [
+                {"text": "The evidence method changed.", "decisions": [1, 2]}
+            ],
         },
     }
 
 
 def assert_round_trip(raw):
     report = ReportData.from_dict(raw)
-    assert report.schema_version == 1
     assert report.to_dict() == raw
     assert report.to_json() == json.dumps(raw, indent=2, sort_keys=True) + "\n"
     return report
@@ -217,10 +232,129 @@ def assert_render_import_safe():
         os.chdir(original_cwd)
 
 
+def assert_summary_evidence(report):
+    """Missing evidence must override an otherwise complete outcome comparison."""
+
+    def summarize(variants=report.variants, decisions=report.decisions):
+        return content.result_data(report.metadata, variants, decisions, None)
+
+    complete = summarize()
+    assert complete.outcomes == (2,)
+    for after in (
+        replace(report.variants.after, valid=1, blocked=1),
+        replace(
+            report.variants.after,
+            trials=(
+                replace(report.variants.after.trials[0], final=""),
+                report.variants.after.trials[1],
+            ),
+        ),
+    ):
+        result = summarize(replace(report.variants, after=after))
+        assert "Insufficient evidence" in result.text, result
+        assert result.kind == "neutral"
+    for decisions in (
+        replace(report.decisions, after_count=3),
+        replace(report.decisions, dropped=1),
+        replace(report.decisions, rows=(), outcome=None, implications=()),
+    ):
+        result = summarize(decisions=decisions)
+        assert "Insufficient evidence" in result.text, result
+    mixed_row = replace(
+        report.decisions.rows[1],
+        after=(DecisionChoiceData("explain", 1), DecisionChoiceData("withhold", 1)),
+    )
+    mixed = summarize(
+        decisions=replace(report.decisions, rows=(report.decisions.rows[0], mixed_row))
+    )
+    assert "Mixed outcomes" in mixed.text, mixed
+    unselected = summarize(
+        decisions=replace(
+            report.decisions, rows=(report.decisions.rows[0], mixed_row), outcome=None
+        )
+    )
+    assert "Mixed outcomes" not in unselected.text, (
+        "Variation in an answer dimension does not establish mixed task outcomes."
+    )
+    assert content.choices_changed(
+        (DecisionChoiceData("PASS", 2),), (DecisionChoiceData("pass", 2),)
+    ), "Case-sensitive outcome labels must not be merged."
+    assert not content.choices_changed(
+        (DecisionChoiceData("A", 1), DecisionChoiceData("B", 1)),
+        (DecisionChoiceData("B", 2), DecisionChoiceData("A", 2)),
+    ), "Proportional distributions must not change when trial totals differ."
+
+
+def assert_evidence_links(report):
+    from reporting.render_html import render_artifact
+    from reporting.render_markdown import render_markdown
+
+    class Links(HTMLParser):
+        def __init__(self):
+            super().__init__()
+            self.ids = set()
+            self.targets = []
+
+        def handle_starttag(self, tag, attrs):
+            attrs = dict(attrs)
+            if "id" in attrs:
+                assert attrs["id"] not in self.ids, "Duplicate evidence anchor"
+                self.ids.add(attrs["id"])
+            if tag == "a" and attrs.get("href", "").startswith("#"):
+                self.targets.append(attrs["href"][1:])
+
+    page = render_artifact(report, ".result { background:__RESULT_BG__; }")
+    links = Links()
+    links.feed(page)
+    assert "decision-2" in links.targets, "Outcome does not link to its evidence."
+    assert set(links.targets) <= links.ids, "An evidence link has no target."
+    markdown = render_markdown(report)
+    assert "](#decision-2)" in markdown
+    assert 'id="decision-2"' in markdown
+
+
+def assert_no_invented_causality():
+    from reporting.load import load_report
+    from reporting.render_markdown import render_markdown
+
+    with tempfile.TemporaryDirectory() as directory:
+        run = Path(directory)
+        (run / "task.md").write_text("Compare the synthetic outputs.")
+        (run / "grades.tsv").write_text("before-1\tREVIEW\t-\nafter-1\tREVIEW\t-\n")
+        (run / "config.json").write_text('{"mode":"review","vocab":"generic"}')
+        for side in ("before", "after"):
+            (run / (side + "-1")).mkdir()
+            (run / (side + "-1") / "trace.jsonl").write_text(
+                json.dumps({"type": "result", "result": side + " synthetic answer"})
+            )
+        chain = [
+            {
+                "decision": question,
+                "anchor": anchor,
+                "before": [{"choice": "before", "n": 1}],
+                "after": [{"choice": "after", "n": 1}],
+                "diverges": True,
+            }
+            for question, anchor in (
+                ("Which method?", 1),
+                ("Which outcome?", "answer"),
+            )
+        ]
+        (run / "decisions.json").write_text(
+            json.dumps({"chain": chain, "fork": None, "outcome": 2})
+        )
+        report = load_report(run, run, "synthetic/model", run / "config.json")
+        assert report.decisions.fork is None, "The loader invented a causal fork."
+        assert "following from" not in render_markdown(report)
+
+
 def main():
     assert_render_import_safe()
     raw = synthetic_raw()
     report = assert_round_trip(raw)
+    assert_summary_evidence(report)
+    assert_evidence_links(report)
+    assert_no_invented_causality()
     assert isinstance(report.variants.before.trials[0], TrialData)
     assert isinstance(report.command_flow, CommandFlowData)
     assert isinstance(report.command_flow.before.paths[0], FlowPathData)
@@ -234,7 +368,7 @@ def main():
         ("Stop",),
         ("Explain",),
     ]
-    assert [row.anchor for row in report.decisions.rows] == [2, "final answer"]
+    assert [row.anchor for row in report.decisions.rows] == [2, "answer"]
     caution = "CAUTION — one trial per side"
     for before_total, after_total, expected in (
         (1, 2, False),
@@ -256,8 +390,8 @@ def main():
     ]
 
     assert_rejected(
-        dict(raw, schema_version=2),
-        "unsupported report-data schema version: 2",
+        dict(raw, schema_version=1),
+        "unsupported report-data schema version: 1",
     )
     assert_rejected(
         dict(raw, schema_version=True),
@@ -304,6 +438,13 @@ def main():
         invalid_result_kind_type,
         "invalid report-data field result.kind: expected string",
     )
+    invalid_evidence = copy.deepcopy(raw)
+    invalid_evidence["result"]["implications"][0]["decisions"] = [99]
+    assert_rejected(
+        invalid_evidence,
+        "invalid report-data field result.implications[0].decisions[0]: "
+        "expected 1-based decision row index",
+    )
 
     from reporting.render_html import _resolve_css, render_artifact, render_document
 
@@ -349,6 +490,20 @@ def main():
     assert "<script>" not in escaping_artifact
     assert 'class="badge review&quot;&gt;&lt;script&gt;&amp;"' in escaping_artifact
     assert "REVIEW&quot;&gt;&lt;script&gt;&amp;</span>" in escaping_artifact
+    unsafe_summary = copy.deepcopy(raw)
+    payload = '<script>alert("x")</script>|[link](javascript:alert(1))'
+    unsafe_summary["result"]["text"] = payload
+    unsafe_summary["result"]["implications"][0]["text"] = payload
+    unsafe_summary["decisions"]["rows"][1]["after"][0]["choice"] = payload
+    unsafe_report = ReportData.from_dict(unsafe_summary)
+    from reporting.render_markdown import render_markdown
+
+    for rendered in (
+        render_artifact(unsafe_report, ".result { background:__RESULT_BG__; }"),
+        render_markdown(unsafe_report),
+    ):
+        assert "<script>" not in rendered
+    assert "](javascript:" not in render_markdown(unsafe_report)
 
     if len(sys.argv) == 2:
         assert_file_round_trip(sys.argv[1])

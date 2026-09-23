@@ -80,7 +80,12 @@ SCHEMA = """{{
      "note": "<optional: one short clause, only if worth saying>"}}
   ],
   "fork": <1-based index into chain of the FIRST divergence, or null>,
-  "fork_note": "<one sentence: what that first divergence causes downstream, or null>"
+  "fork_note": "<one sentence: what that first divergence causes downstream, or null>",
+  "outcome": <1-based index of the primary task outcome in chain, or null>,
+  "implications": [
+    {{"text": "<one supported practical implication or risk>",
+      "decisions": [<1-based indexes of the supporting chain rows>]}}
+  ]
 }}"""
 
 PROMPT = """You are comparing two sets of agent trials. Every trial got the
@@ -120,6 +125,17 @@ Rules:
 - 6 to 10 decisions. Drop anything trivial.
 - "fork" is the first diverging decision — the one that best explains the
   later divergences, if any of them follow from it.
+- Set "outcome" to the decision that records the task's primary result, not its
+  process or wording. It can have a numbered anchor or an answer anchor.
+  If the evidence does not establish a primary result, use null.
+- Explain practical implications only when the supplied evidence supports them.
+  Cite every supporting decision by its 1-based chain index. Return an empty
+  "implications" list when no implication is supported.
+- Keep observations separate from interpretation. An approval in a final answer
+  does not prove that a payment occurred. A reported action is not a verified action.
+  Do not invent risks, expected outcomes, success criteria, or facts from unread files.
+- Counts describe each decision separately. Do not invent a per-trial path by
+  combining counts from different rows. Do not treat a changed outcome as success.
 
 Return ONLY JSON, no prose and no code fence, in exactly this shape:
 {schema}"""
@@ -205,61 +221,100 @@ def source_note(run):
 
 
 def normalize(data, counts):
-    """Keep only well-formed rows whose per-variant counts match the trials,
-    sorted into real order: action anchors ascending, then answer-phase
-    rows in extractor order. The sort is enforced here, not trusted."""
+    """Validate counts and remap evidence references after sorting or dropping rows."""
+    if type(data) is not dict or type(data.get("chain", [])) is not list:
+        raise ValueError("expected a decision chain")
     chain, dropped = [], 0
-    for pos, row in enumerate(data.get("chain") or []):
-        if not isinstance(row, dict) or not row.get("decision"):
-            continue
-        a = row.get("anchor")
-        clean = {
-            "decision": str(row["decision"]).strip(),
-            "topic": str(row.get("topic") or "").strip(),
-            "anchor": a if isinstance(a, int) and a >= 1 else "answer",
-            "diverges": bool(row.get("diverges")),
-            "_pos": pos,
-            "note": (str(row["note"]).strip() if row.get("note") else ""),
-        }
-        ok = True
-        for variant in ("before", "after"):
-            branches = []
-            for br in row.get(variant) or []:
-                if isinstance(br, dict) and br.get("choice"):
-                    branches.append(
-                        {
-                            "choice": str(br["choice"]).strip(),
-                            "n": int(br.get("n") or 0),
-                        }
-                    )
-            if sum(b["n"] for b in branches) != counts.get(variant, 0):
-                ok = False  # hallucinated counts: drop the row, keep the rest
-            clean[variant] = branches
-        if ok:
-            chain.append(clean)
-        else:
+    for pos, row in enumerate(data.get("chain", [])):
+        if (
+            type(row) is not dict
+            or type(row.get("decision")) is not str
+            or not row["decision"].strip()
+        ):
             dropped += 1
+            continue
+        anchor = row.get("anchor")
+        clean = {
+            "decision": row["decision"].strip(),
+            "topic": str(row.get("topic") or "").strip(),
+            "anchor": anchor if type(anchor) is int and anchor >= 1 else "answer",
+            "_pos": pos,
+            "note": str(row.get("note") or "").strip(),
+        }
+        for variant in ("before", "after"):
+            branches = row.get(variant)
+            if type(branches) is not list or not branches:
+                break
+            choices = {}
+            for branch in branches:
+                if (
+                    type(branch) is not dict
+                    or type(branch.get("choice")) is not str
+                    or not branch["choice"].strip()
+                    or type(branch.get("n")) is not int
+                    or branch["n"] <= 0
+                    or branch["choice"].strip() in choices
+                ):
+                    break
+                choices[branch["choice"].strip()] = branch["n"]
+            else:
+                if sum(choices.values()) == counts.get(variant, 0):
+                    clean[variant] = [
+                        {"choice": choice, "n": count}
+                        for choice, count in choices.items()
+                    ]
+                    continue
+            break
+        else:
+            before = {b["choice"]: b["n"] for b in clean["before"]}
+            after = {b["choice"]: b["n"] for b in clean["after"]}
+            clean["diverges"] = any(
+                before.get(choice, 0) * counts["after"]
+                != after.get(choice, 0) * counts["before"]
+                for choice in before.keys() | after.keys()
+            )
+            chain.append(clean)
+            continue
+        dropped += 1
     chain.sort(
-        key=lambda c: (
-            (0, c["anchor"], c["_pos"])
-            if isinstance(c["anchor"], int)
-            else (1, 0, c["_pos"])
+        key=lambda row: (
+            (0, row["anchor"], row["_pos"])
+            if type(row["anchor"]) is int
+            else (1, 0, row["_pos"])
         )
     )
+    positions = {row.pop("_pos") + 1: index for index, row in enumerate(chain, 1)}
     raw_fork = data.get("fork")
-    fork = None
-    if isinstance(raw_fork, int):
-        for i, c in enumerate(chain, 1):
-            if c["_pos"] == raw_fork - 1:
-                fork = i
-                break
-    for c in chain:
-        del c["_pos"]
+    fork = positions.get(raw_fork) if type(raw_fork) is int else None
+    if fork is not None and not chain[fork - 1]["diverges"]:
+        fork = None
+    raw_outcome = data.get("outcome")
+    outcome = positions.get(raw_outcome) if type(raw_outcome) is int else None
+    implications = []
+    raw_implications = data.get("implications", [])
+    for claim in raw_implications if type(raw_implications) is list else []:
+        if type(claim) is not dict:
+            continue
+        text, references = claim.get("text"), claim.get("decisions")
+        if (
+            type(text) is not str
+            or not text.strip()
+            or type(references) is not list
+            or not references
+            or any(type(ref) is not int or ref not in positions for ref in references)
+            or len(set(references)) != len(references)
+        ):
+            continue
+        implications.append(
+            {"text": text.strip(), "decisions": [positions[ref] for ref in references]}
+        )
     return {
         "chain": chain,
         "fork": fork,
         "dropped": dropped,
-        "fork_note": (str(data["fork_note"]).strip() if data.get("fork_note") else ""),
+        "fork_note": str(data.get("fork_note") or "").strip() if fork else "",
+        "outcome": outcome,
+        "implications": implications,
     }
 
 
@@ -517,6 +572,14 @@ def self_check():
         ],
         "fork": 2,
         "fork_note": "how truth is established",
+        "outcome": 1,
+        "implications": [
+            {
+                "text": "The answer changed with the evidence method.",
+                "decisions": [2, 1],
+            },
+            {"text": "Unsupported claim from a dropped row.", "decisions": [1, 3]},
+        ],
     }
     out = normalize(good, counts)
     assert len(out["chain"]) == 2, out  # bad row dropped
@@ -532,17 +595,53 @@ def self_check():
 
     # a fork pointing at a dropped row resolves to None
     assert normalize({**good, "fork": 3}, counts)["fork"] is None
+    # Claims keep their evidence after sorting; a partially lost citation invalidates them.
+    assert out["outcome"] == 2
+    assert out["implications"] == [
+        {"text": "The answer changed with the evidence method.", "decisions": [1, 2]}
+    ]
+    assert normalize({**good, "outcome": 3}, counts)["outcome"] is None
+    for reference in (True, 0, -1, 1.0, "1", 99):
+        invalid = {
+            **good,
+            "outcome": reference,
+            "implications": [{"text": "Unsupported", "decisions": [reference]}],
+        }
+        normalized = normalize(invalid, counts)
+        assert normalized["outcome"] is None
+        assert normalized["implications"] == []
+    # Neither negative counts nor the model's divergence flag can imply a valid change.
+    invalid_counts = {
+        "chain": [
+            {
+                "decision": "What outcome?",
+                "anchor": "answer",
+                "before": [{"choice": "A", "n": 4}, {"choice": "B", "n": -1}],
+                "after": [{"choice": "A", "n": 3}],
+            }
+        ]
+    }
+    assert normalize(invalid_counts, counts)["chain"] == []
+    proportional = {
+        "chain": [
+            {
+                "decision": "What outcome?",
+                "anchor": "answer",
+                "before": [{"choice": "A", "n": 2}],
+                "after": [{"choice": "A", "n": 3}],
+                "diverges": True,
+            }
+        ],
+        "fork": 1,
+    }
+    normalized = normalize(proportional, {"before": 2, "after": 3})
+    assert not normalized["chain"][0]["diverges"]
+    assert normalized["fork"] is None
 
     fenced = '```json\n{"chain": [], "fork": null}\n```'
     assert extract_json(fenced) == {"chain": [], "fork": None}
     # a brace inside a string must not end the object early
     assert extract_json('{"a": "} not the end", "b": 1}')["b"] == 1
-    assert normalize({}, counts) == {
-        "chain": [],
-        "fork": None,
-        "dropped": 0,
-        "fork_note": "",
-    }
 
     progress("Build synthetic before and after traces")
 
@@ -709,19 +808,10 @@ def self_check():
         assert "cat before-1.txt" in page
         assert "the list was already sorted" in page
         assert "Flow diff" not in page
-        no_decision_result = (
-            "No automatic verdict — compare the reported actions and final answers"
-        )
-        normal_result = (
-            "No automatic verdict — compare the reported actions, decision "
-            "diff, and final answers"
-        )
-        assert no_decision_result in page
-        assert normal_result not in page
 
         progress("Validate successful decision ingestion")
 
-        # well-formed reply lands on disk in the unchanged schema
+        # Ingestion preserves outcome selection and its cited interpretation.
         reply = run / "reply-good.txt"
         reply.write_text(
             json.dumps(
@@ -738,6 +828,10 @@ def self_check():
                     ],
                     "fork": 1,
                     "fork_note": "shape",
+                    "outcome": 1,
+                    "implications": [
+                        {"text": "The answer now flags an item.", "decisions": [1]}
+                    ],
                 }
             )
         )
