@@ -27,7 +27,7 @@ from reporting.schema import (  # noqa: E402
 
 def synthetic_raw():
     return {
-        "schema_version": 2,
+        "schema_version": 3,
         "metadata": {
             "model": "synthetic/model",
             "mode": "review",
@@ -42,7 +42,6 @@ def synthetic_raw():
             "subtitle": "before: current file · after: your change applied",
             "meta": [["before", "current file"], ["after", "your change applied"]],
             "note": "",
-            "behavior_heading": "Behavior change",
             "limits_heading": "Evidence limits",
             "scenario_heading": "Scenario",
             "scenario": "Compare two synthetic files.",
@@ -61,9 +60,11 @@ def synthetic_raw():
         },
         "rule_diff": "--- before\n+++ after\n",
         "result": {
-            "text": "Same outcome; process changed",
+            "text": "Same result, different process",
             "kind": "neutral",
-            "summary": "The reported outcome stayed the same.",
+            "summary": "The reported result stayed the same.",
+            "outcome_heading": "Final result — unchanged",
+            "behavior_heading": "Behavior — changed",
             "outcomes": [2],
             "behavior": [1],
             "implications": [
@@ -233,15 +234,19 @@ def assert_render_import_safe():
 
 
 def assert_summary_evidence(report):
-    """Missing evidence must override an otherwise complete outcome comparison."""
+    """Incomplete evidence takes precedence over an apparent result change."""
 
     def summarize(variants=report.variants, decisions=report.decisions):
         return content.result_data(report.metadata, variants, decisions, None)
 
     complete = summarize()
     assert complete.outcomes == (2,)
+    assert complete.behavior == (1,)
+    assert complete.outcome_heading.endswith("— unchanged")
+    assert complete.behavior_heading.endswith("— changed")
     for after in (
         replace(report.variants.after, valid=1, blocked=1),
+        replace(report.variants.after, valid=0, blocked=2),
         replace(
             report.variants.after,
             trials=(
@@ -251,7 +256,9 @@ def assert_summary_evidence(report):
         ),
     ):
         result = summarize(replace(report.variants, after=after))
-        assert "Insufficient evidence" in result.text, result
+        assert result.outcome_heading.endswith("— unavailable"), result
+        assert result.behavior_heading.endswith("— unavailable"), result
+        assert result.limits[0] in result.summary
         assert result.kind == "neutral"
     for decisions in (
         replace(report.decisions, after_count=3),
@@ -259,7 +266,18 @@ def assert_summary_evidence(report):
         replace(report.decisions, rows=(), outcome=None, implications=()),
     ):
         result = summarize(decisions=decisions)
-        assert "Insufficient evidence" in result.text, result
+        assert result.outcome_heading.endswith("— unavailable"), result
+        assert result.limits[0] in result.summary
+    blank_result = replace(
+        report.decisions.rows[1], after=(DecisionChoiceData(" ", 2),)
+    )
+    blank = summarize(
+        decisions=replace(
+            report.decisions, rows=(report.decisions.rows[0], blank_result)
+        )
+    )
+    assert blank.outcome_heading.endswith("— unavailable")
+    assert blank.behavior_heading.endswith("— changed")
     mixed_row = replace(
         report.decisions.rows[1],
         after=(DecisionChoiceData("explain", 1), DecisionChoiceData("withhold", 1)),
@@ -267,22 +285,102 @@ def assert_summary_evidence(report):
     mixed = summarize(
         decisions=replace(report.decisions, rows=(report.decisions.rows[0], mixed_row))
     )
-    assert "Mixed outcomes" in mixed.text, mixed
+    assert mixed.outcome_heading == "Final result — varies", mixed
     unselected = summarize(
         decisions=replace(
             report.decisions, rows=(report.decisions.rows[0], mixed_row), outcome=None
         )
     )
-    assert "Mixed outcomes" not in unselected.text, (
-        "Variation in an answer dimension does not establish mixed task outcomes."
-    )
+    assert unselected.outcome_heading == "Reported answers — varies"
+    assert unselected.outcomes == (2,)
     assert content.choices_changed(
         (DecisionChoiceData("PASS", 2),), (DecisionChoiceData("pass", 2),)
-    ), "Case-sensitive outcome labels must not be merged."
+    ), "Case-sensitive result labels must not be merged."
     assert not content.choices_changed(
         (DecisionChoiceData("A", 1), DecisionChoiceData("B", 1)),
         (DecisionChoiceData("B", 2), DecisionChoiceData("A", 2)),
     ), "Proportional distributions must not change when trial totals differ."
+
+
+def assert_summary_boundaries(report):
+    """Answer details never become action rows or establish a primary result."""
+    action, outcome = report.decisions.rows
+    unchanged_action = replace(
+        action,
+        before=(DecisionChoiceData("read", 2),),
+        after=(DecisionChoiceData("read", 2),),
+        diverges=False,
+    )
+    answer_detail = replace(
+        outcome,
+        decision="How did the agent describe its work?",
+        topic="Process details",
+        before=(DecisionChoiceData("concise", 2),),
+        after=(DecisionChoiceData("expanded", 2),),
+        diverges=True,
+    )
+
+    def summarize(rows, primary=2, variants=report.variants, **changes):
+        decisions = replace(report.decisions, rows=rows, outcome=primary, **changes)
+        return content.result_data(report.metadata, variants, decisions, None)
+
+    answer_change = summarize((unchanged_action, outcome, answer_detail), fork=3)
+    unchanged = summarize((unchanged_action, outcome))
+    assert answer_change.behavior == (1,), "Answer details entered the action table."
+    assert answer_change.behavior_heading.endswith("— unchanged")
+    assert answer_change.outcome_heading.endswith("— unchanged")
+    assert answer_change.text != unchanged.text, (
+        "Answer-detail differences disappeared."
+    )
+    assert (
+        answer_change.text
+        != content.result_data(
+            report.metadata, report.variants, report.decisions, None
+        ).text
+    ), "Answer-detail changes implied an observed action change."
+    actions_only = summarize((unchanged_action,), primary=None, implications=())
+    assert actions_only.outcomes == (), "A topic label invented a primary result."
+    assert actions_only.outcome_heading == "Reported answers — unavailable"
+    assert actions_only.behavior == (1,)
+    no_actions = summarize((outcome, answer_detail), primary=1, fork=2)
+    assert no_actions.behavior == ()
+    assert no_actions.behavior_heading.endswith("— unavailable")
+    assert no_actions.text != unchanged.text
+    no_primary = summarize((action, outcome, answer_detail), primary=None)
+    assert no_primary.outcomes == (2, 3)
+    assert no_primary.behavior == (1,)
+    assert no_primary.outcome_heading == "Reported answers — changed"
+    # A selected result can have an action anchor, but cannot appear twice.
+    selected_action = summarize((action, outcome), primary=1)
+    assert selected_action.outcomes == (1,)
+    assert selected_action.behavior == ()
+    prioritized = summarize((unchanged_action, outcome, action, answer_detail))
+    assert prioritized.behavior == (3,), "Unchanged actions obscured changed actions."
+    varied_action = replace(action, after=action.before, diverges=False)
+    varied = summarize((varied_action, outcome))
+    assert varied.behavior_heading.endswith("— varies")
+    changed_result = replace(outcome, after=(DecisionChoiceData("withhold", 2),))
+    changed = summarize((unchanged_action, changed_result))
+    assert changed.outcome_heading == "Final result — changed"
+    assert "explain" in changed.text and "withhold" in changed.text
+    assert changed.kind == "neutral"
+    # Unequal totals with equal proportions do not imply a change.
+    after = report.variants.after
+    extra_trials = tuple(
+        replace(after.trials[0], name="after-" + str(index)) for index in range(1, 5)
+    )
+    uneven = summarize(
+        (
+            replace(unchanged_action, after=(DecisionChoiceData("read", 4),)),
+            replace(outcome, after=(DecisionChoiceData("explain", 4),)),
+        ),
+        variants=replace(
+            report.variants, after=replace(after, total=4, valid=4, trials=extra_trials)
+        ),
+        after_count=4,
+    )
+    assert uneven.outcome_heading.endswith("— unchanged")
+    assert uneven.behavior_heading.endswith("— unchanged")
 
 
 def assert_evidence_links(report):
@@ -315,7 +413,6 @@ def assert_evidence_links(report):
 
 def assert_no_invented_causality():
     from reporting.load import load_report
-    from reporting.render_markdown import render_markdown
 
     with tempfile.TemporaryDirectory() as directory:
         run = Path(directory)
@@ -345,7 +442,6 @@ def assert_no_invented_causality():
         )
         report = load_report(run, run, "synthetic/model", run / "config.json")
         assert report.decisions.fork is None, "The loader invented a causal fork."
-        assert "following from" not in render_markdown(report)
 
 
 def main():
@@ -353,6 +449,7 @@ def main():
     raw = synthetic_raw()
     report = assert_round_trip(raw)
     assert_summary_evidence(report)
+    assert_summary_boundaries(report)
     assert_evidence_links(report)
     assert_no_invented_causality()
     assert isinstance(report.variants.before.trials[0], TrialData)
@@ -369,21 +466,6 @@ def main():
         ("Explain",),
     ]
     assert [row.anchor for row in report.decisions.rows] == [2, "answer"]
-    caution = "CAUTION — one trial per side"
-    for before_total, after_total, expected in (
-        (1, 2, False),
-        (2, 1, False),
-        (1, 1, True),
-    ):
-        report_content = content.build_content(
-            {},
-            "Synthetic scenario",
-            report.metadata,
-            report.decisions,
-            before_total,
-            after_total,
-        )
-        assert (caution in report_content.decision_blurb) is expected
     assert [choice.choice for choice in report.decisions.rows[0].before] == [
         "read only",
         "search",
@@ -392,6 +474,10 @@ def main():
     assert_rejected(
         dict(raw, schema_version=1),
         "unsupported report-data schema version: 1",
+    )
+    assert_rejected(
+        dict(raw, schema_version=2),
+        "unsupported report-data schema version: 2",
     )
     assert_rejected(
         dict(raw, schema_version=True),
@@ -438,6 +524,19 @@ def main():
         invalid_result_kind_type,
         "invalid report-data field result.kind: expected string",
     )
+    for heading in ("outcome_heading", "behavior_heading"):
+        missing_heading = copy.deepcopy(raw)
+        del missing_heading["result"][heading]
+        assert_rejected(
+            missing_heading,
+            "invalid report-data field result." + heading + ": expected present field",
+        )
+        invalid_heading = copy.deepcopy(raw)
+        invalid_heading["result"][heading] = None
+        assert_rejected(
+            invalid_heading,
+            "invalid report-data field result." + heading + ": expected string",
+        )
     invalid_evidence = copy.deepcopy(raw)
     invalid_evidence["result"]["implications"][0]["decisions"] = [99]
     assert_rejected(

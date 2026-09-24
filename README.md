@@ -114,33 +114,43 @@ report.
 
 Each run creates a local HTML report, one file with up to four tabs:
 
-- **Summary** opens first. It starts with the observed result and before/after
-  counts. It then shows the behavior change, scenario, instruction diff, and
-  evidence limits.
+- **Summary** opens first. It states the finding and task, then separates the
+  final result from the agent's behavior. Each comparison has a change status,
+  trial counts, and evidence links. Model explanations and evidence limits follow.
 - **Decision diff** lists the main decisions that changed.
 - **Flow diff** lists the kinds of command each side used. It appears only
   when the run captured tool calls.
 - **Trials result** shows one card per run, before on the left and after on
   the right, with the commands and the final answer from every trial.
 
-Start with the Result. Follow its evidence links to the supporting decisions
-and trial records. The Behavior change section explains the process separately
-from the outcome. The Markdown report uses the same summary order.
+Start with the headline. **Final result** describes what the agent returned.
+**Behavior** compares the actions found in the evidence. The same result can
+come from a different process. Changes in answer wording alone do not establish
+an action change.
 
-The existing extraction call identifies the primary outcome and any supported
-implications. The report labels these explanations as model interpretations.
-A changed outcome is not an automatic success or failure.
+Counts such as **3 of 3 trials** refer to trials, not repeated actions within
+one trial. A model extracts these counts from the evidence. Separate row counts
+do not show a complete sequence within one trial.
 
-Mixed outcomes show their distributions. Missing, blocked, or incomplete
-evidence produces an insufficient-evidence result. Without a primary outcome,
-the report compares answer dimensions instead of guessing the task result.
+The Summary uses short labels. Follow each label to its full comparison in
+Decision diff. Inspect the trial records for the original commands and answers.
+The Markdown report uses the same Summary structure.
+
+The existing extraction call identifies the primary result and possible
+explanations. These explanations are model interpretations, not causal proof.
+A changed result is not an automatic success or failure.
+
+Mixed results show the choices and their trial counts. Missing, blocked, or
+incomplete evidence produces an insufficient-evidence result. Without an
+identified primary result, the report labels its comparisons as reported answers.
+It does not guess the final result.
 
 Expected behavior appears only when supplied. The evidence limits state the
 trial counts, provenance, and grading limits. Self-reported actions remain
 distinct from captured tool calls.
 
-The structured `report-data.json` uses schema version 2. Regenerate reports
-from their run artifacts to use this format.
+The structured `report-data.json` uses schema version 3. Regenerate reports
+from their run artifacts to use this format. Older report-data files are not accepted.
 
 If both sides follow the same path, the task can miss the situation that the
 rule targets. Use a task that starts closer to the decision that you want to
