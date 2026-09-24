@@ -5,6 +5,7 @@ import importlib.util
 import io
 import json
 import os
+import re
 import sys
 import tempfile
 from dataclasses import replace
@@ -19,6 +20,7 @@ from reporting.schema import (  # noqa: E402
     CommandFlowData,
     DecisionChoiceData,
     DecisionRowData,
+    FlowBranchData,
     FlowPathData,
     ReportData,
     TrialData,
@@ -52,7 +54,7 @@ def synthetic_raw():
             "decision_heading": "Decision diff: what each side chose to do",
             "decision_blurb": "Synthetic decision explanation.",
             "tag_legend": [
-                ["root", "first difference", "where before and after split"]
+                ["changed", "Changed", "the extracted choice proportions differ"]
             ],
             "flow_heading": "Flow diff: what kinds of commands each side ran",
             "flow_purpose": "Synthetic flow explanation.",
@@ -384,6 +386,37 @@ def assert_summary_boundaries(report):
     assert uneven.behavior_heading.endswith("— unchanged")
 
 
+def assert_unchanged_scripts(baseline, rendered):
+    class Scripts(HTMLParser):
+        def __init__(self):
+            super().__init__()
+            self.scripts = []
+            self.parts = None
+
+        def handle_starttag(self, tag, attrs):
+            if tag == "script":
+                self.parts = []
+                self.scripts.append((attrs, self.parts))
+
+        def handle_data(self, text):
+            if self.parts is not None:
+                self.parts.append(text)
+
+        def handle_endtag(self, tag):
+            if tag == "script":
+                self.parts = None
+
+    expected = Scripts()
+    expected.feed(baseline)
+    expected.close()
+    actual = Scripts()
+    actual.feed(rendered)
+    actual.close()
+    assert actual.scripts == expected.scripts, (
+        "Report evidence added or altered an executable script."
+    )
+
+
 def assert_evidence_links(report):
     from reporting.render_html import render_artifact
     from reporting.render_markdown import render_markdown
@@ -407,11 +440,26 @@ def assert_evidence_links(report):
     links.feed(page)
     assert set(links.targets) <= links.ids, "An evidence link has no target."
     markdown = render_markdown(report)
-    for index in report.result.outcomes + report.result.behavior:
+    markdown_links = Links()
+    markdown_links.feed(markdown)
+    markdown_links.targets.extend(re.findall(r"\]\(#([^)]+)\)", markdown))
+    assert set(markdown_links.targets) <= markdown_links.ids, (
+        "A Markdown evidence link has no target."
+    )
+    for index in range(1, len(report.decisions.rows) + 1):
         target = f"decision-{index}"
-        assert target in links.targets, "A comparison does not link to its evidence."
-        assert f"](#{target})" in markdown
-        assert f'id="{target}"' in markdown
+        assert target in links.ids, "A comparison has no stable evidence target."
+        assert target in markdown_links.ids
+    if report.metadata.trace_source == "captured":
+        for side, variant in (
+            ("before", report.variants.before),
+            ("after", report.variants.after),
+        ):
+            for trial in variant.trials:
+                target = content.trial_anchor(side, trial.name)
+                assert target in links.targets and target in links.ids
+                assert f"](#{target})" in markdown
+                assert f'id="{target}"' in markdown
 
 
 def assert_no_invented_causality():
@@ -447,6 +495,198 @@ def assert_no_invented_causality():
         assert report.decisions.fork is None, "The loader invented a causal fork."
 
 
+def assert_tab_comparison_boundaries(report):
+    """Different row roles and incomplete evidence must not imply causal links."""
+    action, result = report.decisions.rows
+    detail = replace(result, topic="Answer wording")
+    assert content.decision_role(1, action, 2) == "Action"
+    assert content.decision_role(2, result, 2) == "Final result"
+    assert content.decision_role(3, detail, 2) == "Answer detail"
+    assert content.decision_role(1, action, 1) == "Final result"
+    assert (
+        content.decision_role(1, replace(action, anchor="unknown"), None)
+        == "Comparison"
+    )
+    # Status follows proportions, not a stale extractor flag or absolute totals.
+    assert content.decision_status(replace(action, diverges=False)) == "Changed"
+    assert (
+        content.decision_status(
+            replace(result, after=(DecisionChoiceData("explain", 4),), diverges=True)
+        )
+        == "Unchanged"
+    )
+    assert content.decision_status(replace(result, after=())) == "Unavailable"
+    assert (
+        content.decision_status(replace(result, after=(DecisionChoiceData(" ", 2),)))
+        == "Unavailable"
+    )
+
+    from reporting.render_html import render_artifact
+    from reporting.render_markdown import render_markdown
+
+    independent = replace(
+        report,
+        decisions=replace(
+            report.decisions,
+            rows=(action, replace(result, after=(DecisionChoiceData("hold", 2),))),
+            fork_note="",
+            implications=(),
+        ),
+        result=replace(report.result, implications=()),
+    )
+    for rendered in (
+        render_artifact(independent, ".result { background:__RESULT_BG__; }"),
+        render_markdown(independent),
+    ):
+        assert "possible link" not in rendered.lower(), (
+            "A later difference acquired a causal label without an explanation."
+        )
+
+
+def assert_flow_pattern_boundaries():
+    """Expand compressed groups without losing empty suffixes or counting grades."""
+    flow = CommandFlowData(
+        enabled=True,
+        same=False,
+        kinds=("Read files", "Run tests"),
+        shared=("Read files",),
+        before=FlowBranchData(
+            prefix=(),
+            paths=(FlowPathData((), 1), FlowPathData(("Run tests", "PASS"), 1)),
+            total=2,
+        ),
+        after=FlowBranchData(
+            prefix=(),
+            paths=(
+                FlowPathData((), 2),
+                FlowPathData(("Run tests", "FAIL"), 1),
+                FlowPathData(("Run tests", "PASS"), 1),
+            ),
+            total=4,
+        ),
+    )
+    patterns = content.flow_patterns(flow)
+    assert patterns == ((("Read files",), 1, 2), (("Read files", "Run tests"), 1, 2))
+    assert content.flow_overview(flow, patterns).endswith("— unchanged")
+    changed = replace(flow, after=FlowBranchData(("Run tests", "PASS"), (), 4))
+    assert content.flow_patterns(changed) == (
+        (("Read files",), 1, 0),
+        (("Read files", "Run tests"), 1, 4),
+    )
+    assert content.flow_overview(changed, content.flow_patterns(changed)).endswith(
+        "— changed"
+    )
+    absent = replace(flow, after=FlowBranchData((), (), 0))
+    assert content.flow_patterns(absent) == (
+        (("Read files",), 1, 0),
+        (("Read files", "Run tests"), 1, 0),
+    )
+    assert content.flow_overview(absent, content.flow_patterns(absent)).endswith(
+        "— unavailable"
+    )
+    uncategorized = replace(
+        flow,
+        shared=(),
+        before=FlowBranchData((), (), 2),
+        after=FlowBranchData((), (), 4),
+    )
+    assert content.flow_patterns(uncategorized) == (((), 2, 4),)
+    assert content.flow_overview(
+        uncategorized, content.flow_patterns(uncategorized)
+    ).endswith("— unavailable"), (
+        "No categorized evidence became an unchanged-process claim."
+    )
+    assert content.flow_patterns(replace(flow, enabled=False)) == ()
+
+
+def assert_command_progression_boundaries(report):
+    """Grouping must preserve repeats, order, empty traces, and blocked members."""
+    first = replace(
+        report.variants.before.trials[0],
+        name="before-α<&>",
+        commands=(
+            "cat alpha.py",
+            "cat alpha.py",
+            "printf 'a  b'\n\tprintf '<script>x</script>'",
+        ),
+    )
+    repeated = replace(first, name="before-blocked", verdict="BLOCKED")
+    reordered = replace(
+        first,
+        name="before-reordered",
+        commands=(first.commands[-1], "cat alpha.py", "cat alpha.py"),
+    )
+    empty = replace(first, name="before-empty", commands=())
+    before = replace(
+        report.variants.before,
+        trials=(first, repeated, reordered, empty),
+        total=4,
+        blocked=1,
+        valid=3,
+    )
+    groups = content.command_progressions(before)
+    assert tuple(commands for commands, _ in groups) == (
+        first.commands,
+        reordered.commands,
+        (),
+    ), "Command order, repetition, or empty evidence was lost."
+    assert tuple(trial.name for trial in groups[0][1]) == (
+        "before-α<&>",
+        "before-blocked",
+    ), "Identical recorded paths were not grouped with their original trials."
+    assert groups[0][1][1].verdict == "BLOCKED"
+    assert content.command_progressions(replace(before, trials=(), total=0)) == ()
+
+    from reporting.render_html import render_artifact
+    from reporting.render_markdown import render_markdown
+
+    specimen = replace(report, variants=replace(report.variants, before=before))
+    assert_evidence_links(specimen)
+
+    class ProgressionCommands(HTMLParser):
+        def __init__(self):
+            super().__init__()
+            self.active = False
+            self.parts = None
+            self.commands = []
+
+        def handle_starttag(self, tag, attrs):
+            anchor = dict(attrs).get("id")
+            if anchor in ("flow-progression", "panel-trials"):
+                self.active = anchor == "flow-progression"
+            if tag == "pre" and self.active:
+                self.parts = []
+
+        def handle_data(self, text):
+            if self.parts is not None:
+                self.parts.append(text)
+
+        def handle_endtag(self, tag):
+            if tag == "pre" and self.parts is not None:
+                self.commands.append("".join(self.parts))
+                self.parts = None
+
+    for baseline, rendered in (
+        (
+            render_artifact(report, ".result { background:__RESULT_BG__; }"),
+            render_artifact(specimen, ".result { background:__RESULT_BG__; }"),
+        ),
+        (render_markdown(report), render_markdown(specimen)),
+    ):
+        assert_unchanged_scripts(baseline, rendered)
+        assert "&lt;script&gt;" in rendered, (
+            "Escaping removed recorded command evidence."
+        )
+        commands = ProgressionCommands()
+        commands.feed(rendered)
+        assert commands.commands == list(
+            first.commands
+            + reordered.commands
+            + report.variants.after.trials[0].commands
+            + report.variants.after.trials[1].commands
+        ), "Progression lost command order, repetition, or verbatim whitespace."
+
+
 def assert_gallery_reports():
     """Exercise the same authored cases used by the local gallery through the CLI."""
     expected = {
@@ -459,6 +699,8 @@ def assert_gallery_reports():
         "blocked": ("unavailable", "unavailable"),
         "missing-extraction": ("unavailable", "unavailable"),
         "self-reported": ("changed", "changed"),
+        "flow-changed": ("unchanged", "changed"),
+        "flow-mixed": ("unchanged", "changed"),
     }
     with tempfile.TemporaryDirectory() as directory:
         root = Path(directory)
@@ -489,6 +731,18 @@ def assert_gallery_reports():
                 and index != report.decisions.outcome
                 for index in report.result.behavior
             ), "An answer detail appeared as an action change."
+
+        assert content.flow_patterns(reports["same-result"].command_flow) == (
+            (("Read files",), 3, 3),
+        ), "Different files must not become different command categories."
+        assert content.flow_patterns(reports["flow-changed"].command_flow) == (
+            (("Read files",), 3, 0),
+            (("Read files", "Run tests"), 0, 3),
+        )
+        assert content.flow_patterns(reports["flow-mixed"].command_flow) == (
+            (("Read files",), 3, 1),
+            (("Read files", "Run tests"), 0, 2),
+        ), "The optional-test pattern lost trials or collapsed category combinations."
 
         answer_details = reports["answer-details"]
         assert any(
@@ -546,6 +800,9 @@ def main():
     assert_summary_boundaries(report)
     assert_evidence_links(report)
     assert_no_invented_causality()
+    assert_tab_comparison_boundaries(report)
+    assert_flow_pattern_boundaries()
+    assert_command_progression_boundaries(report)
     assert isinstance(report.variants.before.trials[0], TrialData)
     assert isinstance(report.command_flow, CommandFlowData)
     assert isinstance(report.command_flow.before.paths[0], FlowPathData)
@@ -676,11 +933,17 @@ def main():
     assert document == render_document(artifact)
     escaping_raw = copy.deepcopy(raw)
     escaping_raw["variants"]["before"]["trials"][0]["verdict"] = 'REVIEW"><script>&'
+    escaping_report = ReportData.from_dict(escaping_raw)
     escaping_artifact = render_artifact(
-        ReportData.from_dict(escaping_raw),
-        ".result { background:__RESULT_BG__; }",
+        escaping_report, ".result { background:__RESULT_BG__; }"
     )
-    assert "<script>" not in escaping_artifact
+    from reporting.render_markdown import render_markdown
+
+    for baseline, rendered in (
+        (artifact, escaping_artifact),
+        (render_markdown(report), render_markdown(escaping_report)),
+    ):
+        assert_unchanged_scripts(baseline, rendered)
     assert 'class="badge review&quot;&gt;&lt;script&gt;&amp;"' in escaping_artifact
     assert "REVIEW&quot;&gt;&lt;script&gt;&amp;</span>" in escaping_artifact
     unsafe_summary = copy.deepcopy(raw)
@@ -689,13 +952,17 @@ def main():
     unsafe_summary["result"]["implications"][0]["text"] = payload
     unsafe_summary["decisions"]["rows"][1]["after"][0]["choice"] = payload
     unsafe_report = ReportData.from_dict(unsafe_summary)
-    from reporting.render_markdown import render_markdown
-
-    for rendered in (
-        render_artifact(unsafe_report, ".result { background:__RESULT_BG__; }"),
-        render_markdown(unsafe_report),
+    for baseline, rendered in (
+        (
+            artifact,
+            render_artifact(unsafe_report, ".result { background:__RESULT_BG__; }"),
+        ),
+        (render_markdown(report), render_markdown(unsafe_report)),
     ):
-        assert "<script>" not in rendered
+        assert_unchanged_scripts(baseline, rendered)
+        assert "&lt;script&gt;" in rendered, (
+            "Escaping removed summary or choice evidence."
+        )
     assert "](javascript:" not in render_markdown(unsafe_report)
 
     if len(sys.argv) == 2:

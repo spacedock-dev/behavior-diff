@@ -43,7 +43,7 @@ def _trial_card(trial, self_reported: bool, mode: str, side: str) -> str:
         "" if trial.actions == "-" else f'<p class="acts">{escaped(trial.actions)}</p>'
     )
     return (
-        f'<article class="trial" id="trial-{side}-{trial.name.encode("utf-8").hex()}" tabindex="-1">'
+        f'<article class="trial" id="{escaped(content.trial_anchor(side, trial.name))}" tabindex="-1">'
         f'<p class="trial-head"><strong>{escaped(trial.name)}</strong>'
         f'<span class="badge {verdict_class}">{escaped(trial.verdict)}</span></p>{actions}'
         f"<details {'open' if mode == 'review' else ''}>"
@@ -55,88 +55,160 @@ def _trial_card(trial, self_reported: bool, mode: str, side: str) -> str:
     )
 
 
-_NO_EXTRA_STEPS = '<p class="fnote">(no other kind of command)</p>'
-
-
-def _lane(steps, css_class: str) -> str:
-    # No arrows between steps: the order here is the report's fixed listing
-    # order, not the order the agent ran the commands in.
-    return "".join(
-        f'<div class="fstep {css_class}"><span>{html.escape(step)}</span></div>'
-        for step in steps
-    )
-
-
-def _branch_html(prefix, paths, total: int, css_class: str) -> str:
-    rendered = ""
-    if not paths:
-        body = (
-            _lane(prefix, css_class)
-            or '<p class="fnote">(same command kinds as the shared comparison)</p>'
-        )
-        return (
-            f'<div class="fbranch"><p class="fpath-head">'
-            f"{content.trial_count(total, total)}</p>{body}</div>"
-        )
-    if prefix:
-        rendered += (
-            f'<p class="fpath-head">{content.trial_count(total, total)}</p>'
-            + _lane(prefix, css_class)
-        )
-    rendered += f'<div class="fsplit">{len(paths)} groups of trials</div>'
-    lanes = "".join(
-        f'<div class="fpath"><p class="fpath-head">{content.trial_count(path.count, total)}</p>'
-        f"{_lane(path.steps, css_class) or _NO_EXTRA_STEPS}</div>"
-        for path in paths
-    )
-    rendered += (
-        f'<div class="fpaths" style="grid-template-columns:repeat({len(paths)},1fr)">'
-        f"{lanes}</div>"
-    )
-    return f'<div class="fbranch">{rendered}</div>'
-
-
-def _decision_choices(choices, total: int, css_class: str) -> str:
+def _decision_choices(choices, total: int) -> str:
     lines = []
     for choice in choices:
-        count = (
-            f' <span class="fcount">{content.trial_count(choice.count, total)}</span>'
-        )
+        count = f'<span class="choice-count">{content.trial_count(choice.count, total)}</span>'
         lines.append(f'<div class="dline">{html.escape(choice.choice)}{count}</div>')
-    return f'<div class="fstep {css_class} dcell">' + ("".join(lines) or "—") + "</div>"
+    return "".join(lines) or "—"
 
 
-def _decision_label(
-    index: int, row, fork: int | None, trace_source: str, labels
-) -> str:
-    if index == fork:
-        tags = f'<span class="dtag">{html.escape(labels["root"])}</span>'
-    elif not row.diverges:
-        tags = f'<span class="dtag dtag-same">{html.escape(labels["same"])}</span>'
-    elif fork and index > fork:
-        tags = f'<span class="dtag dtag-down">{html.escape(labels["down"])}</span>'
-    else:
-        tags = ""
-    tags += (
-        f'<span class="dtag dtag-src">'
-        f"{content.source_label(row.anchor, trace_source)}</span>"
-    )
-    # The question is what the reader scans; the topic only renames it.
-    title = row.decision or row.topic
-    note = f'<span class="dnote">{html.escape(row.note)}</span>' if row.note else ""
+def _decision_progression(report) -> str:
+    decisions = report.decisions
+    nodes = []
+    for index, row in enumerate(decisions.rows, 1):
+        status = content.decision_status(row)
+        role = content.decision_role(index, row, decisions.outcome)
+        title = row.topic.strip() or row.decision
+        source = content.source_label(row.anchor, report.metadata.trace_source)
+        final_class = " progression-final" if index == decisions.outcome else ""
+        preview = ""
+        if status == "Changed" or index == decisions.outcome:
+            preview = (
+                '<span class="progression-preview">'
+                + "".join(
+                    f'<span><span class="preview-label">{label}</span>'
+                    f"{html.escape(content.decision_choices_preview(choices, total))}</span>"
+                    for label, choices, total in (
+                        ("Before", row.before, decisions.before_count),
+                        ("After", row.after, decisions.after_count),
+                    )
+                )
+                + "</span>"
+            )
+        question = (
+            f'<p class="decision-question">{html.escape(row.decision)}</p>'
+            if row.decision and row.decision != title
+            else ""
+        )
+        note = f'<p class="dnote">{html.escape(row.note)}</p>' if row.note else ""
+        nodes.append(
+            f'<li><details class="decision-row decision-{status.lower()}{final_class}" '
+            f'id="decision-{index}">'
+            '<summary class="decision-node">'
+            f'<span class="progression-number">{index}</span>'
+            '<span class="progression-heading">'
+            f'<span class="progression-topic">{html.escape(title)}</span>'
+            f'<strong class="decision-status">{html.escape(status)}</strong>'
+            f'<span class="progression-role">{html.escape(role)}</span></span>'
+            '<span class="decision-disclosure"><span class="hint-show">Show evidence</span>'
+            f'<span class="hint-hide">Hide evidence</span>{_CHEVRON}</span>'
+            f"{preview}</summary>"
+            f'<div class="decision-evidence">{question}'
+            f'<p class="decision-meta">{html.escape(source)}</p>'
+            '<table class="comparison decision-comparison">'
+            f'<caption class="visually-hidden">Decision {index}: {html.escape(title)}</caption>'
+            '<thead><tr><th scope="col">Before</th>'
+            '<th scope="col">After</th></tr></thead><tbody><tr>'
+            f"<td>{_decision_choices(row.before, decisions.before_count)}</td>"
+            f"<td>{_decision_choices(row.after, decisions.after_count)}</td>"
+            f"</tr></tbody></table>{note}"
+            '<a class="decision-evidence-link" href="#panel-trials">Inspect trial evidence</a>'
+            "</div></details></li>"
+        )
     return (
-        f'<p class="dq dspan" id="decision-{index}" tabindex="-1">'
-        f"{index} · {html.escape(title)}{tags}{note}</p>"
+        '<section class="progression" id="decision-progression" tabindex="-1" aria-labelledby="decision-progression-heading">'
+        '<div class="decision-toolbar">'
+        '<h2 class="comparison-heading" id="decision-progression-heading">Decision comparisons</h2>'
+        '<button type="button" class="decision-toggle" id="decision-toggle" aria-controls="decision-list" hidden>Expand all</button></div>'
+        f'<p class="note" id="decision-progression-note">{html.escape(content.DECISION_PROGRESSION_NOTE)}</p>'
+        f'<p class="note">{html.escape(content.TRIAL_COUNT_NOTE)}</p>'
+        '<ol class="decision-path" id="decision-list" role="list" aria-describedby="decision-progression-note">'
+        f"{''.join(nodes)}</ol></section>"
     )
 
 
-_TAG_CLASS = {
-    "root": "dtag",
-    "down": "dtag dtag-down",
-    "same": "dtag dtag-same",
-    "cmd": "dtag dtag-src",
-    "ans": "dtag dtag-src",
-}
+_DECISION_INTERACTIONS = """<script>
+(() => {
+  const list = document.getElementById("decision-list");
+  const button = document.getElementById("decision-toggle");
+  const rows = [...list.querySelectorAll(".decision-row")];
+  const updateButton = () => {
+    button.textContent = rows.every(row => row.open) ? "Collapse all" : "Expand all";
+  };
+  button.hidden = false;
+  button.addEventListener("click", () => {
+    const expand = !rows.every(row => row.open);
+    rows.forEach(row => { row.open = expand; });
+    updateButton();
+  });
+  list.addEventListener("toggle", updateButton, true);
+  const openLinkedDecision = () => {
+    const row = document.getElementById(location.hash.slice(1));
+    if (!row || !row.matches(".decision-row")) return;
+    row.open = true;
+    row.querySelector("summary").focus({preventScroll: true});
+    row.scrollIntoView({block: "start"});
+    updateButton();
+  };
+  window.addEventListener("hashchange", openLinkedDecision);
+  document.addEventListener("click", event => {
+    if (event.defaultPrevented || event.button !== 0 ||
+        event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+    const link = event.target.closest('a[href^="#decision-"]');
+    if (link && link.getAttribute("href") === location.hash) openLinkedDecision();
+  });
+  openLinkedDecision();
+  let printState = null;
+  window.addEventListener("beforeprint", () => {
+    if (printState !== null) return;
+    printState = [...document.querySelectorAll("details")].map(row => [row, row.open]);
+    printState.forEach(([row]) => { row.open = true; });
+  });
+  window.addEventListener("afterprint", () => {
+    if (printState === null) return;
+    printState.forEach(([row, open]) => { row.open = open; });
+    printState = null;
+    updateButton();
+  });
+})();
+</script>"""
+
+
+def _flow_lane(variant, side: str, label: str) -> str:
+    paths = []
+    for index, (commands, members) in enumerate(
+        content.command_progressions(variant), 1
+    ):
+        evidence = "".join(
+            f'<li><a href="#{html.escape(content.trial_anchor(side, trial.name))}">'
+            f"{html.escape(trial.name)}"
+            f' <span class="progression-verdict">({html.escape(trial.verdict)})</span></a></li>'
+            for trial in members
+        )
+        steps = "".join(
+            '<li class="command-step">'
+            f'<span class="progression-number">{step}</span>'
+            f"<pre><code>{html.escape(command)}</code></pre></li>"
+            for step, command in enumerate(commands, 1)
+        )
+        sequence = (
+            f'<ol class="command-path" role="list" aria-label="Recorded command order">{steps}</ol>'
+            if commands
+            else '<p class="note">No commands recorded</p>'
+        )
+        paths.append(
+            '<article class="command-group">'
+            f'<h4>Path {index} <span class="path-count">'
+            f"{html.escape(content.trial_count(len(members), variant.total))}</span></h4>"
+            f'<ul class="path-evidence" aria-label="Trial evidence">{evidence}</ul>'
+            f"{sequence}</article>"
+        )
+    body = "".join(paths) or '<p class="note">No trials</p>'
+    return (
+        f'<section class="flow-lane" aria-labelledby="flow-{side}-heading">'
+        f'<h3 id="flow-{side}-heading">{html.escape(label)}</h3>{body}</section>'
+    )
 
 
 def _comparison_table(report: ReportData, indexes, column: str, count_note: str) -> str:
@@ -150,8 +222,8 @@ def _comparison_table(report: ReportData, indexes, column: str, count_note: str)
             f'<tr><th scope="row"><a href="#decision-{index}">'
             f"{html.escape(row.topic.strip() or row.decision)}</a>"
             f'<span class="dnote">{html.escape(source)}</span></th>'
-            f"<td>{_decision_choices(row.before, report.decisions.before_count, '')}</td>"
-            f"<td>{_decision_choices(row.after, report.decisions.after_count, '')}</td></tr>"
+            f"<td>{_decision_choices(row.before, report.decisions.before_count)}</td>"
+            f"<td>{_decision_choices(row.after, report.decisions.after_count)}</td></tr>"
         )
     return (
         '<div class="comparison-wrap"><table class="comparison">'
@@ -170,9 +242,9 @@ def _decision_links(indexes) -> str:
 
 def _tag_legend(legend) -> str:
     items = "".join(
-        f'<span><span class="{_TAG_CLASS[kind]} dtag-key">{html.escape(label)}</span>'
+        f'<span><span class="decision-tag">{html.escape(label)}</span>'
         f"{html.escape(meaning)}</span>"
-        for kind, label, meaning in legend
+        for _, label, meaning in legend
     )
     return f'<div class="legend">{items}</div>'
 
@@ -245,10 +317,6 @@ def render_artifact(report: ReportData, css: str) -> str:
     before = report.variants.before
     after = report.variants.after
     flow = report.command_flow
-    before_total = flow.before.total
-    after_total = flow.after.total
-    decision_before_total = report.decisions.before_count
-    decision_after_total = report.decisions.after_count
 
     before_note = f'<span class="col-note">{escaped(before.note)}</span>'
     after_note = f'<span class="col-note">{escaped(after.note)}</span>'
@@ -287,84 +355,102 @@ def render_artifact(report: ReportData, css: str) -> str:
         f'<span class="{_diff_line_class(line)}">{escaped(line)}</span>\n'
         for line in report.rule_diff.rstrip().splitlines()
     )
-    shared_html = "".join(
-        f'<div class="fstep shared"><span>{escaped(step)}</span>'
-        f'<span class="fcount">before {content.trial_count(before_total, before_total)}'
-        f" · after {content.trial_count(after_total, after_total)}</span></div>"
-        for step in flow.shared
-    )
-    if flow.same:
-        flow_html = (
-            f'<div class="flow">{shared_html}'
-            f'<p class="fnote">Both sides used the same kinds of command. '
-            f"The kinds are coarse, so the actual work can still differ: "
-            f"see the decision diff and the trial cards.</p></div>"
-        )
-    else:
-        flow_html = (
-            f'<div class="flow">{shared_html}'
-            f'<div class="fork-label">kinds used on only one side</div>'
-            f'<div class="fork">'
-            f'<div><p class="fork-side">BEFORE</p>'
-            f"{_branch_html(flow.before.prefix, flow.before.paths, before_total, 'b')}</div>"
-            f'<div><p class="fork-side">AFTER</p>'
-            f"{_branch_html(flow.after.prefix, flow.after.paths, after_total, 'a')}</div>"
-            f"</div></div>"
-        )
 
     decisions_html = ""
     if report.decisions.rows:
-        fork = report.decisions.fork
-        labels = {
-            kind: label for kind, label, _ in content.tag_legend(metadata.trace_source)
-        }
-        parts = ['<div class="dgrid">']
-        for index, row in enumerate(report.decisions.rows, 1):
-            parts.append(
-                _decision_label(index, row, fork, metadata.trace_source, labels)
-            )
-            parts.append(
-                '<div><p class="fork-side">Before</p>'
-                + _decision_choices(row.before, decision_before_total, "b")
-                + "</div>"
-            )
-            parts.append(
-                '<div><p class="fork-side">After</p>'
-                + _decision_choices(row.after, decision_after_total, "a")
-                + "</div>"
-            )
-        parts.append("</div>")
-        footer = content.decision_footer(report.decisions.rows, fork)
-        if report.decisions.dropped:
-            footer += " " + content.dropped_rows(report.decisions.dropped)
+        decisions = report.decisions
+        footer = content.decision_footer(decisions.rows)
+        if decisions.dropped:
+            footer += " " + content.dropped_rows(decisions.dropped)
         explanation = ""
-        if report.decisions.fork_note:
+        if decisions.implications or decisions.fork_note:
             explanation = (
                 '<div class="interpretation"><h3>Model explanations</h3>'
-                f'<p class="interpretation-note">{escaped(content.INTERPRETATION_NOTE)}</p>'
-                f"<p>{escaped(report.decisions.fork_note)}</p></div>"
+                f'<p class="interpretation-note">{escaped(content.INTERPRETATION_NOTE)}</p><ul>'
             )
+            explanation += "".join(
+                f"<li>{escaped(claim.text)}"
+                f'<span class="evidence-links">{_decision_links(claim.decisions)}</span></li>'
+                for claim in decisions.implications
+            )
+            if decisions.fork_note:
+                fork_link = _decision_links((decisions.fork,)) if decisions.fork else ""
+                explanation += (
+                    f"<li>{escaped(decisions.fork_note)}"
+                    f'<span class="evidence-links">{fork_link}</span></li>'
+                )
+            explanation += "</ul></div>"
+        limitation = (
+            f'<p class="note">{escaped(content.SELF_REPORTED_LIMIT)}</p>'
+            if self_reported
+            else ""
+        )
         decisions_html = (
             f'<div class="section-label">{escaped(report_content.decision_heading)}'
-            f"{_info('pop-decision', 'What the tags on each decision mean', _tag_legend(report_content.tag_legend))}</div>"
+            f"{_info('pop-decision', 'Decision labels', _tag_legend(report_content.tag_legend))}</div>"
+            f'<p class="tab-overview">{escaped(content.decision_overview(report))}</p>'
             f'<p class="sub">{escaped(report_content.decision_blurb)}</p>'
-            f'<p class="note">{escaped(content.TRIAL_COUNT_NOTE)}</p>'
-            f'<div class="flow">{"".join(parts)}</div>'
-            f'<p class="fnote dfoot">{escaped(footer)}</p>' + explanation
+            f"{limitation}"
+            f"{_decision_progression(report)}"
+            f'<p class="note">{escaped(footer)}</p>{explanation}'
+            '<nav class="evidence-nav" aria-label="Decision evidence">'
+            '<a href="#panel-trials">Inspect trial evidence</a></nav>'
         )
 
     flow_section = ""
     if not self_reported:
+        patterns = content.flow_patterns(flow)
+        pattern_rows = []
+        for steps, before_count, after_count in patterns:
+            label = ", ".join(steps) or "No categorized commands"
+            before_count_text = (
+                content.trial_count(before_count, flow.before.total)
+                if flow.before.total
+                else "No trials"
+            )
+            after_count_text = (
+                content.trial_count(after_count, flow.after.total)
+                if flow.after.total
+                else "No trials"
+            )
+            pattern_rows.append(
+                f'<tr><th scope="row">{escaped(label)}</th>'
+                f"<td>{escaped(before_count_text)}</td>"
+                f"<td>{escaped(after_count_text)}</td></tr>"
+            )
+        flow_html = (
+            '<div class="comparison-wrap"><table class="comparison">'
+            f"<caption>{escaped(content.FLOW_COUNT_NOTE)}</caption>"
+            '<thead><tr><th scope="col">Command-category combination</th>'
+            '<th scope="col">Before</th><th scope="col">After</th></tr></thead>'
+            f"<tbody>{''.join(pattern_rows)}</tbody></table></div>"
+            if patterns
+            else '<p class="note">No recorded command-category combinations are available.</p>'
+        )
         kinds_html = (
             '<ul class="kinds">'
             + "".join(f"<li>{escaped(kind)}</li>" for kind in flow.kinds)
             + "</ul>"
         )
+        flow_links = (
+            '<a href="#panel-decision">Compare decisions</a>'
+            if report.decisions.rows
+            else ""
+        )
         flow_section = (
-            f'<div class="section-label">{escaped(content.flow_fold_summary())}'
+            f'<div class="section-label">{escaped(report_content.flow_heading)}'
             f"{_info('pop-flow', content.flow_kinds_heading(flow.kinds).rstrip(':'), kinds_html)}</div>"
-            + f'<p class="sub">{escaped(report_content.flow_purpose)}</p>'
-            + flow_html
+            '<section class="progression" id="flow-progression" tabindex="-1" aria-labelledby="flow-progression-heading">'
+            '<h2 class="comparison-heading" id="flow-progression-heading">Flow progression</h2>'
+            f'<p class="note">{escaped(content.FLOW_PROGRESSION_NOTE)}</p>'
+            '<div class="flow-lanes">'
+            f"{_flow_lane(before, 'before', 'Before')}"
+            f"{_flow_lane(after, 'after', 'After')}</div></section>"
+            '<h2 class="comparison-heading">Command-category comparison</h2>'
+            f'<p class="tab-overview">{escaped(content.flow_overview(flow, patterns))}</p>'
+            f'<p class="sub">{escaped(report_content.flow_purpose)}</p>{flow_html}'
+            '<nav class="evidence-nav" aria-label="Command evidence">'
+            f'{flow_links}<a href="#panel-trials">Inspect trial evidence</a></nav>'
         )
 
     expected_html = (
@@ -479,6 +565,7 @@ def render_artifact(report: ReportData, css: str) -> str:
 {note_html}
 
 {_tabs(tabs)}
+{_DECISION_INTERACTIONS if decisions_html else ""}
 
 <p class="footer">Simulation evidence from Behavior Diff
 (model: {escaped(metadata.model)}, before: {before.total} trial(s), after: {after.total} trial(s)).</p>

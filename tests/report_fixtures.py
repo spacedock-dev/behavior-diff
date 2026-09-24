@@ -66,6 +66,16 @@ SCENARIOS = (
         "Self-reported review evidence",
         "Reported invoice-review actions change without independent tool capture.",
     ),
+    Scenario(
+        "flow-changed",
+        "Every review adds a test run",
+        "All after trials run the availability tests; the review verdict stays the same.",
+    ),
+    Scenario(
+        "flow-mixed",
+        "Some reviews add an optional test",
+        "Two after trials run optional availability tests; all review verdicts agree.",
+    ),
 )
 
 
@@ -618,8 +628,123 @@ def _missing_primary(run, scenario):
     )
 
 
+def _availability_review(run, scenario):
+    task = (
+        "Synthetic task: Review available_units in the fictional Cedar Stock "
+        "project. For non-negative integer stock and reserved quantities, check "
+        "that it subtracts reservations and never returns a negative quantity. "
+        "Return APPROVE or HOLD with your evidence. Do not edit project files."
+    )
+    baseline = (
+        "# Synthetic project instructions\n\n"
+        "Read availability.py and review available_units for the requested behavior.\n"
+        "Return APPROVE if the implementation meets both requirements; otherwise HOLD.\n"
+        "Describe the evidence you used. Do not edit project files.\n"
+    )
+    command = "python3 -m unittest tests.test_availability"
+    edited = baseline + (
+        f"Before returning your review, run `{command}` and report its result.\n"
+        if scenario.name == "flow-changed"
+        else (
+            f"You may optionally run `{command}` to supplement source inspection.\n"
+            "Either a source-only review or a source-and-test review is permitted. "
+            "State whether you ran the tests.\n"
+        )
+    )
+    rules = {"before": baseline, "after": edited}
+    files = {
+        "availability.py": (
+            '"""Synthetic Cedar Stock availability calculation."""\n\n'
+            "def available_units(stock, reserved):\n"
+            "    return max(stock - reserved, 0)\n"
+        ),
+        "tests/__init__.py": '"""Synthetic Cedar Stock checks."""\n',
+        "tests/test_availability.py": (
+            '"""Authored synthetic checks for Cedar Stock."""\n\n'
+            "import unittest\n\n"
+            "from availability import available_units\n\n\n"
+            "class AvailabilityTests(unittest.TestCase):\n"
+            "    def test_subtracts_reservations(self):\n"
+            "        self.assertEqual(available_units(8, 3), 5)\n\n"
+            "    def test_exact_reservation(self):\n"
+            "        self.assertEqual(available_units(8, 8), 0)\n\n"
+            "    def test_excess_reservation(self):\n"
+            "        self.assertEqual(available_units(8, 10), 0)\n"
+        ),
+    }
+    trials = {"before": [], "after": []}
+    for side in trials:
+        for number in range(1, 4):
+            run_tests = side == "after" and (
+                scenario.name == "flow-changed" or number < 3
+            )
+            actions = [
+                ("cat AGENTS.md", rules[side]),
+                ("cat availability.py", files["availability.py"]),
+            ]
+            if run_tests:
+                actions.append(
+                    (
+                        command,
+                        "...\n"
+                        "----------------------------------------------------------------------\n"
+                        "Ran 3 tests in 0.001s\n\n"
+                        "OK\n",
+                    )
+                )
+            final = (
+                "APPROVE: available_units subtracts reserved from stock and clamps "
+                "the result at zero, so it meets both requirements for non-negative "
+                "integer inputs. "
+                + (
+                    "I also ran python3 -m unittest tests.test_availability: "
+                    "all 3 tests passed."
+                    if run_tests
+                    else "This verdict is based on source inspection; I did not run tests."
+                )
+            )
+            trials[side].append(
+                _Trial(
+                    actions=tuple(actions),
+                    final=final,
+                    choices={
+                        "Source inspection": "Read availability.py",
+                        "Test execution": (
+                            "Ran availability tests: 3 passed"
+                            if run_tests
+                            else "Did not run tests"
+                        ),
+                        "Review verdict": "APPROVE",
+                    },
+                )
+            )
+    _write_sources(run, scenario, task, rules, files, trials)
+    rows = [
+        _row("Source inspection", "Which implementation was inspected?", 2, trials),
+        _row("Test execution", "Were the availability tests run?", 3, trials),
+        _row("Review verdict", "What review verdict was returned?", "answer", trials),
+    ]
+    _write_extraction(
+        run,
+        rows,
+        primary="Review verdict",
+        fork="Test execution",
+        fork_note=(
+            "The added test runs support the source-based assessment; the final "
+            "review verdict remains APPROVE in every trial."
+        ),
+        claims=(
+            (
+                "The observed test runs add execution evidence without changing "
+                "the review verdict.",
+                ("Test execution", "Review verdict"),
+            ),
+        ),
+    )
+
+
 def build_reports(root: Path) -> None:
-    """Build all nine reports beneath an existing, empty directory.
+    """Build all catalog reports beneath an existing, empty directory.
 
     Existing content is never replaced. Ingest and render failures propagate to
     the caller with their captured output; there is no fallback report path.
@@ -642,6 +767,8 @@ def build_reports(root: Path) -> None:
             _pr_description(run, scenario)
         elif scenario.name == "missing-primary":
             _missing_primary(run, scenario)
+        elif scenario.name in {"flow-changed", "flow-mixed"}:
+            _availability_review(run, scenario)
         else:
             _invoice_review(run, scenario)
         if scenario.name != "missing-extraction":
