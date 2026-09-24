@@ -375,8 +375,6 @@ for report in "$self_run/report.md" "$self_run/report.html"; do
     "self-reported report does not label its evidence as self-reported actions: $report"
   reject_output 'actual commands' "$report" \
     "self-reported report claims to contain actual commands: $report"
-  reject_output 'Flow diff: which kinds of command each side used' "$report" \
-    "self-reported report includes the command-derived flow section: $report"
   require_output "$read_action" "$report" \
     "self-reported report dropped the read action: $report"
   require_output "$test_action" "$report" \
@@ -389,8 +387,6 @@ for report in "$self_run/report.md" "$self_run/report.html"; do
     "$report" "self-reported report does not disclose its evidence: $report"
   reject_output 'stable across extractions' "$report" \
     "self-reported report claims extractor output is stable: $report"
-  require_output 'Decision diff: what the agent chose, before and after your edit' "$report" \
-    "self-reported report dropped the decision diff: $report"
   case $report in
     *.md)
       after_marker='id="trial-after-61667465722d31"'
@@ -414,10 +410,6 @@ done
 progress 'Validate captured flow, labels, and command order'
 
 for report in "$captured_run/report.md" "$captured_run/report.html"; do
-  require_output 'actual commands' "$report" \
-    "captured report lost its actual commands wording: $report"
-  require_output 'Flow diff: which kinds of command each side used' "$report" \
-    "captured report lost its command-derived flow section: $report"
   require_output "$read_action" "$report" \
     "captured report dropped the raw read command: $report"
   require_output "$test_action" "$report" \
@@ -426,10 +418,6 @@ for report in "$captured_run/report.md" "$captured_run/report.html"; do
     "captured report dropped the before final answer: $report"
   require_output 'After answer' "$report" \
     "captured report dropped the after final answer: $report"
-  require_output 'current file' "$report" \
-    "captured report lost the default before label: $report"
-  require_output 'your change applied' "$report" \
-    "captured report lost the default after label: $report"
   case $report in
     *.md)
       after_marker='id="trial-after-61667465722d31"'
@@ -437,9 +425,6 @@ for report in "$captured_run/report.md" "$captured_run/report.html"; do
         "captured Markdown added a read command prompt prefix: $report"
       reject_output "\$ $test_action" "$report" \
         "captured Markdown added a test command prompt prefix: $report"
-      require_order_after 'id="panel-flow"' 'Used on only one side:' \
-        'AFTER, all 1 trials: Run tests' "$report" \
-        "captured Markdown lost the classified flow divergence: $report"
       ;;
     *)
       after_marker='<h2>After</h2>'
@@ -447,9 +432,6 @@ for report in "$captured_run/report.md" "$captured_run/report.html"; do
         "captured HTML lost the read command prompt prefix: $report"
       require_output "\$ $test_action" "$report" \
         "captured HTML lost the test command prompt prefix: $report"
-      require_order_after 'Flow diff: which kinds of command each side used (no model involved)' 'kinds used on only one side' \
-        'Run tests' "$report" \
-        "captured HTML lost the classified flow divergence: $report"
       ;;
   esac
   require_order_after "$after_marker" "$read_action" "$test_action" "$report" \

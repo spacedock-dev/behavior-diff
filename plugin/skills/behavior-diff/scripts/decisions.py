@@ -71,7 +71,7 @@ SOURCE_TERMS = {
 
 SCHEMA = """{{
   "chain": [
-    {{"topic": "<2-4 plain words naming the axis>",
+    {{"topic": "<2-4 plain words naming the observed result or behavior>",
      "decision": "<the choice available, phrased as a question>",
      "anchor": <earliest $N {schema_noun} number where it shows, or "answer">,
      "before": [{{"choice": "<branch taken>", "n": <trials>}}],
@@ -80,7 +80,7 @@ SCHEMA = """{{
      "note": "<optional: one short clause, only if worth saying>"}}
   ],
   "fork": <1-based index into chain of the FIRST divergence, or null>,
-  "fork_note": "<one sentence: what that first divergence causes downstream, or null>",
+  "fork_note": "<one possible explanation linking the first difference to later differences, or null>",
   "outcome": <1-based index of the primary task outcome in chain, or null>,
   "implications": [
     {{"text": "<one supported practical implication or risk>",
@@ -119,12 +119,16 @@ Rules:
   Counts per variant must sum to that variant's trial count.
 - Phrase each "decision" as the open question, neutrally, so it reads the same
   for both sides: "How is correctness established?" not "Did it compile?".
-- "topic" is the 2-4 word name of that axis for scanning: "Correctness check",
-  "Verdict shape", "Audience". Plain words, no question mark.
-- Keep "choice" under about 60 characters. Concrete, plain words.
+- "topic" is a short observation label for a comparison table: "Review verdict",
+  "Records inspected", "Payment-history check", or another label supported by
+  this task. Use 2-4 plain words, not a question or an instruction.
+- Keep "choice" under about 60 characters. Describe what happened, not what the
+  agent should do. Do not imply intent, concealment, or skipped work without evidence.
 - 6 to 10 decisions. Drop anything trivial.
-- "fork" is the first diverging decision — the one that best explains the
-  later divergences, if any of them follow from it.
+- "fork" is the first diverging decision that can help explain later differences.
+  Use null if the evidence supports no such link. Order alone does not prove a link.
+- "fork_note" is a possible model explanation, not a proven cause. Use cautious
+  language such as "can explain" rather than "determines" or "causes".
 - Set "outcome" to the decision that records the task's primary result, not its
   process or wording. It can have a numbered anchor or an answer anchor.
   If the evidence does not establish a primary result, use null.

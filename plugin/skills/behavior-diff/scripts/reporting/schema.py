@@ -4,7 +4,7 @@ import json
 from dataclasses import asdict, dataclass
 from typing import Dict, Optional, Tuple, Union
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 RESULT_KINDS = ("good", "bad", "neutral")
 
 
@@ -114,7 +114,6 @@ class ContentData:
     subtitle: str
     meta: Tuple[Tuple[str, str], ...]
     note: str
-    behavior_heading: str
     limits_heading: str
     scenario_heading: str
     scenario: str
@@ -135,6 +134,8 @@ class ResultData:
     text: str
     kind: str
     summary: str
+    outcome_heading: str
+    behavior_heading: str
     outcomes: Tuple[int, ...]
     behavior: Tuple[int, ...]
     implications: Tuple[EvidenceClaimData, ...]
@@ -215,11 +216,8 @@ def _content(value, path):
     return ContentData(
         title=_expect_str(_field(value, "title", path), path + ".title"),
         subtitle=_expect_str(_field(value, "subtitle", path), path + ".subtitle"),
-        meta=_optional_rows(value, "meta", path, 2),
-        note=_optional_str(value, "note", path),
-        behavior_heading=_expect_str(
-            _field(value, "behavior_heading", path), path + ".behavior_heading"
-        ),
+        meta=_row_tuple(_field(value, "meta", path), path + ".meta", 2),
+        note=_expect_str(_field(value, "note", path), path + ".note"),
         limits_heading=_expect_str(
             _field(value, "limits_heading", path), path + ".limits_heading"
         ),
@@ -242,11 +240,15 @@ def _content(value, path):
         decision_blurb=_expect_str(
             _field(value, "decision_blurb", path), path + ".decision_blurb"
         ),
-        tag_legend=_optional_rows(value, "tag_legend", path, 3),
+        tag_legend=_row_tuple(
+            _field(value, "tag_legend", path), path + ".tag_legend", 3
+        ),
         flow_heading=_expect_str(
             _field(value, "flow_heading", path), path + ".flow_heading"
         ),
-        flow_purpose=_optional_str(value, "flow_purpose", path),
+        flow_purpose=_expect_str(
+            _field(value, "flow_purpose", path), path + ".flow_purpose"
+        ),
         result_heading=_expect_str(
             _field(value, "result_heading", path), path + ".result_heading"
         ),
@@ -263,6 +265,12 @@ def _result(value, path, row_count):
         text=_expect_str(_field(value, "text", path), path + ".text"),
         kind=kind,
         summary=_expect_str(_field(value, "summary", path), path + ".summary"),
+        outcome_heading=_expect_str(
+            _field(value, "outcome_heading", path), path + ".outcome_heading"
+        ),
+        behavior_heading=_expect_str(
+            _field(value, "behavior_heading", path), path + ".behavior_heading"
+        ),
         outcomes=_references(
             _field(value, "outcomes", path), path + ".outcomes", row_count
         ),
@@ -503,20 +511,6 @@ def _expect_anchor(value, path):
     if type(value) is int or type(value) is str:
         return value
     _invalid(path, "integer or string")
-
-
-def _optional_str(value, name, path):
-    """A field added after schema version 1: absent means empty."""
-    if value.get(name) is None:
-        return ""
-    return _expect_str(value[name], path + "." + name)
-
-
-def _optional_rows(value, name, path, width):
-    """A field added after schema version 1: absent means no rows."""
-    if value.get(name) is None:
-        return ()
-    return _row_tuple(value[name], path + "." + name, width)
 
 
 def _row_tuple(value, path, width):

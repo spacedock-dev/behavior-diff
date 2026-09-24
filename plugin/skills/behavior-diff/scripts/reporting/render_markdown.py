@@ -17,7 +17,8 @@ def _text(value: str) -> str:
 def _choices(choices, total: int) -> str:
     return (
         " · ".join(
-            f"{_text(choice.choice)} ({choice.count}/{total})" for choice in choices
+            f"{_text(choice.choice)} ({content.trial_count(choice.count, total)})"
+            for choice in choices
         )
         or "—"
     )
@@ -27,20 +28,20 @@ def _decision_links(indexes) -> str:
     return " · ".join(f"[Decision {index}](#decision-{index})" for index in indexes)
 
 
-def _comparison_table(report: ReportData, indexes, caption: str):
+def _comparison_table(report: ReportData, indexes, column: str, count_note: str):
     if not indexes:
         return []
     markdown = [
-        caption + "\n",
-        "| Decision evidence | Before | After |",
+        _text(count_note) + "\n",
+        f"| {column} | Before | After |",
         "| --- | --- | --- |",
     ]
     for index in indexes:
         row = report.decisions.rows[index - 1]
         source = content.source_label(row.anchor, report.metadata.trace_source)
         markdown.append(
-            f"| [{index} · {_text(row.decision or row.topic)}](#decision-{index})"
-            f"<br>{source} | {_choices(row.before, report.decisions.before_count)}"
+            f"| [{_text(row.topic.strip() or row.decision)}](#decision-{index})"
+            f"<br>{_text(source)} | {_choices(row.before, report.decisions.before_count)}"
             f" | {_choices(row.after, report.decisions.after_count)} |"
         )
     markdown.append("")
@@ -59,23 +60,28 @@ def _decision_markdown(report):
         '<a id="panel-decision"></a>\n',
         f"## {_text(report.content.decision_heading)}\n",
         _text(report.content.decision_blurb) + "\n",
+        _text(content.TRIAL_COUNT_NOTE) + "\n",
         "Tags:\n",
         legend + "\n",
     ]
+    labels = {
+        kind: label
+        for kind, label, _ in content.tag_legend(report.metadata.trace_source)
+    }
     for index, row in enumerate(decisions.rows, 1):
         source = content.source_label(row.anchor, report.metadata.trace_source)
         if index == decisions.fork:
-            mark = "first difference"
+            mark = labels["root"]
         elif not row.diverges:
-            mark = "same before and after"
+            mark = labels["same"]
         elif decisions.fork and index > decisions.fork:
-            mark = "follows from it"
+            mark = labels["down"]
         else:
             mark = ""
         markdown += [
             f'<a id="decision-{index}"></a>\n',
             f"### {index} · {_text(row.decision or row.topic)}\n",
-            f"*{source}{' · ' + mark if mark else ''}*\n",
+            f"*{_text(source)}{' · ' + _text(mark) if mark else ''}*\n",
             f"- BEFORE: {_choices(row.before, decisions.before_count)}",
             f"- AFTER: {_choices(row.after, decisions.after_count)}",
         ]
@@ -84,7 +90,11 @@ def _decision_markdown(report):
         markdown.append("")
     markdown.append(_text(content.decision_footer(decisions.rows, decisions.fork)))
     if decisions.fork_note:
-        markdown.append("\nModel interpretation: " + _text(decisions.fork_note))
+        markdown += [
+            "\n### Model explanations\n",
+            _text(content.INTERPRETATION_NOTE) + "\n",
+            _text(decisions.fork_note),
+        ]
     if decisions.dropped:
         markdown.append("\n" + _text(content.dropped_rows(decisions.dropped)))
     markdown.append("")
@@ -93,6 +103,10 @@ def _decision_markdown(report):
 
 def _flow_markdown(report):
     flow = report.command_flow
+    shared_counts = (
+        f"Before: {content.trial_count(flow.before.total, flow.before.total)}"
+        f" · After: {content.trial_count(flow.after.total, flow.after.total)}"
+    )
     markdown = [
         '<a id="panel-flow"></a>\n',
         f"## {_text(report.content.flow_heading)}\n",
@@ -105,26 +119,31 @@ def _flow_markdown(report):
         markdown.append(
             "Every trial on both sides used the same kinds of command: "
             + _text(", ".join(flow.shared))
-            + ". Differences, if any, are in the final answers below.\n"
+            + ". The kinds are coarse, so the actual work can still differ. "
+            "See the Decision diff and trial evidence.\n"
         )
+        markdown.append(shared_counts + "\n")
     else:
         markdown.append("Used by every trial, both sides:\n")
-        markdown.extend(f"- {_text(step)}" for step in flow.shared)
+        markdown.extend(f"- {_text(step)} ({shared_counts})" for step in flow.shared)
         markdown.append("\nUsed on only one side:\n")
         for tag, branch in (("BEFORE", flow.before), ("AFTER", flow.after)):
             if not branch.paths:
                 markdown.append(
-                    f"- {tag}, all {branch.total} trials: "
+                    f"- {tag}, {content.trial_count(branch.total, branch.total)}: "
                     + _text(", ".join(branch.prefix) or "(no other kind of command)")
                 )
                 continue
             lead = f"- {tag}"
             if branch.prefix:
-                lead += ", all trials: " + _text(", ".join(branch.prefix))
-            markdown.append(lead + ", then splits:")
+                lead += (
+                    f", {content.trial_count(branch.total, branch.total)}: "
+                    + _text(", ".join(branch.prefix))
+                )
+            markdown.append(lead + ". Other command kinds by group of trials:")
             for path in branch.paths:
                 markdown.append(
-                    f"  - {path.count} of {branch.total} trials: "
+                    f"  - {content.trial_count(path.count, branch.total)}: "
                     + _text(", ".join(path.steps) or "(no other kind of command)")
                 )
     markdown.append("")
@@ -153,49 +172,51 @@ def render_markdown(report: ReportData) -> str:
         f"## {_text(content_data.result_heading)}\n",
         f"**{_text(result.text)}**\n",
         _text(result.summary) + "\n",
+        f"### {_text(content_data.scenario_heading)}\n",
+        _text(content_data.scenario) + "\n",
     ]
+    if content_data.expected:
+        markdown += [
+            f"### {_text(content_data.expected_heading)}\n",
+            _text(content_data.expected) + "\n",
+        ]
+    markdown.append(f"### {_text(result.outcome_heading)}\n")
     markdown += _comparison_table(
-        report, result.outcomes, "Outcome comparisons extracted from trial evidence"
+        report,
+        result.outcomes,
+        "Final result" if report.decisions.outcome is not None else "Answer detail",
+        content.TRIAL_COUNT_NOTE,
     )
-    if result.implications:
-        markdown.append("### Model interpretation\n")
+    if not result.outcomes:
+        markdown.append("No result or reported-answer comparison is available.\n")
+    markdown.append(f"### {_text(result.behavior_heading)}\n")
+    markdown += _comparison_table(
+        report, result.behavior, "Action or check", content.BEHAVIOR_COUNT_NOTE
+    )
+    if not result.behavior:
+        markdown.append("No separate action comparison is available.\n")
+    if result.implications or report.decisions.fork_note:
+        markdown += [
+            "### Model explanations\n",
+            _text(content.INTERPRETATION_NOTE) + "\n",
+        ]
         markdown += [
             f"- {_text(claim.text)} {_decision_links(claim.decisions)}"
             for claim in result.implications
         ]
+        if report.decisions.fork_note:
+            fork_link = (
+                _decision_links((report.decisions.fork,))
+                if report.decisions.fork
+                else ""
+            )
+            markdown.append(f"- {_text(report.decisions.fork_note)} {fork_link}")
         markdown.append("")
     links = []
     if report.decisions.rows:
         links.append("[Compare decisions](#panel-decision)")
     links.append("[Inspect trial evidence](#panel-trials)")
-    markdown += [
-        " · ".join(links) + "\n",
-        f"## {_text(content_data.behavior_heading)}\n",
-        "Model interpretation of decision evidence. Counts describe each step, "
-        "not complete paths through individual trials.\n",
-    ]
-    markdown += _comparison_table(
-        report, result.behavior, "Per-step comparisons extracted from trial evidence"
-    )
-    if not result.behavior:
-        markdown.append("No separate process comparison is available.\n")
-    if report.decisions.fork_note and report.decisions.fork:
-        markdown.append(
-            "**Model interpretation:** "
-            + _text(report.decisions.fork_note)
-            + " "
-            + _decision_links((report.decisions.fork,))
-            + "\n"
-        )
-    markdown += [
-        f"## {_text(content_data.scenario_heading)}\n",
-        _text(content_data.scenario) + "\n",
-    ]
-    if content_data.expected:
-        markdown += [
-            f"## {_text(content_data.expected_heading)}\n",
-            _text(content_data.expected) + "\n",
-        ]
+    markdown.append(" · ".join(links) + "\n")
     markdown += [
         f"<details><summary>{html.escape(content_data.diff_heading)}</summary>\n",
         "<pre><code>" + html.escape(report.rule_diff.rstrip()) + "</code></pre>\n",

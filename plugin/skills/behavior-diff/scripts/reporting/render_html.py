@@ -72,17 +72,20 @@ def _branch_html(prefix, paths, total: int, css_class: str) -> str:
     if not paths:
         body = (
             _lane(prefix, css_class)
-            or '<p class="fnote">(same steps as the shared flow)</p>'
+            or '<p class="fnote">(same command kinds as the shared comparison)</p>'
         )
-        return f'<div class="fbranch"><p class="fpath-head">all {total} trials</p>{body}</div>'
+        return (
+            f'<div class="fbranch"><p class="fpath-head">'
+            f"{content.trial_count(total, total)}</p>{body}</div>"
+        )
     if prefix:
-        rendered += f'<p class="fpath-head">all {total} trials</p>' + _lane(
-            prefix, css_class
+        rendered += (
+            f'<p class="fpath-head">{content.trial_count(total, total)}</p>'
+            + _lane(prefix, css_class)
         )
-        rendered += '<div class="farrow">↓</div>'
     rendered += f'<div class="fsplit">{len(paths)} groups of trials</div>'
     lanes = "".join(
-        f'<div class="fpath"><p class="fpath-head">{path.count} of {total} trials</p>'
+        f'<div class="fpath"><p class="fpath-head">{content.trial_count(path.count, total)}</p>'
         f"{_lane(path.steps, css_class) or _NO_EXTRA_STEPS}</div>"
         for path in paths
     )
@@ -96,18 +99,22 @@ def _branch_html(prefix, paths, total: int, css_class: str) -> str:
 def _decision_choices(choices, total: int, css_class: str) -> str:
     lines = []
     for choice in choices:
-        count = f' <span class="fcount">{choice.count}/{total}</span>'
+        count = (
+            f' <span class="fcount">{content.trial_count(choice.count, total)}</span>'
+        )
         lines.append(f'<div class="dline">{html.escape(choice.choice)}{count}</div>')
     return f'<div class="fstep {css_class} dcell">' + ("".join(lines) or "—") + "</div>"
 
 
-def _decision_label(index: int, row, fork: int | None, trace_source: str) -> str:
+def _decision_label(
+    index: int, row, fork: int | None, trace_source: str, labels
+) -> str:
     if index == fork:
-        tags = '<span class="dtag">first difference</span>'
+        tags = f'<span class="dtag">{html.escape(labels["root"])}</span>'
     elif not row.diverges:
-        tags = '<span class="dtag dtag-same">same before and after</span>'
+        tags = f'<span class="dtag dtag-same">{html.escape(labels["same"])}</span>'
     elif fork and index > fork:
-        tags = '<span class="dtag dtag-down">follows from it</span>'
+        tags = f'<span class="dtag dtag-down">{html.escape(labels["down"])}</span>'
     else:
         tags = ""
     tags += (
@@ -132,7 +139,7 @@ _TAG_CLASS = {
 }
 
 
-def _comparison_table(report: ReportData, indexes, caption: str) -> str:
+def _comparison_table(report: ReportData, indexes, column: str, count_note: str) -> str:
     if not indexes:
         return ""
     rows = []
@@ -141,15 +148,15 @@ def _comparison_table(report: ReportData, indexes, caption: str) -> str:
         source = content.source_label(row.anchor, report.metadata.trace_source)
         rows.append(
             f'<tr><th scope="row"><a href="#decision-{index}">'
-            f"{index} · {html.escape(row.decision or row.topic)}</a>"
-            f'<span class="dnote">{source}</span></th>'
+            f"{html.escape(row.topic.strip() or row.decision)}</a>"
+            f'<span class="dnote">{html.escape(source)}</span></th>'
             f"<td>{_decision_choices(row.before, report.decisions.before_count, '')}</td>"
             f"<td>{_decision_choices(row.after, report.decisions.after_count, '')}</td></tr>"
         )
     return (
         '<div class="comparison-wrap"><table class="comparison">'
-        f"<caption>{html.escape(caption)}</caption>"
-        '<thead><tr><th scope="col">Decision evidence</th>'
+        f"<caption>{html.escape(count_note)}</caption>"
+        f'<thead><tr><th scope="col">{html.escape(column)}</th>'
         '<th scope="col">Before</th><th scope="col">After</th></tr></thead>'
         f"<tbody>{''.join(rows)}</tbody></table></div>"
     )
@@ -282,8 +289,8 @@ def render_artifact(report: ReportData, css: str) -> str:
     )
     shared_html = "".join(
         f'<div class="fstep shared"><span>{escaped(step)}</span>'
-        f'<span class="fcount">before {before_total}/{before_total} · after {after_total}/{after_total}</span></div>'
-        f'<div class="fline"></div>'
+        f'<span class="fcount">before {content.trial_count(before_total, before_total)}'
+        f" · after {content.trial_count(after_total, after_total)}</span></div>"
         for step in flow.shared
     )
     if flow.same:
@@ -308,9 +315,14 @@ def render_artifact(report: ReportData, css: str) -> str:
     decisions_html = ""
     if report.decisions.rows:
         fork = report.decisions.fork
+        labels = {
+            kind: label for kind, label, _ in content.tag_legend(metadata.trace_source)
+        }
         parts = ['<div class="dgrid">']
         for index, row in enumerate(report.decisions.rows, 1):
-            parts.append(_decision_label(index, row, fork, metadata.trace_source))
+            parts.append(
+                _decision_label(index, row, fork, metadata.trace_source, labels)
+            )
             parts.append(
                 '<div><p class="fork-side">Before</p>'
                 + _decision_choices(row.before, decision_before_total, "b")
@@ -323,16 +335,22 @@ def render_artifact(report: ReportData, css: str) -> str:
             )
         parts.append("</div>")
         footer = content.decision_footer(report.decisions.rows, fork)
-        if report.decisions.fork_note:
-            footer += " Model interpretation: " + report.decisions.fork_note
         if report.decisions.dropped:
             footer += " " + content.dropped_rows(report.decisions.dropped)
+        explanation = ""
+        if report.decisions.fork_note:
+            explanation = (
+                '<div class="interpretation"><h3>Model explanations</h3>'
+                f'<p class="interpretation-note">{escaped(content.INTERPRETATION_NOTE)}</p>'
+                f"<p>{escaped(report.decisions.fork_note)}</p></div>"
+            )
         decisions_html = (
             f'<div class="section-label">{escaped(report_content.decision_heading)}'
             f"{_info('pop-decision', 'What the tags on each decision mean', _tag_legend(report_content.tag_legend))}</div>"
             f'<p class="sub">{escaped(report_content.decision_blurb)}</p>'
+            f'<p class="note">{escaped(content.TRIAL_COUNT_NOTE)}</p>'
             f'<div class="flow">{"".join(parts)}</div>'
-            f'<p class="fnote dfoot">{escaped(footer)}</p>'
+            f'<p class="fnote dfoot">{escaped(footer)}</p>' + explanation
         )
 
     flow_section = ""
@@ -372,16 +390,36 @@ def render_artifact(report: ReportData, css: str) -> str:
     )
     result = report.result
     outcomes_html = _comparison_table(
-        report, result.outcomes, "Outcome comparisons extracted from trial evidence"
+        report,
+        result.outcomes,
+        "Final result" if report.decisions.outcome is not None else "Answer detail",
+        content.TRIAL_COUNT_NOTE,
     )
+    if not result.outcomes:
+        outcomes_html = (
+            '<p class="sub">No result or reported-answer comparison is available.</p>'
+        )
     claims_html = ""
-    if result.implications:
-        claims_html = '<div class="interpretation"><h3>Model interpretation</h3><ul>'
+    if result.implications or report.decisions.fork_note:
+        claims_html = (
+            '<div class="interpretation"><h3>Model explanations</h3>'
+            f'<p class="interpretation-note">{escaped(content.INTERPRETATION_NOTE)}</p><ul>'
+        )
         claims_html += "".join(
             f"<li>{escaped(claim.text)} "
             f'<span class="evidence-links">{_decision_links(claim.decisions)}</span></li>'
             for claim in result.implications
         )
+        if report.decisions.fork_note:
+            fork_link = (
+                _decision_links((report.decisions.fork,))
+                if report.decisions.fork
+                else ""
+            )
+            claims_html += (
+                f"<li>{escaped(report.decisions.fork_note)}"
+                f'<span class="evidence-links">{fork_link}</span></li>'
+            )
         claims_html += "</ul></div>"
     evidence_links = (
         '<a href="#panel-decision">Compare decisions</a>'
@@ -390,31 +428,23 @@ def render_artifact(report: ReportData, css: str) -> str:
     )
     evidence_links += '<a href="#panel-trials">Inspect trial evidence</a>'
     behavior_html = _comparison_table(
-        report, result.behavior, "Per-step comparisons extracted from trial evidence"
+        report, result.behavior, "Action or check", content.BEHAVIOR_COUNT_NOTE
     )
     if not result.behavior:
-        behavior_html = (
-            '<p class="sub">No separate process comparison is available.</p>'
-        )
-    if report.decisions.fork_note and report.decisions.fork:
-        behavior_html += (
-            '<p class="interpretation"><strong>Model interpretation:</strong> '
-            f"{escaped(report.decisions.fork_note)} "
-            f"{_decision_links((report.decisions.fork,))}</p>"
-        )
+        behavior_html = '<p class="sub">No separate action comparison is available.</p>'
     limits_html = "".join(f"<li>{escaped(limit)}</li>" for limit in result.limits)
     summary_html = f"""<h2 class="section-label">{escaped(report_content.result_heading)}</h2>
 <p class="result">{escaped(result.text)}</p>
 <p class="result-summary">{escaped(result.summary)}</p>
-{outcomes_html}
-{claims_html}
-<nav class="evidence-nav" aria-label="Supporting evidence">{evidence_links}</nav>
-<h2 class="section-label">{escaped(report_content.behavior_heading)}</h2>
-<p class="sub">Model interpretation of decision evidence. Counts describe each step, not complete paths through individual trials.</p>
-{behavior_html}
 <h2 class="section-label">{escaped(report_content.scenario_heading)}</h2>
 <pre class="scenario">{escaped(report_content.scenario)}</pre>
 {expected_html}
+<h2 class="comparison-heading">{escaped(result.outcome_heading)}</h2>
+{outcomes_html}
+<h2 class="comparison-heading">{escaped(result.behavior_heading)}</h2>
+{behavior_html}
+{claims_html}
+<nav class="evidence-nav" aria-label="Supporting evidence">{evidence_links}</nav>
 <details class="fold"><summary>{_CHEVRON}{escaped(report_content.diff_heading)}
 <span class="fold-stat">{_diff_stats(report.rule_diff)}</span>
 <span class="fold-hint"><span class="hint-show">Show the diff</span><span class="hint-hide">Hide the diff</span></span></summary>

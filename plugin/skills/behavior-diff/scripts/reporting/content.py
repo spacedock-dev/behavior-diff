@@ -5,6 +5,25 @@ from collections import Counter
 from reporting.schema import ContentData, ResultData
 
 
+TRIAL_COUNT_NOTE = (
+    "A model extracts these counts from trial evidence. "
+    "They count trials, not repeated actions within one trial."
+)
+BEHAVIOR_COUNT_NOTE = (
+    "These comparisons cover actions, not every detail in the answers. "
+    + TRIAL_COUNT_NOTE
+    + " Counts from separate rows do not show a complete sequence within one trial."
+)
+INTERPRETATION_NOTE = (
+    "These explanations are model interpretations, not causal proof. "
+    "The comparisons do not establish that the instruction change caused a difference."
+)
+
+
+def trial_count(count, total):
+    return "{0} of {1} trial{2}".format(count, total, "" if total == 1 else "s")
+
+
 def subtitle(facts):
     """The header facts as one line, for formats that cannot lay out a row."""
     return " · ".join("{0}: {1}".format(label, value) for label, value in facts)
@@ -35,118 +54,143 @@ def boundary():
 
 
 def result_data(metadata, variants, decisions, expected):
-    """Describe observed outcomes without turning observations into a grade."""
+    """Describe extracted results and actions without assigning a grade."""
+    explicit = decisions.outcome is not None
     outcomes = (
         (decisions.outcome,)
-        if decisions.outcome is not None
+        if explicit
         else tuple(
             index
             for index, row in enumerate(decisions.rows, 1)
             if row.anchor == "answer"
         )
     )
-    changed = {
+    actions = tuple(
         index
         for index, row in enumerate(decisions.rows, 1)
-        if choices_changed(row.before, row.after)
-    }
-    behavior = tuple(
-        index
-        for index, row in enumerate(decisions.rows, 1)
-        if index not in outcomes and (index in changed or index == decisions.fork)
+        if type(row.anchor) is int and index != decisions.outcome
     )
-    if not behavior:
-        behavior = tuple(
-            index
-            for index, row in enumerate(decisions.rows, 1)
-            if index not in outcomes and type(row.anchor) is int
+    changed_actions = tuple(
+        index
+        for index in actions
+        if choices_changed(
+            decisions.rows[index - 1].before, decisions.rows[index - 1].after
         )
-
+    )
+    behavior = changed_actions or actions
+    answer_details_changed = explicit and any(
+        row.anchor == "answer"
+        and index != decisions.outcome
+        and choices_changed(row.before, row.after)
+        for index, row in enumerate(decisions.rows, 1)
+    )
     limits, missing = _evidence_limits(metadata, variants, decisions, expected)
-    if not outcomes:
-        missing.append("No usable outcome or reported-answer comparison is available.")
-    elif any(
-        not _distribution(choices)
-        or any(choice.count > 0 and not choice.choice.strip() for choice in choices)
-        for index in outcomes
-        for choices in (
-            decisions.rows[index - 1].before,
-            decisions.rows[index - 1].after,
-        )
-    ):
-        missing.append("Outcome choices are missing or blank.")
-
-    explicit = decisions.outcome is not None
+    outcome_status = _comparison_status(decisions.rows, outcomes)
+    behavior_status = _comparison_status(decisions.rows, actions)
+    # A mixed process can still have a clear change in its choice proportions.
+    if changed_actions and behavior_status != "unavailable":
+        behavior_status = "changed"
     if missing:
-        text = "Insufficient evidence to compare outcomes"
-        summary = " ".join(missing)
-    elif any(
-        len(_distribution(choices)) > 1
-        for index in outcomes
-        for choices in (
-            decisions.rows[index - 1].before,
-            decisions.rows[index - 1].after,
+        outcome_status = behavior_status = "unavailable"
+    if not outcomes:
+        missing.append(
+            "No usable final result or reported-answer comparison is available."
         )
-    ):
-        if explicit:
-            text = "Mixed outcomes in these trials"
-            summary = (
-                "The primary outcome varies between trials on at least one side. "
-                "The table shows each distribution."
-            )
-        else:
-            text = (
-                "Reported answers changed in these trials"
-                if changed.intersection(outcomes)
-                else "Reported answers vary within these trials"
-            )
-            summary = (
-                "Some answer dimensions vary between trials on the same side. "
-                "These differences do not establish mixed task outcomes."
-            )
-    elif changed.intersection(outcomes):
-        text = "Reported answers changed in these trials"
+    elif outcome_status == "unavailable" and not missing:
+        missing.append("Result choices are missing or blank.")
+    if not explicit:
+        limits.insert(
+            0,
+            "The model did not identify a primary final result. "
+            "Reported-answer comparisons do not establish the final result.",
+        )
+    if not actions:
+        limits.append(
+            "No separate action comparison is available. Answers can still contain process details."
+        )
+    elif behavior_status == "unavailable":
+        limits.append(
+            "The available action evidence is incomplete. "
+            "Inspect the trial records before drawing a conclusion."
+        )
+
+    subject = "Final result" if explicit else "Reported answers"
+    if missing:
+        text = "Insufficient evidence to compare results"
+        summary = " ".join(missing)
+    elif outcome_status == "varies":
+        text = (
+            "Final result varies across trials"
+            if explicit
+            else "Reported answers vary across trials"
+        )
+        summary = (
+            "The model identified different choices within at least one side. "
+            "The table shows the trial counts for each choice."
+        )
+    elif outcome_status == "changed":
         if explicit:
             row = decisions.rows[decisions.outcome - 1]
-            text = "Outcome changed: {0} → {1}".format(
-                next(choice.choice for choice in row.before if choice.count > 0),
-                next(choice.choice for choice in row.after if choice.count > 0),
+            text = "Final result changed: {0} → {1}".format(
+                next(iter(_distribution(row.before))),
+                next(iter(_distribution(row.after))),
             )
-        summary = (
-            "The model-extracted outcome choices differ between before and after."
-            if explicit
-            else "The model-extracted reported-answer choices differ between before and after."
+        else:
+            text = "Reported answers changed"
+        summary = "The model identified different {0} before and after.".format(
+            "final results" if explicit else "reported answers"
         )
-    elif changed.difference(outcomes):
-        text = (
-            "Same outcome; process changed"
-            if explicit
-            else "Same reported answers; process changed"
-        )
+    elif explicit and behavior_status == "changed":
+        text = "Same result, different process"
         summary = (
-            "The compared outcome distributions are unchanged, but other decision "
-            "distributions differ."
+            "The final result stayed the same. "
+            "The model identified changes in the agent's actions."
         )
     else:
-        text = "No difference observed in these trials"
+        text = subject + " unchanged"
         summary = (
-            "The supplied decision distributions match. This does not establish "
-            "that the instruction change has no effect."
-        )
-    if not explicit and outcomes:
-        limits.append(
-            "No primary task outcome was identified. These comparisons show reported "
-            "answer dimensions, not a guessed primary outcome."
-        )
+            "The model identified the same {0} before and after. "
+            "This does not establish that the instruction change has no effect."
+        ).format("final result" if explicit else "reported answers")
+        if answer_details_changed:
+            text = "Final result unchanged; answer details changed"
+    if answer_details_changed:
+        summary += " Other answer details changed. The Decision diff preserves these comparisons."
+    if behavior_status == "unchanged":
+        summary += " No change was observed in the compared actions."
+    if not explicit:
+        summary = "No primary final result was identified. " + summary
     return ResultData(
         text=text,
         kind="neutral",
         summary=summary,
+        outcome_heading=subject + " — " + outcome_status,
+        behavior_heading="Behavior — " + behavior_status,
         outcomes=outcomes,
         behavior=behavior,
         implications=decisions.implications,
-        limits=tuple(limits + missing),
+        limits=tuple(missing + limits),
     )
+
+
+def _comparison_status(rows, indexes):
+    if not indexes:
+        return "unavailable"
+    distributions = tuple(
+        _distribution(choices)
+        for index in indexes
+        for choices in (rows[index - 1].before, rows[index - 1].after)
+    )
+    if any(not distribution or "" in distribution for distribution in distributions):
+        return "unavailable"
+    if any(len(distribution) > 1 for distribution in distributions):
+        return "varies"
+    if any(
+        choices_changed(rows[index - 1].before, rows[index - 1].after)
+        for index in indexes
+    ):
+        return "changed"
+    return "unchanged"
 
 
 def _distribution(choices):
@@ -170,9 +214,7 @@ def choices_changed(before, after):
 
 
 def _evidence_limits(metadata, variants, decisions, expected):
-    limits = [
-        "One scenario was tested. This is simulation evidence; real-use evidence is absent."
-    ]
+    limits = ["One scenario was tested. Real-use evidence is absent."]
     missing = []
     for variant, extracted_count in (
         (variants.before, decisions.before_count),
@@ -213,7 +255,7 @@ def _evidence_limits(metadata, variants, decisions, expected):
             )
     if decisions.dropped:
         missing.append(
-            "{0} extracted decision row(s) were dropped; completeness is uncertain.".format(
+            "{0} extracted comparison row(s) were dropped. Completeness is uncertain.".format(
                 decisions.dropped
             )
         )
@@ -222,8 +264,8 @@ def _evidence_limits(metadata, variants, decisions, expected):
     elif expected:
         limits.append(
             'Separate grading against the supplied expectation "{0}": '
-            "before {1}/{2} valid trials met it; after {3}/{4} valid trials met it. "
-            "These grades do not establish complete outcome evidence.".format(
+            "before {1}/{2} valid trials met it. After {3}/{4} valid trials met it. "
+            "These grades do not establish complete result evidence.".format(
                 expected,
                 variants.before.passed,
                 variants.before.valid,
@@ -233,12 +275,12 @@ def _evidence_limits(metadata, variants, decisions, expected):
         )
     if not expected:
         limits.append(
-            "No explicit expected behavior was supplied; no correctness claim is made."
+            "No explicit expected behavior was supplied. The report makes no correctness claim."
         )
     limits.append(
-        "Decision choices and counts are model extractions from trial evidence, not "
-        "independent measurements. Outcome selection, implications, and causal links "
-        "are model interpretations."
+        "A model extracts comparison choices and counts from trial evidence. "
+        "They are not independent measurements. "
+        "The primary result, explanations, and proposed causal links are model interpretations."
     )
     if metadata.trace_source == "self-reported":
         limits.append(
@@ -270,23 +312,24 @@ def count_data(mode, passed, valid, blocked):
 
 def decision_blurb(single_trial):
     purpose = (
-        "A model read the trial evidence and named points where the agent had "
-        "a choice. These comparisons are model interpretations, not causal proof."
+        "A model compared the agent's actions and answers in the trial evidence. "
+        + INTERPRETATION_NOTE
     )
     if single_trial:
         purpose += (
-            " CAUTION — one trial per side: any divergence here can be "
-            "run-to-run variation rather than a rule effect; confirm with "
-            "repeated trials (behavior-diff 3+3) before acting on it."
+            " CAUTION — one trial per side: differences can be run-to-run variation "
+            "rather than an instruction effect. Repeat the comparison with more trials "
+            "(behavior-diff 3+3) before drawing conclusions."
         )
     return purpose
 
 
 def flow_purpose():
     return (
-        "A cross-check on the decision diff above, built from the actual "
-        "commands the agents ran and sorted by rule. This section lists "
-        "which kinds appeared on each side."
+        "Flow diff groups captured commands by fixed rules, without model interpretation. "
+        "It shows command kinds in a fixed display order, not the order of commands. "
+        "Counts show trials with each combination of command kinds, not repeated commands within one trial. "
+        "It does not establish why the agent chose them."
     )
 
 
@@ -308,8 +351,8 @@ def tag_legend(trace_source):
         ("root", "first difference", "the first decision where before and after split"),
         (
             "down",
-            "follows from it",
-            "this split happens because of the first difference",
+            "possible link",
+            "the model proposes a link to the first difference, not a proven cause",
         ),
         ("same", "same before and after", "before and after chose the same thing"),
         (
@@ -325,7 +368,6 @@ def tag_legend(trace_source):
 
 def headings(target_file):
     return {
-        "behavior": "Behavior change",
         "limits": "Evidence limits",
         "scenario": "Scenario",
         "expected": "Expected behavior",
@@ -347,10 +389,10 @@ def decision_footer(rows, fork):
         if not rest:
             return "Before and after first differ at decision #{0}.".format(fork)
         return (
-            "Before and after first differ at decision #{0}. {1} later "
-            "decision{2} also differ. The model reads them as following from "
-            "#{0}, which is its reading, not something the run measured."
-        ).format(fork, rest, "s" if rest != 1 else "")
+            "Before and after first differ at decision #{0}. "
+            "Other decisions with differences: {1}. These comparisons do not prove "
+            "a causal link between the differences."
+        ).format(fork, rest)
     return "{0} of {1} decisions differ.".format(divergent, len(rows))
 
 
@@ -375,7 +417,6 @@ def build_content(
         subtitle=subtitle(facts),
         meta=facts,
         note=config.get("sub", ""),
-        behavior_heading=names["behavior"],
         limits_heading=names["limits"],
         scenario_heading=names["scenario"],
         scenario=scenario,

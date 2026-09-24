@@ -26,11 +26,12 @@ a:focus-visible { outline:2px solid var(--accent); outline-offset:3px; }
 [id] { scroll-margin-top:1rem; }
 .dq:target, .trial:target { outline:2px solid var(--accent); outline-offset:5px; }
 .result-summary { margin:.8rem 0; max-width:80ch; overflow-wrap:anywhere; }
+.comparison-heading { margin:1.6rem 0 .5rem; font-size:1.1rem; }
 .comparison-wrap { margin:1rem 0; }
 .comparison { width:100%; border-collapse:collapse; table-layout:fixed;
   background:var(--panel); font-size:.92rem; }
-.comparison caption { text-align:left; color:var(--muted); font-size:.82rem;
-  margin-bottom:.45rem; }
+.comparison caption { text-align:left; color:var(--muted); font-size:.88rem;
+  margin-bottom:.6rem; max-width:85ch; }
 .comparison th, .comparison td { text-align:left; vertical-align:top;
   border:1px solid var(--border); padding:.65rem .8rem;
   overflow-wrap:anywhere; }
@@ -38,10 +39,11 @@ a:focus-visible { outline:2px solid var(--accent); outline-offset:3px; }
 .comparison th:first-child { width:40%; }
 .comparison tbody th { font-weight:500; }
 .comparison .fstep { border:0; padding:0; border-radius:0; background:none; }
-.comparison .fcount { display:inline-block; }
+.comparison .fcount { display:block; white-space:normal; }
 .interpretation { background:var(--accent-soft); border-left:3px solid var(--accent);
   padding:.75rem 1rem; margin:1rem 0; overflow-wrap:anywhere; }
 .interpretation h3 { font-size:.86rem; margin:0 0 .4rem; }
+.interpretation-note { margin:0 0 .75rem; }
 .interpretation ul { margin:0; padding-left:1.15rem; }
 .interpretation li + li { margin-top:.5rem; }
 .evidence-links { display:block; font-size:.82rem; margin-top:.2rem; }
@@ -55,7 +57,7 @@ pre { background:var(--code-bg); border:1px solid var(--border);
   font:12.5px/1.55 "IBM Plex Mono", ui-monospace, monospace; }
 .scenario { background:var(--panel); border:1px solid var(--border);
   border-left:3px solid var(--accent); border-radius:6px;
-  padding:.85rem 1rem; white-space:pre-wrap; margin:0;
+  padding:.85rem 1rem; white-space:pre-wrap; margin:0; overflow-wrap:anywhere;
   font:13.5px/1.6 "IBM Plex Mono", ui-monospace, monospace; }
 .flow { margin:.4rem 0 0; }
 .fstep { display:flex; justify-content:space-between; align-items:baseline;
@@ -63,11 +65,9 @@ pre { background:var(--code-bg); border:1px solid var(--border);
   border-radius:6px; padding:.5rem .8rem; }
 .fstep.b { background:var(--fail-soft); border-color:var(--fail); }
 .fstep.a { background:var(--pass-soft); border-color:var(--pass); }
-.fcount { color:var(--muted); font-size:.8rem; white-space:nowrap;
+.fcount { color:var(--muted); font-size:.8rem; white-space:normal;
   font-variant-numeric:tabular-nums; }
-.fline { width:2px; height:.7rem; background:var(--border); margin:0 auto; }
-.farrow { text-align:center; color:var(--muted); font-size:.85rem;
-  line-height:1.4; }
+.flow .fstep + .fstep { margin-top:.35rem; }
 .fsplit { text-align:center; color:var(--muted); font-size:.7rem;
   letter-spacing:.08em; text-transform:uppercase; margin:.2rem 0 .35rem; }
 .fpaths { display:grid; gap:.7rem; align-items:start; }
