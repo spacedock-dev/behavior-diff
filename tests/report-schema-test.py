@@ -23,6 +23,7 @@ from reporting.schema import (  # noqa: E402
     ReportData,
     TrialData,
 )
+from report_fixtures import SCENARIOS, build_reports  # noqa: E402
 
 
 def synthetic_raw():
@@ -404,11 +405,13 @@ def assert_evidence_links(report):
     page = render_artifact(report, ".result { background:__RESULT_BG__; }")
     links = Links()
     links.feed(page)
-    assert "decision-2" in links.targets, "Outcome does not link to its evidence."
     assert set(links.targets) <= links.ids, "An evidence link has no target."
     markdown = render_markdown(report)
-    assert "](#decision-2)" in markdown
-    assert 'id="decision-2"' in markdown
+    for index in report.result.outcomes + report.result.behavior:
+        target = f"decision-{index}"
+        assert target in links.targets, "A comparison does not link to its evidence."
+        assert f"](#{target})" in markdown
+        assert f'id="{target}"' in markdown
 
 
 def assert_no_invented_causality():
@@ -442,6 +445,97 @@ def assert_no_invented_causality():
         )
         report = load_report(run, run, "synthetic/model", run / "config.json")
         assert report.decisions.fork is None, "The loader invented a causal fork."
+
+
+def assert_gallery_reports():
+    """Exercise the same authored cases used by the local gallery through the CLI."""
+    expected = {
+        "same-result": ("unchanged", "changed"),
+        "changed-result": ("changed", "changed"),
+        "unchanged": ("unchanged", "unchanged"),
+        "answer-details": ("unchanged", "unchanged"),
+        "mixed": ("varies", "changed"),
+        "missing-primary": ("changed", "changed"),
+        "blocked": ("unavailable", "unavailable"),
+        "missing-extraction": ("unavailable", "unavailable"),
+        "self-reported": ("changed", "changed"),
+    }
+    with tempfile.TemporaryDirectory() as directory:
+        root = Path(directory)
+        build_reports(root)
+        assert {scenario.name for scenario in SCENARIOS} == set(expected)
+        reports = {}
+        for name, (result_state, action_state) in expected.items():
+            report = assert_file_round_trip(root / name / "report-data.json")
+            reports[name] = report
+            assert report.result.outcome_heading.endswith("— " + result_state), name
+            assert report.result.behavior_heading.endswith("— " + action_state), name
+            assert report.result.kind == "neutral", (
+                "A demo inferred automatic correctness."
+            )
+            assert_evidence_links(report)
+            for variant in (report.variants.before, report.variants.after):
+                assert variant.total == len(variant.trials) == 3, name
+                assert all(trial.final.strip() for trial in variant.trials), name
+                for row in report.decisions.rows:
+                    choices = (
+                        row.before if variant is report.variants.before else row.after
+                    )
+                    assert sum(choice.count for choice in choices) == len(
+                        variant.trials
+                    ), name
+            assert all(
+                type(report.decisions.rows[index - 1].anchor) is int
+                and index != report.decisions.outcome
+                for index in report.result.behavior
+            ), "An answer detail appeared as an action change."
+
+        answer_details = reports["answer-details"]
+        assert any(
+            row.anchor == "answer"
+            and index != answer_details.decisions.outcome
+            and row.before != row.after
+            for index, row in enumerate(answer_details.decisions.rows, 1)
+        ), "The answer-only case no longer exercises an answer change."
+        missing_primary = reports["missing-primary"]
+        assert missing_primary.decisions.outcome is None
+        assert missing_primary.result.outcomes
+        assert missing_primary.result.outcome_heading.startswith("Reported answers")
+        blocked = reports["blocked"]
+        assert blocked.variants.after.valid == 2
+        assert blocked.variants.after.blocked == 1
+        missing_extraction = reports["missing-extraction"]
+        assert missing_extraction.decisions.rows == ()
+        assert all(
+            trial.commands and trial.final
+            for variant in (
+                missing_extraction.variants.before,
+                missing_extraction.variants.after,
+            )
+            for trial in variant.trials
+        ), "Missing extraction removed raw evidence."
+        self_reported = reports["self-reported"]
+        assert self_reported.metadata.trace_source == "self-reported"
+        assert not self_reported.command_flow.enabled
+        assert self_reported.command_flow.shared == ()
+        for branch in (
+            self_reported.command_flow.before,
+            self_reported.command_flow.after,
+        ):
+            assert branch.prefix == branch.paths == ()
+
+    with tempfile.TemporaryDirectory() as directory:
+        root = Path(directory)
+        sentinel = root / "keep.txt"
+        sentinel.write_text("Existing user content.")
+        try:
+            build_reports(root)
+        except (ValueError, FileExistsError):
+            pass
+        else:
+            raise AssertionError("The gallery wrote into an occupied output directory.")
+        assert sentinel.read_text() == "Existing user content."
+        assert list(root.iterdir()) == [sentinel], "Refusal left partial gallery files."
 
 
 def main():
@@ -606,6 +700,8 @@ def main():
 
     if len(sys.argv) == 2:
         assert_file_round_trip(sys.argv[1])
+    else:
+        assert_gallery_reports()
 
 
 def assert_file_round_trip(path):
@@ -626,6 +722,7 @@ def assert_file_round_trip(path):
     artifact = render_artifact(report, css)
     assert artifact == artifact_path.read_text()
     assert render_document(artifact) == document_path.read_text()
+    return report
 
 
 if __name__ == "__main__":
