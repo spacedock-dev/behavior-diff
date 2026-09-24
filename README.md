@@ -188,6 +188,40 @@ The plugin also watches edits to `CLAUDE.md`, `AGENTS.md`, and `SKILL.md`.
 After you finish the current task, the agent can use that task to run Behavior
 Diff on the instruction change.
 
+## Preview synthetic reports
+
+From a repository checkout, use Python 3.10 or newer to build a local gallery:
+
+```bash
+python3 tests/report-demo.py --serve --port 8767
+```
+
+Open the printed URL. The server listens only on `127.0.0.1`. Press `Ctrl+C`
+to stop it and remove its temporary files. If the port is busy, use `--port 0`
+to select an available port.
+
+To build reports without a server:
+
+```bash
+python3 tests/report-demo.py
+```
+
+This command prints a local file URL and keeps the temporary directory.
+Remove that directory when you no longer need the reports.
+
+The nine examples cover changed and unchanged results, action changes, answer
+details, mixed results, blocked trials, missing comparisons, and self-reported
+evidence. Each example links to HTML and Markdown reports.
+
+The gallery and deterministic report checks share `tests/report_fixtures.py`.
+They use the real decision-ingest and report-render commands with authored
+synthetic inputs. No plugin installation, credentials, or model calls are needed.
+These examples verify reporting, not model behavior or instruction effectiveness.
+For live agent journeys, see [`e2e/README.md`](e2e/README.md).
+
+Each command builds fresh reports outside the repository. After changing the
+report code or fixtures, run the command again to see the change.
+
 ## Release
 
 1. Update both plugin manifests to the same `X.Y.Z` version.
@@ -204,7 +238,7 @@ stable marketplace.
 
 - `plugin/` contains the installable plugin, skills, hooks, and runner.
 - `e2e/` contains synthetic scenarios for manual product checks.
-- `tests/` contains deterministic checks that do not call a model.
+- `tests/` contains deterministic checks and a synthetic report gallery.
 - [`e2e/README.md`](e2e/README.md) explains the demo and live-check fixtures.
 - [`AGENTS.md`](AGENTS.md) and
   [`CODING_GUIDELINES.md`](CODING_GUIDELINES.md) contain contributor guidance.
