@@ -18,10 +18,40 @@ INTERPRETATION_NOTE = (
     "These explanations are model interpretations, not causal proof. "
     "The comparisons do not establish that the instruction change caused a difference."
 )
+FLOW_COUNT_NOTE = (
+    "Each row counts trials with the same complete category combination, not command calls. "
+    "Each trial appears once on its side."
+)
+SELF_REPORTED_LIMIT = (
+    "Actions are self-reported, not independently captured command evidence. "
+    "Flow diff is unavailable for this report."
+)
+DECISION_PROGRESSION_NOTE = "These model-extracted comparisons are not a recorded execution path or a causal chain."
+FLOW_PROGRESSION_NOTE = (
+    "Commands follow their recorded order, including repeats. "
+    "Only identical complete sequences are grouped within each side. "
+    "Before and After are independent trials. Records can be incomplete and do not prove successful execution."
+)
 
 
 def trial_count(count, total):
     return "{0} of {1} trial{2}".format(count, total, "" if total == 1 else "s")
+
+
+def trial_anchor(side, name):
+    return "trial-{0}-{1}".format(side, name.encode("utf-8").hex())
+
+
+def command_progressions(variant):
+    """Group complete recorded sequences without normalizing or joining paths."""
+    groups = {}
+    for trial in variant.trials:
+        members = groups.get(trial.commands)
+        if members is None:
+            groups[trial.commands] = [trial]
+        else:
+            members.append(trial)
+    return tuple((commands, tuple(members)) for commands, members in groups.items())
 
 
 def subtitle(facts):
@@ -311,10 +341,7 @@ def count_data(mode, passed, valid, blocked):
 
 
 def decision_blurb(single_trial):
-    purpose = (
-        "A model compared the agent's actions and answers in the trial evidence. "
-        + INTERPRETATION_NOTE
-    )
+    purpose = "A model extracts these comparisons from trial evidence."
     if single_trial:
         purpose += (
             " CAUTION — one trial per side: differences can be run-to-run variation "
@@ -326,15 +353,14 @@ def decision_blurb(single_trial):
 
 def flow_purpose():
     return (
-        "Flow diff groups captured commands by fixed rules, without model interpretation. "
-        "It shows command kinds in a fixed display order, not the order of commands. "
-        "Counts show trials with each combination of command kinds, not repeated commands within one trial. "
-        "It does not establish why the agent chose them."
+        "Fixed rules group captured commands. No model interprets this view. "
+        "Categories are not execution steps and do not identify specific commands or files. "
+        "Patterns do not explain why an agent acted. Blocked trial records can be incomplete."
     )
 
 
 def flow_kinds_heading(kinds):
-    return "Every command is put into one of these {0} kinds:".format(len(kinds))
+    return "The classifier recognizes these {0} command categories:".format(len(kinds))
 
 
 def source_label(anchor, trace_source):
@@ -348,13 +374,11 @@ def source_label(anchor, trace_source):
 def tag_legend(trace_source):
     """What each tag on a decision row means."""
     return (
-        ("root", "first difference", "the first decision where before and after split"),
-        (
-            "down",
-            "possible link",
-            "the model proposes a link to the first difference, not a proven cause",
-        ),
-        ("same", "same before and after", "before and after chose the same thing"),
+        ("changed", "Changed", "the extracted choice proportions differ between sides"),
+        ("same", "Unchanged", "the extracted choice proportions match between sides"),
+        ("action", "Action", "a comparison of actions in the trial evidence"),
+        ("result", "Final result", "the result selected by the extractor"),
+        ("detail", "Answer detail", "another comparison from the final answer"),
         (
             "cmd",
             source_label(1, trace_source),
@@ -372,28 +396,113 @@ def headings(target_file):
         "scenario": "Scenario",
         "expected": "Expected behavior",
         "diff": "Diff of {0}".format(target_file),
-        "decision": "Decision diff: what the agent chose, before and after your edit",
-        "flow": "Flow diff: which kinds of command each side used",
+        "decision": "Decision diff: actions and answers compared",
+        "flow": "Flow diff: recorded commands",
         "result": "Result",
     }
 
 
-def flow_fold_summary():
-    return "Flow diff: which kinds of command each side used (no model involved)"
+def decision_footer(rows):
+    changed = sum(decision_status(row) == "Changed" for row in rows)
+    unavailable = sum(decision_status(row) == "Unavailable" for row in rows)
+    summary = "{0} of {1} comparisons have different choice proportions.".format(
+        changed, len(rows)
+    )
+    if unavailable:
+        summary += " {0} comparisons lack usable choices on one or both sides.".format(
+            unavailable
+        )
+    return summary
 
 
-def decision_footer(rows, fork):
-    divergent = sum(row.diverges for row in rows)
-    if fork:
-        rest = divergent - 1
-        if not rest:
-            return "Before and after first differ at decision #{0}.".format(fork)
-        return (
-            "Before and after first differ at decision #{0}. "
-            "Other decisions with differences: {1}. These comparisons do not prove "
-            "a causal link between the differences."
-        ).format(fork, rest)
-    return "{0} of {1} decisions differ.".format(divergent, len(rows))
+def decision_role(index, row, outcome):
+    if index == outcome:
+        return "Final result"
+    if type(row.anchor) is int:
+        return "Action"
+    return "Answer detail" if row.anchor == "answer" else "Comparison"
+
+
+def decision_status(row):
+    distributions = (_distribution(row.before), _distribution(row.after))
+    if any(not values or "" in values for values in distributions):
+        return "Unavailable"
+    return "Changed" if choices_changed(row.before, row.after) else "Unchanged"
+
+
+def decision_choices_preview(choices, total):
+    """Keep mixed or incomplete evidence visible in a compact choice summary."""
+    counts = _distribution(choices)
+    return (
+        " · ".join(
+            choice
+            if len(counts) == 1 and count == total
+            else "{0} ({1})".format(choice, trial_count(count, total))
+            for choice, count in counts.items()
+        )
+        or "No extracted choice"
+    )
+
+
+def decision_overview(report):
+    changed = Counter(
+        decision_role(index, row, report.decisions.outcome)
+        for index, row in enumerate(report.decisions.rows, 1)
+        if decision_status(row) == "Changed"
+    )
+    if not changed:
+        return report.result.text
+    labels = {
+        "Action": "action comparison",
+        "Final result": "final-result comparison",
+        "Answer detail": "answer-detail comparison",
+        "Comparison": "other comparison",
+    }
+    counts = ", ".join(
+        "{0} {1}{2}".format(count, labels[role], "" if count == 1 else "s")
+        for role, count in changed.items()
+    )
+    return report.result.text + ". Extracted differences: " + counts + "."
+
+
+def flow_patterns(flow):
+    """Expand the existing compressed groups into complete category combinations."""
+    if not flow.enabled:
+        return ()
+    patterns = {}
+    for side, branch in enumerate((flow.before, flow.after)):
+        groups = (
+            ((path.steps, path.count) for path in branch.paths)
+            if branch.paths
+            else (((), branch.total),)
+        )
+        for steps, count in groups:
+            if count <= 0:
+                continue
+            # Older flow groups also contain grading labels; those are not commands.
+            present = set(flow.shared + branch.prefix + steps)
+            categories = tuple(kind for kind in flow.kinds if kind in present)
+            counts = patterns.setdefault(categories, [0, 0])
+            counts[side] += count
+    return tuple(
+        (categories, counts[0], counts[1])
+        for categories, counts in sorted(patterns.items())
+    )
+
+
+def flow_overview(flow, patterns):
+    if (
+        not flow.enabled
+        or not flow.before.total
+        or not flow.after.total
+        or not any(categories for categories, _, _ in patterns)
+    ):
+        return "Recorded command patterns — unavailable"
+    changed = any(
+        before * flow.after.total != after * flow.before.total
+        for _, before, after in patterns
+    )
+    return "Recorded command patterns — " + ("changed" if changed else "unchanged")
 
 
 def dropped_rows(dropped):

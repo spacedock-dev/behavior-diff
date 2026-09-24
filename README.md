@@ -117,8 +117,17 @@ Each run creates a local HTML report, one file with up to four tabs:
 - **Summary** opens first. It states the finding and task, then separates the
   final result from the agent's behavior. Each comparison has a change status,
   trial counts, and evidence links. Model explanations and evidence limits follow.
-- **Decision diff** lists the main decisions that changed.
-- **Flow diff** lists the kinds of command each side used. It appears only
+- **Decision diff** starts with a concise finding and one list of comparisons.
+  Each step shows its topic, status, and role. Changed choices and the final result
+  have short Before/After summaries. Mixed or partial choices retain their counts.
+  Open a step to inspect its full question, choices, counts, sources, and trial links.
+  Several steps can stay open. Direct links open the matching step, and
+  **Expand all** shows all comparison evidence. Printing includes all evidence.
+  Markdown keeps each comparison fully expanded. Comparison order does not
+  represent recorded execution or proven causality.
+- **Flow diff** starts with each side's recorded command progression. Identical
+  recorded sequences share a path with counts and links to their trial evidence.
+  A separate table compares command-category combinations. This tab appears only
   when the run captured tool calls.
 - **Trials result** shows one card per run, before on the left and after on
   the right, with the commands and the final answer from every trial.
@@ -128,13 +137,21 @@ Start with the headline. **Final result** describes what the agent returned.
 come from a different process. Changes in answer wording alone do not establish
 an action change.
 
-Counts such as **3 of 3 trials** refer to trials, not repeated actions within
-one trial. A model extracts these counts from the evidence. Separate row counts
-do not show a complete sequence within one trial.
+In Summary and Decision diff, counts such as **3 of 3 trials** refer to trials,
+not repeated actions within one trial. A model extracts these counts from the
+evidence. Separate row counts do not show a complete sequence within one trial.
+
+In Flow diff, progression preserves command order and repeated commands. Before
+and After trials are independent. Empty records and blocked trials remain visible.
+Recorded commands do not prove successful execution.
+
+The command-category table groups each trial into one category combination.
+Category order is not execution order. Matching categories can contain different
+commands or files, so matching patterns do not establish unchanged behavior.
 
 The Summary uses short labels. Follow each label to its full comparison in
 Decision diff. Inspect the trial records for the original commands and answers.
-The Markdown report uses the same Summary structure.
+The Markdown report contains the same comparisons and evidence links.
 
 The existing extraction call identifies the primary result and possible
 explanations. These explanations are model interpretations, not causal proof.
@@ -209,9 +226,10 @@ python3 tests/report-demo.py
 This command prints a local file URL and keeps the temporary directory.
 Remove that directory when you no longer need the reports.
 
-The nine examples cover changed and unchanged results, action changes, answer
+The eleven examples cover changed and unchanged results, action changes, answer
 details, mixed results, blocked trials, missing comparisons, and self-reported
-evidence. Each example links to HTML and Markdown reports.
+evidence. Two examples show added command categories and mixed command patterns.
+Each example links to HTML and Markdown reports.
 
 The gallery and deterministic report checks share `tests/report_fixtures.py`.
 They use the real decision-ingest and report-render commands with authored
