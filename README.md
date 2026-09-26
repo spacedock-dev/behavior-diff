@@ -112,7 +112,8 @@ report.
 
 ## Read the report
 
-Each run creates a local HTML report, one file with up to four tabs:
+A **run** compares the instruction versions. A **trial** is one agent execution on
+one side. Each run creates a local HTML report with up to four tabs:
 
 - **Summary** opens first. It states the finding and task, then separates the
   final result from the agent's behavior. Each comparison has a change status,
@@ -129,17 +130,20 @@ Each run creates a local HTML report, one file with up to four tabs:
   recorded sequences share a path with counts and links to their trial evidence.
   A separate table compares command-category combinations. This tab appears only
   when the run captured tool calls.
-- **Trials result** shows one card per run, before on the left and after on
-  the right, with the commands and the final answer from every trial.
+- **Trial evidence** shows each trial's recorded commands or self-reported actions
+  and its final answer. Before and After trials are independent, even when their
+  numbers match. Side labels and trial counts remain visible on mobile.
 
-Start with the headline. **Final result** describes what the agent returned.
-**Behavior** compares the actions found in the evidence. The same result can
-come from a different process. Changes in answer wording alone do not establish
-an action change.
+Start with the headline. **Final result** is the primary result identified by the
+model. **Final answer** is the agent's recorded answer text. **Behavior** compares
+the actions found in the evidence. The same result can come from a different
+process. Changes in answer wording alone do not establish an action change.
 
 In Summary and Decision diff, counts such as **3 of 3 trials** refer to trials,
 not repeated actions within one trial. A model extracts these counts from the
 evidence. Separate row counts do not show a complete sequence within one trial.
+**Changed** and **Unchanged** compare choice proportions. **Unavailable** means
+that the extracted choices cannot support a comparison.
 
 In Flow diff, progression preserves command order and repeated commands. Before
 and After trials are independent. Empty records and blocked trials remain visible.
@@ -156,6 +160,9 @@ The Markdown report contains the same comparisons and evidence links.
 The existing extraction call identifies the primary result and possible
 explanations. These explanations are model interpretations, not causal proof.
 A changed result is not an automatic success or failure.
+Before and After use neutral borders. PASS and FAIL colors indicate grades
+against the supplied expectation, not a judgment that After is better.
+Instruction diff colors still mark added and removed lines.
 
 Mixed results show the choices and their trial counts. Missing, blocked, or
 incomplete evidence produces an insufficient-evidence result. Without an

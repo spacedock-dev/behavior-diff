@@ -15,13 +15,10 @@ def _text(value: str) -> str:
 
 
 def _choices(choices, total: int) -> str:
-    return (
-        " · ".join(
-            f"{_text(choice.choice)} ({content.trial_count(choice.count, total)})"
-            for choice in choices
-        )
-        or "—"
-    )
+    return "<br><br>".join(
+        f"{_text(choice.choice)}<br>{content.trial_count(choice.count, total)}"
+        for choice in choices
+    ) or _text(content.NO_EXTRACTED_CHOICE)
 
 
 def _decision_links(indexes) -> str:
@@ -87,19 +84,10 @@ def _decision_markdown(report):
             "| Before | After |",
             "| --- | --- |",
         ]
-        cells = []
-        for choices, total in (
-            (row.before, decisions.before_count),
-            (row.after, decisions.after_count),
-        ):
-            cells.append(
-                "<br><br>".join(
-                    f"{_text(choice.choice)}<br>{content.trial_count(choice.count, total)}"
-                    for choice in choices
-                )
-                or "—"
-            )
-        markdown.append(f"| {cells[0]} | {cells[1]} |\n")
+        markdown.append(
+            f"| {_choices(row.before, decisions.before_count)}"
+            f" | {_choices(row.after, decisions.after_count)} |\n"
+        )
         if row.note:
             markdown.append(f"Note: {_text(row.note)}\n")
     markdown.append(_text(content.decision_footer(decisions.rows)) + "\n")
@@ -160,7 +148,7 @@ def _flow_markdown(report):
                     + "</ol>\n"
                 )
             else:
-                markdown.append("No commands recorded\n")
+                markdown.append(_text(content.NO_COMMANDS_RECORDED) + "\n")
     markdown += [
         "### Command-category comparison\n",
         f"**{_text(content.flow_overview(flow, patterns))}**\n",
@@ -282,10 +270,16 @@ def render_markdown(report: ReportData) -> str:
     markdown += _decision_markdown(report)
     if metadata.trace_source != "self-reported":
         markdown += _flow_markdown(report)
-    markdown += ['<a id="panel-trials"></a>\n', "## Trial evidence\n"]
+    self_reported = metadata.trace_source == "self-reported"
+    action_label, empty_actions = content.trial_action_labels(self_reported)
+    markdown += [
+        '<a id="panel-trials"></a>\n',
+        f"## {_text(content.TRIAL_EVIDENCE_HEADING)}\n",
+        _text(content.trial_evidence_note(self_reported)) + "\n",
+    ]
     for side, variant, label in (
-        ("before", report.variants.before, f"BEFORE — {metadata.before_label}"),
-        ("after", report.variants.after, f"AFTER — {metadata.after_label}"),
+        ("before", report.variants.before, f"Before — {metadata.before_label}"),
+        ("after", report.variants.after, f"After — {metadata.after_label}"),
     ):
         markdown.append(f"### {_text(label)}\n")
         markdown.append(_count_line(variant) + "\n")
@@ -297,19 +291,16 @@ def render_markdown(report: ReportData) -> str:
             ]
             if trial.actions != "-":
                 markdown.append(_text(trial.actions) + "\n")
-            action_label = (
-                "self-reported actions"
-                if metadata.trace_source == "self-reported"
-                else "commands the agent ran"
-            )
+            actions = "\n\n".join(trial.commands) or empty_actions
             markdown.append(
-                f"<details><summary>{action_label} ({len(trial.commands)})</summary>\n"
-                "<pre>" + html.escape("\n\n".join(trial.commands)) + "</pre>\n"
+                f"<details><summary>{html.escape(action_label)} ({len(trial.commands)})</summary>\n"
+                "<pre>" + html.escape(actions) + "</pre>\n"
                 "</details>\n"
             )
+            final = trial.final if trial.final.strip() else content.NO_FINAL_ANSWER
             markdown.append(
-                "<details><summary>final answer to the user</summary>\n"
-                "<pre>" + html.escape(trial.final.strip()) + "</pre>\n"
+                f"<details><summary>{html.escape(content.FINAL_ANSWER_HEADING)}</summary>\n"
+                "<pre>" + html.escape(final) + "</pre>\n"
                 "</details>\n"
             )
     return "\n".join(markdown)

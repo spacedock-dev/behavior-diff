@@ -33,12 +33,13 @@ def _diff_line_class(line: str) -> str:
 def _trial_card(trial, self_reported: bool, mode: str, side: str) -> str:
     escaped = html.escape
     verdict_class = escaped(trial.verdict.lower())
-    if self_reported:
-        evidence = "\n\n".join(trial.commands) or "(no self-reported actions)"
-    else:
-        evidence = (
-            "\n\n".join("$ " + command for command in trial.commands) or "(no commands)"
+    action_heading, empty_actions = content.trial_action_labels(self_reported)
+    evidence = (
+        "\n\n".join(
+            command if self_reported else "$ " + command for command in trial.commands
         )
+        or empty_actions
+    )
     actions = (
         "" if trial.actions == "-" else f'<p class="acts">{escaped(trial.actions)}</p>'
     )
@@ -47,11 +48,11 @@ def _trial_card(trial, self_reported: bool, mode: str, side: str) -> str:
         f'<p class="trial-head"><strong>{escaped(trial.name)}</strong>'
         f'<span class="badge {verdict_class}">{escaped(trial.verdict)}</span></p>{actions}'
         f"<details {'open' if mode == 'review' else ''}>"
-        f"<summary>{'self-reported actions' if self_reported else 'Commands the agent ran'} "
+        f"<summary>{escaped(action_heading)} "
         f"({len(trial.commands)})</summary><pre>{escaped(evidence)}</pre></details>"
         f"<details {'open' if mode == 'review' else ''}>"
-        f"<summary>Final answer to the user</summary>"
-        f"<pre>{escaped(trial.final.strip())}</pre></details></article>"
+        f"<summary>{escaped(content.FINAL_ANSWER_HEADING)}</summary>"
+        f"<pre>{escaped(trial.final if trial.final.strip() else content.NO_FINAL_ANSWER)}</pre></details></article>"
     )
 
 
@@ -60,7 +61,7 @@ def _decision_choices(choices, total: int) -> str:
     for choice in choices:
         count = f'<span class="choice-count">{content.trial_count(choice.count, total)}</span>'
         lines.append(f'<div class="dline">{html.escape(choice.choice)}{count}</div>')
-    return "".join(lines) or "—"
+    return "".join(lines) or html.escape(content.NO_EXTRACTED_CHOICE)
 
 
 def _decision_progression(report) -> str:
@@ -128,10 +129,22 @@ def _decision_progression(report) -> str:
     )
 
 
-_DECISION_INTERACTIONS = """<script>
+_REPORT_INTERACTIONS = """<script>
 (() => {
+  let printState = null;
+  window.addEventListener("beforeprint", () => {
+    if (printState !== null) return;
+    printState = [...document.querySelectorAll("details")].map(row => [row, row.open]);
+    printState.forEach(([row]) => { row.open = true; });
+  });
+  window.addEventListener("afterprint", () => {
+    if (printState === null) return;
+    printState.forEach(([row, open]) => { row.open = open; });
+    printState = null;
+  });
   const list = document.getElementById("decision-list");
   const button = document.getElementById("decision-toggle");
+  if (!list || !button) return;
   const rows = [...list.querySelectorAll(".decision-row")];
   const updateButton = () => {
     button.textContent = rows.every(row => row.open) ? "Collapse all" : "Expand all";
@@ -159,18 +172,6 @@ _DECISION_INTERACTIONS = """<script>
     if (link && link.getAttribute("href") === location.hash) openLinkedDecision();
   });
   openLinkedDecision();
-  let printState = null;
-  window.addEventListener("beforeprint", () => {
-    if (printState !== null) return;
-    printState = [...document.querySelectorAll("details")].map(row => [row, row.open]);
-    printState.forEach(([row]) => { row.open = true; });
-  });
-  window.addEventListener("afterprint", () => {
-    if (printState === null) return;
-    printState.forEach(([row, open]) => { row.open = open; });
-    printState = null;
-    updateButton();
-  });
 })();
 </script>"""
 
@@ -195,13 +196,13 @@ def _flow_lane(variant, side: str, label: str) -> str:
         sequence = (
             f'<ol class="command-path" role="list" aria-label="Recorded command order">{steps}</ol>'
             if commands
-            else '<p class="note">No commands recorded</p>'
+            else f'<p class="note">{html.escape(content.NO_COMMANDS_RECORDED)}</p>'
         )
         paths.append(
             '<article class="command-group">'
             f'<h4>Path {index} <span class="path-count">'
             f"{html.escape(content.trial_count(len(members), variant.total))}</span></h4>"
-            f'<ul class="path-evidence" aria-label="Trial evidence">{evidence}</ul>'
+            f'<ul class="path-evidence" aria-label="{html.escape(content.TRIAL_EVIDENCE_HEADING)}">{evidence}</ul>'
             f"{sequence}</article>"
         )
     body = "".join(paths) or '<p class="note">No trials</p>'
@@ -326,23 +327,20 @@ def render_artifact(report: ReportData, css: str) -> str:
     ):
         halves = ""
         for trial, css_class in ((before_trial, "b"), (after_trial, "a")):
+            side = "before" if css_class == "b" else "after"
             body = (
-                _trial_card(
-                    trial,
-                    self_reported,
-                    metadata.mode,
-                    "before" if css_class == "b" else "after",
-                )
+                _trial_card(trial, self_reported, metadata.mode, side)
                 if trial
                 else '<p class="fnote">(no trial on this side)</p>'
             )
-            halves += f'<div class="half {css_class}">{body}</div>'
-        runs += f'<article class="run"><p class="run-label">Run {index}</p>{halves}</article>'
+            halves += (
+                f'<div class="half {css_class}">'
+                f'<p class="trial-side">{side.capitalize()}</p>{body}</div>'
+            )
+        runs += f'<article class="run"><p class="run-label">Trial {index}</p>{halves}</article>'
     trials_html = (
-        f'<p class="section-label">Trials result: what each agent ran and answered</p>'
-        f'<p class="sub">Raw evidence, one card per run. Each run is an independent '
-        f"trial. Rows pair runs by number so before and after sit side by side; "
-        f"run 1 before is not the same run as run 1 after.</p>"
+        f'<p class="section-label">{escaped(content.TRIAL_EVIDENCE_HEADING)}</p>'
+        f'<p class="sub">{escaped(content.trial_evidence_note(self_reported))}</p>'
         f'<div class="run run-head"><span></span>'
         f'<div class="half-head b"><h2>Before</h2>{before_note}'
         f'<span class="count">{escaped(before.count_text + before.count_suffix)}</span></div>'
@@ -551,7 +549,12 @@ def render_artifact(report: ReportData, css: str) -> str:
     if flow_section:
         tabs.append(("flow", "Flow diff", "", flow_section))
     tabs.append(
-        ("trials", "Trials result", f"{before.total} + {after.total}", trials_html)
+        (
+            "trials",
+            content.TRIAL_EVIDENCE_HEADING,
+            f"{before.total} + {after.total} trials",
+            trials_html,
+        )
     )
 
     resolved_css = _resolve_css(css, report.result.kind)
@@ -565,10 +568,10 @@ def render_artifact(report: ReportData, css: str) -> str:
 {note_html}
 
 {_tabs(tabs)}
-{_DECISION_INTERACTIONS if decisions_html else ""}
+{_REPORT_INTERACTIONS}
 
 <p class="footer">Simulation evidence from Behavior Diff
-(model: {escaped(metadata.model)}, before: {before.total} trial(s), after: {after.total} trial(s)).</p>
+(model: {escaped(metadata.model)}, before: {before.total} {content.trial_noun(before.total)}, after: {after.total} {content.trial_noun(after.total)}).</p>
 """
 
 
