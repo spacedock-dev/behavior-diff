@@ -4,6 +4,15 @@ from collections import Counter
 
 from reporting.schema import ContentData, ResultData
 
+TRIAL_EVIDENCE_HEADING = "Trial evidence"
+FINAL_ANSWER_HEADING = "Final answer"
+NO_COMMANDS_RECORDED = "No commands recorded"
+NO_EXTRACTED_CHOICE = "No extracted choice"
+NO_FINAL_ANSWER = "No final answer recorded"
+RECORDED_COMMAND_LIMIT = (
+    "Records can be incomplete and do not prove successful execution."
+)
+
 
 TRIAL_COUNT_NOTE = (
     "A model extracts these counts from trial evidence. "
@@ -30,12 +39,29 @@ DECISION_PROGRESSION_NOTE = "These model-extracted comparisons are not a recorde
 FLOW_PROGRESSION_NOTE = (
     "Commands follow their recorded order, including repeats. "
     "Only identical complete sequences are grouped within each side. "
-    "Before and After are independent trials. Records can be incomplete and do not prove successful execution."
+    "Before and After trials are independent. " + RECORDED_COMMAND_LIMIT
 )
 
 
+def trial_noun(count):
+    return "trial" if count == 1 else "trials"
+
+
 def trial_count(count, total):
-    return "{0} of {1} trial{2}".format(count, total, "" if total == 1 else "s")
+    return "{0} of {1} {2}".format(count, total, trial_noun(total))
+
+
+def trial_action_labels(self_reported):
+    if self_reported:
+        return "Self-reported actions", "No self-reported actions"
+    return "Recorded commands", NO_COMMANDS_RECORDED
+
+
+def trial_evidence_note(self_reported):
+    return (
+        "Before and After trials are independent, even when their trial numbers match. "
+        + (SELF_REPORTED_LIMIT if self_reported else RECORDED_COMMAND_LIMIT)
+    )
 
 
 def trial_anchor(side, name):
@@ -251,8 +277,12 @@ def _evidence_limits(metadata, variants, decisions, expected):
         (variants.after, decisions.after_count),
     ):
         limits.append(
-            "{0}: {1} trial(s), {2} valid, {3} blocked.".format(
-                variant.label, variant.total, variant.valid, variant.blocked
+            "{0}: {1} {2}, {3} valid, {4} blocked.".format(
+                variant.label,
+                variant.total,
+                trial_noun(variant.total),
+                variant.valid,
+                variant.blocked,
             )
         )
         if variant.valid == 0:
@@ -284,23 +314,21 @@ def _evidence_limits(metadata, variants, decisions, expected):
                 )
             )
     if decisions.dropped:
-        missing.append(
-            "{0} extracted comparison row(s) were dropped. Completeness is uncertain.".format(
-                decisions.dropped
-            )
-        )
+        missing.append(dropped_rows(decisions.dropped) + " Completeness is uncertain.")
     if metadata.mode == "review":
         limits.append("Review mode does not assign an automatic pass or fail.")
     elif expected:
         limits.append(
             'Separate grading against the supplied expectation "{0}": '
-            "before {1}/{2} valid trials met it. After {3}/{4} valid trials met it. "
+            "Before: {1} of {2} valid {3} met it. After: {4} of {5} valid {6} met it. "
             "These grades do not establish complete result evidence.".format(
                 expected,
                 variants.before.passed,
                 variants.before.valid,
+                trial_noun(variants.before.valid),
                 variants.after.passed,
                 variants.after.valid,
+                trial_noun(variants.after.valid),
             )
         )
     if not expected:
@@ -313,12 +341,10 @@ def _evidence_limits(metadata, variants, decisions, expected):
         "The primary result, explanations, and proposed causal links are model interpretations."
     )
     if metadata.trace_source == "self-reported":
-        limits.append(
-            "Actions and answers are self-reported, not independently captured tool calls."
-        )
+        limits.append(SELF_REPORTED_LIMIT)
     if variants.before.total == 1 or variants.after.total == 1:
         limits.append(
-            "At least one side has a single trial. Differences may be run-to-run "
+            "At least one side has a single trial. Differences can reflect trial-to-trial "
             "variation rather than an instruction effect."
         )
     return limits, missing
@@ -327,14 +353,16 @@ def _evidence_limits(metadata, variants, decisions, expected):
 def count_data(mode, passed, valid, blocked):
     if mode == "review":
         return (
-            "{0} valid trial(s) · no automatic grading (blocked: {1})".format(
-                valid, blocked
+            "{0} valid {1} · no automatic grading (blocked: {2})".format(
+                valid, trial_noun(valid), blocked
             ),
             "",
             False,
         )
     return (
-        "{0} of {1} valid trials met the expectation".format(passed, valid),
+        "{0} of {1} valid {2} met the expectation".format(
+            passed, valid, trial_noun(valid)
+        ),
         " (blocked: {0})".format(blocked),
         True,
     )
@@ -344,7 +372,7 @@ def decision_blurb(single_trial):
     purpose = "A model extracts these comparisons from trial evidence."
     if single_trial:
         purpose += (
-            " CAUTION — one trial per side: differences can be run-to-run variation "
+            " CAUTION — one trial per side: differences can reflect trial-to-trial variation "
             "rather than an instruction effect. Repeat the comparison with more trials "
             "(behavior-diff 3+3) before drawing conclusions."
         )
@@ -365,10 +393,10 @@ def flow_kinds_heading(kinds):
 
 def source_label(anchor, trace_source):
     if anchor == "answer":
-        return "from the reply"
+        return "from the final answer"
     if trace_source == "self-reported":
-        return "from a reported action"
-    return "from a command"
+        return "from a self-reported action"
+    return "from a recorded command"
 
 
 def tag_legend(trace_source):
@@ -376,17 +404,26 @@ def tag_legend(trace_source):
     return (
         ("changed", "Changed", "the extracted choice proportions differ between sides"),
         ("same", "Unchanged", "the extracted choice proportions match between sides"),
+        (
+            "unavailable",
+            "Unavailable",
+            "the extracted choices do not support a comparison",
+        ),
         ("action", "Action", "a comparison of actions in the trial evidence"),
-        ("result", "Final result", "the result selected by the extractor"),
+        ("result", "Final result", "the primary result identified by the model"),
         ("detail", "Answer detail", "another comparison from the final answer"),
         (
             "cmd",
             source_label(1, trace_source),
             "this row comes from an action the agent reported"
             if trace_source == "self-reported"
-            else "this row comes from a captured command",
+            else "this row comes from a recorded command",
         ),
-        ("ans", "from the reply", "this row comes from what the agent wrote"),
+        (
+            "ans",
+            source_label("answer", trace_source),
+            "this row comes from the final answer",
+        ),
     )
 
 
@@ -440,7 +477,7 @@ def decision_choices_preview(choices, total):
             else "{0} ({1})".format(choice, trial_count(count, total))
             for choice, count in counts.items()
         )
-        or "No extracted choice"
+        or NO_EXTRACTED_CHOICE
     )
 
 
@@ -497,18 +534,18 @@ def flow_overview(flow, patterns):
         or not flow.after.total
         or not any(categories for categories, _, _ in patterns)
     ):
-        return "Recorded command patterns — unavailable"
+        return "Command-category combinations — unavailable"
     changed = any(
         before * flow.after.total != after * flow.before.total
         for _, before, after in patterns
     )
-    return "Recorded command patterns — " + ("changed" if changed else "unchanged")
+    return "Command-category combinations — " + ("changed" if changed else "unchanged")
 
 
 def dropped_rows(dropped):
-    return (
-        "{0} extractor row(s) were dropped because their counts did not match the trials."
-    ).format(dropped)
+    return "Omitted {0} comparison{1}: counts did not match the trials.".format(
+        dropped, "" if dropped == 1 else "s"
+    )
 
 
 def build_content(
@@ -522,7 +559,7 @@ def build_content(
     names = headings(metadata.target_file)
     facts = meta(metadata, before_total, after_total)
     return ContentData(
-        title=config.get("title", "rk-monitor Behavior Check"),
+        title=config.get("title", "Behavior Diff"),
         subtitle=subtitle(facts),
         meta=facts,
         note=config.get("sub", ""),

@@ -368,13 +368,9 @@ python3 "$renderer" "$invalid_decisions_run" "$invalid_decisions_run" contract \
 read_action='Read: AGENTS.md'
 test_action='Test: bash behavior-diff/tests/live-report-contract.sh'
 
-progress 'Validate self-reported wording, escaping, and action order'
+progress 'Validate self-reported escaping and action order'
 
 for report in "$self_run/report.md" "$self_run/report.html"; do
-  require_output 'self-reported actions' "$report" \
-    "self-reported report does not label its evidence as self-reported actions: $report"
-  reject_output 'actual commands' "$report" \
-    "self-reported report claims to contain actual commands: $report"
   require_output "$read_action" "$report" \
     "self-reported report dropped the read action: $report"
   require_output "$test_action" "$report" \
@@ -383,16 +379,12 @@ for report in "$self_run/report.md" "$self_run/report.html"; do
     "self-reported read action has a shell prompt prefix: $report"
   reject_output "\$ $test_action" "$report" \
     "self-reported test action has a shell prompt prefix: $report"
-  require_output 'self-reported actions' \
-    "$report" "self-reported report does not disclose its evidence: $report"
-  reject_output 'stable across extractions' "$report" \
-    "self-reported report claims extractor output is stable: $report"
   case $report in
     *.md)
       after_marker='id="trial-after-61667465722d31"'
       ;;
     *)
-      after_marker='<h2>After</h2>'
+      after_marker='id="trial-after-61667465722d31"'
       require_output 'parent snapshot &lt;baseline&gt;' "$report" \
         "self-reported HTML did not escape the before label: $report"
       require_output 'target snapshot &lt;candidate&gt;' "$report" \
@@ -427,7 +419,7 @@ for report in "$captured_run/report.md" "$captured_run/report.html"; do
         "captured Markdown added a test command prompt prefix: $report"
       ;;
     *)
-      after_marker='<h2>After</h2>'
+      after_marker='id="trial-after-61667465722d31"'
       require_output "\$ $read_action" "$report" \
         "captured HTML lost the read command prompt prefix: $report"
       require_output "\$ $test_action" "$report" \

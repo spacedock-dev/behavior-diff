@@ -237,7 +237,7 @@ details { margin-bottom:.25rem; }
 .fold[open] .hint-show, .fold:not([open]) .hint-hide { display:none; }
 .fold > pre { margin-top:.6rem; }
 
-/* Trials: one card per run, before on the left, after on the right. */
+/* Trials: one card per row, before on the left, after on the right. */
 .run { display:grid; grid-template-columns:4.5rem 1fr 1fr; gap:0 1.1rem;
   background:var(--panel); border:1px solid var(--border);
   border-radius:8px; padding:.9rem 1.1rem 1rem; margin-top:.9rem; }
@@ -246,8 +246,6 @@ details { margin-bottom:.25rem; }
 .run-label { margin:0; font-size:.75rem; font-weight:700;
   letter-spacing:.08em; text-transform:uppercase; color:var(--muted); }
 .half { min-width:0; padding-left:.8rem; border-left:3px solid var(--border); }
-.half.b { border-left-color:var(--fail); }
-.half.a { border-left-color:var(--pass); }
 .half-head { display:flex; flex-wrap:wrap; align-items:baseline;
   gap:.2rem .6rem; min-width:0; }
 .half-head h2 { font-size:.75rem; font-weight:700; letter-spacing:.08em;
@@ -259,6 +257,8 @@ details { margin-bottom:.25rem; }
   gap:.55rem; margin:0 0 .3rem; }
 .trial-head strong { font-family:"IBM Plex Mono", ui-monospace, monospace;
   font-size:.9rem; }
+.trial-side { display:none; margin:0 0 .4rem; font-size:.75rem; font-weight:700;
+  letter-spacing:.08em; text-transform:uppercase; color:var(--muted); }
 @media (max-width: 780px) {
   .decision-evidence { padding:.65rem; }
   .flow-lanes { grid-template-columns:minmax(0, 1fr); }
@@ -274,7 +274,8 @@ details { margin-bottom:.25rem; }
   .decision-comparison td:first-child::before { content:"Before"; }
   .decision-comparison td:last-child::before { content:"After"; }
   .run { grid-template-columns:1fr; gap:.8rem 0; }
-  .run-head { display:none; }
+  .run-head > span { display:none; }
+  .trial-side { display:block; }
   .half { padding-top:.3rem; }
   .tabbar a { padding:.5rem .6rem; font-size:.88rem; }
   .comparison th, .comparison td { padding:.5rem; }

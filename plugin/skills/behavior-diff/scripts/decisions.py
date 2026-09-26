@@ -804,14 +804,11 @@ def self_check():
         )
         assert p.returncode == 0, p.stderr
         page = (run / "report.html").read_text()
-        assert (
-            "Decision diff: what the agent chose, before and after your edit"
-            not in page
-        )
+        assert 'id="panel-decision"' not in page
         assert skip in page
         assert "cat before-1.txt" in page
         assert "the list was already sorted" in page
-        assert "Flow diff" not in page
+        assert 'id="panel-flow"' not in page
 
         progress("Validate successful decision ingestion")
 
