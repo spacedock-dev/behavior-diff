@@ -4,3 +4,6 @@ runs/
 # local Python verification artifacts
 __pycache__/
 *.pyc
+
+.worktrees/
+docs/skill-history-replay/.spacedock-state/
