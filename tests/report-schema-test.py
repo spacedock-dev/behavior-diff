@@ -30,7 +30,7 @@ from report_fixtures import SCENARIOS, build_reports  # noqa: E402
 
 def synthetic_raw():
     return {
-        "schema_version": 3,
+        "schema_version": 4,
         "metadata": {
             "model": "synthetic/model",
             "mode": "review",
@@ -162,6 +162,7 @@ def synthetic_raw():
                     "anchor": 2,
                     "diverges": True,
                     "note": "Synthetic divergence.",
+                    "edit_hunks": [],
                     "before": [
                         {"choice": "read only", "count": 1},
                         {"choice": "search", "count": 1},
@@ -174,6 +175,7 @@ def synthetic_raw():
                     "anchor": "answer",
                     "diverges": False,
                     "note": "",
+                    "edit_hunks": [],
                     "before": [{"choice": "explain", "count": 2}],
                     "after": [{"choice": "explain", "count": 2}],
                 },
@@ -687,6 +689,119 @@ def assert_command_progression_boundaries(report):
         ), "Progression lost command order, repetition, or verbatim whitespace."
 
 
+def assert_intent_reports(reports, root):
+    """Signal ranking must not change identity or invent edit-related evidence."""
+    from reporting.load import load_report
+
+    flip = reports["intent-flip"]
+    assert flip.decisions.outcome == 3
+    assert content.consistent_changes(flip.decisions) == (2,)
+    assert flip.decisions.rows[1].edit_hunks == (1,)
+    groups = content.decision_groups(flip.decisions)
+    assert groups[0][1] == (2,)
+    assert sorted(index for _, indexes in groups for index in indexes) == [1, 2, 3]
+    assert content.unchanged_targeted(flip) == ()
+
+    same = reports["intent-unchanged"]
+    assert content.unchanged_targeted(same) == (2, 3)
+    assert content.consistent_changes(same.decisions) == ()
+    assert all(
+        same.decisions.rows[index - 1].anchor == "answer"
+        for index in content.unchanged_targeted(same)
+    ), "Answer-anchored targeted behavior must remain visible."
+    for after in (
+        replace(same.variants.after, blocked=1, valid=2),
+        replace(same.variants.after, trials=same.variants.after.trials[:2]),
+    ):
+        incomplete = replace(same, variants=replace(same.variants, after=after))
+        assert not content.complete_trial_evidence(incomplete)
+        assert content.unchanged_targeted(incomplete) == (), (
+            "Missing or blocked trials must not imply all targeted behavior is unchanged."
+        )
+    blocked_flip = replace(
+        flip,
+        variants=replace(
+            flip.variants, after=replace(flip.variants.after, blocked=1, valid=2)
+        ),
+    )
+    assert all(
+        indexes != (2,)
+        for _, indexes in content.decision_groups(blocked_flip.decisions, blocked_flip)
+    ), "A blocked run must not promote its apparent unanimous flip."
+    mixed = replace(
+        same.decisions.rows[1],
+        before=(DecisionChoiceData("flagged", 2), DecisionChoiceData("missed", 1)),
+        after=(DecisionChoiceData("flagged", 2), DecisionChoiceData("missed", 1)),
+    )
+    mixed_report = replace(
+        same,
+        decisions=replace(
+            same.decisions, rows=(same.decisions.rows[0], mixed, same.decisions.rows[2])
+        ),
+    )
+    assert content.unchanged_targeted(mixed_report) == (3,), (
+        "Equal mixed proportions do not establish unanimous unchanged behavior."
+    )
+    missing_links = replace(
+        same,
+        decisions=replace(
+            same.decisions,
+            rows=tuple(replace(row, edit_hunks=()) for row in same.decisions.rows),
+        ),
+    )
+    assert content.unchanged_targeted(missing_links) == ()
+
+    changed_row = flip.decisions.rows[1]
+    for before_count, after_count, before_n, after_n, expected in (
+        (1, 1, 1, 1, ()),
+        (3, 3, 2, 3, ()),
+        (3, 3, 3, 2, ()),
+        (2, 5, 2, 5, (1,)),
+    ):
+        decisions = replace(
+            flip.decisions,
+            rows=(
+                replace(
+                    changed_row,
+                    before=(DecisionChoiceData("query-old", before_n),),
+                    after=(DecisionChoiceData("query-new", after_n),),
+                ),
+            ),
+            before_count=before_count,
+            after_count=after_count,
+            outcome=None,
+        )
+        assert content.consistent_changes(decisions) == expected
+
+    for invalid in ([True], [0], [2], [1, 1], "1"):
+        raw = flip.to_dict()
+        raw["decisions"]["rows"][1]["edit_hunks"] = invalid
+        try:
+            ReportData.from_dict(raw)
+        except ValueError:
+            pass
+        else:
+            raise AssertionError(
+                f"Invalid edit evidence reference accepted: {invalid!r}"
+            )
+
+    run = root / "intent-flip"
+    extraction = json.loads((run / "decisions.json").read_text())
+    for provenance in ("different instruction diff", None):
+        stale = dict(extraction)
+        if provenance is None:
+            stale.pop("instruction_diff", None)
+        else:
+            stale["instruction_diff"] = provenance
+        (run / "decisions.json").write_text(json.dumps(stale))
+        loaded = load_report(run, run, "synthetic/authored", run / "config.json")
+        assert len(loaded.decisions.rows) == len(flip.decisions.rows)
+        assert all(not row.edit_hunks for row in loaded.decisions.rows)
+        assert content.consistent_changes(loaded.decisions) == (2,), (
+            "Stale edit interpretation must not discard observed choices."
+        )
+
+
 def assert_gallery_reports():
     """Exercise the same authored cases used by the local gallery through the CLI."""
     expected = {
@@ -701,6 +816,8 @@ def assert_gallery_reports():
         "self-reported": ("changed", "changed"),
         "flow-changed": ("unchanged", "changed"),
         "flow-mixed": ("unchanged", "changed"),
+        "intent-flip": ("varies", "changed"),
+        "intent-unchanged": ("unchanged", "unavailable"),
     }
     with tempfile.TemporaryDirectory() as directory:
         root = Path(directory)
@@ -777,6 +894,7 @@ def assert_gallery_reports():
             self_reported.command_flow.after,
         ):
             assert branch.prefix == branch.paths == ()
+        assert_intent_reports(reports, root)
 
     with tempfile.TemporaryDirectory() as directory:
         root = Path(directory)
@@ -829,6 +947,10 @@ def main():
     assert_rejected(
         dict(raw, schema_version=2),
         "unsupported report-data schema version: 2",
+    )
+    assert_rejected(
+        dict(raw, schema_version=3),
+        "unsupported report-data schema version: 3",
     )
     assert_rejected(
         dict(raw, schema_version=True),

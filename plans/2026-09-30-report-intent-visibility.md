@@ -2,7 +2,7 @@
 
 **Recorded:** 2026-09-30
 **Version discussed:** Behavior Diff v0.3.7
-**Status:** Proposal. Not approved for implementation.
+**Status:** Implemented following user approval on 2026-09-30.
 **Source:** Skill history replay pilot, `docs/skill-history-replay/README.md`.
 
 ## Main finding
@@ -114,11 +114,36 @@ labeled as interpretation, like the existing "Model explanations".
 - Knowing the author's intent. The report can only point from the edit to
   the behavior that changed; it cannot see the commit's PR.
 
-## Open questions
+## Implementation decisions
 
-- Should "strong signal" need unanimous sides, or allow a threshold such as
-  2 of 3 versus 3 of 3?
-- Should the diff summary in change 1 be written by a model, or be the diff's
-  own changed headings and lines?
-- Can a stored run be re-rendered with the new layout without re-running its
-  trials? The Hugging Face re-verify depends on this.
+- Use **Consistent changes across observed trials**, not a statistical “strong
+  signal” claim. Require different unanimous choices, at least two trials per
+  side, and complete evidence. Group split and incomplete choices separately.
+- Summarize the diff's own changed headings or lines and line counts. Do not add
+  a model call or infer the author's intent to write that summary.
+- Extend the existing extraction call with numbered diff hunks. Keep observation
+  extraction separate from the interpreted relationship to the edit. Validate
+  hunk references and bind them to the exact diff supplied to the extractor.
+- Preserve primary-result identity and original comparison anchors when changing
+  presentation order. Name mapped unchanged behavior only with unanimous,
+  complete evidence; equal mixed distributions are not an all-trials no-effect result.
+- Stored raw runs can be re-rendered without new trials or model calls. Existing
+  extractions gain layout and ranking changes, but need a new, approved extraction
+  to acquire semantic edit links. Do not infer those links during rendering.
+- Report-data schema 4 records hunk references. Regenerate older report-data
+  from raw run artifacts rather than maintaining a parallel legacy schema.
+
+## Verification
+
+Both pilot runs were re-rendered from temporary local copies of their saved
+evidence, without changing the original runs or calling a model. Old extractions
+retain their observations and explicitly lack edit mappings. No new `catch`
+judgment or claim of improved verifier scores was made.
+
+Synthetic report cases exercise a unanimous tool switch amid mixed results and
+unchanged targeted findings. Deterministic checks cover ranking, original row
+identity, invalid/stale mappings, incomplete trials, and report-data round trips.
+Browser verification exercises the rendered reports and cross-tab hunk links.
+
+An Improvement issue with the `behavior-diff` label remains required. The Linear
+integration and a local Linear CLI were unavailable during implementation.

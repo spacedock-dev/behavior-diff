@@ -24,6 +24,19 @@ a { color:var(--accent); text-underline-offset:.16em; }
 a:focus-visible { outline:2px solid var(--accent); outline-offset:3px; }
 [id] { scroll-margin-top:1rem; }
 .decision-row:target, .trial:target { outline:2px solid var(--accent); outline-offset:5px; }
+.instruction-edit { border-left:3px solid var(--accent); padding-left:1rem; }
+.instruction-edit .section-label { margin-top:0; }
+.edit-summary { overflow-wrap:anywhere; margin:.4rem 0; }
+.instruction-edit .fold { margin-top:.6rem; }
+.edit-links { display:block; margin:.4rem 0; font-size:.82rem; font-weight:400; }
+.edit-links a { display:inline-block; padding:.2rem 0; }
+[id^="edit-hunk-"] { display:block; scroll-margin-top:1rem; }
+[id^="edit-hunk-"]:target { background:var(--accent-soft); outline:2px solid var(--accent); }
+.consistent-finding { border-left:3px solid var(--accent); padding-left:1rem; margin-top:1.4rem; }
+.consistent-finding .comparison-heading { margin-top:.5rem; }
+.targeted-finding { margin:1.2rem 0; }
+.decision-group h3 { margin:1.5rem 0 .6rem; font-size:.98rem; }
+.instruction-edit pre { overflow-wrap:anywhere; }
 .result-summary { margin:.8rem 0; max-width:80ch; overflow-wrap:anywhere; }
 .tab-overview { background:var(--code-bg); border-left:3px solid var(--muted);
   padding:.8rem 1rem; margin:.8rem 0; font-size:1.1rem; font-weight:600;

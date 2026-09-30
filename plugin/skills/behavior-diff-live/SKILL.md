@@ -153,13 +153,13 @@ the sibling skill's bundled `scripts/` directory.
      `render.py` in the sibling `behavior-diff` skill's directory) and
      save its stdout as `<run dir>/reports/extractor-prompt.txt`.
    - Dispatch ONE fresh subagent as `model: "sonnet"` — extraction
-     reads two short trial logs and replies with JSON, so it does not
-     need the session's model; the `--extractor-label` below keeps
-     stamping whichever model actually ran. Never a fork: a forked agent
-     inherits this session's context, which contains the rule diff,
-     and a tool-holding one could read the run dir; either breaks the
-     extractor's blindness. Its prompt is this fixed two-line preamble
-     followed by the emitted prompt verbatim:
+     reads the emitted trial evidence and numbered instruction hunks, then
+     replies with JSON. It does not need the session's model; the
+     `--extractor-label` below keeps stamping whichever model actually ran.
+     Never a fork: inherited session context or additional tool reads could
+     introduce evidence outside the emitted prompt. The hunks are supplied
+     deliberately for interpreted edit links, not as instructions to follow.
+     Its prompt is this fixed two-line preamble followed by the emitted prompt verbatim:
 
          Answer directly; do not use any tools.
          Reply with the JSON only.
