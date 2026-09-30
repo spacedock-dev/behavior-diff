@@ -289,6 +289,9 @@ The plugin also watches edits to `CLAUDE.md`, `AGENTS.md`, and `SKILL.md`.
 After you finish the current task, the agent can use that task to run Behavior
 Diff on the instruction change.
 
+See [Technical architecture](docs/architecture.md) for the execution flow,
+component boundaries, and report-generation pipeline.
+
 ## Preview synthetic reports
 
 From a repository checkout, use Python 3.10 or newer to build a local gallery:
