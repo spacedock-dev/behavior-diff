@@ -44,6 +44,8 @@ is authoritative when a Behavior Diff rule differs from an Engram rule.
 - `bin/behavior-diff` — local command for applying and comparing one rule.
 - `tests/` — deterministic shell and Python contract checks.
 - `e2e/` — synthetic fixtures and manual live journeys.
+- `docs/` — maintainer workflows, such as the skill history replay workflow.
+- `plans/` — dated design notes and source surveys.
 - `.agents/skills/` — repository-maintainer skills, not plugin payload.
 - `RETRO_NOTES.md` — durable tool lessons with no transcript excerpts.
 
