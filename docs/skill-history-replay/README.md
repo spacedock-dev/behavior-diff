@@ -57,7 +57,7 @@ For every gated stage, add `- **Gate content:**` to its stage subsection and sta
 Each case lives as either:
 
 - a flat markdown file `{slug}.md` (default — use this unless the case produces many artifacts), or
-- a folder `{slug}/` containing `index.md` as the canonical entity file. The `run` stage converts each case to this form (`git mv {slug}.md {slug}/index.md`) and stores the Behavior Diff report in `{slug}/report/`.
+- a folder `{slug}/` containing `index.md` as the canonical entity file. The `intent` stage converts each case to this form (`git mv {slug}.md {slug}/index.md`) and writes the ground truth to `{slug}/ground-truth.md`, outside `index.md`, so a worker that reads the case file does not see it. The `run` stage stores the Behavior Diff report in `{slug}/report/`.
 
 Slugs are lowercase, hyphens, no spaces, and name the skill plus the After
 commit prefix. Example: `openai-skill-installer-49f948f.md`. The status scanner
@@ -153,7 +153,8 @@ approves it, and the cost of the coming run, before any model money is spent.
     - A Jev Noul judgment (via `typesafe:typesafe-ai`): "Does this patch change what an agent would do, rather than wording, formatting, or packaging?" Probability recorded; below 0.5 fails the check.
   - **Step 2 — ground truth.**
     - `pr_ref` set to the PR (`owner/repo#N`), or `none` if the commit has no PR.
-    - A `## Ground truth` section: two to four plain sentences on what agent behavior the author meant to change, and the situation where the change matters (the decision moment). Each claim cites its source: commit message, patch line, or PR comment link.
+    - The case converted to folder form, and the ground truth written to `{slug}/ground-truth.md` (never into `index.md`): two to four claims on what agent behavior the author meant to change, and the situation where the change matters (the decision moment). Each claim is labeled [said] or [inferred] and cites its source: commit message, patch line, or PR comment link. Supporting detail (PR lookup, reviews, companion PRs) goes in a `## Sources` section of the same file, not in the claims.
+    - `index.md` names the file (`Ground truth: see ground-truth.md`) and holds no ground-truth text.
     - A clear split between what the sources **say** and what the worker **infers**. With no PR and a one-line commit message, most of it is inference — say so and mark the ground truth "weak".
     - The planned run settings: host and model (per the `run` stage's host rule) and the trial count (default 3+3 headless).
 - **Gate content:** Show the candidate checks (with the Jev probability), the ground truth with its sources, the said-vs-inferred split, `pr_ref`, and the planned run settings. The captain checks that the ground truth is fair to the author and approves the run spend.
@@ -163,21 +164,21 @@ approves it, and the cost of the coming run, before any model money is spent.
 ### `run`
 
 A fresh worker runs the Behavior Diff skill on the commit exactly as a user
-would, and lets the skill draft its own scenario. The worker never reads the
-`## Ground truth` section.
+would, and lets the skill draft its own scenario. The worker reads `index.md`
+only and never opens `{slug}/ground-truth.md`.
 
-- **Inputs:** `repo`, `skill_path`, `before_sha`, `after_sha`, and the approved run settings. **Not** the ground truth.
+- **Inputs:** `repo`, `skill_path`, `before_sha`, `after_sha`, and the approved run settings in `index.md`. **Not** `ground-truth.md`.
 - **Outputs:**
   - A scratch fixture git repo outside this repo: the Before revision (`git show <before_sha>:<skill_path>`) committed at the path the host loads repo skills from, then the After revision written over it as an uncommitted edit. No upstream install, no upstream scripts.
-  - Host matches the skill's home host: Codex skills (e.g. `openai/skills`) run with `--agent codex` at `.agents/skills/<name>/SKILL.md`; others run with `--agent claude` at `.claude/skills/<name>/SKILL.md`.
+  - Host matches the skill's home host: Codex skills (e.g. `openai/skills`) run with `--agent codex` at `.agents/skills/<name>/SKILL.md`; others run with `--agent claude` at `.claude/skills/<name>/SKILL.md`. A Codex run starts a full-access `codex exec` session, which Claude Code's permission check blocks unless the captain has added an allow rule (see **Local setup**). Without that rule, stop and ask the captain; the fallback is the Claude host, recorded in the body as a captain-directed plan change.
   - The user-level skills and plugins the trial host loaded, listed in the body. They are not removed for the pilot; the list lets the verifier spot interference.
   - The `behavior-diff:behavior-diff` skill invoked from inside that fixture. When the skill asks for a real incident, answer "none — draft the task from the diff." Do not suggest a task.
   - The exact `--task` text the skill drafted, copied into a `## Drafted scenario` section.
   - A check that each side loaded the intended revision (the report's git diff matches `git diff <before_sha> <after_sha> -- <skill_path>`).
-  - The case converted to folder form, and `report.html`, `report.md`, and `decisions.json` copied from the runner output into `{slug}/report/` on the state branch. The raw `before-*` / `after-*` trial folders are not copied.
+  - `report.html`, `report.md`, and `decisions.json` copied from the runner output into `{slug}/report/` on the state branch. The raw `before-*` / `after-*` trial folders are not copied.
   - `report` and `run_dir` set, plus a short plain summary of the decision diff in `index.md`.
 - **Good:** The skill runs unassisted, so the result shows what a real user would get. A blocked or inconclusive run is recorded as-is with its reason.
-- **Bad:** Reading the ground truth or the plan's notes before or during the run. Editing the skill's drafted task. Copying raw trial folders, or committing any report to `main`. Re-running until the result looks good.
+- **Bad:** Opening `ground-truth.md` or the plan's notes before or during the run. Editing the skill's drafted task. Copying raw trial folders, or committing any report to `main`. Re-running until the result looks good.
 
 ### `verification`
 
@@ -185,7 +186,7 @@ A fresh verifier agent — one that did not write the ground truth or run the
 trials — uses Jev to compare Behavior Diff's output against the ground truth.
 The captain approves the verdict.
 
-- **Inputs:** `## Ground truth`, `## Drafted scenario`, and the report copy in `{slug}/report/`. Jev state uses `report.md` and `decisions.json`, not `report.html`, so the verdict judges the report's text content, not its page layout.
+- **Inputs:** `{slug}/ground-truth.md`, `## Drafted scenario` in `index.md`, and the report copy in `{slug}/report/`. Jev state uses `report.md` and `decisions.json`, not `report.html`, so the verdict judges the report's text content, not its page layout.
 - **Outputs:**
   - **Judge ① — scenario.** A Jev Choice call via `typesafe:typesafe-ai`. State: the ground truth and the drafted task. Question: "Does this task put the agent in the situation where the author's change matters?" Options: `on-target`, `near` (related situation, but the changed rule may not decide the outcome), `off-target`. Every option's probability recorded; `scenario_match` set to the top choice.
   - **Judge ② — report.** A Jev Choice call. State: the ground truth and the report's decision diff and flow diff summary. Question: "Does this report make the author's intended behavior change easy for a reader to see?" Options: `caught`, `partial` (visible but mixed with noise or only on some trials), `missed`, `inconclusive` (the run was blocked or never reached the decision moment). Every probability recorded; `catch` set to the top choice.
@@ -205,11 +206,40 @@ Terminal. `completed` is set. `verdict: PASSED` when `catch` is trustworthy
 The FO/ensign operating contract already governs generic stage semantics and proof discipline: prefer the cheapest check that can fail, prove by exercising rather than re-reading, and fix success criteria before gathering evidence. The rules below add only this workflow's specifics.
 
 - **Every judge call uses Jev.** Whenever the first officer or a worker must make a judgment, load the `typesafe:typesafe-ai` skill and ask Jev a typed question (Noul, Choice, or Score) instead of deciding in free text. This covers the stage judgments (is this a behavior change? does the report catch the intent?) and the first officer's own checks: whether each acceptance criterion is met, whether each stage-output checklist item is done, and the PASSED/REJECTED recommendation shown at a gate. Ask one Noul per AC or checklist item, with the item text and its evidence as state. Record every question and probability in the case body. Exact facts (SHAs, changed-file lists, file equality, command exit codes) stay in code. The final gate decision stays with the captain.
-- **Ground truth never leaks into the run.** The ground truth is written before the run, and the `run` worker never reads it. The Behavior Diff skill drafts its own task, unassisted.
+- **Ground truth never leaks into the run.** The ground truth is written before the run, in its own file `{slug}/ground-truth.md`, so the dispatch's "read the case file" step does not expose it. The `run` worker never opens that file, and it starts the Behavior Diff skill in a separate headless session given only a neutral prompt. The skill drafts its own task, unassisted.
 - **Before/After come from git, not installs.** Both revisions are read with `git show`; the fixture repo holds Before as HEAD and After as an uncommitted edit. Upstream scripts and hooks are untrusted and never run.
 - **Model cost is approved first.** No Behavior Diff run happens before the captain approves the `intent` gate. CI never runs any of this.
 - **The state branch is local-only.** `spacedock-state/skill-history-replay` holds case files and report copies, so it falls under `AGENTS.md` invariant 4. The state checkout is its own clone whose `origin` is the local bare repo `~/.behavior-diff/replay-state.git`; Spacedock's normal state sync pushes there, and that is expected. Never push it to a network remote and never merge it into `main`. The main repo's `pre-push` hook refuses any push of this branch to a non-local URL; do not bypass it with `--no-verify`. Raw trial folders stay under `~/.behavior-diff/runs/`. Fixtures are synthetic.
 - **One to two commits per skill.** Do not add more than two cases for the same skill until each existing case for it is `done`.
+
+## Local setup
+
+This workflow runs on one machine. A fresh clone has the README but no state,
+and needs this one-time setup before `spacedock claude` can run it:
+
+```bash
+# 1. Private bare repo that acts as the state checkout's origin
+git init --bare ~/.behavior-diff/replay-state.git
+
+# 2. State checkout: a clone of that bare repo at the gitignored state path
+git clone ~/.behavior-diff/replay-state.git docs/skill-history-replay/.spacedock-state
+#    (first time only: create the orphan branch spacedock-state/skill-history-replay
+#     there, seed it, and push it to the bare repo)
+
+# 3. Guard in the main repo: refuse pushing the state branch to a network remote
+#    (.git/hooks/pre-push; allows local-path URLs, blocks everything else)
+```
+
+The state checkout must be its own clone, not a linked worktree of the main
+repo: Spacedock syncs state with the checkout's `origin`, and a linked
+worktree shares the main repo's GitHub `origin`.
+
+Also needed: a `TYPESAFE_API_KEY` for Jev, and the Behavior Diff plugin
+installed on the trial host. Codex-host runs also need the captain to add a
+Claude Code allow rule for the full-access session, for example
+`Bash(codex exec -s danger-full-access --skip-git-repo-check --json:*)` in
+`.claude/settings.local.json`. That rule lets a nested agent run without a
+sandbox, so remove it when it is not in use.
 
 ## Workflow State
 
@@ -255,7 +285,7 @@ Each AC names a property of the finished case (not a stage action) and how it is
 Verified by: `git rev-parse <after_sha>^` equals `before_sha`, and the report's git diff for `skill_path` matches `git diff <before_sha> <after_sha> -- <skill_path>`. A wrong SHA or a cached skill copy makes this fail.
 
 **AC-2 — Both verdicts are recorded Jev judgments against a ground truth written before the run.**
-Verified by: the body has `Ground truth` and `Drafted scenario` sections and a `Jev judgment` section with every option's probability for both calls; `scenario_match` and `catch` equal the top options. A missing probability table, or a verdict that differs from Jev's top choice, fails this.
+Verified by: `{slug}/ground-truth.md` exists and was committed before the `run` stage's first commit, and `index.md` has a `Drafted scenario` section and a `Jev judgment` section with every option's probability for both calls; `scenario_match` and `catch` equal the top options. A missing probability table, or a verdict that differs from Jev's top choice, fails this.
 ```
 
 ## Commit Discipline
