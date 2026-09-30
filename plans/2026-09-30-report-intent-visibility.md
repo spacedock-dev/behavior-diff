@@ -118,7 +118,7 @@ labeled as interpretation, like the existing "Model explanations".
 
 - Use **Consistent changes across observed trials**, not a statistical “strong
   signal” claim. Require different unanimous choices, at least two trials per
-  side, and complete evidence. Group split and incomplete choices separately.
+  side, and complete evidence. Summary groups split and incomplete choices separately.
 - Summarize the diff's own changed headings or lines and line counts. Do not add
   a model call or infer the author's intent to write that summary.
 - Extend the existing extraction call with numbered diff hunks. Keep observation
@@ -132,6 +132,14 @@ labeled as interpretation, like the existing "Model explanations".
   to acquire semantic edit links. Do not infer those links during rendering.
 - Report-data schema 4 records hunk references. Regenerate older report-data
   from raw run artifacts rather than maintaining a parallel legacy schema.
+- Follow-up decision on 2026-09-30: keep Summary ranked by signal. Decision diff
+  instead follows the model-extracted order, with aligned Before and After choices
+  and visible trial counts. Mixed choices stay within each decision. Do not connect
+  them into paths that the evidence does not establish.
+- Decision diff uses amber for changed choices, teal for same choices or proportions,
+  and gray for unavailable comparisons. Text labels preserve the distinction between
+  unanimous unchanged behavior and matching proportions. Colors do not indicate
+  success or failure. Evidence stays expandable, and Markdown retains the same order.
 
 ## Verification
 

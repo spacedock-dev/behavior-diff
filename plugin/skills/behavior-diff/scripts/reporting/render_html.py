@@ -60,7 +60,7 @@ def _decision_choices(choices, total: int) -> str:
     lines = []
     for choice in choices:
         count = f'<span class="choice-count">{content.trial_count(choice.count, total)}</span>'
-        lines.append(f'<div class="dline">{html.escape(choice.choice)}{count}</div>')
+        lines.append(f'<span class="dline">{html.escape(choice.choice)}{count}</span>')
     return "".join(lines) or html.escape(content.NO_EXTRACTED_CHOICE)
 
 
@@ -99,38 +99,32 @@ def _instruction_edit(report) -> str:
 def _decision_progression(report) -> str:
     decisions = report.decisions
     nodes = []
-    grouped = [
-        (heading, index)
-        for heading, indexes in content.decision_groups(decisions, report)
-        for index in indexes
-    ]
-    previous_heading = None
-    for heading, index in grouped:
-        row = decisions.rows[index - 1]
-        if heading != previous_heading:
-            nodes.append(
-                f'<li class="decision-group"><h3>{html.escape(heading)}</h3></li>'
-            )
-            previous_heading = heading
+    for index, row in enumerate(decisions.rows, 1):
         status = content.decision_evidence_status(row, decisions, report)
         role = content.decision_role(index, row, decisions.outcome)
+        role_key = (
+            "result"
+            if index == decisions.outcome
+            else "action"
+            if type(row.anchor) is int
+            else "detail"
+        )
         title = row.topic.strip() or row.decision
         source = content.source_label(row.anchor, report.metadata.trace_source)
+        source_key = "ans" if row.anchor == "answer" else "cmd"
         final_class = " progression-final" if index == decisions.outcome else ""
-        preview = ""
-        if status == "Changed" or index == decisions.outcome:
-            preview = (
-                '<span class="progression-preview">'
-                + "".join(
-                    f'<span><span class="preview-label">{label}</span>'
-                    f"{html.escape(content.decision_choices_preview(choices, total))}</span>"
-                    for label, choices, total in (
-                        ("Before", row.before, decisions.before_count),
-                        ("After", row.after, decisions.after_count),
-                    )
+        choices = (
+            '<span class="decision-lanes">'
+            + "".join(
+                f'<span class="decision-lane"><span class="preview-label">{label}</span>'
+                f"{_decision_choices(values, total)}</span>"
+                for label, values, total in (
+                    ("Before", row.before, decisions.before_count),
+                    ("After", row.after, decisions.after_count),
                 )
-                + "</span>"
             )
+            + "</span>"
+        )
         question = (
             f'<p class="decision-question">{html.escape(row.decision)}</p>'
             if row.decision and row.decision != title
@@ -138,39 +132,30 @@ def _decision_progression(report) -> str:
         )
         note = f'<p class="dnote">{html.escape(row.note)}</p>' if row.note else ""
         nodes.append(
-            f'<li><details class="decision-row decision-{status.lower().replace(" ", "-")}{final_class}" '
+            f'<li class="decision-step"><details class="decision-row decision-{status.lower().replace(" ", "-")}{final_class}" '
             f'id="decision-{index}">'
             '<summary class="decision-node">'
             f'<span class="progression-number">{index}</span>'
             '<span class="progression-heading">'
             f'<span class="progression-topic">{html.escape(title)}</span>'
             f'<strong class="decision-status">{html.escape(status)}</strong>'
-            f'<span class="progression-role">{html.escape(role)}</span></span>'
+            f'<span class="progression-role decision-tag tag-{role_key}">{html.escape(role)}</span></span>'
             '<span class="decision-disclosure"><span class="hint-show">Show evidence</span>'
             f'<span class="hint-hide">Hide evidence</span>{_CHEVRON}</span>'
-            f"{preview}</summary>"
+            f"{choices}</summary>"
             f'<div class="decision-evidence">{question}'
-            f'<p class="decision-meta">{html.escape(source)}</p>{_edit_links(row)}'
-            '<table class="comparison decision-comparison">'
-            f'<caption class="visually-hidden">Decision {index}: {html.escape(title)}</caption>'
-            '<thead><tr><th scope="col">Before</th>'
-            '<th scope="col">After</th></tr></thead><tbody><tr>'
-            f"<td>{_decision_choices(row.before, decisions.before_count)}</td>"
-            f"<td>{_decision_choices(row.after, decisions.after_count)}</td>"
-            f"</tr></tbody></table>{note}"
+            f'<p class="decision-meta"><span class="decision-tag tag-{source_key}">{html.escape(source)}</span></p>'
+            f"{_edit_links(row)}{note}"
             '<a class="decision-evidence-link" href="#panel-trials">Inspect trial evidence</a>'
             "</div></details></li>"
         )
     return (
         '<section class="progression" id="decision-progression" tabindex="-1" aria-labelledby="decision-progression-heading">'
         '<div class="decision-toolbar">'
-        '<h2 class="comparison-heading" id="decision-progression-heading">Decision comparisons</h2>'
+        '<h2 class="comparison-heading" id="decision-progression-heading">Decision sequence</h2>'
         '<button type="button" class="decision-toggle" id="decision-toggle" aria-controls="decision-list" hidden>Expand all</button></div>'
         f'<p class="note" id="decision-progression-note">{html.escape(content.DECISION_PROGRESSION_NOTE)}</p>'
         f'<p class="note">{html.escape(content.TRIAL_COUNT_NOTE)}</p>'
-        f'<p class="note">{html.escape(content.CONSISTENT_NOTE)}</p>'
-        f'<p class="note">{html.escape(content.EDIT_LINK_NOTE)}</p>'
-        f'<p class="note">{html.escape(content.MIXED_NOTE)}</p>'
         '<ol class="decision-path" id="decision-list" role="list" aria-describedby="decision-progression-note">'
         f"{''.join(nodes)}</ol></section>"
     )
@@ -306,12 +291,35 @@ def _decision_links(indexes) -> str:
 
 
 def _tag_legend(legend) -> str:
-    items = "".join(
-        f'<span><span class="decision-tag">{html.escape(label)}</span>'
-        f"{html.escape(meaning)}</span>"
-        for _, label, meaning in legend
+    groups = {
+        "Comparison status": [],
+        "Decision role": [],
+        "Evidence source": [],
+        "Other labels": [],
+    }
+    for key, label, meaning in legend:
+        if key in ("changed", "same", "unavailable"):
+            heading = "Comparison status"
+        elif key in ("action", "result", "detail"):
+            heading = "Decision role"
+        elif key in ("cmd", "ans"):
+            heading = "Evidence source"
+        else:
+            heading = "Other labels"
+        groups[heading].append(
+            f'<div><dt><span class="decision-tag tag-{html.escape(key)}">{html.escape(label)}</span></dt>'
+            f"<dd>{html.escape(meaning)}</dd></div>"
+        )
+    return (
+        "<p>Colors identify comparison status, decision role, or evidence source. "
+        "They do not indicate success or failure.</p>"
+        + "".join(
+            f'<section class="legend-group"><h3>{heading}</h3>'
+            f'<dl class="legend">{"".join(items)}</dl></section>'
+            for heading, items in groups.items()
+            if items
+        )
     )
-    return f'<div class="legend">{items}</div>'
 
 
 _INFO_ICON = (

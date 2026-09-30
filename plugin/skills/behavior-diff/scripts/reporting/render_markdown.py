@@ -84,9 +84,6 @@ def _decision_markdown(report):
         '<a id="decision-progression"></a>\n',
         _text(content.DECISION_PROGRESSION_NOTE) + "\n",
         _text(content.TRIAL_COUNT_NOTE) + "\n",
-        _text(content.CONSISTENT_NOTE) + "\n",
-        _text(content.EDIT_LINK_NOTE) + "\n",
-        _text(content.MIXED_NOTE) + "\n",
     ]
     if report.metadata.trace_source == "self-reported":
         markdown.append(_text(content.SELF_REPORTED_LIMIT) + "\n")
@@ -98,17 +95,7 @@ def _decision_markdown(report):
         ),
         "",
     ]
-    grouped = [
-        (heading, index)
-        for heading, indexes in content.decision_groups(decisions, report)
-        for index in indexes
-    ]
-    previous_heading = None
-    for heading, index in grouped:
-        row = decisions.rows[index - 1]
-        if heading != previous_heading:
-            markdown.append(f"### {_text(heading)}\n")
-            previous_heading = heading
+    for index, row in enumerate(decisions.rows, 1):
         source = content.source_label(row.anchor, report.metadata.trace_source)
         role = content.decision_role(index, row, decisions.outcome)
         status = content.decision_evidence_status(row, decisions, report)

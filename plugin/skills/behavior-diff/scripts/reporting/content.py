@@ -36,7 +36,12 @@ SELF_REPORTED_LIMIT = (
     "Actions are self-reported, not independently captured command evidence. "
     "Flow diff is unavailable for this report."
 )
-DECISION_PROGRESSION_NOTE = "These model-extracted comparisons are not a recorded execution path or a causal chain."
+DECISION_PROGRESSION_NOTE = (
+    "Read top to bottom in the model-extracted decision order. "
+    "Before and After choices are aligned at each decision. "
+    "This is not a recorded execution path or a causal chain; "
+    "counts across decisions do not establish a complete path through one trial."
+)
 FLOW_PROGRESSION_NOTE = (
     "Commands follow their recorded order, including repeats. "
     "Only identical complete sequences are grouped within each side. "
@@ -639,20 +644,6 @@ def decision_status(row):
     if any(not values or "" in values for values in distributions):
         return "Unavailable"
     return "Changed" if choices_changed(row.before, row.after) else "Unchanged"
-
-
-def decision_choices_preview(choices, total):
-    """Keep mixed or incomplete evidence visible in a compact choice summary."""
-    counts = _distribution(choices)
-    return (
-        " · ".join(
-            choice
-            if len(counts) == 1 and count == total
-            else "{0} ({1})".format(choice, trial_count(count, total))
-            for choice, count in counts.items()
-        )
-        or NO_EXTRACTED_CHOICE
-    )
 
 
 def decision_overview(report):
