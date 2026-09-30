@@ -120,14 +120,28 @@ one side. Each run creates a local HTML report with up to four tabs:
   result, so a mixed final answer does not bury a unanimous behavior change.
   Edit-related unchanged behaviors are named when the evidence supports them.
   Comparisons retain trial counts, roles, and evidence links.
-- **Decision diff** groups consistent changes first, other unanimous comparisons
-  next, and mixed or incomplete choices separately. Each comparison keeps its
-  original number, topic, status, and role. Open it to inspect the full question,
-  choices, counts, sources, related edit hunks, and trial links.
-  Several comparisons can stay open. Direct links open the matching comparison
-  or diff hunk, and **Expand all** shows all comparison evidence.
-  Printing includes all evidence; Markdown keeps comparisons fully expanded.
-  Presentation order is not recorded execution order or proven causality.
+- **Decision diff** shows an ordered, two-lane comparison. Before and After
+  choices align at each decision in the model-extracted order, with all trial
+  counts visible. Mixed choices stay within each decision, not in connected branches.
+
+  Amber marks changed choices. Teal marks unchanged choices or matching choice
+  proportions. Gray marks unavailable comparisons. Text labels distinguish these
+  states. Colors do not mean success or failure.
+  The **Decision labels** info popup groups definitions by comparison status,
+  decision role, and evidence source.
+
+  Blue identifies actions and command evidence. Violet identifies the primary
+  result. Indigo identifies answer details and final-answer evidence.
+  The popup and decision badges use the same colors.
+
+  Each decision keeps its original number, topic, and role. Open it to inspect
+  the full question, source, notes, related edit hunks, and trial links.
+  Several decisions can stay open. Direct links open the matching decision or
+  diff hunk, and **Expand all** shows all evidence.
+
+  Printing includes all evidence. Markdown keeps the same decision order with
+  comparisons fully expanded. The sequence is not a recorded execution path or
+  proof of causality.
 - **Flow diff** starts with each side's recorded command progression. Identical
   recorded sequences share a path with counts and links to their trial evidence.
   A separate table compares command-category combinations. This tab appears only
