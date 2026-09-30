@@ -22,7 +22,7 @@ mid-demo.
    pane — go to **Headless fallback** below rather than stopping. Steps 2-4
    still apply there.
 2. **Ask which agent drives the session** unless the user already said:
-   `claude` (default model sonnet) or `codex` (default gpt-5.6-terra).
+   `claude` (default model opus) or `codex` (default selector `sol`).
    Both carry the nudge hooks. The ask rate is a property of the agent, so
    demoing on the one your audience uses is the honest choice.
 3. **Choose the fixture** unless the user already said:
@@ -65,9 +65,15 @@ mid-demo.
     # add NUDGE_E2E_AGENT=codex for a Codex demo
 
 Read what it prints; it carries the session command for the chosen agent,
-plus the prompt and the task for this fixture. Use the printed command rather
-than composing your own — that is what keeps this skill and the harness from
-drifting apart.
+plus the prompt and the task for this fixture. For Codex, setup uses the shared
+`plugin/skills/behavior-diff/scripts/codex_model.py` helper to resolve `sol`
+through `codex debug models`: the newest numeric stable `gpt-<version>-sol`
+with `visibility=list`. It prints the exact model ID, not bare `sol` (which
+is not a verified Codex CLI alias). Set `NUDGE_E2E_MODEL=<exact-model-id>` to
+pin an explicit model without discovery; `NUDGE_E2E_MODEL=sol` selects the
+resolver explicitly. Never hardcode a current Sol version. Use the printed
+command rather than composing your own — that is what keeps this skill and
+the harness from drifting apart.
 
 **2. Open the pane.** Ids are not durable — read yours fresh, never reuse
 one from an earlier run:
@@ -77,7 +83,7 @@ one from an earlier run:
       | python3 -c 'import sys,json; print(json.load(sys.stdin)["result"]["pane"]["pane_id"])')
     herdr pane run "$NEW" "<the session command step 1 printed>"
 
-For reference, that is `claude --model sonnet` or `codex -m gpt-5.6-terra`,
+For reference, that is `claude --model opus` or `codex -m <resolved-model-id>`,
 both prefixed with `cd /tmp/nudge-e2e && BEHAVIOR_DIFF_HOME=/tmp/nudge-e2e-state`.
 
 Wait for the prompt to appear, then read the pane to confirm it says the
@@ -206,6 +212,10 @@ with the same edit prompt a person would paste, and looks for the ask in the
 agent's final message. It prints one line per trial, then the ask count, then
 the journey B commands for the sandbox it leaves behind. A trial that did not
 ask prints the agent's final message so you can check the call yourself.
+
+For Codex, headless resolves `sol` once before any trials and uses the exact ID
+for every invocation. Management commands (`check`, `drop-whisper`, `reset`)
+and usage do not query the model catalog or require Codex CLI access.
 
 Report these boundaries with the result:
 

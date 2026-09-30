@@ -154,6 +154,7 @@ shellcheck \
   tests/*.sh
 python3 -m py_compile \
   .agents/skills/release-behavior-diff/scripts/bump-version.py \
+  plugin/skills/behavior-diff/scripts/codex_model.py \
   plugin/skills/behavior-diff/scripts/decisions.py \
   plugin/skills/behavior-diff/scripts/render.py \
   plugin/skills/behavior-diff/scripts/reporting/*.py

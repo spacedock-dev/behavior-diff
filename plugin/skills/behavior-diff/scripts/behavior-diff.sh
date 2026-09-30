@@ -5,7 +5,7 @@
 # SKILL.md or README.md, ...) has UNCOMMITTED changes:
 #
 #   behavior-diff.sh --file CLAUDE.md --task "one-line scenario" \
-#       [--trials 3 | --fast] [--model sonnet] [--before-file ORIGINAL]
+#       [--trials 3 | --fast] [--model NAME] [--before-file ORIGINAL]
 #
 # Before = the repo at HEAD. After = the same snapshot plus only your
 # working-tree version of that one file — other uncommitted edits stay out.
@@ -96,8 +96,8 @@ case "$trials" in '' | *[!0-9]* | 0)
 esac
 if [ -z "$model" ]; then
   case "$agent" in
-    claude) model=sonnet ;;
-    codex) model=gpt-5.6-terra ;;
+    claude) model=opus ;;
+    codex) model=sol ;;
     pi)
       echo "behavior-diff: --agent pi requires --model with the exact Pi model ID" >&2
       exit 2
@@ -196,6 +196,11 @@ else
 fi
 
 scripts=$(cd "$(dirname "$0")" && pwd)
+if [ "$agent" = codex ]; then
+  case "$model" in
+    sol | luna) model=$(python3 "$scripts/codex_model.py" "$model") || exit 2 ;;
+  esac
+fi
 runs_root=${BEHAVIOR_DIFF_HOME:-$HOME/.behavior-diff}
 run=$runs_root/runs/diff-$(date +%Y%m%d-%H%M%S)
 mkdir -p "$run"
@@ -274,9 +279,14 @@ done >"$run/grades.tsv"
 echo
 # Decision diff: one model pass over the final answers. Best-effort — if it
 # fails, render.py falls back to the command-derived flow diff alone.
+if [ -z "$extract_agent" ]; then
+  case "$extract_model" in
+    sol | luna) extract_agent=codex ;;
+    *) extract_agent=$agent ;;
+  esac
+fi
 case "$agent" in
   pi | omp)
-    [ -n "$extract_agent" ] || extract_agent=$agent
     case "$extract_agent" in
       pi | omp)
         [ -n "$extract_model" ] || extract_model=$model

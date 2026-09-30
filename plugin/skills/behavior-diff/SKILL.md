@@ -21,10 +21,27 @@ normalize traces, grade completeness, extract decisions, and render the report.
 The runner is bundled with this skill: `scripts/behavior-diff.sh` inside
 this skill's base directory. Pass `--agent` for the stack under test:
 
-- Claude Code: `--agent claude`. The model defaults to sonnet.
-- Codex: `--agent codex`. The model defaults to gpt-5.6-terra.
+- Claude Code: `--agent claude`. Trial execution defaults to `opus`.
+- Codex: `--agent codex`. The model defaults to `sol`, a Behavior Diff selector.
+  The runner resolves the newest visible stable `gpt-<version>-sol` from
+  `codex debug models` once before launching trials. Both variants use that
+  exact ID, which appears in the report. Pass `--model <exact-id>` to pin a
+  version and bypass discovery. A catalog failure stops the run; never
+  substitute a model or pass bare `sol` directly to Codex.
 - Upstream Pi: `--agent pi --model <exact-current-pi-model>`.
 - OMP: `--agent omp --model <exact-current-omp-model>`.
+
+Decision extraction is a separate model call: Claude Code defaults to
+`sonnet`, and Codex defaults to `luna`. The runner resolves Luna from the
+same catalog by numeric version and records the exact extraction model.
+With no overrides, extraction stays on the trial host. Do not inherit the
+trial model for Claude or Codex extraction.
+
+Honor `--extract-agent` and `--extract-model` overrides. An explicit extraction
+host wins; otherwise a `sol` or `luna` extraction selector selects Codex.
+Explicit Codex model IDs bypass discovery. If extraction cannot use the
+selected model, present the trial evidence without a decision diff rather
+than silently selecting another host or model.
 
 Never omit the Pi or OMP model. A user-specific default can test a different
 agent. Your job is to prepare `--file` and `--task` well. Runs land under

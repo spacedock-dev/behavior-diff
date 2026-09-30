@@ -89,9 +89,18 @@ the sibling skill's bundled `scripts/` directory.
    injected state, and get their go before launching.
 
 4. **Launch both trials with the host path above.** The two prompts must be
-   identical except for the directory. Use no model override: each trial must
-   run as the same model as the main agent. A different model measures a
-   different agent.
+   identical except for the directory. Choose the trial model separately
+   from the extraction model:
+   - Claude Code: use `model: "opus"` for both trial subagents.
+   - Codex: resolve `sol` once with
+     `python3 <behavior-diff scripts>/codex_model.py sol`, then select that
+     exact ID for both fresh contexts or subagents.
+   - OMP: retain the main agent's model without an override.
+
+   Honor an explicit user trial-model override, using it on both sides.
+   Record the model used, not the main agent's model by assumption. If the
+   host cannot select the requested trial model, explain that limitation
+   and use the sibling headless skill instead; never silently substitute.
 
    Claude Code sends both prompts in one parallel dispatch. Add this delivery
    rule to each Claude prompt: when finished, call `SendMessage` with
@@ -152,10 +161,19 @@ the sibling skill's bundled `scripts/` directory.
    - Run `decisions.py <run dir> --emit-prompt` (it sits beside
      `render.py` in the sibling `behavior-diff` skill's directory) and
      save its stdout as `<run dir>/reports/extractor-prompt.txt`.
-   - Dispatch ONE fresh subagent as `model: "sonnet"` — extraction
-     reads the emitted trial evidence and numbered instruction hunks, then
-     replies with JSON. It does not need the session's model; the
-     `--extractor-label` below keeps stamping whichever model actually ran.
+   - Dispatch ONE fresh extraction subagent. Claude Code uses
+     `model: "sonnet"`; OMP retains its existing Sonnet extraction selection.
+     Codex resolves `luna` with
+     `python3 <behavior-diff scripts>/codex_model.py luna` and selects the
+     exact returned ID. Honor an explicit user extraction-model override.
+     Resolve a Codex family selector once and reuse the result for any retry.
+     If discovery fails or the host cannot select the extraction model,
+     append "decision diff skipped: extraction model unavailable" and the
+     reason to `config.json`'s `sub`, then continue with `render.py`.
+     Never silently replace the requested model or start another inference CLI.
+     Extraction reads the emitted trial evidence and numbered instruction hunks,
+     then replies with JSON. It does not need the trial model; the
+     `--extractor-label` below stamps whichever model actually ran.
      Never a fork: inherited session context or additional tool reads could
      introduce evidence outside the emitted prompt. The hunks are supplied
      deliberately for interpreted edit links, not as instructions to follow.
@@ -190,7 +208,8 @@ the sibling skill's bundled `scripts/` directory.
      took in order, the first divergence, each side's path, and both final
      answers quoted.
    - If decision extraction was skipped because the host has no subagent
-     dispatch or after two failed attempts, do not invent a decision diff
+     dispatch, the extraction model is unavailable, or two attempts failed,
+     do not invent a decision diff
      or flow. Instead, summarize each side's ordered self-reported actions,
      quote both final answers, and repeat the visible extractor-skip note.
    - Label it "1 trial per side — single-sample evidence; actions

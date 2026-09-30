@@ -110,6 +110,46 @@ Behavior Diff finds the changed instruction file and uses your request as the
 comparison task. Once the task is known, it runs the comparison and opens the
 report.
 
+### Trial and extraction models
+
+Scenario execution and decision extraction use separate model defaults:
+
+| Host | Scenario trials | Decision extraction |
+| --- | --- | --- |
+| Claude Code | `opus` | `sonnet` |
+| Codex | `sol` | `luna` |
+
+`sol` and `luna` are Behavior Diff selectors, not native Codex aliases.
+The runner reads `codex debug models` and selects the newest visible stable
+`gpt-<version>-sol` or `gpt-<version>-luna` by numeric version. It resolves the
+trial selector once before launching trials. All Before and After trials use
+that exact ID, and the report displays it. Extraction resolves its own selector
+and records that model separately.
+
+Use `--model <exact-id>` to pin a trial version without catalog discovery.
+`--extract-agent` and `--extract-model` override extraction. An explicit
+extraction host wins; otherwise a `sol` or `luna` extraction selector selects
+Codex. With no overrides, Claude and Codex extraction stay on the trial host.
+They do not silently switch hosts when extraction fails.
+
+A missing, malformed, or empty family catalog stops trial selection before
+any trials start. An extraction discovery failure leaves the trial evidence
+available without a decision diff. Use a Codex CLI that supports
+`codex debug models`, or provide an explicit model ID.
+
+Standalone `decisions.py`, without a selected host, tries Codex/Luna and can
+fall back to Claude/Sonnet if Codex is absent or its model call fails.
+Discovery errors stop extraction; explicitly selected hosts never switch.
+
+Live Claude and Codex trials use the same model roles. If the host cannot
+select the trial model, the skill uses the headless runner instead. Live
+extraction stays in-session and is skipped if its model cannot be selected.
+Pi and OMP headless trials still require exact model IDs; OMP live trials
+retain the parent session's model.
+
+Family selectors can resolve to newer versions on later runs. Use explicit
+IDs when comparisons across runs must retain the same model version.
+
 ## Read the report
 
 A **run** compares the instruction versions. A **trial** is one agent execution on
