@@ -58,9 +58,17 @@ Run these first — anything they catch is not worth a live session.
 
 That builds a sandbox repo at `/tmp/nudge-e2e` and isolated hook state at
 `/tmp/nudge-e2e-state`, so your real `~/.behavior-diff` is untouched. It
-prints the session command for the chosen agent — `claude --model sonnet`
-or `codex -m gpt-5.6-terra` — plus the prompt and exact neutral task. The steps
-are:
+prints the session command for the chosen agent — `claude --model opus`
+or `codex -m <resolved-model-id>` — plus the prompt and exact neutral task.
+Codex defaults to the Behavior Diff selector `sol`, not a Codex CLI alias.
+The shared `plugin/skills/behavior-diff/scripts/codex_model.py` helper queries
+`codex debug models` and resolves the newest numeric stable
+`gpt-<version>-sol` with `visibility=list`. Setup resolves once and prints
+the exact ID; headless trials use one resolved ID for the entire invocation.
+Set `NUDGE_E2E_MODEL=<exact-model-id>` to pin another model without catalog
+discovery, or set it to `sol` to use the selector explicitly. Claude uses
+Opus by default. `check`, `drop-whisper`, `reset`, and usage do not
+discover a model or require Codex CLI access.
 
 Both stacks carry the nudge hooks, and the ask rate belongs to the agent,
 so the journey is worth running on each. Codex needs three things first,

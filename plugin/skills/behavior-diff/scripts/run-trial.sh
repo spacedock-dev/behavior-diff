@@ -51,6 +51,14 @@ esac
   echo "run-trial: --model, --dir, --task-file required" >&2
   exit 2
 }
+if [ "$agent" = codex ]; then
+  case "$model" in
+    sol | luna)
+      scripts=$(cd "$(dirname "$0")" && pwd)
+      model=$(python3 "$scripts/codex_model.py" "$model") || exit 2
+      ;;
+  esac
+fi
 task=$(cat "$task_file")
 trace_dir=$(cd "${trace_dir:-$dir}" && pwd)
 cd "$dir"

@@ -6,9 +6,11 @@ Usage: decisions.py RUN_DIR [--agent codex|claude|pi|omp] [--model NAME]
        decisions.py RUN_DIR --emit-prompt
        decisions.py RUN_DIR --ingest FILE [--extractor-label LABEL]
 
-Defaults: codex with gpt-5.6-terra when the codex CLI is present, else
-claude -p with sonnet. --agent pins one extractor (no cross-fallback).
-Pi and OMP require --model; --model overrides the Claude or Codex default.
+Defaults: codex with the newest catalog-listed stable Luna model, else
+claude -p with sonnet when Codex is absent or its extraction call fails.
+--agent pins one extractor (no cross-fallback); --model sol/luna selects Codex.
+Catalog resolution errors stop extraction without trying another model.
+Pi and OMP require --model; explicit model IDs bypass catalog discovery.
 
 --emit-prompt prints the extraction prompt so a caller can run the model
 call itself (the live skill hands it to an in-session subagent);
@@ -44,6 +46,7 @@ import sys
 import tempfile
 from pathlib import Path
 
+from codex_model import CodexModelError, resolve_codex_model
 from reporting.instruction import normalize_edit_hunks, parse_diff_hunks, rule_diff
 
 SOURCE_TERMS = {
@@ -361,7 +364,7 @@ def extract_json(text):
     raise ValueError("unbalanced JSON in extractor output")
 
 
-DEFAULT_MODEL = {"codex": "gpt-5.6-terra", "claude": "sonnet"}
+DEFAULT_MODEL = {"codex": "luna", "claude": "sonnet"}
 
 
 def _codex(prompt, model):
@@ -444,9 +447,13 @@ def _omp(prompt, model):
 
 
 def run_extractor(prompt, agent=None, model=None):
-    """Run the decision extractor. With no agent, try Codex and then Claude.
-    An explicit agent pins one extractor with no cross-fallback. Pi and OMP
-    require an explicit model. Returns (label, text|None)."""
+    """Run the extractor; explicit agents and Sol/Luna selectors pin the stack.
+
+    Default Codex execution may fall back to Claude, but discovery errors stop.
+    Pi and OMP require an explicit model. Returns (label, text|None).
+    """
+    if model in ("sol", "luna") and agent is None:
+        agent = "codex"
     runners = {
         "codex": _codex,
         "claude": _claude,
@@ -463,6 +470,12 @@ def run_extractor(prompt, agent=None, model=None):
         if not m:
             print(f"decision diff: {a} requires --model")
             return "none", None
+        if a == "codex":
+            try:
+                m = resolve_codex_model(m)
+            except CodexModelError as exc:
+                print(f"decision diff: {exc}", file=sys.stderr)
+                return "none", None
         answer = runners[a](prompt, m)
         if answer is not None:
             return f"{a}:{m}", answer

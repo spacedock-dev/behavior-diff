@@ -25,13 +25,11 @@
 # setup and reset, so each must carry the sandbox marker written at setup.
 #
 # NUDGE_E2E_AGENT picks which agent runs the session: claude (default,
-# sonnet) or codex (gpt-5.6-terra). Both stacks carry the nudge hooks, and
-# the ask rate is a property of the agent, so the journey is worth running
-# on each. NUDGE_E2E_MODEL overrides the model for either.
+# opus) or codex (sol). Both stacks carry the nudge hooks, and the ask rate
+# is a property of the agent, so the journey is worth running on each.
+# NUDGE_E2E_MODEL overrides either model; Codex sol resolves to an exact ID.
 #
-# The defaults are the common ones on purpose: a whisper the everyday model
-# ignores is the result that matters, and the hook wiring under test does
-# not need a larger model.
+# Match Behavior Diff's trial defaults so the demo uses the same model tier.
 #
 # NUDGE_E2E_FIXTURE picks what the sandbox contains:
 #   capsule (default)  rk-monitor — the harder case, for testing
@@ -56,12 +54,12 @@ agent=${NUDGE_E2E_AGENT:-claude}
 # the precaution is host-specific. Keep both branches in step with invariant 2.
 case $agent in
   claude)
-    session_cmd="claude --model ${NUDGE_E2E_MODEL:-sonnet}"
+    model=${NUDGE_E2E_MODEL:-opus}
     mode_note="   Then take that session out of auto mode — shift+tab, until the footer
    reads manual mode — so nothing can accept the ask for you."
     ;;
   codex)
-    session_cmd="codex -m ${NUDGE_E2E_MODEL:-gpt-5.6-terra}"
+    model=${NUDGE_E2E_MODEL:-sol}
     mode_note="   There is no mode to turn off here: Codex has no AskUserQuestion tool, so
    the whisper falls back to one plain sentence you answer by typing. Check
    instead that the session may write the instruction file (-s
@@ -116,6 +114,16 @@ usage: nudge-e2e.sh setup | check | drop-whisper | headless [N] | reset
   reset          delete the sandbox
 EOF
   exit 2
+}
+
+prepare_session() {
+  if [[ $agent == codex ]]; then
+    command -v python3 >/dev/null 2>&1 || die "python3 is required for Codex model resolution"
+    model=$(python3 "$here/../plugin/skills/behavior-diff/scripts/codex_model.py" "$model")
+    session_cmd="codex -m $model"
+  else
+    session_cmd="claude --model $model"
+  fi
 }
 
 # rm -rf targets come from the environment, so refuse anything that is not an
@@ -194,6 +202,7 @@ build_sandbox() {
 }
 
 cmd_setup() {
+  prepare_session
   build_sandbox
 
   cat <<EOF
@@ -206,7 +215,7 @@ Sandbox ready: $repo   (state: $state)
 
 $mode_note
 
-   (NUDGE_E2E_AGENT=codex or NUDGE_E2E_MODEL=opus for another stack; the
+   (NUDGE_E2E_AGENT=codex or NUDGE_E2E_MODEL=sonnet for another selection; the
    ask rate belongs to the agent, so it is worth measuring on each.)
 
 2. Journey A ($fixture fixture) — paste this into the session as the prompt.
@@ -313,7 +322,7 @@ run_headless_turn() {
     # Without --allowedTools the edit never lands, and no edit means no hook,
     # which reads exactly like the nudge being broken.
     (cd -- "$repo" && BEHAVIOR_DIFF_HOME=$state \
-      claude -p "$prompt" --model "${NUDGE_E2E_MODEL:-sonnet}" \
+      claude -p "$prompt" --model "$model" \
       --allowedTools "Read,Edit,Write" \
       --output-format stream-json --verbose) \
       >"$out/trace.jsonl" 2>"$out/stderr.log" || return 1
@@ -321,7 +330,7 @@ run_headless_turn() {
   else
     (cd -- "$repo" && BEHAVIOR_DIFF_HOME=$state \
       codex exec --skip-git-repo-check -s workspace-write \
-      -m "${NUDGE_E2E_MODEL:-gpt-5.6-terra}" --json "$prompt" </dev/null) \
+      -m "$model" --json "$prompt" </dev/null) \
       >"$out/trace.jsonl" 2>"$out/stderr.log" || return 1
     jq -r 'select((.item.item_type // .item.type) == "agent_message")
            | .item.text // empty' "$out/trace.jsonl" | tail -1
@@ -343,6 +352,7 @@ cmd_headless() {
     die "headless takes a positive trial count: $trials"
   command -v jq >/dev/null 2>&1 || die "jq is required by headless"
   command -v "$agent" >/dev/null 2>&1 || die "$agent is not on PATH"
+  prepare_session
 
   printf '\nHeadless journey A — %s fixture, %s, %d trial(s)\n\n' \
     "$fixture" "$session_cmd" "$trials"

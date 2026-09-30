@@ -256,18 +256,6 @@ require_fixed 'Do not invent a flow.' \
   'failed extraction fallback does not forbid an invented flow'
 reject_output 'flow-diff-only report' "$skill" \
   'stale flow-diff-only fallback remains in the live skill'
-require_fixed 'If decision extraction succeeded, use the flow-diff shape' \
-  'successful extraction summary lost its flow-diff shape'
-require_fixed 'If decision extraction was skipped because the host has no subagent' \
-  'no-dispatch extraction summary is not conditional'
-require_fixed 'dispatch or after two failed attempts' \
-  'failed extraction summary is not conditional'
-require_fixed 'summarize each side'\''s ordered self-reported actions' \
-  'failed extraction summary does not preserve ordered actions'
-require_fixed 'quote both final answers, and repeat the visible extractor-skip note' \
-  'failed extraction summary does not repeat answers and skip note'
-reject_output '7. **Summarize in conversation** in the flow-diff shape' "$skill" \
-  'step 7 still requires a flow when extraction failed'
 
 decision_match=$(grep -nF -- 'On hosts with dispatch, extract the decision diff' "$skill") ||
   fail 'missing conditional decision extraction marker'

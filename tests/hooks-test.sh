@@ -296,6 +296,9 @@ printf '%s' "$out" | grep -q "matches the before content" ||
   fail "unreadable subdir: expected the plain equal-content stop, got: $out"
 [ "$code" -eq 2 ] || fail "unreadable subdir: exit $code, want 2"
 
+progress 'Codex Sol and Luna model selection'
+python3 "$here/codex-model-test.py"
+
 progress 'Pi and OMP runner contracts'
 
 cat >"$stub/omp" <<'SH'
