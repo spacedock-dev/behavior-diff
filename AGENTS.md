@@ -19,6 +19,13 @@ its deterministic test harness, and synthetic end-to-end fixtures.
 These files adapt the guidelines from the private Engram repository. This file
 is authoritative when a Behavior Diff rule differs from an Engram rule.
 
+## Architecture documentation
+
+Keep [docs/architecture.md](docs/architecture.md) current in the same change
+whenever execution flow, component responsibilities, model roles, or report
+artifacts change. Keep the document concise and update its ASCII flowchart
+when the flow changes.
+
 ## Invariants
 
 1. **Canonical source.** `plugin/` is the installable plugin. Its `skills/`
