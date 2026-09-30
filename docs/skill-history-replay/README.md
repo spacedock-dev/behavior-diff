@@ -156,7 +156,7 @@ approves it, and the cost of the coming run, before any model money is spent.
     - The case converted to folder form, and the ground truth written to `{slug}/ground-truth.md` (never into `index.md`): two to four claims on what agent behavior the author meant to change, and the situation where the change matters (the decision moment). Each claim is labeled [said] or [inferred] and cites its source: commit message, patch line, or PR comment link. Supporting detail (PR lookup, reviews, companion PRs) goes in a `## Sources` section of the same file, not in the claims.
     - `index.md` names the file (`Ground truth: see ground-truth.md`) and holds no ground-truth text.
     - A clear split between what the sources **say** and what the worker **infers**. With no PR and a one-line commit message, most of it is inference — say so and mark the ground truth "weak".
-    - The planned run settings: host and model (per the `run` stage's host rule) and the trial count (default 3+3 headless).
+    - The planned run settings in a `## Planned run settings` section of `index.md` (never in `ground-truth.md`, which the `run` worker does not read): host and model (per the `run` stage's host rule) and the trial count (default 3+3 headless).
 - **Gate content:** Show the candidate checks (with the Jev probability), the ground truth with its sources, the said-vs-inferred split, `pr_ref`, and the planned run settings. The captain checks that the ground truth is fair to the author and approves the run spend.
 - **Good:** Every fact is checked against git, not copied from the plan; the single-file check is code, never a judgment call. Every ground-truth claim traces to a commit line or PR comment. Uncertainty is stated, not smoothed over.
 - **Bad:** Running or installing any upstream script or hook. Admitting a multi-file commit as if it were single-file. Copying the plan's summary as the ground truth. Guessing intent from the patch alone when a PR discussion exists. Writing a test scenario here — Behavior Diff drafts that itself.
@@ -172,7 +172,7 @@ only and never opens `{slug}/ground-truth.md`.
   - A scratch fixture git repo outside this repo: the Before revision (`git show <before_sha>:<skill_path>`) committed at the path the host loads repo skills from, then the After revision written over it as an uncommitted edit. No upstream install, no upstream scripts.
   - Host matches the skill's home host: Codex skills (e.g. `openai/skills`) run with `--agent codex` at `.agents/skills/<name>/SKILL.md`; others run with `--agent claude` at `.claude/skills/<name>/SKILL.md`. A Codex run starts a full-access `codex exec` session, which Claude Code's permission check blocks unless the captain has added an allow rule (see **Local setup**). Without that rule, stop and ask the captain; the fallback is the Claude host, recorded in the body as a captain-directed plan change.
   - The user-level skills and plugins the trial host loaded, listed in the body. They are not removed for the pilot; the list lets the verifier spot interference.
-  - The `behavior-diff:behavior-diff` skill invoked from inside that fixture. When the skill asks for a real incident, answer "none — draft the task from the diff." Do not suggest a task.
+  - The `behavior-diff:behavior-diff` skill invoked from inside that fixture, in a separate headless session. The neutral prompt already answers the skill's real-incident question, because a headless session cannot be answered mid-run: `/behavior-diff:behavior-diff Run a behavior diff on my uncommitted SKILL.md change. If you need a real incident: none — draft the task from the diff.` Do not suggest a task.
   - The exact `--task` text the skill drafted, copied into a `## Drafted scenario` section.
   - A check that each side loaded the intended revision (the report's git diff matches `git diff <before_sha> <after_sha> -- <skill_path>`).
   - `report.html`, `report.md`, and `decisions.json` copied from the runner output into `{slug}/report/` on the state branch. The raw `before-*` / `after-*` trial folders are not copied.
@@ -191,6 +191,7 @@ The captain approves the verdict.
   - **Judge ① — scenario.** A Jev Choice call via `typesafe:typesafe-ai`. State: the ground truth and the drafted task. Question: "Does this task put the agent in the situation where the author's change matters?" Options: `on-target`, `near` (related situation, but the changed rule may not decide the outcome), `off-target`. Every option's probability recorded; `scenario_match` set to the top choice.
   - **Judge ② — report.** A Jev Choice call. State: the ground truth and the report's decision diff and flow diff summary. Question: "Does this report make the author's intended behavior change easy for a reader to see?" Options: `caught`, `partial` (visible but mixed with noise or only on some trials), `missed`, `inconclusive` (the run was blocked or never reached the decision moment). Every probability recorded; `catch` set to the top choice.
   - Any top probability below 0.6 → that verdict marked "uncertain" for the captain.
+  - Both calls, their questions, and every probability written in a `## Jev judgment` section of `index.md`.
   - One or two plain sentences on what made the intent easy or hard to see. This is the feedback for the Behavior Diff skill. An `off-target` scenario with `missed` points at task drafting; an `on-target` scenario with `missed` points at the report.
 - **Gate content:** Show the ground truth, the drafted task, both Jev choices with all probabilities, the report path, and the one-line feedback. The captain accepts or rejects back to `run`.
 - **Good:** Both judge calls are Jev, not the verifier's own opinion. `missed` and `off-target` are reported plainly.
@@ -225,9 +226,28 @@ git init --bare ~/.behavior-diff/replay-state.git
 git clone ~/.behavior-diff/replay-state.git docs/skill-history-replay/.spacedock-state
 #    (first time only: create the orphan branch spacedock-state/skill-history-replay
 #     there, seed it, and push it to the bare repo)
+```
 
-# 3. Guard in the main repo: refuse pushing the state branch to a network remote
-#    (.git/hooks/pre-push; allows local-path URLs, blocks everything else)
+3. Guard in the main repo. Save this as `.git/hooks/pre-push` and make it
+   executable (`chmod +x`). It refuses to push the state branch to any
+   network remote. Pushes to a local path, and pushes of every other branch,
+   pass through unchanged.
+
+```bash
+#!/usr/bin/env bash
+# Local-only guard: the skill-history-replay state branch holds Behavior Diff
+# reports (AGENTS.md invariant 4). It may go to a local path, never a network remote.
+url="$2"
+case "$url" in /* | file://*) exit 0 ;; esac
+while read -r local_ref _ remote_ref _; do
+  case "$local_ref $remote_ref" in
+    *spacedock-state/skill-history-replay*)
+      echo "pre-push: refusing to push spacedock-state/skill-history-replay to $url (local-only, holds reports)" >&2
+      exit 1
+      ;;
+  esac
+done
+exit 0
 ```
 
 The state checkout must be its own clone, not a linked worktree of the main
