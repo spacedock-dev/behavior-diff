@@ -76,6 +76,16 @@ SCENARIOS = (
         "Some reviews add an optional test",
         "Two after trials run optional availability tests; all review verdicts agree.",
     ),
+    Scenario(
+        "intent-flip",
+        "A consistent tool switch amid mixed results",
+        "The query interface changes in every trial while input and result choices vary.",
+    ),
+    Scenario(
+        "intent-unchanged",
+        "Targeted review findings stay the same",
+        "Both instruction versions flag the same two security mistakes.",
+    ),
 )
 
 
@@ -743,6 +753,91 @@ def _availability_review(run, scenario):
     )
 
 
+def _intent_review(run, scenario):
+    flip = scenario.name == "intent-flip"
+    if flip:
+        task = "Synthetic task: Find the record with the highest amount."
+        rules = {
+            "before": "# Query interface\nUse query-old for local CSV queries.\n",
+            "after": "# Query interface\nUse query-new for local CSV queries.\n",
+        }
+        files = {
+            "records.csv": "name,amount\nNorth,12\nSouth,8\n",
+            "archive.csv": "name,amount\nWest,15\nEast,9\n",
+        }
+    else:
+        task = "Synthetic task: Review auth.py and decide whether it is ready to ship."
+        rules = {
+            "before": "# Review\nReview security before shipping.\n",
+            "after": (
+                "# Review\nReview security before shipping.\n"
+                "Flag predictable tokens and non-constant-time secret comparisons.\n"
+            ),
+        }
+        files = {
+            "auth.py": (
+                "import random\n"
+                "def token():\n    return str(random.random())\n"
+                "def matches(secret, candidate):\n    return secret == candidate\n"
+            )
+        }
+    trials = {"before": [], "after": []}
+    for side in trials:
+        for number in range(3):
+            if flip:
+                source = (
+                    "archive.csv" if side == "after" and number == 2 else "records.csv"
+                )
+                interface = "query-old" if side == "before" else "query-new"
+                result = "West" if source == "archive.csv" else "North"
+                actions = (
+                    ("cat " + source, files[source]),
+                    (interface + " " + source, result),
+                )
+                choices = {
+                    "Input selection": source,
+                    "Query interface": interface,
+                    "Result": result,
+                }
+                final = f"Highest amount: {result}."
+            else:
+                actions = (("cat auth.py", files["auth.py"]),)
+                choices = {
+                    "Review verdict": "Do not ship",
+                    "Token source": "Predictable token flagged",
+                    "Secret comparison": "Timing-sensitive comparison flagged",
+                }
+                final = (
+                    "Do not ship. The token is predictable and the secret comparison "
+                    "is not constant-time."
+                )
+            trials[side].append(_Trial(actions, final, choices))
+    _write_sources(run, scenario, task, rules, files, trials)
+    if flip:
+        rows = [
+            _row("Input selection", "Which input was queried?", 1, trials),
+            _row("Query interface", "Which query interface was used?", 2, trials),
+            _row("Result", "Which record had the highest amount?", "answer", trials),
+        ]
+        rows[1]["edit_hunks"] = [1]
+        primary = "Result"
+    else:
+        rows = [
+            _row("Review verdict", "Is the code ready to ship?", "answer", trials),
+            _row("Token source", "How was token safety assessed?", "answer", trials),
+            _row(
+                "Secret comparison",
+                "How was secret comparison assessed?",
+                "answer",
+                trials,
+            ),
+        ]
+        for row in rows[1:]:
+            row["edit_hunks"] = [1]
+        primary = "Review verdict"
+    _write_extraction(run, rows, primary=primary)
+
+
 def build_reports(root: Path) -> None:
     """Build all catalog reports beneath an existing, empty directory.
 
@@ -769,6 +864,8 @@ def build_reports(root: Path) -> None:
             _missing_primary(run, scenario)
         elif scenario.name in {"flow-changed", "flow-mixed"}:
             _availability_review(run, scenario)
+        elif scenario.name in {"intent-flip", "intent-unchanged"}:
+            _intent_review(run, scenario)
         else:
             _invoice_review(run, scenario)
         if scenario.name != "missing-extraction":

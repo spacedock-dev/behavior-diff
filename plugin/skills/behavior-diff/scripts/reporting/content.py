@@ -2,6 +2,7 @@
 
 from collections import Counter
 
+from reporting.instruction import parse_diff_hunks
 from reporting.schema import ContentData, ResultData
 
 TRIAL_EVIDENCE_HEADING = "Trial evidence"
@@ -41,6 +42,174 @@ FLOW_PROGRESSION_NOTE = (
     "Only identical complete sequences are grouped within each side. "
     "Before and After trials are independent. " + RECORDED_COMMAND_LIMIT
 )
+CONSISTENT_HEADING = "Consistent changes across observed trials"
+CONSISTENT_NOTE = (
+    "The consistent-changes group requires one choice in every observed trial on each "
+    "side and at least two trials per side. It describes an observed pattern, "
+    "not statistical significance or causal proof."
+)
+EDIT_LINK_NOTE = (
+    "Related edits are model interpretations, not proof of causality or author intent. "
+    "An unavailable link does not establish that the edit had no effect."
+)
+UNCHANGED_TARGETED_NOTE = (
+    "For this scenario, these comparisons had the same choice in every observed trial "
+    "on both sides. Their relationship to the edit is a model interpretation; "
+    "this does not establish that the edit has no effect elsewhere."
+)
+MIXED_NOTE = (
+    "The mixed-trial group includes mixed, incomplete, or unavailable choices "
+    "on at least one side. "
+    "Equal choice proportions do not mean the same behavior occurred in every trial."
+)
+
+
+def instruction_edit_summary(diff):
+    """Summarize literal changed lines, never infer the edit's purpose."""
+    hunks = parse_diff_hunks(diff)
+    if not hunks:
+        return (
+            "Instruction-edit summary unavailable: no unified diff hunks were recorded. "
+            "The available instruction evidence is shown below."
+        )
+    changes = [
+        line for hunk in hunks for line in hunk.lines if line.startswith(("+", "-"))
+    ]
+    added = sum(line.startswith("+") for line in changes)
+    removed = sum(line.startswith("-") for line in changes)
+    headings = [line for line in changes if line[1:].lstrip().startswith("#")]
+    selected = headings or changes
+    excerpt = "; ".join(
+        line[:160] + ("…" if len(line) > 160 else "") for line in selected[:3]
+    )
+    return "+{0} −{1} lines. {2} (excerpt): {3}".format(
+        added, removed, "Changed headings" if headings else "Changed lines", excerpt
+    )
+
+
+def instruction_diff_lines(diff):
+    """Retain all raw diff lines while attaching validated hunk identities."""
+    hunks = iter(parse_diff_hunks(diff))
+    hunk = next(hunks, None)
+    for line in diff.splitlines():
+        number = None
+        if hunk is not None and line == hunk.header:
+            number = hunk.number
+            hunk = next(hunks, None)
+        yield line, number
+
+
+def unanimous_choices(row, decisions):
+    """Return both choices only for complete, nonblank, unanimous coverage."""
+    choices = []
+    for values, total in (
+        (row.before, decisions.before_count),
+        (row.after, decisions.after_count),
+    ):
+        counts = _distribution(values)
+        if total < 1 or len(counts) != 1 or "" in counts:
+            return None
+        choice, count = next(iter(counts.items()))
+        if count != total:
+            return None
+        choices.append(choice)
+    return tuple(choices)
+
+
+def complete_trial_evidence(report):
+    return not report.decisions.dropped and all(
+        total == variant.total
+        and variant.total > 0
+        and variant.valid == variant.total
+        and not variant.blocked
+        and len(variant.trials) == variant.total
+        and all(trial.final.strip() for trial in variant.trials)
+        for variant, total in (
+            (report.variants.before, report.decisions.before_count),
+            (report.variants.after, report.decisions.after_count),
+        )
+    )
+
+
+def decision_evidence_status(row, decisions, report=None):
+    status = decision_status(row)
+    complete = report is None or complete_trial_evidence(report)
+    if status == "Unchanged" and (
+        not complete or unanimous_choices(row, decisions) is None
+    ):
+        return "Same choice proportions"
+    return status
+
+
+def consistent_changes(decisions):
+    if min(decisions.before_count, decisions.after_count) < 2:
+        return ()
+    return tuple(
+        index
+        for index, row in enumerate(decisions.rows, 1)
+        if (choices := unanimous_choices(row, decisions)) is not None
+        and choices[0] != choices[1]
+    )
+
+
+def decision_groups(decisions, report=None):
+    """Order presentation without renumbering evidence or changing the outcome."""
+    complete = report is None or complete_trial_evidence(report)
+    consistent = consistent_changes(decisions) if complete else ()
+    unanimous = tuple(
+        index
+        for index, row in enumerate(decisions.rows, 1)
+        if complete
+        and index not in consistent
+        and unanimous_choices(row, decisions) is not None
+    )
+    mixed = tuple(
+        index
+        for index in range(1, len(decisions.rows) + 1)
+        if index not in consistent and index not in unanimous
+    )
+    return tuple(
+        (heading, indexes)
+        for heading, indexes in (
+            (CONSISTENT_HEADING, consistent),
+            ("Other unanimous comparisons — observed trials only", unanimous),
+            ("Mixed trial choices", mixed),
+        )
+        if indexes
+    )
+
+
+def unchanged_targeted(report):
+    if not complete_trial_evidence(report):
+        return ()
+    return tuple(
+        index
+        for index, row in enumerate(report.decisions.rows, 1)
+        if index != report.decisions.outcome
+        and row.edit_hunks
+        and (choices := unanimous_choices(row, report.decisions)) is not None
+        and choices[0] == choices[1]
+    )
+
+
+def targeted_finding(report):
+    if unchanged_targeted(report):
+        return UNCHANGED_TARGETED_NOTE
+    if not complete_trial_evidence(report):
+        return (
+            "Targeted-behavior findings are unavailable because trial evidence is "
+            "incomplete, blocked, or inconsistent with the extracted counts."
+        )
+    if not any(row.edit_hunks for row in report.decisions.rows):
+        return (
+            "Related-edit mappings are unavailable. No conclusion about targeted behavior "
+            "or author intent can be drawn from missing links."
+        )
+    return (
+        "No mapped non-result comparison has complete, unanimous same-choice evidence "
+        "on both sides. Mixed or missing choices do not establish unchanged behavior "
+        "in every trial."
+    )
 
 
 def trial_noun(count):
@@ -403,7 +572,12 @@ def tag_legend(trace_source):
     """What each tag on a decision row means."""
     return (
         ("changed", "Changed", "the extracted choice proportions differ between sides"),
-        ("same", "Unchanged", "the extracted choice proportions match between sides"),
+        ("same", "Unchanged", "complete trials show the same unanimous choice"),
+        (
+            "same",
+            "Same choice proportions",
+            "proportions match, but choices are mixed or trial evidence is incomplete",
+        ),
         (
             "unavailable",
             "Unavailable",
@@ -482,6 +656,22 @@ def decision_choices_preview(choices, total):
 
 
 def decision_overview(report):
+    consistent = (
+        consistent_changes(report.decisions) if complete_trial_evidence(report) else ()
+    )
+    if consistent:
+        names = ", ".join(
+            report.decisions.rows[index - 1].topic.strip()
+            or report.decisions.rows[index - 1].decision
+            for index in consistent
+        )
+        return (
+            CONSISTENT_HEADING
+            + ": "
+            + names
+            + ". Result summary: "
+            + report.result.text
+        )
     changed = Counter(
         decision_role(index, row, report.decisions.outcome)
         for index, row in enumerate(report.decisions.rows, 1)

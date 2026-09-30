@@ -4,7 +4,9 @@ import json
 from dataclasses import asdict, dataclass
 from typing import Dict, Optional, Tuple, Union
 
-SCHEMA_VERSION = 3
+from reporting.instruction import parse_diff_hunks
+
+SCHEMA_VERSION = 4
 RESULT_KINDS = ("good", "bad", "neutral")
 
 
@@ -76,6 +78,7 @@ class DecisionRowData:
     note: str
     before: Tuple[DecisionChoiceData, ...]
     after: Tuple[DecisionChoiceData, ...]
+    edit_hunks: Tuple[int, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -164,7 +167,12 @@ class ReportData:
                 "unsupported report-data schema version: {0}".format(version)
             )
 
-        decisions = _decisions(_field(data, "decisions", "report-data"), "decisions")
+        rule_diff = _expect_str(_field(data, "rule_diff", "report-data"), "rule_diff")
+        decisions = _decisions(
+            _field(data, "decisions", "report-data"),
+            "decisions",
+            len(parse_diff_hunks(rule_diff)),
+        )
         result = _result(
             _field(data, "result", "report-data"), "result", len(decisions.rows)
         )
@@ -172,9 +180,7 @@ class ReportData:
             schema_version=version,
             metadata=_metadata(_field(data, "metadata", "report-data"), "metadata"),
             content=_content(_field(data, "content", "report-data"), "content"),
-            rule_diff=_expect_str(
-                _field(data, "rule_diff", "report-data"), "rule_diff"
-            ),
+            rule_diff=rule_diff,
             result=result,
             variants=_variants(_field(data, "variants", "report-data"), "variants"),
             command_flow=_command_flow(
@@ -365,12 +371,12 @@ def _flow_path(value, path):
     )
 
 
-def _decisions(value, path):
+def _decisions(value, path, hunk_count):
     value = _expect_dict(value, path)
     rows = _expect_list(_field(value, "rows", path), path + ".rows")
     return DecisionData(
         rows=tuple(
-            _decision_row(item, "{0}.rows[{1}]".format(path, index))
+            _decision_row(item, "{0}.rows[{1}]".format(path, index), hunk_count)
             for index, item in enumerate(rows)
         ),
         fork=_optional_reference(
@@ -394,7 +400,7 @@ def _decisions(value, path):
     )
 
 
-def _decision_row(value, path):
+def _decision_row(value, path, hunk_count):
     value = _expect_dict(value, path)
     before = _expect_list(_field(value, "before", path), path + ".before")
     after = _expect_list(_field(value, "after", path), path + ".after")
@@ -411,6 +417,9 @@ def _decision_row(value, path):
         after=tuple(
             _decision_choice(item, "{0}.after[{1}]".format(path, index))
             for index, item in enumerate(after)
+        ),
+        edit_hunks=_hunk_references(
+            _field(value, "edit_hunks", path), path + ".edit_hunks", hunk_count
         ),
     )
 
@@ -445,6 +454,19 @@ def _references(value, path, row_count):
     if len(set(references)) != len(references):
         _invalid(path, "unique decision row indexes")
     return references
+
+
+def _hunk_references(value, path, hunk_count):
+    values = _expect_list(value, path)
+    references = []
+    for index, item in enumerate(values):
+        number = _expect_int(item, "{0}[{1}]".format(path, index))
+        if not 1 <= number <= hunk_count:
+            _invalid(path, "1-based instruction diff hunk index")
+        references.append(number)
+    if len(set(references)) != len(references):
+        _invalid(path, "unique instruction diff hunk indexes")
+    return tuple(references)
 
 
 def _claims(value, path, row_count):

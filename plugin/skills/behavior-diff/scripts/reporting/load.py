@@ -1,6 +1,5 @@
 """Load persisted Behavior Diff evidence into format-neutral report data."""
 
-import difflib
 import json
 import re
 from collections import Counter
@@ -8,6 +7,7 @@ from pathlib import Path
 from typing import Optional
 
 from reporting import content
+from reporting.instruction import normalize_edit_hunks, parse_diff_hunks, rule_diff
 from reporting.schema import (
     SCHEMA_VERSION,
     CommandFlowData,
@@ -35,8 +35,9 @@ def load_report(
     before = variants.before
     after = variants.after
     command_flow = _command_flow(before, after, metadata)
+    instruction_diff = rule_diff(run, capsule, metadata.target_file)
     decisions = _read_decisions(
-        run, command_flow.before.total, command_flow.after.total
+        run, command_flow.before.total, command_flow.after.total, instruction_diff
     )
     report_content = content.build_content(
         config,
@@ -50,7 +51,7 @@ def load_report(
         schema_version=SCHEMA_VERSION,
         metadata=metadata,
         content=report_content,
-        rule_diff=_rule_diff(run, capsule, metadata.target_file),
+        rule_diff=instruction_diff,
         result=content.result_data(
             metadata, variants, decisions, report_content.expected
         ),
@@ -358,18 +359,18 @@ def _common_prefix(sequences):
     return tuple(prefix)
 
 
-def _read_decisions(run, before_default, after_default):
+def _read_decisions(run, before_default, after_default, instruction_diff):
     path = run / "decisions.json"
     if not path.exists():
         return _empty_decisions(before_default, after_default)
     try:
         raw = json.loads(path.read_text())
-        return _convert_decisions(raw, before_default, after_default)
+        return _convert_decisions(raw, before_default, after_default, instruction_diff)
     except (TypeError, ValueError, KeyError):
         return _empty_decisions(before_default, after_default)
 
 
-def _convert_decisions(raw, before_default, after_default):
+def _convert_decisions(raw, before_default, after_default, instruction_diff):
     if type(raw) is not dict or type(raw.get("chain")) is not list:
         raise ValueError("malformed decisions")
     counts = raw.get("counts", {})
@@ -395,7 +396,12 @@ def _convert_decisions(raw, before_default, after_default):
         or type(extractor) is not str
     ):
         raise ValueError("malformed decisions")
-    rows = tuple(_decision_row(row) for row in raw["chain"])
+    hunk_count = (
+        len(parse_diff_hunks(instruction_diff))
+        if raw.get("instruction_diff") == instruction_diff
+        else 0
+    )
+    rows = tuple(_decision_row(row, hunk_count) for row in raw["chain"])
     if raw_fork is not None and (
         not _is_int(raw_fork) or not 1 <= raw_fork <= len(rows)
     ):
@@ -429,7 +435,7 @@ def _convert_decisions(raw, before_default, after_default):
     )
 
 
-def _decision_row(raw):
+def _decision_row(raw, hunk_count):
     if type(raw) is not dict:
         raise ValueError("malformed decision row")
     decision = raw["decision"]
@@ -455,6 +461,7 @@ def _decision_row(raw):
         note,
         before,
         after,
+        normalize_edit_hunks(raw.get("edit_hunks"), hunk_count),
     )
 
 
@@ -509,21 +516,3 @@ def _is_int(value):
 
 def _scenario(config, capsule):
     return config.get("scenario") or (capsule / "task.md").read_text().strip()
-
-
-def _rule_diff(run, capsule, target_file):
-    before_file = run / "before-1" / "project" / target_file
-    after_file = run / "after-1" / "project" / target_file
-    if before_file.exists() and after_file.exists():
-        return "".join(
-            difflib.unified_diff(
-                before_file.read_text().splitlines(keepends=True),
-                after_file.read_text().splitlines(keepends=True),
-                fromfile="{0} (before)".format(target_file),
-                tofile="{0} (after)".format(target_file),
-            )
-        )
-    try:
-        return (capsule / "rule.md").read_text()
-    except OSError:
-        return "(no variant files or rule.md found — diff unavailable)"

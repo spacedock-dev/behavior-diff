@@ -25,6 +25,31 @@ def _decision_links(indexes) -> str:
     return " · ".join(f"[Decision {index}](#decision-{index})" for index in indexes)
 
 
+def _edit_links(row):
+    if not row.edit_hunks:
+        return "Related edit unavailable — no mapping recorded."
+    links = " · ".join(
+        f"[Hunk {number}](#edit-hunk-{number})" for number in row.edit_hunks
+    )
+    return "Related edit (model interpretation): " + links
+
+
+def _instruction_edit(report):
+    lines = []
+    for line, number in content.instruction_diff_lines(report.rule_diff):
+        text = html.escape(line)
+        if number:
+            text = f'<span id="edit-hunk-{number}">{text}</span>'
+        lines.append(text)
+    return [
+        "## Instruction edit\n",
+        _text(content.instruction_edit_summary(report.rule_diff)) + "\n",
+        f"### {_text(report.content.diff_heading)}\n",
+        "<pre><code>" + "\n".join(lines) + "</code></pre>\n",
+        _text(content.EDIT_LINK_NOTE) + "\n",
+    ]
+
+
 def _comparison_table(report: ReportData, indexes, column: str, count_note: str):
     if not indexes:
         return []
@@ -38,7 +63,9 @@ def _comparison_table(report: ReportData, indexes, column: str, count_note: str)
         source = content.source_label(row.anchor, report.metadata.trace_source)
         markdown.append(
             f"| [{_text(row.topic.strip() or row.decision)}](#decision-{index})"
-            f"<br>{_text(source)} | {_choices(row.before, report.decisions.before_count)}"
+            f"<br>{_text(content.decision_role(index, row, report.decisions.outcome))}"
+            f" · {_text(source)}<br>{_edit_links(row)}"
+            f" | {_choices(row.before, report.decisions.before_count)}"
             f" | {_choices(row.after, report.decisions.after_count)} |"
         )
     markdown.append("")
@@ -57,6 +84,9 @@ def _decision_markdown(report):
         '<a id="decision-progression"></a>\n',
         _text(content.DECISION_PROGRESSION_NOTE) + "\n",
         _text(content.TRIAL_COUNT_NOTE) + "\n",
+        _text(content.CONSISTENT_NOTE) + "\n",
+        _text(content.EDIT_LINK_NOTE) + "\n",
+        _text(content.MIXED_NOTE) + "\n",
     ]
     if report.metadata.trace_source == "self-reported":
         markdown.append(_text(content.SELF_REPORTED_LIMIT) + "\n")
@@ -68,14 +98,24 @@ def _decision_markdown(report):
         ),
         "",
     ]
-    for index, row in enumerate(decisions.rows, 1):
+    grouped = [
+        (heading, index)
+        for heading, indexes in content.decision_groups(decisions, report)
+        for index in indexes
+    ]
+    previous_heading = None
+    for heading, index in grouped:
+        row = decisions.rows[index - 1]
+        if heading != previous_heading:
+            markdown.append(f"### {_text(heading)}\n")
+            previous_heading = heading
         source = content.source_label(row.anchor, report.metadata.trace_source)
         role = content.decision_role(index, row, decisions.outcome)
-        status = content.decision_status(row)
+        status = content.decision_evidence_status(row, decisions, report)
         title = row.topic.strip() or row.decision
         markdown += [
             f'<a id="decision-{index}"></a>\n',
-            f"### {index} · {_text(title)}\n",
+            f"#### {index} · {_text(title)}\n",
         ]
         if row.decision and row.decision != title:
             markdown.append(_text(row.decision) + "\n")
@@ -88,6 +128,7 @@ def _decision_markdown(report):
             f"| {_choices(row.before, decisions.before_count)}"
             f" | {_choices(row.after, decisions.after_count)} |\n"
         )
+        markdown.append(_edit_links(row) + "\n")
         if row.note:
             markdown.append(f"Note: {_text(row.note)}\n")
     markdown.append(_text(content.decision_footer(decisions.rows)) + "\n")
@@ -209,8 +250,26 @@ def render_markdown(report: ReportData) -> str:
     markdown = [f"# {_text(content_data.title)}\n", _text(content_data.subtitle) + "\n"]
     if content_data.note:
         markdown.append(_text(content_data.note) + "\n")
+    markdown.append('<a id="panel-summary"></a>\n')
+    markdown += _instruction_edit(report)
+    groups = content.decision_groups(report.decisions, report)
+    for heading, indexes in groups:
+        if heading == content.CONSISTENT_HEADING:
+            markdown += [
+                f"### {_text(heading)}\n",
+                _text(content.CONSISTENT_NOTE) + "\n",
+            ]
+            markdown += _comparison_table(
+                report, indexes, "Comparison", content.TRIAL_COUNT_NOTE
+            )
     markdown += [
-        '<a id="panel-summary"></a>\n',
+        "### Edit-related unchanged behaviors\n",
+        _text(content.targeted_finding(report)) + "\n",
+    ]
+    markdown += _comparison_table(
+        report, content.unchanged_targeted(report), "Behavior", content.TRIAL_COUNT_NOTE
+    )
+    markdown += [
         f"## {_text(content_data.result_heading)}\n",
         f"**{_text(result.text)}**\n",
         _text(result.summary) + "\n",
@@ -222,21 +281,16 @@ def render_markdown(report: ReportData) -> str:
             f"### {_text(content_data.expected_heading)}\n",
             _text(content_data.expected) + "\n",
         ]
-    markdown.append(f"### {_text(result.outcome_heading)}\n")
-    markdown += _comparison_table(
-        report,
-        result.outcomes,
-        "Final result" if report.decisions.outcome is not None else "Answer detail",
-        content.TRIAL_COUNT_NOTE,
-    )
-    if not result.outcomes:
-        markdown.append("No result or reported-answer comparison is available.\n")
-    markdown.append(f"### {_text(result.behavior_heading)}\n")
-    markdown += _comparison_table(
-        report, result.behavior, "Action or check", content.BEHAVIOR_COUNT_NOTE
-    )
-    if not result.behavior:
-        markdown.append("No separate action comparison is available.\n")
+    for heading, indexes in groups:
+        if heading != content.CONSISTENT_HEADING:
+            markdown.append(f"### {_text(heading)}\n")
+            markdown += _comparison_table(
+                report, indexes, "Comparison", content.TRIAL_COUNT_NOTE
+            )
+            if heading == "Mixed trial choices":
+                markdown.append(_text(content.MIXED_NOTE) + "\n")
+    if not groups:
+        markdown.append("No extracted comparisons are available.\n")
     if result.implications or report.decisions.fork_note:
         markdown += [
             "### Model explanations\n",
@@ -260,9 +314,6 @@ def render_markdown(report: ReportData) -> str:
     links.append("[Inspect trial evidence](#panel-trials)")
     markdown.append(" · ".join(links) + "\n")
     markdown += [
-        f"<details><summary>{html.escape(content_data.diff_heading)}</summary>\n",
-        "<pre><code>" + html.escape(report.rule_diff.rstrip()) + "</code></pre>\n",
-        "</details>\n",
         f"## {_text(content_data.limits_heading)}\n",
     ]
     markdown += [f"- {_text(limit)}" for limit in result.limits]

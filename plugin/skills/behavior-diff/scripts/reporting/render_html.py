@@ -64,11 +64,55 @@ def _decision_choices(choices, total: int) -> str:
     return "".join(lines) or html.escape(content.NO_EXTRACTED_CHOICE)
 
 
+def _edit_links(row) -> str:
+    if not row.edit_hunks:
+        return (
+            '<span class="dnote">Related edit unavailable — no mapping recorded.</span>'
+        )
+    links = " · ".join(
+        f'<a href="#edit-hunk-{number}">Hunk {number}</a>' for number in row.edit_hunks
+    )
+    return (
+        f'<span class="edit-links">Related edit (model interpretation): {links}</span>'
+    )
+
+
+def _instruction_edit(report) -> str:
+    lines = []
+    for line, number in content.instruction_diff_lines(report.rule_diff):
+        anchor = f' id="edit-hunk-{number}" tabindex="-1"' if number else ""
+        lines.append(
+            f'<span{anchor} class="{_diff_line_class(line)}">{html.escape(line)}</span>\n'
+        )
+    return (
+        '<section class="instruction-edit" aria-labelledby="instruction-edit-heading">'
+        '<h2 class="section-label" id="instruction-edit-heading">Instruction edit</h2>'
+        f'<p class="edit-summary">{html.escape(content.instruction_edit_summary(report.rule_diff))}</p>'
+        '<details class="fold" id="instruction-diff">'
+        f"<summary>{_CHEVRON}{html.escape(report.content.diff_heading)}"
+        '<span class="fold-hint"><span class="hint-show">Show the diff</span>'
+        '<span class="hint-hide">Hide the diff</span></span></summary>'
+        f"<pre>{''.join(lines)}</pre></details></section>"
+    )
+
+
 def _decision_progression(report) -> str:
     decisions = report.decisions
     nodes = []
-    for index, row in enumerate(decisions.rows, 1):
-        status = content.decision_status(row)
+    grouped = [
+        (heading, index)
+        for heading, indexes in content.decision_groups(decisions, report)
+        for index in indexes
+    ]
+    previous_heading = None
+    for heading, index in grouped:
+        row = decisions.rows[index - 1]
+        if heading != previous_heading:
+            nodes.append(
+                f'<li class="decision-group"><h3>{html.escape(heading)}</h3></li>'
+            )
+            previous_heading = heading
+        status = content.decision_evidence_status(row, decisions, report)
         role = content.decision_role(index, row, decisions.outcome)
         title = row.topic.strip() or row.decision
         source = content.source_label(row.anchor, report.metadata.trace_source)
@@ -94,7 +138,7 @@ def _decision_progression(report) -> str:
         )
         note = f'<p class="dnote">{html.escape(row.note)}</p>' if row.note else ""
         nodes.append(
-            f'<li><details class="decision-row decision-{status.lower()}{final_class}" '
+            f'<li><details class="decision-row decision-{status.lower().replace(" ", "-")}{final_class}" '
             f'id="decision-{index}">'
             '<summary class="decision-node">'
             f'<span class="progression-number">{index}</span>'
@@ -106,7 +150,7 @@ def _decision_progression(report) -> str:
             f'<span class="hint-hide">Hide evidence</span>{_CHEVRON}</span>'
             f"{preview}</summary>"
             f'<div class="decision-evidence">{question}'
-            f'<p class="decision-meta">{html.escape(source)}</p>'
+            f'<p class="decision-meta">{html.escape(source)}</p>{_edit_links(row)}'
             '<table class="comparison decision-comparison">'
             f'<caption class="visually-hidden">Decision {index}: {html.escape(title)}</caption>'
             '<thead><tr><th scope="col">Before</th>'
@@ -124,6 +168,9 @@ def _decision_progression(report) -> str:
         '<button type="button" class="decision-toggle" id="decision-toggle" aria-controls="decision-list" hidden>Expand all</button></div>'
         f'<p class="note" id="decision-progression-note">{html.escape(content.DECISION_PROGRESSION_NOTE)}</p>'
         f'<p class="note">{html.escape(content.TRIAL_COUNT_NOTE)}</p>'
+        f'<p class="note">{html.escape(content.CONSISTENT_NOTE)}</p>'
+        f'<p class="note">{html.escape(content.EDIT_LINK_NOTE)}</p>'
+        f'<p class="note">{html.escape(content.MIXED_NOTE)}</p>'
         '<ol class="decision-path" id="decision-list" role="list" aria-describedby="decision-progression-note">'
         f"{''.join(nodes)}</ol></section>"
     )
@@ -142,6 +189,22 @@ _REPORT_INTERACTIONS = """<script>
     printState.forEach(([row, open]) => { row.open = open; });
     printState = null;
   });
+  const openLinkedEdit = () => {
+    const target = document.getElementById(location.hash.slice(1));
+    if (!target || !target.id.startsWith("edit-hunk-")) return;
+    const disclosure = target.closest("details");
+    if (disclosure) disclosure.open = true;
+    target.focus({preventScroll: true});
+    target.scrollIntoView({block: "start"});
+  };
+  window.addEventListener("hashchange", openLinkedEdit);
+  document.addEventListener("click", event => {
+    if (event.defaultPrevented || event.button !== 0 ||
+        event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+    const link = event.target.closest('a[href^="#edit-hunk-"]');
+    if (link && link.getAttribute("href") === location.hash) openLinkedEdit();
+  });
+  openLinkedEdit();
   const list = document.getElementById("decision-list");
   const button = document.getElementById("decision-toggle");
   if (!list || !button) return;
@@ -222,7 +285,8 @@ def _comparison_table(report: ReportData, indexes, column: str, count_note: str)
         rows.append(
             f'<tr><th scope="row"><a href="#decision-{index}">'
             f"{html.escape(row.topic.strip() or row.decision)}</a>"
-            f'<span class="dnote">{html.escape(source)}</span></th>'
+            f'<span class="dnote">{html.escape(content.decision_role(index, row, report.decisions.outcome))}'
+            f" · {html.escape(source)}</span>{_edit_links(row)}</th>"
             f"<td>{_decision_choices(row.before, report.decisions.before_count)}</td>"
             f"<td>{_decision_choices(row.after, report.decisions.after_count)}</td></tr>"
         )
@@ -275,19 +339,6 @@ _CHEVRON = (
     'stroke-linejoin="round" aria-hidden="true">'
     '<polyline points="9 6 15 12 9 18"></polyline></svg>'
 )
-
-
-def _diff_stats(diff: str) -> str:
-    # Only the file header sits before the first hunk; a content line that
-    # starts with "---" or "+++" must still count.
-    lines = diff.rstrip().splitlines()
-    start = next(
-        (i for i, line in enumerate(lines) if line.startswith("@@")), len(lines)
-    )
-    body = lines[start:]
-    added = sum(line.startswith("+") for line in body)
-    removed = sum(line.startswith("-") for line in body)
-    return f"+{added} −{removed} lines"
 
 
 def _tabs(tabs) -> str:
@@ -347,11 +398,6 @@ def render_artifact(report: ReportData, css: str) -> str:
         f'<div class="half-head a"><h2>After</h2>{after_note}'
         f'<span class="count">{escaped(after.count_text + after.count_suffix)}</span></div>'
         f"</div>{runs}"
-    )
-
-    diff_html = "".join(
-        f'<span class="{_diff_line_class(line)}">{escaped(line)}</span>\n'
-        for line in report.rule_diff.rstrip().splitlines()
     )
 
     decisions_html = ""
@@ -473,16 +519,37 @@ def render_artifact(report: ReportData, css: str) -> str:
         + "</p>"
     )
     result = report.result
-    outcomes_html = _comparison_table(
-        report,
-        result.outcomes,
-        "Final result" if report.decisions.outcome is not None else "Answer detail",
-        content.TRIAL_COUNT_NOTE,
-    )
-    if not result.outcomes:
-        outcomes_html = (
-            '<p class="sub">No result or reported-answer comparison is available.</p>'
+    groups = content.decision_groups(report.decisions, report)
+    consistent_html = ""
+    comparisons_html = ""
+    for heading, indexes in groups:
+        group_html = (
+            f'<h2 class="comparison-heading">{escaped(heading)}</h2>'
+            + _comparison_table(report, indexes, "Comparison", content.TRIAL_COUNT_NOTE)
+            + (
+                f'<p class="note">{escaped(content.MIXED_NOTE)}</p>'
+                if heading == "Mixed trial choices"
+                else ""
+            )
         )
+        if heading == content.CONSISTENT_HEADING:
+            consistent_html = (
+                '<section class="consistent-finding">'
+                f'<p class="note">{escaped(content.CONSISTENT_NOTE)}</p>'
+                f"{group_html}</section>"
+            )
+        else:
+            comparisons_html += group_html
+    if not groups:
+        comparisons_html = '<p class="sub">No extracted comparisons are available.</p>'
+    unchanged = content.unchanged_targeted(report)
+    targeted_html = (
+        '<section class="targeted-finding">'
+        '<h2 class="comparison-heading">Edit-related unchanged behaviors</h2>'
+        f'<p class="note">{escaped(content.targeted_finding(report))}</p>'
+        + _comparison_table(report, unchanged, "Behavior", content.TRIAL_COUNT_NOTE)
+        + "</section>"
+    )
     claims_html = ""
     if result.implications or report.decisions.fork_note:
         claims_html = (
@@ -511,28 +578,20 @@ def render_artifact(report: ReportData, css: str) -> str:
         else ""
     )
     evidence_links += '<a href="#panel-trials">Inspect trial evidence</a>'
-    behavior_html = _comparison_table(
-        report, result.behavior, "Action or check", content.BEHAVIOR_COUNT_NOTE
-    )
-    if not result.behavior:
-        behavior_html = '<p class="sub">No separate action comparison is available.</p>'
     limits_html = "".join(f"<li>{escaped(limit)}</li>" for limit in result.limits)
-    summary_html = f"""<h2 class="section-label">{escaped(report_content.result_heading)}</h2>
+    summary_html = f"""{_instruction_edit(report)}
+<p class="note">{escaped(content.EDIT_LINK_NOTE)}</p>
+{consistent_html}
+{targeted_html}
+<h2 class="section-label">{escaped(report_content.result_heading)}</h2>
 <p class="result">{escaped(result.text)}</p>
 <p class="result-summary">{escaped(result.summary)}</p>
 <h2 class="section-label">{escaped(report_content.scenario_heading)}</h2>
 <pre class="scenario">{escaped(report_content.scenario)}</pre>
 {expected_html}
-<h2 class="comparison-heading">{escaped(result.outcome_heading)}</h2>
-{outcomes_html}
-<h2 class="comparison-heading">{escaped(result.behavior_heading)}</h2>
-{behavior_html}
+{comparisons_html}
 {claims_html}
 <nav class="evidence-nav" aria-label="Supporting evidence">{evidence_links}</nav>
-<details class="fold"><summary>{_CHEVRON}{escaped(report_content.diff_heading)}
-<span class="fold-stat">{_diff_stats(report.rule_diff)}</span>
-<span class="fold-hint"><span class="hint-show">Show the diff</span><span class="hint-hide">Hide the diff</span></span></summary>
-<pre>{diff_html}</pre></details>
 <h2 class="section-label">{escaped(report_content.limits_heading)}</h2>
 <ul class="evidence-limits">{limits_html}</ul>"""
 

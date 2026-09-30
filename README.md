@@ -115,17 +115,19 @@ report.
 A **run** compares the instruction versions. A **trial** is one agent execution on
 one side. Each run creates a local HTML report with up to four tabs:
 
-- **Summary** opens first. It states the finding and task, then separates the
-  final result from the agent's behavior. Each comparison has a change status,
-  trial counts, and evidence links. Model explanations and evidence limits follow.
-- **Decision diff** starts with a concise finding and one list of comparisons.
-  Each step shows its topic, status, and role. Changed choices and the final result
-  have short Before/After summaries. Mixed or partial choices retain their counts.
-  Open a step to inspect its full question, choices, counts, sources, and trial links.
-  Several steps can stay open. Direct links open the matching step, and
-  **Expand all** shows all comparison evidence. Printing includes all evidence.
-  Markdown keeps each comparison fully expanded. Comparison order does not
-  represent recorded execution or proven causality.
+- **Summary** opens first with a literal instruction-edit excerpt and the full
+  diff nearby. Consistent changes across observed trials come before the primary
+  result, so a mixed final answer does not bury a unanimous behavior change.
+  Edit-related unchanged behaviors are named when the evidence supports them.
+  Comparisons retain trial counts, roles, and evidence links.
+- **Decision diff** groups consistent changes first, other unanimous comparisons
+  next, and mixed or incomplete choices separately. Each comparison keeps its
+  original number, topic, status, and role. Open it to inspect the full question,
+  choices, counts, sources, related edit hunks, and trial links.
+  Several comparisons can stay open. Direct links open the matching comparison
+  or diff hunk, and **Expand all** shows all comparison evidence.
+  Printing includes all evidence; Markdown keeps comparisons fully expanded.
+  Presentation order is not recorded execution order or proven causality.
 - **Flow diff** starts with each side's recorded command progression. Identical
   recorded sequences share a path with counts and links to their trial evidence.
   A separate table compares command-category combinations. This tab appears only
@@ -134,16 +136,22 @@ one side. Each run creates a local HTML report with up to four tabs:
   and its final answer. Before and After trials are independent, even when their
   numbers match. Side labels and trial counts remain visible on mobile.
 
-Start with the headline. **Final result** is the primary result identified by the
-model. **Final answer** is the agent's recorded answer text. **Behavior** compares
-the actions found in the evidence. The same result can come from a different
-process. Changes in answer wording alone do not establish an action change.
+Start with the instruction edit and the prominent comparisons. **Final result**
+still means the primary result identified by the model, not the highest-ranked
+comparison. **Final answer** is the recorded answer text. **Action** comparisons
+come from recorded commands or self-reported actions; **Answer detail** comparisons
+come from the final answer. Wording differences alone do not establish an action change.
 
 In Summary and Decision diff, counts such as **3 of 3 trials** refer to trials,
 not repeated actions within one trial. A model extracts these counts from the
 evidence. Separate row counts do not show a complete sequence within one trial.
-**Changed** and **Unchanged** compare choice proportions. **Unavailable** means
-that the extracted choices cannot support a comparison.
+**Changed** compares choice proportions. **Unchanged** is shown for complete,
+unanimous same-choice evidence; matching mixed distributions are labeled
+**Same choice proportions**. **Unavailable** means extracted choices cannot support
+a comparison. A consistent change requires a different unanimous choice on each
+side, at least two trials per side, and complete trial evidence. This is an observed
+pattern, not statistical significance. Single-trial, blocked, missing, and mixed
+evidence is not promoted as a consistent change.
 
 In Flow diff, progression preserves command order and repeated commands. Before
 and After trials are independent. Empty records and blocked trials remain visible.
@@ -157,9 +165,13 @@ The Summary uses short labels. Follow each label to its full comparison in
 Decision diff. Inspect the trial records for the original commands and answers.
 The Markdown report contains the same comparisons and evidence links.
 
-The existing extraction call identifies the primary result and possible
-explanations. These explanations are model interpretations, not causal proof.
-A changed result is not an automatic success or failure.
+The existing extraction call identifies the primary result, possible explanations,
+and related instruction-diff hunks. It first recovers observed choices, then
+interprets their relationship to the supplied edit. **Related edit** links are
+labeled as model interpretation, not causal proof or knowledge of author intent.
+A named unchanged targeted behavior applies only to the observed scenario.
+Missing links do not mean the edit had no effect. A changed result is not an
+automatic success or failure.
 Before and After use neutral borders. PASS and FAIL colors indicate grades
 against the supplied expectation, not a judgment that After is better.
 Instruction diff colors still mark added and removed lines.
@@ -173,8 +185,19 @@ Expected behavior appears only when supplied. The evidence limits state the
 trial counts, provenance, and grading limits. Self-reported actions remain
 distinct from captured tool calls.
 
-The structured `report-data.json` uses schema version 3. Regenerate reports
-from their run artifacts to use this format. Older report-data files are not accepted.
+The structured `report-data.json` uses schema version 4, including each comparison's
+`edit_hunks` references. Regenerate reports from their original run artifacts;
+older report-data files are not accepted. `render.py` needs the run directory,
+capsule directory, recorded model label, and original configuration. Rendering
+does not run trials or call a model.
+
+Old `decisions.json` observations can be re-rendered with the new layout and
+count-based ordering, but lack edit mappings. To obtain mappings, rerun extraction
+on the saved evidence after approving its model cost; no new trials are needed.
+The extractor stores the exact `instruction_diff` with its mappings. External
+`--emit-prompt` also saves `decisions.prompt.json` so `--ingest` retains the emitted
+diff's provenance. Invalid or stale mappings are omitted without discarding
+observed choices. Rendering never invents replacement mappings.
 
 If both sides follow the same path, the task can miss the situation that the
 rule targets. Use a task that starts closer to the decision that you want to
