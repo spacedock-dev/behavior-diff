@@ -8,7 +8,7 @@ import os
 import re
 import sys
 import tempfile
-from dataclasses import replace
+from dataclasses import asdict, replace
 from html.parser import HTMLParser
 from pathlib import Path
 
@@ -29,8 +29,8 @@ from report_fixtures import SCENARIOS, build_reports  # noqa: E402
 
 
 def synthetic_raw():
-    return {
-        "schema_version": 4,
+    raw = {
+        "schema_version": 5,
         "metadata": {
             "model": "synthetic/model",
             "mode": "review",
@@ -190,8 +190,24 @@ def synthetic_raw():
             "implications": [
                 {"text": "The evidence method changed.", "decisions": [1, 2]}
             ],
+            "narrative": None,
         },
     }
+    from reporting.schema import _decisions, _metadata, _variants
+    from reporting.summary import build_summary
+
+    raw["summary"] = json.loads(
+        json.dumps(
+            asdict(
+                build_summary(
+                    _metadata(raw["metadata"], "metadata"),
+                    _variants(raw["variants"], "variants"),
+                    _decisions(raw["decisions"], "decisions", 0),
+                )
+            )
+        )
+    )
+    return raw
 
 
 def assert_round_trip(raw):
@@ -437,7 +453,7 @@ def assert_evidence_links(report):
             if tag == "a" and attrs.get("href", "").startswith("#"):
                 self.targets.append(attrs["href"][1:])
 
-    page = render_artifact(report, ".result { background:__RESULT_BG__; }")
+    page = render_artifact(report, "")
     links = Links()
     links.feed(page)
     assert set(links.targets) <= links.ids, "An evidence link has no target."
@@ -537,7 +553,7 @@ def assert_tab_comparison_boundaries(report):
         result=replace(report.result, implications=()),
     )
     for rendered in (
-        render_artifact(independent, ".result { background:__RESULT_BG__; }"),
+        render_artifact(independent, ""),
         render_markdown(independent),
     ):
         assert "possible link" not in rendered.lower(), (
@@ -670,8 +686,8 @@ def assert_command_progression_boundaries(report):
 
     for baseline, rendered in (
         (
-            render_artifact(report, ".result { background:__RESULT_BG__; }"),
-            render_artifact(specimen, ".result { background:__RESULT_BG__; }"),
+            render_artifact(report, ""),
+            render_artifact(specimen, ""),
         ),
         (render_markdown(report), render_markdown(specimen)),
     ):
@@ -802,6 +818,112 @@ def assert_intent_reports(reports, root):
         )
 
 
+def assert_visual_summaries(reports):
+    """A visual lead must retain distributions, provenance, and evidence limits."""
+    from reporting.summary import build_summary
+
+    changed = reports["changed-result"]
+    assert changed.summary.decision == changed.decisions.outcome
+    planned = reports["planned-actions"]
+    assert planned.decisions.narrative.evidence_kind == "plans"
+    assert "plan" in planned.summary.evidence_label.lower()
+    assert "captured" not in reports["self-reported"].summary.evidence_label.lower()
+    for report in reports.values():
+        summary = report.summary
+        if summary.decision is not None:
+            row = report.decisions.rows[summary.decision - 1]
+            for side in ("before", "after"):
+                visual = getattr(summary, side)
+                assert [(item.choice, item.count) for item in visual.choices] == [
+                    (item.choice, item.count) for item in getattr(row, side)
+                ]
+                assert visual.total == getattr(report.variants, side).total
+    mixed = reports["mixed"]
+    assert mixed.summary.status == "mixed"
+    assert sorted(choice.count for choice in mixed.summary.after.choices) == [1, 2]
+    for name in ("blocked", "missing-extraction"):
+        assert reports[name].summary.status == "unavailable"
+        assert reports[name].summary.why is None
+    assert reports["unchanged"].summary.status == "unchanged"
+
+    def summarize(variants=changed.variants, decisions=changed.decisions):
+        return build_summary(changed.metadata, variants, decisions)
+
+    for decisions in (
+        replace(changed.decisions, dropped=1),
+        replace(changed.decisions, after_count=4),
+        replace(
+            changed.decisions,
+            narrative=None,
+            rows=tuple(
+                replace(row, after=(DecisionChoiceData(" ", 3),))
+                for row in changed.decisions.rows
+            ),
+        ),
+    ):
+        assert summarize(decisions=decisions).status == "unavailable"
+    single_variants = replace(
+        changed.variants,
+        before=replace(
+            changed.variants.before,
+            total=1,
+            valid=1,
+            trials=changed.variants.before.trials[:1],
+        ),
+        after=replace(
+            changed.variants.after,
+            total=1,
+            valid=1,
+            trials=changed.variants.after.trials[:1],
+        ),
+    )
+    single_decisions = replace(
+        changed.decisions,
+        before_count=1,
+        after_count=1,
+        rows=tuple(
+            replace(
+                row,
+                before=tuple(replace(choice, count=1) for choice in row.before),
+                after=tuple(replace(choice, count=1) for choice in row.after),
+            )
+            for row in changed.decisions.rows
+        ),
+    )
+    single = summarize(single_variants, single_decisions)
+    assert single.before.total == single.after.total == 1
+    assert any(
+        "one" in note.lower() or "single" in note.lower() for note in single.notices
+    )
+    for field, value in (("count", 99), ("choice", "unsupported choice")):
+        raw = changed.to_dict()
+        raw["summary"]["after"]["choices"][0][field] = value
+        try:
+            ReportData.from_dict(raw)
+        except ValueError:
+            pass
+        else:
+            raise AssertionError("Visual summary accepted invented choice evidence.")
+    from reporting.render_html import render_artifact
+    from reporting.render_markdown import render_markdown
+
+    payload = '<script>alert("x")</script>|[link](javascript:alert(1))'
+    unsafe_decisions = replace(
+        changed.decisions,
+        narrative=replace(changed.decisions.narrative, headline=payload),
+    )
+    unsafe = replace(
+        changed,
+        decisions=unsafe_decisions,
+        summary=summarize(decisions=unsafe_decisions),
+    )
+    for render in (lambda report: render_artifact(report, ""), render_markdown):
+        rendered = render(unsafe)
+        assert_unchanged_scripts(render(changed), rendered)
+        assert "&lt;script&gt;" in rendered
+    assert "](javascript:" not in render_markdown(unsafe)
+
+
 def assert_gallery_reports():
     """Exercise the same authored cases used by the local gallery through the CLI."""
     expected = {
@@ -818,6 +940,7 @@ def assert_gallery_reports():
         "flow-mixed": ("unchanged", "changed"),
         "intent-flip": ("varies", "changed"),
         "intent-unchanged": ("unchanged", "unavailable"),
+        "planned-actions": ("changed", "unavailable"),
     }
     with tempfile.TemporaryDirectory() as directory:
         root = Path(directory)
@@ -894,6 +1017,7 @@ def assert_gallery_reports():
             self_reported.command_flow.after,
         ):
             assert branch.prefix == branch.paths == ()
+        assert_visual_summaries(reports)
         assert_intent_reports(reports, root)
 
     with tempfile.TemporaryDirectory() as directory:
@@ -1018,47 +1142,16 @@ def main():
         "expected 1-based decision row index",
     )
 
-    from reporting.render_html import _resolve_css, render_artifact, render_document
+    from reporting.render_html import render_artifact, render_document
 
-    assert _resolve_css(".result { background:__RESULT_BG__; }", "good") == (
-        ".result { background:var(--pass); }"
-    )
-    assert _resolve_css(".result { background:__RESULT_BG__; }", "bad") == (
-        ".result { background:var(--fail); }"
-    )
-    assert _resolve_css(".result { background:__RESULT_BG__; }", "neutral") == (
-        ".result { background:var(--accent); }"
-    )
-    try:
-        _resolve_css(".result { background:__RESULT_BG__; }", "future")
-    except ValueError as error:
-        assert str(error) == "unsupported report result kind: future"
-    else:
-        raise AssertionError("unsupported report result kind was accepted")
-    try:
-        _resolve_css(".result {}", "future")
-    except ValueError as error:
-        assert str(error) == "report.css must contain __RESULT_BG__ exactly once"
-    else:
-        raise AssertionError("CSS token validation lost precedence")
-    for css in (".result {}", "__RESULT_BG__ __RESULT_BG__"):
-        try:
-            _resolve_css(css, "good")
-        except ValueError as error:
-            assert str(error) == "report.css must contain __RESULT_BG__ exactly once"
-        else:
-            raise AssertionError("invalid CSS token count was accepted")
-
-    artifact = render_artifact(report, ".result { background:__RESULT_BG__; }")
-    assert artifact == render_artifact(report, ".result { background:__RESULT_BG__; }")
+    artifact = render_artifact(report, "")
+    assert artifact == render_artifact(report, "")
     document = render_document(artifact)
     assert document == render_document(artifact)
     escaping_raw = copy.deepcopy(raw)
     escaping_raw["variants"]["before"]["trials"][0]["verdict"] = 'REVIEW"><script>&'
     escaping_report = ReportData.from_dict(escaping_raw)
-    escaping_artifact = render_artifact(
-        escaping_report, ".result { background:__RESULT_BG__; }"
-    )
+    escaping_artifact = render_artifact(escaping_report, "")
     from reporting.render_markdown import render_markdown
 
     for baseline, rendered in (
@@ -1072,12 +1165,11 @@ def main():
     payload = '<script>alert("x")</script>|[link](javascript:alert(1))'
     unsafe_summary["result"]["text"] = payload
     unsafe_summary["result"]["implications"][0]["text"] = payload
-    unsafe_summary["decisions"]["rows"][1]["after"][0]["choice"] = payload
     unsafe_report = ReportData.from_dict(unsafe_summary)
     for baseline, rendered in (
         (
             artifact,
-            render_artifact(unsafe_report, ".result { background:__RESULT_BG__; }"),
+            render_artifact(unsafe_report, ""),
         ),
         (render_markdown(report), render_markdown(unsafe_report)),
     ):

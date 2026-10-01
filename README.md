@@ -155,11 +155,11 @@ IDs when comparisons across runs must retain the same model version.
 A **run** compares the instruction versions. A **trial** is one agent execution on
 one side. Each run creates a local HTML report with up to four tabs:
 
-- **Summary** opens first with a literal instruction-edit excerpt and the full
-  diff nearby. Consistent changes across observed trials come before the primary
-  result, so a mixed final answer does not bury a unanimous behavior change.
-  Edit-related unchanged behaviors are named when the evidence supports them.
-  Comparisons retain trial counts, roles, and evidence links.
+- **Summary** opens with a short takeaway and illustrated Before/After cards.
+  Each card shows the observed choices and exact trial counts. Plans, answers,
+  and recorded actions have distinct evidence labels. Mixed primary results and
+  evidence gaps remain visible. Expand the details for the instruction diff,
+  full scenario, additional comparisons, and complete evidence limits.
 - **Decision diff** shows an ordered, two-lane comparison. Before and After
   choices align at each decision in the model-extracted order, with all trial
   counts visible. Mixed choices stay within each decision, not in connected branches.
@@ -215,14 +215,20 @@ The command-category table groups each trial into one category combination.
 Category order is not execution order. Matching categories can contain different
 commands or files, so matching patterns do not establish unchanged behavior.
 
-The Summary uses short labels. Follow each label to its full comparison in
-Decision diff. Inspect the trial records for the original commands and answers.
-The Markdown report contains the same comparisons and evidence links.
+Follow **See the evidence** to the full comparison in Decision diff. Inspect
+the trial records for the original commands and answers. The Markdown report
+contains the same takeaway, choices, counts, and evidence links without illustrations.
 
 The existing extraction call identifies the primary result, possible explanations,
 and related instruction-diff hunks. It first recovers observed choices, then
 interprets their relationship to the supplied edit. **Related edit** links are
 labeled as model interpretation, not causal proof or knowledge of author intent.
+The same call supplies optional plain-language Summary text: a takeaway, short
+scenario, Before/After descriptions, and supported implications or cautions.
+Equivalent meanings should use identical choice labels. Summary counts come
+from the decision rows, not a second estimate. Code validates references and
+choice coverage; it cannot prove that model-written explanations are true.
+The renderer owns HTML, colors, and a fixed set of SVG illustrations.
 A named unchanged targeted behavior applies only to the observed scenario.
 Missing links do not mean the edit had no effect. A changed result is not an
 automatic success or failure.
@@ -239,15 +245,18 @@ Expected behavior appears only when supplied. The evidence limits state the
 trial counts, provenance, and grading limits. Self-reported actions remain
 distinct from captured tool calls.
 
-The structured `report-data.json` uses schema version 4, including each comparison's
-`edit_hunks` references. Regenerate reports from their original run artifacts;
+The structured `report-data.json` uses schema version 5, including the visual
+`summary`, optional decision narrative, and each comparison's `edit_hunks`.
+Regenerate reports from their original run artifacts;
 older report-data files are not accepted. `render.py` needs the run directory,
 capsule directory, recorded model label, and original configuration. Rendering
 does not run trials or call a model.
 
-Old `decisions.json` observations can be re-rendered with the new layout and
-count-based ordering, but lack edit mappings. To obtain mappings, rerun extraction
-on the saved evidence after approving its model cost; no new trials are needed.
+Old `decisions.json` observations can be re-rendered with the new layout.
+Without narrative, the Summary uses original choice text and marks explanations
+unavailable. Missing edit mappings remain unavailable. To obtain explanations
+or mappings, explicitly rerun extraction on saved evidence after approving its
+model cost; no new trials are needed. Rendering never triggers extraction.
 The extractor stores the exact `instruction_diff` with its mappings. External
 `--emit-prompt` also saves `decisions.prompt.json` so `--ingest` retains the emitted
 diff's provenance. Invalid or stale mappings are omitted without discarding

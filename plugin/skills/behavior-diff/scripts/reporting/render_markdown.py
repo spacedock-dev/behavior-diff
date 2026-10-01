@@ -229,6 +229,43 @@ def _count_line(variant):
     return count + _text(variant.count_suffix)
 
 
+def _summary_markdown(report):
+    summary = report.summary
+    markdown = [
+        "## Summary\n",
+        _text(summary.evidence_label) + "\n",
+        f"**{_text(summary.headline)}**\n",
+    ]
+    if summary.scenario:
+        markdown.append(_text(summary.scenario) + "\n")
+    markdown.append(f"Comparison: {_text(summary.status)}\n")
+    for label, side in (("Before", summary.before), ("After", summary.after)):
+        markdown.append(f"### {label}\n")
+        if not side.choices:
+            markdown.append("No supported comparison is available.\n")
+        for choice in side.choices:
+            markdown.append(f"**{_text(choice.label)}**\n")
+            if choice.detail:
+                markdown.append(_text(choice.detail) + "\n")
+            markdown.append(_text(content.trial_count(choice.count, side.total)) + "\n")
+    for label, claim in (
+        ("Why it matters", summary.why),
+        ("Watch out", summary.caution),
+    ):
+        if claim:
+            markdown.append(
+                f"**{label}:** {_text(claim.text)} {_decision_links(claim.decisions)}\n"
+            )
+    markdown += [f"- {_text(notice)}" for notice in summary.notices]
+    markdown.append("")
+    links = []
+    if summary.decision is not None:
+        links.append(f"[See the evidence](#decision-{summary.decision})")
+    links.append("[Inspect trial evidence](#panel-trials)")
+    markdown.append(" · ".join(links) + "\n")
+    return markdown
+
+
 def render_markdown(report: ReportData) -> str:
     """Return the complete Markdown report without accessing external state."""
     metadata = report.metadata
@@ -238,7 +275,11 @@ def render_markdown(report: ReportData) -> str:
     if content_data.note:
         markdown.append(_text(content_data.note) + "\n")
     markdown.append('<a id="panel-summary"></a>\n')
+    markdown += _summary_markdown(report)
+    markdown.append("<details><summary>Instruction edit</summary>\n")
     markdown += _instruction_edit(report)
+    markdown.append("</details>\n")
+    markdown.append("<details><summary>Additional findings and comparisons</summary>\n")
     groups = content.decision_groups(report.decisions, report)
     for heading, indexes in groups:
         if heading == content.CONSISTENT_HEADING:
@@ -257,9 +298,8 @@ def render_markdown(report: ReportData) -> str:
         report, content.unchanged_targeted(report), "Behavior", content.TRIAL_COUNT_NOTE
     )
     markdown += [
-        f"## {_text(content_data.result_heading)}\n",
-        f"**{_text(result.text)}**\n",
-        _text(result.summary) + "\n",
+        "</details>\n",
+        "<details><summary>Full scenario and expected behavior</summary>\n",
         f"### {_text(content_data.scenario_heading)}\n",
         _text(content_data.scenario) + "\n",
     ]
@@ -268,6 +308,10 @@ def render_markdown(report: ReportData) -> str:
             f"### {_text(content_data.expected_heading)}\n",
             _text(content_data.expected) + "\n",
         ]
+    markdown += [
+        "</details>\n",
+        "<details><summary>Further comparisons and model explanations</summary>\n",
+    ]
     for heading, indexes in groups:
         if heading != content.CONSISTENT_HEADING:
             markdown.append(f"### {_text(heading)}\n")
@@ -300,11 +344,13 @@ def render_markdown(report: ReportData) -> str:
         links.append("[Compare decisions](#panel-decision)")
     links.append("[Inspect trial evidence](#panel-trials)")
     markdown.append(" · ".join(links) + "\n")
+    markdown.append("</details>\n")
     markdown += [
-        f"## {_text(content_data.limits_heading)}\n",
+        f"<details><summary>{html.escape(content_data.limits_heading)}</summary>\n",
     ]
     markdown += [f"- {_text(limit)}" for limit in result.limits]
     markdown.append("")
+    markdown.append("</details>\n")
     markdown += _decision_markdown(report)
     if metadata.trace_source != "self-reported":
         markdown += _flow_markdown(report)

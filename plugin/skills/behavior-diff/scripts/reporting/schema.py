@@ -5,8 +5,15 @@ from dataclasses import asdict, dataclass
 from typing import Dict, Optional, Tuple, Union
 
 from reporting.instruction import parse_diff_hunks
+from reporting.summary import (
+    ICONS,
+    SUMMARY_STATUSES,
+    NarrativeData,
+    build_summary,
+    parse_narrative,
+)
 
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 5
 RESULT_KINDS = ("good", "bad", "neutral")
 
 
@@ -98,6 +105,36 @@ class DecisionData:
     after_count: int
     outcome: Optional[int]
     implications: Tuple[EvidenceClaimData, ...]
+    narrative: Optional[NarrativeData] = None
+
+
+@dataclass(frozen=True)
+class SummaryChoiceData:
+    choice: str
+    label: str
+    detail: str
+    count: int
+
+
+@dataclass(frozen=True)
+class SummarySideData:
+    icon: str
+    choices: Tuple[SummaryChoiceData, ...]
+    total: int
+
+
+@dataclass(frozen=True)
+class VisualSummaryData:
+    headline: str
+    scenario: str
+    evidence_label: str
+    status: str
+    decision: Optional[int]
+    before: SummarySideData
+    after: SummarySideData
+    why: Optional[EvidenceClaimData]
+    caution: Optional[EvidenceClaimData]
+    notices: Tuple[str, ...]
 
 
 @dataclass(frozen=True)
@@ -155,6 +192,7 @@ class ReportData:
     variants: VariantsData
     command_flow: CommandFlowData
     decisions: DecisionData
+    summary: VisualSummaryData
 
     @classmethod
     def from_dict(cls, data: Dict[str, object]) -> "ReportData":
@@ -176,17 +214,27 @@ class ReportData:
         result = _result(
             _field(data, "result", "report-data"), "result", len(decisions.rows)
         )
+        metadata = _metadata(_field(data, "metadata", "report-data"), "metadata")
+        variants = _variants(_field(data, "variants", "report-data"), "variants")
+        summary = _summary(
+            _field(data, "summary", "report-data"),
+            "summary",
+            decisions,
+            metadata,
+            variants,
+        )
         return cls(
             schema_version=version,
-            metadata=_metadata(_field(data, "metadata", "report-data"), "metadata"),
+            metadata=metadata,
             content=_content(_field(data, "content", "report-data"), "content"),
             rule_diff=rule_diff,
             result=result,
-            variants=_variants(_field(data, "variants", "report-data"), "variants"),
+            variants=variants,
             command_flow=_command_flow(
                 _field(data, "command_flow", "report-data"), "command_flow"
             ),
             decisions=decisions,
+            summary=summary,
         )
 
     def to_dict(self):
@@ -198,13 +246,16 @@ class ReportData:
 
 def _metadata(value, path):
     value = _expect_dict(value, path)
+    trace_source = _expect_str(
+        _field(value, "trace_source", path), path + ".trace_source"
+    )
+    if trace_source not in ("captured", "self-reported"):
+        _invalid(path + ".trace_source", "captured or self-reported")
     return MetadataData(
         model=_expect_str(_field(value, "model", path), path + ".model"),
         mode=_expect_str(_field(value, "mode", path), path + ".mode"),
         vocab=_expect_str(_field(value, "vocab", path), path + ".vocab"),
-        trace_source=_expect_str(
-            _field(value, "trace_source", path), path + ".trace_source"
-        ),
+        trace_source=trace_source,
         target_file=_expect_str(
             _field(value, "target_file", path), path + ".target_file"
         ),
@@ -374,30 +425,46 @@ def _flow_path(value, path):
 def _decisions(value, path, hunk_count):
     value = _expect_dict(value, path)
     rows = _expect_list(_field(value, "rows", path), path + ".rows")
-    return DecisionData(
-        rows=tuple(
-            _decision_row(item, "{0}.rows[{1}]".format(path, index), hunk_count)
-            for index, item in enumerate(rows)
-        ),
+    parsed_rows = tuple(
+        _decision_row(item, "{0}.rows[{1}]".format(path, index), hunk_count)
+        for index, item in enumerate(rows)
+    )
+    before_count = _expect_int(
+        _field(value, "before_count", path), path + ".before_count"
+    )
+    after_count = _expect_int(_field(value, "after_count", path), path + ".after_count")
+    dropped = _expect_int(_field(value, "dropped", path), path + ".dropped")
+    if before_count < 0 or after_count < 0 or dropped < 0:
+        _invalid(path, "nonnegative counts")
+    raw_narrative = _field(value, "narrative", path)
+    narrative = parse_narrative(raw_narrative, parsed_rows)
+    if raw_narrative is not None and (
+        narrative is None or _json_value(asdict(narrative)) != raw_narrative
+    ):
+        _invalid(path + ".narrative", "valid canonical narrative")
+    decisions = DecisionData(
+        rows=parsed_rows,
         fork=_optional_reference(
             _field(value, "fork", path), path + ".fork", len(rows)
         ),
         fork_note=_expect_str(_field(value, "fork_note", path), path + ".fork_note"),
-        dropped=_expect_int(_field(value, "dropped", path), path + ".dropped"),
+        dropped=dropped,
         extractor=_expect_str(_field(value, "extractor", path), path + ".extractor"),
-        before_count=_expect_int(
-            _field(value, "before_count", path), path + ".before_count"
-        ),
-        after_count=_expect_int(
-            _field(value, "after_count", path), path + ".after_count"
-        ),
+        before_count=before_count,
+        after_count=after_count,
         outcome=_optional_reference(
             _field(value, "outcome", path), path + ".outcome", len(rows)
         ),
         implications=_claims(
             _field(value, "implications", path), path + ".implications", len(rows)
         ),
+        narrative=narrative,
     )
+    from reporting.content import valid_decision_choices
+
+    if not all(valid_decision_choices(row, decisions) for row in decisions.rows):
+        _invalid(path, "unique nonblank decision choices matching side trial totals")
+    return decisions
 
 
 def _decision_row(value, path, hunk_count):
@@ -426,10 +493,71 @@ def _decision_row(value, path, hunk_count):
 
 def _decision_choice(value, path):
     value = _expect_dict(value, path)
-    return DecisionChoiceData(
-        choice=_expect_str(_field(value, "choice", path), path + ".choice"),
-        count=_expect_int(_field(value, "count", path), path + ".count"),
+    choice = _expect_str(_field(value, "choice", path), path + ".choice")
+    count = _expect_int(_field(value, "count", path), path + ".count")
+    if not choice.strip() or count <= 0:
+        _invalid(path, "nonblank choice with positive trial count")
+    return DecisionChoiceData(choice, count)
+
+
+def _summary_side(value, path):
+    value = _expect_dict(value, path)
+    icon = _expect_str(_field(value, "icon", path), path + ".icon")
+    if icon not in ICONS:
+        _invalid(path + ".icon", "allowed illustration icon")
+    total = _expect_int(_field(value, "total", path), path + ".total")
+    if total < 0:
+        _invalid(path + ".total", "nonnegative trial total")
+    choices = []
+    for index, item in enumerate(
+        _expect_list(_field(value, "choices", path), path + ".choices")
+    ):
+        item_path = "{0}.choices[{1}]".format(path, index)
+        item = _expect_dict(item, item_path)
+        count = _expect_int(_field(item, "count", item_path), item_path + ".count")
+        if count <= 0:
+            _invalid(item_path + ".count", "positive trial count")
+        choices.append(
+            SummaryChoiceData(
+                _expect_str(_field(item, "choice", item_path), item_path + ".choice"),
+                _expect_str(_field(item, "label", item_path), item_path + ".label"),
+                _expect_str(_field(item, "detail", item_path), item_path + ".detail"),
+                count,
+            )
+        )
+    return SummarySideData(icon, tuple(choices), total)
+
+
+def _summary(value, path, decisions, metadata, variants):
+    value = _expect_dict(value, path)
+    status = _expect_str(_field(value, "status", path), path + ".status")
+    if status not in SUMMARY_STATUSES:
+        _invalid(path + ".status", "supported comparison status")
+    claims = []
+    for name in ("why", "caution"):
+        raw_claim = _field(value, name, path)
+        claims.append(
+            None
+            if raw_claim is None
+            else _claims([raw_claim], path + "." + name, len(decisions.rows))[0]
+        )
+    summary = VisualSummaryData(
+        _expect_str(_field(value, "headline", path), path + ".headline"),
+        _expect_str(_field(value, "scenario", path), path + ".scenario"),
+        _expect_str(_field(value, "evidence_label", path), path + ".evidence_label"),
+        status,
+        _optional_reference(
+            _field(value, "decision", path), path + ".decision", len(decisions.rows)
+        ),
+        _summary_side(_field(value, "before", path), path + ".before"),
+        _summary_side(_field(value, "after", path), path + ".after"),
+        claims[0],
+        claims[1],
+        _string_tuple(_field(value, "notices", path), path + ".notices"),
     )
+    if summary != build_summary(metadata, variants, decisions):
+        _invalid(path, "summary derived from the validated decision and trial evidence")
+    return summary
 
 
 def _optional_reference(value, path, row_count):

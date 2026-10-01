@@ -23,6 +23,7 @@ from reporting.schema import (
     VariantData,
     VariantsData,
 )
+from reporting.summary import build_summary, parse_narrative
 
 
 def load_report(
@@ -58,6 +59,7 @@ def load_report(
         variants=variants,
         command_flow=command_flow,
         decisions=decisions,
+        summary=build_summary(metadata, variants, decisions),
     )
     return ReportData.from_dict(report.to_dict())
 
@@ -432,6 +434,7 @@ def _convert_decisions(raw, before_default, after_default, instruction_diff):
         after_count,
         outcome,
         implications,
+        parse_narrative(raw.get("summary"), rows),
     )
 
 
@@ -466,18 +469,21 @@ def _decision_row(raw, hunk_count):
 
 
 def _decision_choices(raw):
-    if type(raw) is not list:
+    if type(raw) is not list or not raw:
         raise ValueError("malformed decision choices")
     choices = []
     for choice in raw:
         if (
             type(choice) is not dict
             or type(choice.get("choice")) is not str
+            or not choice["choice"].strip()
             or not _is_int(choice.get("n"))
-            or choice["n"] < 0
+            or choice["n"] <= 0
         ):
             raise ValueError("malformed decision choice")
         choices.append(DecisionChoiceData(choice["choice"], choice["n"]))
+    if len({choice.choice for choice in choices}) != len(choices):
+        raise ValueError("duplicate decision choices")
     return tuple(choices)
 
 
