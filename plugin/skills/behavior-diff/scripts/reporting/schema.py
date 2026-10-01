@@ -8,12 +8,15 @@ from reporting.instruction import parse_diff_hunks
 from reporting.summary import (
     ICONS,
     SUMMARY_STATUSES,
+    EditIntentData,
     NarrativeData,
+    build_intent,
     build_summary,
+    parse_intent,
     parse_narrative,
 )
 
-SCHEMA_VERSION = 5
+SCHEMA_VERSION = 7
 RESULT_KINDS = ("good", "bad", "neutral")
 
 
@@ -106,6 +109,7 @@ class DecisionData:
     outcome: Optional[int]
     implications: Tuple[EvidenceClaimData, ...]
     narrative: Optional[NarrativeData] = None
+    intent: Optional[EditIntentData] = None
 
 
 @dataclass(frozen=True)
@@ -157,6 +161,7 @@ class ContentData:
     limits_heading: str
     scenario_heading: str
     scenario: str
+    task: Optional[str]
     expected_heading: str
     expected: Optional[str]
     diff_heading: str
@@ -183,6 +188,13 @@ class ResultData:
 
 
 @dataclass(frozen=True)
+class InstructionIntentData:
+    text: str
+    source: str
+    edit_hunks: Tuple[int, ...]
+
+
+@dataclass(frozen=True)
 class ReportData:
     schema_version: int
     metadata: MetadataData
@@ -193,6 +205,7 @@ class ReportData:
     command_flow: CommandFlowData
     decisions: DecisionData
     summary: VisualSummaryData
+    intent: InstructionIntentData
 
     @classmethod
     def from_dict(cls, data: Dict[str, object]) -> "ReportData":
@@ -216,6 +229,14 @@ class ReportData:
         )
         metadata = _metadata(_field(data, "metadata", "report-data"), "metadata")
         variants = _variants(_field(data, "variants", "report-data"), "variants")
+        report_content = _content(_field(data, "content", "report-data"), "content")
+        intent = _intent(
+            _field(data, "intent", "report-data"),
+            "intent",
+            len(parse_diff_hunks(rule_diff)),
+            report_content.expected,
+            decisions,
+        )
         summary = _summary(
             _field(data, "summary", "report-data"),
             "summary",
@@ -226,7 +247,7 @@ class ReportData:
         return cls(
             schema_version=version,
             metadata=metadata,
-            content=_content(_field(data, "content", "report-data"), "content"),
+            content=report_content,
             rule_diff=rule_diff,
             result=result,
             variants=variants,
@@ -235,6 +256,7 @@ class ReportData:
             ),
             decisions=decisions,
             summary=summary,
+            intent=intent,
         )
 
     def to_dict(self):
@@ -282,6 +304,7 @@ def _content(value, path):
             _field(value, "scenario_heading", path), path + ".scenario_heading"
         ),
         scenario=_expect_str(_field(value, "scenario", path), path + ".scenario"),
+        task=_expect_optional_str(_field(value, "task", path), path + ".task"),
         expected_heading=_expect_str(
             _field(value, "expected_heading", path), path + ".expected_heading"
         ),
@@ -442,6 +465,12 @@ def _decisions(value, path, hunk_count):
         narrative is None or _json_value(asdict(narrative)) != raw_narrative
     ):
         _invalid(path + ".narrative", "valid canonical narrative")
+    raw_intent = _field(value, "intent", path)
+    intent = parse_intent(raw_intent, hunk_count)
+    if raw_intent is not None and (
+        intent is None or _json_value(asdict(intent)) != raw_intent
+    ):
+        _invalid(path + ".intent", "valid canonical instruction edit interpretation")
     decisions = DecisionData(
         rows=parsed_rows,
         fork=_optional_reference(
@@ -459,6 +488,7 @@ def _decisions(value, path, hunk_count):
             _field(value, "implications", path), path + ".implications", len(rows)
         ),
         narrative=narrative,
+        intent=intent,
     )
     from reporting.content import valid_decision_choices
 
@@ -526,6 +556,24 @@ def _summary_side(value, path):
             )
         )
     return SummarySideData(icon, tuple(choices), total)
+
+
+def _intent(value, path, hunk_count, expected, decisions):
+    value = _expect_dict(value, path)
+    intent = InstructionIntentData(
+        _expect_str(_field(value, "text", path), path + ".text"),
+        _expect_str(_field(value, "source", path), path + ".source"),
+        _hunk_references(
+            _field(value, "edit_hunks", path), path + ".edit_hunks", hunk_count
+        ),
+    )
+    if intent.source not in ("expected", "inferred", "unavailable"):
+        _invalid(path + ".source", "supported instruction intent source")
+    if intent != build_intent(expected, decisions):
+        _invalid(
+            path, "intent derived from supplied expected behavior or validated edit"
+        )
+    return intent
 
 
 def _summary(value, path, decisions, metadata, variants):

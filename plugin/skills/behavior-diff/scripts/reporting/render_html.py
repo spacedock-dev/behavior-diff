@@ -71,14 +71,15 @@ def _instruction_edit(report) -> str:
             f'<span{anchor} class="{_diff_line_class(line)}">{html.escape(line)}</span>\n'
         )
     return (
-        '<section class="instruction-edit" aria-labelledby="instruction-edit-heading">'
-        '<h2 class="section-label" id="instruction-edit-heading">Instruction edit</h2>'
-        f'<p class="edit-summary">{html.escape(content.instruction_edit_summary(report.rule_diff))}</p>'
-        '<details class="fold" id="instruction-diff">'
-        f"<summary>{_CHEVRON}{html.escape(report.content.diff_heading)}"
-        '<span class="fold-hint"><span class="hint-show">Show the diff</span>'
-        '<span class="hint-hide">Hide the diff</span></span></summary>'
-        f"<pre>{''.join(lines)}</pre></details></section>"
+        '<section class="instruction-edit" id="instruction-diff" tabindex="-1" '
+        'aria-labelledby="instruction-edit-heading">'
+        '<div class="edit-heading">'
+        f'<h2 id="instruction-edit-heading">{html.escape(report.content.diff_heading)}</h2>'
+        f"{_info('edit-info', 'About this edit', f'<p>{html.escape(content.EDIT_LINK_NOTE)}</p>')}"
+        "</div>"
+        f'<p class="edit-aim">{html.escape(content.instruction_edit_aim(report.intent))}</p>'
+        f'<p class="edit-summary">{html.escape(content.instruction_edit_counts(report.rule_diff))}</p>'
+        f"<pre>{''.join(lines)}</pre></section>"
     )
 
 
@@ -162,8 +163,8 @@ _REPORT_INTERACTIONS = """<script>
   });
   const openLinkedEdit = () => {
     const target = document.getElementById(location.hash.slice(1));
-    if (!target || !target.id.startsWith("edit-hunk-")) return;
-    let disclosure = target.closest("details");
+    if (!target || !(target.id.startsWith("edit-hunk-") || target.id === "instruction-diff")) return;
+    let disclosure = target.matches("details") ? target : target.closest("details");
     while (disclosure) {
       disclosure.open = true;
       disclosure = disclosure.parentElement.closest("details");
@@ -175,7 +176,7 @@ _REPORT_INTERACTIONS = """<script>
   document.addEventListener("click", event => {
     if (event.defaultPrevented || event.button !== 0 ||
         event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
-    const link = event.target.closest('a[href^="#edit-hunk-"]');
+    const link = event.target.closest('a[href^="#edit-hunk-"], a[href="#instruction-diff"]');
     if (link && link.getAttribute("href") === location.hash) openLinkedEdit();
   });
   openLinkedEdit();
@@ -249,28 +250,33 @@ def _flow_lane(variant, side: str, label: str) -> str:
     )
 
 
-def _comparison_table(report: ReportData, indexes, column: str, count_note: str) -> str:
-    if not indexes:
-        return ""
-    rows = []
-    for index in indexes:
+def _other_findings(report: ReportData) -> str:
+    findings = content.additional_findings(report)
+    items = []
+    for index, text in findings:
         row = report.decisions.rows[index - 1]
         source = content.source_label(row.anchor, report.metadata.trace_source)
-        rows.append(
-            f'<tr><th scope="row"><a href="#decision-{index}">'
-            f"{html.escape(row.topic.strip() or row.decision)}</a>"
-            f'<span class="dnote">{html.escape(content.decision_role(index, row, report.decisions.outcome))}'
-            f" · {html.escape(source)}</span>{_edit_links(row)}</th>"
-            f"<td>{_decision_choices(row.before, report.decisions.before_count)}</td>"
-            f"<td>{_decision_choices(row.after, report.decisions.after_count)}</td></tr>"
+        links = (
+            f'<a href="#decision-{index}">Decision {index} · {html.escape(source)}</a>'
         )
-    return (
-        '<div class="comparison-wrap"><table class="comparison">'
-        f"<caption>{html.escape(count_note)}</caption>"
-        f'<thead><tr><th scope="col">{html.escape(column)}</th>'
-        '<th scope="col">Before</th><th scope="col">After</th></tr></thead>'
-        f"<tbody>{''.join(rows)}</tbody></table></div>"
+        for number in row.edit_hunks:
+            links += f' · <a href="#edit-hunk-{number}">See edit {number}</a>'
+        items.append(
+            f"<li><p>{html.escape(text)}</p>"
+            f'<span class="evidence-links">{links}</span></li>'
+        )
+    body = (
+        f'<ul class="other-findings">{"".join(items)}</ul>'
+        f'<p class="note">{html.escape(content.additional_findings_note(report))}</p>'
+        if findings
+        else f'<p class="note">{html.escape(content.NO_ADDITIONAL_FINDINGS)}</p>'
     )
+    link = (
+        '<a href="#panel-decision">View all decisions</a>'
+        if report.decisions.rows
+        else '<a href="#panel-trials">Inspect trial evidence</a>'
+    )
+    return f'{body}<nav class="evidence-nav" aria-label="Other findings evidence">{link}</nav>'
 
 
 def _decision_links(indexes) -> str:
@@ -285,7 +291,7 @@ def _summary_side(side, label: str) -> str:
         detail = f"<p>{html.escape(choice.detail)}</p>" if choice.detail else ""
         choices.append(
             '<li class="summary-choice">'
-            f"<h3>{html.escape(choice.label)}</h3>{detail}"
+            f"<h5>{html.escape(choice.label)}</h5>{detail}"
             '<span class="summary-count">'
             f"{html.escape(content.trial_count(choice.count, side.total))}"
             "</span></li>"
@@ -298,13 +304,28 @@ def _summary_side(side, label: str) -> str:
     return (
         f'<section class="summary-card summary-{label.lower()}" '
         f'aria-label="{label} choices">'
-        f'<h3 class="summary-side-label">{label}</h3>'
+        f'<h4 class="summary-side-label">{label}</h4>'
         f"{illustration(side.icon)}{body}</section>"
     )
 
 
-def _visual_summary(report: ReportData) -> str:
+def _short_story_summary(report: ReportData) -> str:
     summary = report.summary
+    intent = report.intent
+    intent_label, intent_note = content.intent_context(intent)
+    intent_badge = {
+        "expected": "Supplied expectation",
+        "inferred": "Inferred",
+        "unavailable": "Unavailable",
+    }[intent.source]
+    intent_links = (
+        " · ".join(
+            f'<a href="#edit-hunk-{number}">See edit {number}</a>'
+            for number in intent.edit_hunks
+        )
+        if intent.edit_hunks
+        else '<a href="#instruction-diff">See edit</a>'
+    )
     claims = ""
     for label, claim, css_class in (
         ("Why it matters", summary.why, "summary-why"),
@@ -330,19 +351,33 @@ def _visual_summary(report: ReportData) -> str:
         else ""
     )
     return (
-        '<div class="visual-summary">'
-        f'<p class="summary-provenance">{html.escape(summary.evidence_label)}</p>'
+        '<div class="short-story-summary">'
         f'<h2 class="summary-headline">{html.escape(summary.headline)}</h2>'
+        '<ol class="story-steps" role="list">'
+        '<li class="story-step"><span class="story-number" aria-hidden="true">1</span>'
+        '<div class="story-body"><div class="intent-heading"><h3>Edit goal</h3>'
+        f'<span class="intent-source">{intent_badge}</span>'
+        f"{_info('intent-info', intent_label, f'<p>{html.escape(intent_note)}</p>')}"
+        f'<nav class="intent-evidence" aria-label="Instruction aim evidence">{intent_links}</nav>'
+        "</div>"
+        f'<p class="story-intent">{html.escape(intent.text)}</p>'
+        "</div></li>"
+        '<li class="story-step"><span class="story-number" aria-hidden="true">2</span>'
+        '<div class="story-body"><h3>What happened in this scenario</h3>'
         f"{scenario}"
+        f'<p class="summary-provenance">{html.escape(summary.evidence_label)}</p>'
         f'<p class="summary-status">Comparison: {html.escape(summary.status)}</p>'
         '<div class="summary-pair">'
         f"{_summary_side(summary.before, 'Before')}"
         '<span class="summary-arrow" aria-hidden="true">→</span>'
         f"{_summary_side(summary.after, 'After')}</div>"
-        f'{claims}<ul class="summary-notices">{notices}</ul>'
         '<nav class="evidence-nav" aria-label="Summary evidence">'
         f'{lead_link}<a href="#panel-trials">Inspect trial evidence</a></nav>'
-        "</div>"
+        "</div></li>"
+        '<li class="story-step"><span class="story-number" aria-hidden="true">3</span>'
+        '<div class="story-body"><h3>What this means</h3>'
+        f'{claims}<ul class="summary-notices">{notices}</ul>'
+        "</div></li></ol>"
     )
 
 
@@ -561,13 +596,15 @@ def render_artifact(report: ReportData, css: str) -> str:
             f'{flow_links}<a href="#panel-trials">Inspect trial evidence</a></nav>'
         )
 
-    expected_html = (
-        ""
-        if not report_content.expected
-        else (
-            f'<p class="section-label">{escaped(report_content.expected_heading)}</p>'
-            f'<p class="sub">{escaped(report_content.expected)}</p>'
-        )
+    scenario_html = "".join(
+        f"<section><h3>{escaped(heading)}</h3><p>{escaped(text)}</p></section>"
+        for heading, text in content.scenario_sections(report)
+    )
+    scenario_prompt = (
+        '<details class="scenario-prompt"><summary>View full scenario prompt</summary>'
+        f"<pre>{escaped(report_content.task)}</pre></details>"
+        if report_content.task
+        else f'<p class="note">{escaped(content.SCENARIO_PROMPT_UNAVAILABLE)}</p>'
     )
     note_html = (
         f'<p class="note">{escaped(report_content.note)}</p>'
@@ -583,82 +620,17 @@ def render_artifact(report: ReportData, css: str) -> str:
         + "</p>"
     )
     result = report.result
-    groups = content.decision_groups(report.decisions, report)
-    consistent_html = ""
-    comparisons_html = ""
-    for heading, indexes in groups:
-        group_html = (
-            f'<h2 class="comparison-heading">{escaped(heading)}</h2>'
-            + _comparison_table(report, indexes, "Comparison", content.TRIAL_COUNT_NOTE)
-            + (
-                f'<p class="note">{escaped(content.MIXED_NOTE)}</p>'
-                if heading == "Mixed trial choices"
-                else ""
-            )
-        )
-        if heading == content.CONSISTENT_HEADING:
-            consistent_html = (
-                '<section class="consistent-finding">'
-                f'<p class="note">{escaped(content.CONSISTENT_NOTE)}</p>'
-                f"{group_html}</section>"
-            )
-        else:
-            comparisons_html += group_html
-    if not groups:
-        comparisons_html = '<p class="sub">No extracted comparisons are available.</p>'
-    unchanged = content.unchanged_targeted(report)
-    targeted_html = (
-        '<section class="targeted-finding">'
-        '<h2 class="comparison-heading">Edit-related unchanged behaviors</h2>'
-        f'<p class="note">{escaped(content.targeted_finding(report))}</p>'
-        + _comparison_table(report, unchanged, "Behavior", content.TRIAL_COUNT_NOTE)
-        + "</section>"
-    )
-    claims_html = ""
-    if result.implications or report.decisions.fork_note:
-        claims_html = (
-            '<div class="interpretation"><h3>Model explanations</h3>'
-            f'<p class="interpretation-note">{escaped(content.INTERPRETATION_NOTE)}</p><ul>'
-        )
-        claims_html += "".join(
-            f"<li>{escaped(claim.text)} "
-            f'<span class="evidence-links">{_decision_links(claim.decisions)}</span></li>'
-            for claim in result.implications
-        )
-        if report.decisions.fork_note:
-            fork_link = (
-                _decision_links((report.decisions.fork,))
-                if report.decisions.fork
-                else ""
-            )
-            claims_html += (
-                f"<li>{escaped(report.decisions.fork_note)}"
-                f'<span class="evidence-links">{fork_link}</span></li>'
-            )
-        claims_html += "</ul></div>"
-    evidence_links = (
-        '<a href="#panel-decision">Compare decisions</a>'
-        if report.decisions.rows
-        else ""
-    )
-    evidence_links += '<a href="#panel-trials">Inspect trial evidence</a>'
     limits_html = "".join(f"<li>{escaped(limit)}</li>" for limit in result.limits)
-    summary_html = f"""{_visual_summary(report)}
+    summary_html = f"""{_short_story_summary(report)}
 <details class="summary-details"><summary>Instruction edit</summary>
 {_instruction_edit(report)}
-<p class="note">{escaped(content.EDIT_LINK_NOTE)}</p>
 </details>
 <details class="summary-details"><summary>Full scenario and expected behavior</summary>
-<h2 class="section-label">{escaped(report_content.scenario_heading)}</h2>
-<pre class="scenario">{escaped(report_content.scenario)}</pre>
-{expected_html}
+<div class="scenario-context">{scenario_html}</div>
+{scenario_prompt}
 </details>
-<details class="summary-details"><summary>Additional findings and comparisons</summary>
-{consistent_html}
-{targeted_html}
-{comparisons_html}
-{claims_html}
-<nav class="evidence-nav" aria-label="Supporting evidence">{evidence_links}</nav>
+<details class="summary-details"><summary>Other findings</summary>
+{_other_findings(report)}
 </details>
 <details class="summary-details"><summary>{escaped(report_content.limits_heading)}</summary>
 <ul class="evidence-limits">{limits_html}</ul>

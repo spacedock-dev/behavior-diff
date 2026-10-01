@@ -32,9 +32,9 @@ decisions.json, which render.py renders if present. Without it, captured runs
 keep their command-derived flow, while self-reported runs keep the raw actions
 and final answers without inventing a flow.
 
-The same pass receives the instruction diff as untrusted evidence. It first
-recovers choices from trial evidence, then interprets which observed choices
-relate to numbered diff hunks. A link is not proof of causality or author intent.
+The same pass receives the instruction diff as untrusted evidence. It recovers
+choices from trials, relates them to numbered hunks, and separately interprets
+the edit's aim. Neither interpretation proves causality or the author's intent.
 """
 
 import json
@@ -49,7 +49,7 @@ from dataclasses import asdict
 
 from codex_model import CodexModelError, resolve_codex_model
 from reporting.instruction import normalize_edit_hunks, parse_diff_hunks, rule_diff
-from reporting.summary import parse_narrative
+from reporting.summary import parse_intent, parse_narrative
 
 SOURCE_TERMS = {
     "captured": {
@@ -77,6 +77,10 @@ SOURCE_TERMS = {
 }
 
 SCHEMA = """{{
+  "intent": {{
+    "text": "<behavior encouraged by the edit, plain text, at most 240 characters>",
+    "edit_hunks": [<1-based numbers of the supporting instruction diff hunks>]
+  }}|null,
   "chain": [
     {{"topic": "<2-4 plain words naming the observed result or behavior>",
      "decision": "<the choice available, phrased as a question>",
@@ -180,6 +184,12 @@ Rules:
   Unchanged rows can be linked when both sides show the named behavior.
   These links are model interpretation, not causal proof, author intent, or
   statistical significance. Do not rewrite observations to fit the edit.
+- Separately interpret what behavior the INSTRUCTION EDIT aims to encourage.
+  In the same reply, optionally provide "intent" with a short plain-text description
+  and nonempty unique "edit_hunks" citations, or null if the diff does not support it.
+  Infer this only from the changed instruction lines, not the task results,
+  decision observations, or presumed author motivation. Do not claim the aim was met.
+  This edit-only model interpretation is independent of "summary" and chain indexes.
 - In the SAME reply, optionally give a concise plain-language "summary" grounded
   in a meaningful selected chain row, or null when unsupported. Prefer a changed
   primary result, then a unanimous changed action, then a mixed primary result,
@@ -372,6 +382,7 @@ def normalize(data, counts, hunk_count=0):
             {"text": text.strip(), "decisions": [positions[ref] for ref in references]}
         )
     narrative = parse_narrative(data.get("summary"), chain, positions)
+    intent = parse_intent(data.get("intent"), hunk_count)
     return {
         "chain": chain,
         "fork": fork,
@@ -380,6 +391,7 @@ def normalize(data, counts, hunk_count=0):
         "outcome": outcome,
         "implications": implications,
         "summary": json.loads(json.dumps(asdict(narrative))) if narrative else None,
+        "intent": json.loads(json.dumps(asdict(intent))) if intent else None,
     }
 
 
@@ -707,6 +719,56 @@ def self_check():
         assert normalized["chain"][0]["before"] == good["chain"][1]["before"]
         assert normalized["dropped"] == 0
 
+    # Edit citations never follow sorted/dropped decision indexes.
+    intent = {"text": "Encourage a flagged finding.", "edit_hunks": [2, 1]}
+    with_intent = normalize({**good, "intent": intent}, counts, 2)
+    assert with_intent["intent"] == intent
+    assert with_intent["chain"] == out["chain"]
+    assert with_intent["outcome"] == out["outcome"]
+    assert out["intent"] is None  # legacy extraction remains usable
+    assert normalize({**good, "intent": intent}, counts)["intent"] is None
+    assert (
+        normalize(
+            {**good, "intent": {"text": "x" * 240, "edit_hunks": [1]}}, counts, 2
+        )["intent"]["text"]
+        == "x" * 240
+    )
+    invalid_intents = [
+        None,
+        [],
+        "unsupported",
+        {},
+        {"text": intent["text"]},
+        {"edit_hunks": [1]},
+    ]
+    invalid_intents.extend(
+        {"text": intent["text"], "edit_hunks": refs}
+        for refs in (
+            None,
+            [],
+            "1",
+            [True],
+            [0],
+            [-1],
+            [1.0],
+            ["1"],
+            [3],
+            [1, 1],
+            [1, 3],
+        )
+    )
+    invalid_intents.extend(
+        {"text": text, "edit_hunks": [1]}
+        for text in (None, False, 1, "", "   ", "x" * 241, "<b>Aim</b>", "Aim\ntext")
+    )
+    for invalid_intent in invalid_intents:
+        normalized = normalize({**good, "intent": invalid_intent}, counts, 2)
+        assert normalized["intent"] is None, normalized
+        assert normalized["chain"] == out["chain"]
+        assert normalized["outcome"] == out["outcome"]
+        assert normalized["implications"] == out["implications"]
+        assert normalized["dropped"] == out["dropped"]
+
     # a fork pointing at a dropped row resolves to None
     assert normalize({**good, "fork": 3}, counts)["fork"] is None
     # Claims keep their evidence after sorting; a partially lost citation invalidates them.
@@ -1018,6 +1080,10 @@ def self_check():
         reply.write_text(
             json.dumps(
                 {
+                    "intent": {
+                        "text": "Encourage reporting sorting differences.",
+                        "edit_hunks": [1],
+                    },
                     "chain": [
                         {
                             "topic": "Verdict shape",
@@ -1047,12 +1113,15 @@ def self_check():
         assert data["extractor"] == "subagent:sonnet", data
         assert data["counts"] == {"before": 1, "after": 1}, data
         assert data["chain"][0]["edit_hunks"] == []
+        assert data["intent"] is None
 
         # Unavailable diffs preserve observations, but cannot support hunk links.
         from reporting.load import load_report
 
         report = load_report(run, run, "check", run / "config.json")
         assert report.decisions.rows[0].edit_hunks == ()
+        assert report.decisions.intent is None
+        assert report.intent.source == "unavailable"
         before_file = run / "before-1" / "project" / "CLAUDE.md"
         after_file = run / "after-1" / "project" / "CLAUDE.md"
         before_file.parent.mkdir()
@@ -1078,10 +1147,13 @@ def self_check():
         data = json.loads((run / "decisions.json").read_text())
         assert data["instruction_diff"] == emitted_diff
         assert data["chain"][0]["edit_hunks"] == [1]
+        assert data["intent"]["edit_hunks"] == [1]
         report = load_report(run, run, "check", run / "config.json")
         assert report.decisions.rows[0].edit_hunks == ()
         assert report.decisions.rows[0].before[0].choice == "prose"
         assert report.decisions.outcome == 1
+        assert report.decisions.intent is None
+        assert report.intent.source == "unavailable"
 
         # Direct ingestion remains supported without an emitted prompt.
         (run / "decisions.prompt.json").unlink()
@@ -1091,6 +1163,51 @@ def self_check():
         report = load_report(run, run, "check", run / "config.json")
         assert report.decisions.rows[0].edit_hunks == (1,)
         assert report.decisions.outcome == 1
+        assert (
+            report.decisions.intent.text == "Encourage reporting sorting differences."
+        )
+        assert report.intent.source == "inferred"
+        assert report.intent.edit_hunks == (1,)
+
+        # Independently valid edit interpretation survives blocked trial evidence.
+        from reporting.summary import build_intent
+
+        supplied = build_intent("  Supplied expected behavior.  ", report.decisions)
+        assert supplied.source == "expected"
+        assert supplied.text == "  Supplied expected behavior.  "
+        assert supplied.edit_hunks == ()
+        assert build_intent("   ", report.decisions) == report.intent
+        (run / "grades.tsv").write_text("before-1\tBLOCKED\t-\nafter-1\tREVIEW\t-\n")
+        blocked = load_report(run, run, "check", run / "config.json")
+        assert blocked.summary.status == "unavailable"
+        assert blocked.intent == report.intent
+        (run / "grades.tsv").write_text("before-1\tREVIEW\t-\nafter-1\tREVIEW\t-\n")
+
+        # Legacy or malformed intent cannot remove retained observations.
+        saved = json.loads((run / "decisions.json").read_text())
+        for replacement in (None, {"text": "Invalid citation.", "edit_hunks": [True]}):
+            candidate = {**saved, "intent": replacement}
+            if replacement is None:
+                candidate.pop("intent")
+            (run / "decisions.json").write_text(json.dumps(candidate))
+            legacy = load_report(run, run, "check", run / "config.json")
+            assert legacy.decisions.rows == report.decisions.rows
+            assert legacy.decisions.outcome == report.decisions.outcome
+            assert legacy.decisions.intent is None
+            assert legacy.intent.source == "unavailable"
+        for provenance in (None, False, "A different instruction edit."):
+            candidate = {**saved, "instruction_diff": provenance}
+            if provenance is None:
+                candidate.pop("instruction_diff")
+            (run / "decisions.json").write_text(json.dumps(candidate))
+            unlinked = load_report(run, run, "check", run / "config.json")
+            assert unlinked.decisions.rows[0].before == report.decisions.rows[0].before
+            assert unlinked.decisions.rows[0].after == report.decisions.rows[0].after
+            assert unlinked.decisions.outcome == report.decisions.outcome
+            assert unlinked.decisions.rows[0].edit_hunks == ()
+            assert unlinked.decisions.intent is None
+            assert unlinked.intent.source == "unavailable"
+        (run / "decisions.json").write_text(json.dumps(saved))
 
         # Damaged provenance cannot imply that the model interpreted the current edit.
         (run / "decisions.prompt.json").write_text('{"instruction_diff": false}')
@@ -1099,6 +1216,8 @@ def self_check():
         report = load_report(run, run, "check", run / "config.json")
         assert report.decisions.rows[0].edit_hunks == ()
         assert report.decisions.rows[0].after[0].choice == "flagged item"
+        assert report.decisions.intent is None
+        assert report.intent.source == "unavailable"
         (run / "decisions.prompt.json").unlink()
 
         # Added and deleted files still produce actual hunks, not rule.md guesses.

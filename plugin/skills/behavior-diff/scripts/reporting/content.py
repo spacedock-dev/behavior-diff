@@ -19,11 +19,6 @@ TRIAL_COUNT_NOTE = (
     "A model extracts these counts from trial evidence. "
     "They count trials, not repeated actions within one trial."
 )
-BEHAVIOR_COUNT_NOTE = (
-    "These comparisons cover actions, not every detail in the answers. "
-    + TRIAL_COUNT_NOTE
-    + " Counts from separate rows do not show a complete sequence within one trial."
-)
 INTERPRETATION_NOTE = (
     "These explanations are model interpretations, not causal proof. "
     "The comparisons do not establish that the instruction change caused a difference."
@@ -48,47 +43,41 @@ FLOW_PROGRESSION_NOTE = (
     "Before and After trials are independent. " + RECORDED_COMMAND_LIMIT
 )
 CONSISTENT_HEADING = "Consistent changes across observed trials"
-CONSISTENT_NOTE = (
-    "The consistent-changes group requires one choice in every observed trial on each "
-    "side and at least two trials per side. It describes an observed pattern, "
-    "not statistical significance or causal proof."
-)
 EDIT_LINK_NOTE = (
     "Related edits are model interpretations, not proof of causality or author intent. "
     "An unavailable link does not establish that the edit had no effect."
 )
-UNCHANGED_TARGETED_NOTE = (
-    "For this scenario, these comparisons had the same choice in every observed trial "
-    "on both sides. Their relationship to the edit is a model interpretation; "
-    "this does not establish that the edit has no effect elsewhere."
-)
-MIXED_NOTE = (
-    "The mixed-trial group includes mixed, incomplete, or unavailable choices "
-    "on at least one side. "
-    "Equal choice proportions do not mean the same behavior occurred in every trial."
+SCENARIO_PROMPT_UNAVAILABLE = (
+    "The original scenario prompt is unavailable. The description above is not "
+    "a verified copy of the prompt."
 )
 
 
-def instruction_edit_summary(diff):
-    """Summarize literal changed lines, never infer the edit's purpose."""
+def instruction_edit_aim(intent):
+    """Explain the saved aim without claiming to know the author's intent."""
+    if intent.source == "inferred":
+        return "Likely aim: " + intent.text
+    if intent.source == "expected":
+        return "Supplied expectation: " + intent.text
+    return "No plain-language aim is saved for this edit."
+
+
+def instruction_edit_counts(diff):
+    """Count changed lines in validated hunks without interpreting their meaning."""
     hunks = parse_diff_hunks(diff)
     if not hunks:
         return (
-            "Instruction-edit summary unavailable: no unified diff hunks were recorded. "
-            "The available instruction evidence is shown below."
+            "Line counts unavailable for the saved diff."
+            if diff.strip()
+            else "No instruction diff was recorded."
         )
-    changes = [
-        line for hunk in hunks for line in hunk.lines if line.startswith(("+", "-"))
-    ]
-    added = sum(line.startswith("+") for line in changes)
-    removed = sum(line.startswith("-") for line in changes)
-    headings = [line for line in changes if line[1:].lstrip().startswith("#")]
-    selected = headings or changes
-    excerpt = "; ".join(
-        line[:160] + ("…" if len(line) > 160 else "") for line in selected[:3]
-    )
-    return "+{0} −{1} lines. {2} (excerpt): {3}".format(
-        added, removed, "Changed headings" if headings else "Changed lines", excerpt
+    removed = sum(line.startswith("-") for hunk in hunks for line in hunk.lines)
+    added = sum(line.startswith("+") for hunk in hunks for line in hunk.lines)
+    return "{0} {1} removed · {2} {3} added".format(
+        removed,
+        "line" if removed == 1 else "lines",
+        added,
+        "line" if added == 1 else "lines",
     )
 
 
@@ -178,64 +167,101 @@ def consistent_changes(decisions):
     )
 
 
-def decision_groups(decisions, report=None):
-    """Order presentation without renumbering evidence or changing the outcome."""
-    complete = report is None or complete_trial_evidence(report)
-    consistent = consistent_changes(decisions) if complete else ()
-    unanimous = tuple(
-        index
-        for index, row in enumerate(decisions.rows, 1)
-        if complete
-        and index not in consistent
-        and unanimous_choices(row, decisions) is not None
-    )
-    mixed = tuple(
-        index
-        for index in range(1, len(decisions.rows) + 1)
-        if index not in consistent and index not in unanimous
-    )
-    return tuple(
-        (heading, indexes)
-        for heading, indexes in (
-            (CONSISTENT_HEADING, consistent),
-            ("Other unanimous comparisons — observed trials only", unanimous),
-            ("Mixed trial choices", mixed),
-        )
-        if indexes
-    )
-
-
-def unchanged_targeted(report):
-    if not complete_trial_evidence(report):
-        return ()
-    return tuple(
-        index
-        for index, row in enumerate(report.decisions.rows, 1)
-        if index != report.decisions.outcome
-        and row.edit_hunks
-        and (choices := unanimous_choices(row, report.decisions)) is not None
-        and choices[0] == choices[1]
-    )
-
-
-def targeted_finding(report):
-    if unchanged_targeted(report):
-        return UNCHANGED_TARGETED_NOTE
-    if not complete_trial_evidence(report):
+def intent_context(intent):
+    """Label the stored source without inferring intent during rendering."""
+    if intent.source == "expected":
         return (
-            "Targeted-behavior findings are unavailable because trial evidence is "
-            "incomplete, blocked, or inconsistent with the extracted counts."
+            "Supplied expected behavior",
+            "This was supplied as expected behavior, not confirmed author intent. "
+            "The observations below do not establish that it was achieved.",
         )
-    if not any(row.edit_hunks for row in report.decisions.rows):
+    if intent.source == "inferred":
         return (
-            "Related-edit mappings are unavailable. No conclusion about targeted behavior "
-            "or author intent can be drawn from missing links."
+            "Model interpretation of the instruction edit",
+            "This interpretation is based on the linked edit, not confirmed author "
+            "intent or evidence that the aim was achieved.",
         )
     return (
-        "No mapped non-result comparison has complete, unanimous same-choice evidence "
-        "on both sides. Mixed or missing choices do not establish unchanged behavior "
-        "in every trial."
+        "Aim unavailable",
+        "Inspect the instruction edit for the recorded changes. "
+        "The observed outcomes alone do not establish the edit's aim.",
     )
+
+
+NO_ADDITIONAL_FINDINGS = (
+    "No additional supported findings were selected for this summary."
+)
+
+
+def additional_findings_note(report):
+    execution_note = (
+        "Self-reported actions and answers do not prove execution."
+        if report.metadata.trace_source == "self-reported"
+        else "Answer choices do not prove execution."
+    )
+    note = (
+        "Model-extracted counts describe trials, not repeated actions. "
+        + execution_note
+        + " Edit links are interpretations, not causal proof."
+    )
+    if not complete_trial_evidence(report):
+        note += (
+            " Trial evidence is incomplete; these counts do not establish "
+            "a complete comparison."
+        )
+    return note
+
+
+def additional_findings(report):
+    """Select up to three evidence-qualified comparisons, excluding the lead."""
+    decisions = report.decisions
+    complete = complete_trial_evidence(report)
+    candidates = []
+    for index, row in enumerate(decisions.rows, 1):
+        if index == report.summary.decision:
+            continue
+        unanimous = unanimous_choices(row, decisions)
+        if index == decisions.outcome and (unanimous is None or not complete):
+            priority = 0
+        elif valid_decision_choices(row, decisions) and choices_changed(
+            row.before, row.after
+        ):
+            priority = 1
+        elif (
+            complete
+            and row.edit_hunks
+            and unanimous is not None
+            and unanimous[0] == unanimous[1]
+        ):
+            priority = 2
+        else:
+            continue
+        candidates.append((priority, index, row))
+    findings = []
+    for _, index, row in sorted(candidates, key=lambda item: item[:2])[:3]:
+        sides = []
+        for label, choices, total in (
+            ("Before", row.before, decisions.before_count),
+            ("After", row.after, decisions.after_count),
+        ):
+            branches = (
+                "; ".join(
+                    "{0} ({1})".format(choice.choice, trial_count(choice.count, total))
+                    for choice in choices
+                )
+                or NO_EXTRACTED_CHOICE
+            )
+            sides.append("{0}: {1}.".format(label, branches))
+        status = decision_evidence_status(row, decisions, report)
+        if not complete or not valid_decision_choices(row, decisions):
+            status = "Incomplete evidence"
+        elif unanimous_choices(row, decisions) is None:
+            status = "Choices varied across trials"
+        text = "{0} — {1}. {2}".format(
+            row.topic.strip() or row.decision, status, " ".join(sides)
+        )
+        findings.append((index, text))
+    return tuple(findings)
 
 
 def trial_noun(count):
@@ -630,7 +656,7 @@ def tag_legend(trace_source):
 def headings(target_file):
     return {
         "limits": "Evidence limits",
-        "scenario": "Scenario",
+        "scenario": "What we simulated",
         "expected": "Expected behavior",
         "diff": "Diff of {0}".format(target_file),
         "decision": "Decision diff: actions and answers compared",
@@ -750,9 +776,59 @@ def dropped_rows(dropped):
     )
 
 
+def scenario_sections(report):
+    """Explain the saved setup without deriving new facts from trial outcomes."""
+    scenario = report.content.scenario
+    task = report.content.task
+    if not scenario or scenario == task:
+        scenario = report.summary.scenario or (
+            "The agent was given the task below under two instruction versions."
+            if task
+            else "No scenario description was saved."
+        )
+    metadata = report.metadata
+    evidence = (
+        "Evidence type: self-reported actions and answers, not captured tool activity."
+        if metadata.trace_source == "self-reported"
+        else "Evidence type: captured tool records and final answers, where available. "
+        "A proposed action in an answer does not mean it was executed."
+    )
+    expected = (
+        report.content.expected
+        + "\nThis is the supplied expectation, not an observed result."
+        if report.content.expected
+        else "No expected behavior was supplied. This comparison describes what differed; "
+        "it does not decide which behavior is correct."
+    )
+    return (
+        (report.content.scenario_heading, scenario),
+        (
+            "What changed",
+            "Instruction file: {0}\nBefore: {1}\nAfter: {2}\n"
+            "The comparison tests the same task under these two instruction versions.".format(
+                metadata.target_file, metadata.before_label, metadata.after_label
+            ),
+        ),
+        (
+            "How it was compared",
+            "{0} Before {1} and {2} After {3} recorded. Each trial is a separate attempt "
+            "at the scenario, not a later step in one task.\nModel: {4}\n{5}".format(
+                report.variants.before.total,
+                trial_noun(report.variants.before.total),
+                report.variants.after.total,
+                trial_noun(report.variants.after.total),
+                metadata.model,
+                evidence,
+            ),
+        ),
+        (report.content.expected_heading, expected),
+    )
+
+
 def build_content(
     config,
     scenario,
+    task,
     metadata,
     decisions,
     before_total,
@@ -768,6 +844,7 @@ def build_content(
         limits_heading=names["limits"],
         scenario_heading=names["scenario"],
         scenario=scenario,
+        task=task,
         expected_heading=names["expected"],
         expected=config.get("expected"),
         diff_heading=names["diff"],

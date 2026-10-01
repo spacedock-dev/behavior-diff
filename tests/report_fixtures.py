@@ -220,7 +220,14 @@ def _row(topic, question, anchor, trials):
 
 
 def _write_extraction(
-    run, rows, primary=None, fork=None, fork_note="", claims=(), summary=None
+    run,
+    rows,
+    primary=None,
+    fork=None,
+    fork_note="",
+    claims=(),
+    summary=None,
+    intent=None,
 ):
     positions = {row["topic"]: index for index, row in enumerate(rows, 1)}
     _write_json(
@@ -235,6 +242,7 @@ def _write_extraction(
                 for text, topics in claims
             ],
             "summary": summary,
+            "intent": intent,
         },
     )
 
@@ -593,6 +601,12 @@ def _invoice_review(run, scenario):
         fork_note=fork_note,
         claims=claims,
         summary=summary,
+        intent={
+            "text": "Allow a quick review without checking payment history.",
+            "edit_hunks": [1],
+        }
+        if not full_review
+        else None,
     )
 
 
@@ -942,7 +956,16 @@ def _planned_actions(run, scenario):
             "decisions": [1],
         },
     }
-    _write_extraction(run, rows, primary="Next step", summary=summary)
+    _write_extraction(
+        run,
+        rows,
+        primary="Next step",
+        summary=summary,
+        intent={
+            "text": "Ask for a repair plan rather than another review step.",
+            "edit_hunks": [1],
+        },
+    )
 
 
 def build_reports(root: Path) -> None:

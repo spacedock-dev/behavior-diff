@@ -155,11 +155,22 @@ IDs when comparisons across runs must retain the same model version.
 A **run** compares the instruction versions. A **trial** is one agent execution on
 one side. Each run creates a local HTML report with up to four tabs:
 
-- **Summary** opens with a short takeaway and illustrated Before/After cards.
-  Each card shows the observed choices and exact trial counts. Plans, answers,
-  and recorded actions have distinct evidence labels. Mixed primary results and
-  evidence gaps remain visible. Expand the details for the instruction diff,
-  full scenario, additional comparisons, and complete evidence limits.
+- **Summary** tells a short story: what the instruction edit aims to change,
+  what happened in the scenario, and what the observations mean. Illustrated
+  Before/After cards retain exact counts and distinguish plans, answers, and
+  recorded actions. Mixed results and evidence gaps remain visible.
+  **Other findings** contains at most three compact comparisons, with a link
+  to all decisions. **Full scenario and expected behavior** explains the
+  simulated situation, compared instruction versions, trial counts, model,
+  and evidence type. **View full scenario prompt** expands the saved task,
+  including its constraints, without crowding the explanation. Supplied
+  expectations stay distinct from results; missing expectations are explicit.
+  **Instruction edit** explains the saved aim in plain language above the
+  complete diff, filename, and line counts. **Likely aim** marks an inferred
+  interpretation; **Supplied expectation** marks an explicit expectation.
+  Missing explanations stay unavailable. There is no duplicate excerpt or
+  second diff toggle. Evidence links open the exact diff hunk. Complete
+  evidence limits remain in their own disclosure.
 - **Decision diff** shows an ordered, two-lane comparison. Before and After
   choices align at each decision in the model-extracted order, with all trial
   counts visible. Mixed choices stay within each decision, not in connected branches.
@@ -225,6 +236,13 @@ interprets their relationship to the supplied edit. **Related edit** links are
 labeled as model interpretation, not causal proof or knowledge of author intent.
 The same call supplies optional plain-language Summary text: a takeaway, short
 scenario, Before/After descriptions, and supported implications or cautions.
+It also interprets the edit's likely aim, citing instruction-diff hunks rather
+than inferring intent from trial outcomes. **Edit goal** shows one sentence
+with an **Inferred** badge and an edit link; the info popup explains the source
+and its limits. Supplied expected behavior takes precedence and is labeled
+**Supplied expectation**, not attributed to the author.
+Without either source, the aim is marked unavailable; the instruction diff
+remains accessible. These observations do not establish that a goal was met.
 Equivalent meanings should use identical choice labels. Summary counts come
 from the decision rows, not a second estimate. Code validates references and
 choice coverage; it cannot prove that model-written explanations are true.
@@ -241,12 +259,14 @@ incomplete evidence produces an insufficient-evidence result. Without an
 identified primary result, the report labels its comparisons as reported answers.
 It does not guess the final result.
 
-Expected behavior appears only when supplied. The evidence limits state the
-trial counts, provenance, and grading limits. Self-reported actions remain
-distinct from captured tool calls.
+Expected behavior is labeled as supplied, or explicitly unavailable. The evidence
+limits state trial counts, provenance, and grading limits. Self-reported actions
+remain distinct from captured tool calls.
 
-The structured `report-data.json` uses schema version 5, including the visual
-`summary`, optional decision narrative, and each comparison's `edit_hunks`.
+The structured `report-data.json` uses schema version 7, including the visual
+`summary`, sourced instruction `intent`, saved `content.task`, optional narrative,
+and `edit_hunks`. The task comes from the run's `task.md`, or the capsule's copy
+when absent from the run. A scenario description never replaces missing task text.
 Regenerate reports from their original run artifacts;
 older report-data files are not accepted. `render.py` needs the run directory,
 capsule directory, recorded model label, and original configuration. Rendering
@@ -254,13 +274,13 @@ does not run trials or call a model.
 
 Old `decisions.json` observations can be re-rendered with the new layout.
 Without narrative, the Summary uses original choice text and marks explanations
-unavailable. Missing edit mappings remain unavailable. To obtain explanations
-or mappings, explicitly rerun extraction on saved evidence after approving its
-model cost; no new trials are needed. Rendering never triggers extraction.
+unavailable. Missing aim interpretations and edit mappings remain unavailable.
+To obtain them, explicitly rerun extraction on saved evidence after approving
+its model cost; no new trials are needed. Rendering never triggers extraction.
 The extractor stores the exact `instruction_diff` with its mappings. External
 `--emit-prompt` also saves `decisions.prompt.json` so `--ingest` retains the emitted
-diff's provenance. Invalid or stale mappings are omitted without discarding
-observed choices. Rendering never invents replacement mappings.
+diff's provenance. Invalid or stale mappings and inferred aims are omitted
+without discarding observed choices. Rendering never invents replacements.
 
 If both sides follow the same path, the task can miss the situation that the
 rule targets. Use a task that starts closer to the decision that you want to

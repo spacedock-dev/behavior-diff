@@ -42,33 +42,34 @@ def _instruction_edit(report):
             text = f'<span id="edit-hunk-{number}">{text}</span>'
         lines.append(text)
     return [
-        "## Instruction edit\n",
-        _text(content.instruction_edit_summary(report.rule_diff)) + "\n",
         f"### {_text(report.content.diff_heading)}\n",
+        _text(content.instruction_edit_aim(report.intent)) + "\n",
+        _text(content.instruction_edit_counts(report.rule_diff)) + "\n",
         "<pre><code>" + "\n".join(lines) + "</code></pre>\n",
         _text(content.EDIT_LINK_NOTE) + "\n",
     ]
 
 
-def _comparison_table(report: ReportData, indexes, column: str, count_note: str):
-    if not indexes:
-        return []
-    markdown = [
-        _text(count_note) + "\n",
-        f"| {column} | Before | After |",
-        "| --- | --- | --- |",
-    ]
-    for index in indexes:
-        row = report.decisions.rows[index - 1]
-        source = content.source_label(row.anchor, report.metadata.trace_source)
-        markdown.append(
-            f"| [{_text(row.topic.strip() or row.decision)}](#decision-{index})"
-            f"<br>{_text(content.decision_role(index, row, report.decisions.outcome))}"
-            f" · {_text(source)}<br>{_edit_links(row)}"
-            f" | {_choices(row.before, report.decisions.before_count)}"
-            f" | {_choices(row.after, report.decisions.after_count)} |"
-        )
-    markdown.append("")
+def _other_findings_markdown(report):
+    findings = content.additional_findings(report)
+    markdown = ["<details><summary>Other findings</summary>\n"]
+    if findings:
+        for index, text in findings:
+            row = report.decisions.rows[index - 1]
+            source = content.source_label(row.anchor, report.metadata.trace_source)
+            links = f"[Decision {index} · {_text(source)}](#decision-{index})"
+            for number in row.edit_hunks:
+                links += f" · [See edit {number}](#edit-hunk-{number})"
+            markdown.append(f"- {_text(text)}<br>{links}\n")
+        markdown.append(_text(content.additional_findings_note(report)) + "\n")
+    else:
+        markdown.append(_text(content.NO_ADDITIONAL_FINDINGS) + "\n")
+    markdown.append(
+        "[View all decisions](#panel-decision)\n"
+        if report.decisions.rows
+        else "[Inspect trial evidence](#panel-trials)\n"
+    )
+    markdown.append("</details>\n")
     return markdown
 
 
@@ -231,16 +232,33 @@ def _count_line(variant):
 
 def _summary_markdown(report):
     summary = report.summary
+    intent = report.intent
+    intent_label, intent_note = content.intent_context(intent)
     markdown = [
         "## Summary\n",
-        _text(summary.evidence_label) + "\n",
         f"**{_text(summary.headline)}**\n",
+        "### 1. Edit goal\n",
+        f"**{_text(intent_label)}**\n",
+        _text(intent.text) + "\n",
+        _text(intent_note) + "\n",
+    ]
+    intent_links = (
+        " · ".join(
+            f"[See edit {number}](#edit-hunk-{number})" for number in intent.edit_hunks
+        )
+        if intent.edit_hunks
+        else "[Inspect the instruction edit](#instruction-diff)"
+    )
+    markdown += [
+        intent_links + "\n",
+        "### 2. What happened in this scenario\n",
     ]
     if summary.scenario:
         markdown.append(_text(summary.scenario) + "\n")
+    markdown.append(_text(summary.evidence_label) + "\n")
     markdown.append(f"Comparison: {_text(summary.status)}\n")
     for label, side in (("Before", summary.before), ("After", summary.after)):
-        markdown.append(f"### {label}\n")
+        markdown.append(f"#### {label}\n")
         if not side.choices:
             markdown.append("No supported comparison is available.\n")
         for choice in side.choices:
@@ -248,6 +266,12 @@ def _summary_markdown(report):
             if choice.detail:
                 markdown.append(_text(choice.detail) + "\n")
             markdown.append(_text(content.trial_count(choice.count, side.total)) + "\n")
+    links = []
+    if summary.decision is not None:
+        links.append(f"[See the evidence](#decision-{summary.decision})")
+    links.append("[Inspect trial evidence](#panel-trials)")
+    markdown.append(" · ".join(links) + "\n")
+    markdown.append("### 3. What this means\n")
     for label, claim in (
         ("Why it matters", summary.why),
         ("Watch out", summary.caution),
@@ -258,11 +282,6 @@ def _summary_markdown(report):
             )
     markdown += [f"- {_text(notice)}" for notice in summary.notices]
     markdown.append("")
-    links = []
-    if summary.decision is not None:
-        links.append(f"[See the evidence](#decision-{summary.decision})")
-    links.append("[Inspect trial evidence](#panel-trials)")
-    markdown.append(" · ".join(links) + "\n")
     return markdown
 
 
@@ -276,75 +295,26 @@ def render_markdown(report: ReportData) -> str:
         markdown.append(_text(content_data.note) + "\n")
     markdown.append('<a id="panel-summary"></a>\n')
     markdown += _summary_markdown(report)
-    markdown.append("<details><summary>Instruction edit</summary>\n")
+    markdown.append(
+        '<details id="instruction-diff"><summary>Instruction edit</summary>\n'
+    )
     markdown += _instruction_edit(report)
     markdown.append("</details>\n")
-    markdown.append("<details><summary>Additional findings and comparisons</summary>\n")
-    groups = content.decision_groups(report.decisions, report)
-    for heading, indexes in groups:
-        if heading == content.CONSISTENT_HEADING:
-            markdown += [
-                f"### {_text(heading)}\n",
-                _text(content.CONSISTENT_NOTE) + "\n",
-            ]
-            markdown += _comparison_table(
-                report, indexes, "Comparison", content.TRIAL_COUNT_NOTE
-            )
     markdown += [
-        "### Edit-related unchanged behaviors\n",
-        _text(content.targeted_finding(report)) + "\n",
-    ]
-    markdown += _comparison_table(
-        report, content.unchanged_targeted(report), "Behavior", content.TRIAL_COUNT_NOTE
-    )
-    markdown += [
-        "</details>\n",
         "<details><summary>Full scenario and expected behavior</summary>\n",
-        f"### {_text(content_data.scenario_heading)}\n",
-        _text(content_data.scenario) + "\n",
     ]
-    if content_data.expected:
+    for heading, text in content.scenario_sections(report):
+        markdown += [f"### {_text(heading)}\n", _text(text) + "\n"]
+    if content_data.task:
         markdown += [
-            f"### {_text(content_data.expected_heading)}\n",
-            _text(content_data.expected) + "\n",
+            "<details><summary>View full scenario prompt</summary>\n",
+            "<pre><code>" + html.escape(content_data.task) + "</code></pre>\n",
+            "</details>\n",
         ]
-    markdown += [
-        "</details>\n",
-        "<details><summary>Further comparisons and model explanations</summary>\n",
-    ]
-    for heading, indexes in groups:
-        if heading != content.CONSISTENT_HEADING:
-            markdown.append(f"### {_text(heading)}\n")
-            markdown += _comparison_table(
-                report, indexes, "Comparison", content.TRIAL_COUNT_NOTE
-            )
-            if heading == "Mixed trial choices":
-                markdown.append(_text(content.MIXED_NOTE) + "\n")
-    if not groups:
-        markdown.append("No extracted comparisons are available.\n")
-    if result.implications or report.decisions.fork_note:
-        markdown += [
-            "### Model explanations\n",
-            _text(content.INTERPRETATION_NOTE) + "\n",
-        ]
-        markdown += [
-            f"- {_text(claim.text)} {_decision_links(claim.decisions)}"
-            for claim in result.implications
-        ]
-        if report.decisions.fork_note:
-            fork_link = (
-                _decision_links((report.decisions.fork,))
-                if report.decisions.fork
-                else ""
-            )
-            markdown.append(f"- {_text(report.decisions.fork_note)} {fork_link}")
-        markdown.append("")
-    links = []
-    if report.decisions.rows:
-        links.append("[Compare decisions](#panel-decision)")
-    links.append("[Inspect trial evidence](#panel-trials)")
-    markdown.append(" · ".join(links) + "\n")
+    else:
+        markdown.append(_text(content.SCENARIO_PROMPT_UNAVAILABLE) + "\n")
     markdown.append("</details>\n")
+    markdown += _other_findings_markdown(report)
     markdown += [
         f"<details><summary>{html.escape(content_data.limits_heading)}</summary>\n",
     ]
