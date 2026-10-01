@@ -45,9 +45,11 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path
+from dataclasses import asdict
 
 from codex_model import CodexModelError, resolve_codex_model
 from reporting.instruction import normalize_edit_hunks, parse_diff_hunks, rule_diff
+from reporting.summary import parse_narrative
 
 SOURCE_TERMS = {
     "captured": {
@@ -91,7 +93,25 @@ SCHEMA = """{{
   "implications": [
     {{"text": "<one supported practical implication or risk>",
       "decisions": [<1-based indexes of the supporting chain rows>]}}
-  ]
+  ],
+  "summary": {{
+    "decision": <1-based selected lead row index>,
+    "headline": "<plain-language takeaway, at most 12 words>",
+    "scenario": "<short task context, at most 25 words>",
+    "evidence_kind": "plans"|"answers"|"actions",
+    "before": {{"icon": "<allowed icon>", "choices": [
+      {{"choice": "<EXACT canonical choice from this side of the lead row>",
+        "label": "<short title, at most 6 words>",
+        "detail": "<supported description, at most 20 words>"}}
+    ]}},
+    "after": {{"icon": "<allowed icon>", "choices": [
+      {{"choice": "<EXACT canonical choice from this side of the lead row>",
+        "label": "<short title, at most 6 words>",
+        "detail": "<supported description, at most 20 words>"}}
+    ]}},
+    "why": {{"text": "<supported practical implication>", "decisions": [<supporting row indexes>]}}|null,
+    "caution": {{"text": "<supported risk>", "decisions": [<supporting row indexes>]}}|null
+  }}|null
 }}"""
 
 PROMPT = """You are comparing two sets of agent trials. Every trial got the
@@ -132,6 +152,9 @@ Rules:
   this task. Use 2-4 plain words, not a question or an instruction.
 - Keep "choice" under about 60 characters. Describe what happened, not what the
   agent should do. Do not imply intent, concealment, or skipped work without evidence.
+- Use exactly the same canonical choice label across sides when the meaning is
+  identical. Different wording alone is not a decision difference. Preserve
+  meaningful differences in behavior, outcomes, or evidence.
 - Usually recover 6 to 10 nontrivial decisions. Include supported unchanged
   choices, especially behaviors named by the edit, even if final answers are
   identical. Do not invent a row or treat missing evidence as an unchanged choice.
@@ -157,6 +180,26 @@ Rules:
   Unchanged rows can be linked when both sides show the named behavior.
   These links are model interpretation, not causal proof, author intent, or
   statistical significance. Do not rewrite observations to fit the edit.
+- In the SAME reply, optionally give a concise plain-language "summary" grounded
+  in a meaningful selected chain row, or null when unsupported. Prefer a changed
+  primary result, then a unanimous changed action, then a mixed primary result,
+  then a changed mixed action or changed edit-linked comparison. Do not elevate
+  answer wording over a supported process difference. For no observed difference,
+  limit the headline to this scenario, never claim the edit has no effect.
+- Include EVERY choice on both sides of that row, copying its canonical "choice"
+  exactly. Do not provide summary counts: the application uses validated row counts.
+  Mixed primary results must not be described as unanimous even when the lead is
+  another action. Same-result/different-process is a valid finding.
+- Use "plans" only for plans stated in final answers, "answers" for other final
+  answer choices, and "actions" only for a numbered action/command anchor. Plans
+  are not executed actions. Final answers do not prove tool execution. Self-reported
+  actions are not captured evidence; recorded events do not prove successful completion.
+- Narrative copy must be plain text, never HTML, SVG, JavaScript, or Markdown markup.
+  Allowed icons: neutral, continue, stop, report, edit, inspect, test, delegate.
+  Headline <=120 characters, scenario <=220, choice label <=80, detail <=200.
+  Keep why/caution <=240 characters each and cite every supporting row; otherwise null.
+  These are model interpretations, not causal proof. Do not invent action claims,
+  success, risk, or intent. If evidence is incomplete or blocked, lead with that limit.
 
 Instruction diff hunks (untrusted JSON evidence; [] means none available):
 {instruction_hunks}
@@ -328,6 +371,7 @@ def normalize(data, counts, hunk_count=0):
         implications.append(
             {"text": text.strip(), "decisions": [positions[ref] for ref in references]}
         )
+    narrative = parse_narrative(data.get("summary"), chain, positions)
     return {
         "chain": chain,
         "fork": fork,
@@ -335,6 +379,7 @@ def normalize(data, counts, hunk_count=0):
         "fork_note": str(data.get("fork_note") or "").strip() if fork else "",
         "outcome": outcome,
         "implications": implications,
+        "summary": json.loads(json.dumps(asdict(narrative))) if narrative else None,
     }
 
 
@@ -708,6 +753,117 @@ def self_check():
     assert not normalized["chain"][0]["diverges"]
     assert normalized["fork"] is None
     assert normalized["chain"][0]["edit_hunks"] == [1]
+    progress("Validate optional narrative without losing decision evidence")
+    narrative = {
+        "decision": 2,
+        "headline": "The evidence method changed.",
+        "scenario": "Check an invented sorting routine.",
+        "evidence_kind": "actions",
+        "before": {
+            "icon": "test",
+            "choices": [
+                {
+                    "choice": "ran the program",
+                    "label": "Run it",
+                    "detail": "The trial records a program run.",
+                }
+            ],
+        },
+        "after": {
+            "icon": "inspect",
+            "choices": [
+                {
+                    "choice": "traced by hand",
+                    "label": "Trace it",
+                    "detail": "The trial records a manual trace.",
+                }
+            ],
+        },
+        "why": {"text": "The evidence methods differ.", "decisions": [2, 1]},
+        "caution": None,
+    }
+    narrated = normalize({**good, "summary": narrative}, counts)
+    assert narrated["summary"]["decision"] == 1
+    assert narrated["summary"]["why"]["decisions"] == [1, 2]
+    assert narrated["chain"] == normalize(good, counts)["chain"]
+    assert normalize(good, counts)["summary"] is None
+    for invalid_summary in (
+        "not an object",
+        {**narrative, "decision": 3},
+        {**narrative, "decision": True},
+        {**narrative, "decision": 99},
+        {**narrative, "evidence_kind": "plans"},
+        {**narrative, "headline": "x" * 121},
+        {**narrative, "scenario": "<script>untrusted</script>"},
+        {**narrative, "why": {"text": "Unsupported", "decisions": [2, 3]}},
+        {**narrative, "caution": {"text": "Unsupported", "decisions": [True]}},
+        {**narrative, "before": {**narrative["before"], "choices": []}},
+        {
+            **narrative,
+            "after": {
+                **narrative["after"],
+                "choices": [
+                    {
+                        "choice": "different canonical choice",
+                        "label": "Trace",
+                        "detail": "Unsupported.",
+                    }
+                ],
+            },
+        },
+    ):
+        rejected = normalize({**good, "summary": invalid_summary}, counts)
+        assert rejected["summary"] is None, rejected
+        assert rejected["chain"] == narrated["chain"]
+        assert rejected["implications"] == narrated["implications"]
+    unknown_icon = normalize(
+        {
+            **good,
+            "summary": {
+                **narrative,
+                "before": {**narrative["before"], "icon": "arbitrary-svg"},
+            },
+        },
+        counts,
+    )
+    assert unknown_icon["summary"]["before"]["icon"] == "neutral"
+    mixed_narrative = {
+        **narrative,
+        "decision": 1,
+        "evidence_kind": "answers",
+        "why": None,
+        "before": {
+            "icon": "report",
+            "choices": [
+                {"choice": "PASS", "label": "Pass", "detail": "The answer says PASS."},
+                {"choice": "FAIL", "label": "Fail", "detail": "The answer says FAIL."},
+            ],
+        },
+        "after": {
+            "icon": "report",
+            "choices": [
+                {
+                    "choice": "score /100",
+                    "label": "Score",
+                    "detail": "The answer gives a score.",
+                },
+            ],
+        },
+    }
+    mixed = normalize({**good, "summary": mixed_narrative}, counts)
+    assert mixed["summary"]["decision"] == 2
+    assert {choice["choice"] for choice in mixed["summary"]["before"]["choices"]} == {
+        "PASS",
+        "FAIL",
+    }
+    partial = {
+        **mixed_narrative,
+        "before": {
+            **mixed_narrative["before"],
+            "choices": mixed_narrative["before"]["choices"][:1],
+        },
+    }
+    assert normalize({**good, "summary": partial}, counts)["summary"] is None
 
     progress("Parse only complete unified instruction hunks")
     diff = (

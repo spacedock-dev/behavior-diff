@@ -86,6 +86,11 @@ SCENARIOS = (
         "Targeted review findings stay the same",
         "Both instruction versions flag the same two security mistakes.",
     ),
+    Scenario(
+        "planned-actions",
+        "A different next step is proposed",
+        "The answers propose a repair instead of another review; neither is executed.",
+    ),
 )
 
 
@@ -214,7 +219,9 @@ def _row(topic, question, anchor, trials):
     }
 
 
-def _write_extraction(run, rows, primary=None, fork=None, fork_note="", claims=()):
+def _write_extraction(
+    run, rows, primary=None, fork=None, fork_note="", claims=(), summary=None
+):
     positions = {row["topic"]: index for index, row in enumerate(rows, 1)}
     _write_json(
         run / "extraction.json",
@@ -227,6 +234,7 @@ def _write_extraction(run, rows, primary=None, fork=None, fork_note="", claims=(
                 {"text": text, "decisions": [positions[topic] for topic in topics]}
                 for text, topics in claims
             ],
+            "summary": summary,
         },
     )
 
@@ -536,6 +544,47 @@ def _invoice_review(run, scenario):
                 ("Review verdict",),
             ),
         )
+    summary = None
+    if scenario.name in {"changed-result", "mixed", "self-reported"}:
+        summary = {
+            "decision": 4,
+            "headline": "The review no longer always holds an already-paid invoice.",
+            "scenario": "An agent reviews an invoice without making a payment.",
+            "evidence_kind": "answers",
+            "before": {
+                "icon": "stop",
+                "choices": [
+                    {
+                        "choice": "HOLD",
+                        "label": "Hold the invoice",
+                        "detail": "The answer flags the payment already on record.",
+                    }
+                ],
+            },
+            "after": {
+                "icon": "report",
+                "choices": [
+                    {
+                        "choice": branch["choice"],
+                        "label": "Approve the invoice"
+                        if branch["choice"] == "APPROVE"
+                        else "Hold the invoice",
+                        "detail": "The answer permits approval without checking payment history."
+                        if branch["choice"] == "APPROVE"
+                        else "This answer still flags the earlier payment.",
+                    }
+                    for branch in rows[3]["after"]
+                ],
+            },
+            "why": {
+                "text": "Some answers no longer flag the earlier payment.",
+                "decisions": [3, 4],
+            },
+            "caution": {
+                "text": "An approval answer does not mean a payment occurred.",
+                "decisions": [4],
+            },
+        }
     _write_extraction(
         run,
         rows,
@@ -543,6 +592,7 @@ def _invoice_review(run, scenario):
         fork=fork,
         fork_note=fork_note,
         claims=claims,
+        summary=summary,
     )
 
 
@@ -838,6 +888,63 @@ def _intent_review(run, scenario):
     _write_extraction(run, rows, primary=primary)
 
 
+def _planned_actions(run, scenario):
+    rules = {
+        "before": "# Review\nDescribe the next review step.\n",
+        "after": "# Review\nDescribe the next repair step.\n",
+    }
+    trials = {
+        side: [
+            _Trial(
+                actions=(("cat AGENTS.md", rules[side]),),
+                final="I would " + choice + ". No changes have been made.",
+                choices={"Next step": choice},
+            )
+            for _ in range(3)
+        ]
+        for side, choice in (
+            ("before", "review the failing check"),
+            ("after", "repair the failing check"),
+        )
+    }
+    _write_sources(
+        run, scenario, "Synthetic task: Explain your next step.", rules, {}, trials
+    )
+    rows = [_row("Next step", "What next step is proposed?", "answer", trials)]
+    summary = {
+        "decision": 1,
+        "headline": "The answer proposes a repair instead of another review.",
+        "scenario": "An agent explains what it would do about a failing check.",
+        "evidence_kind": "plans",
+        "before": {
+            "icon": "inspect",
+            "choices": [
+                {
+                    "choice": "review the failing check",
+                    "label": "Plan another review",
+                    "detail": "It would inspect the failure before suggesting a repair.",
+                }
+            ],
+        },
+        "after": {
+            "icon": "edit",
+            "choices": [
+                {
+                    "choice": "repair the failing check",
+                    "label": "Plan a repair",
+                    "detail": "It would try to repair the failing check.",
+                }
+            ],
+        },
+        "why": None,
+        "caution": {
+            "text": "Neither proposed next step was executed in these records.",
+            "decisions": [1],
+        },
+    }
+    _write_extraction(run, rows, primary="Next step", summary=summary)
+
+
 def build_reports(root: Path) -> None:
     """Build all catalog reports beneath an existing, empty directory.
 
@@ -862,6 +969,8 @@ def build_reports(root: Path) -> None:
             _pr_description(run, scenario)
         elif scenario.name == "missing-primary":
             _missing_primary(run, scenario)
+        elif scenario.name == "planned-actions":
+            _planned_actions(run, scenario)
         elif scenario.name in {"flow-changed", "flow-mixed"}:
             _availability_review(run, scenario)
         elif scenario.name in {"intent-flip", "intent-unchanged"}:

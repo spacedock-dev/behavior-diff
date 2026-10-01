@@ -4,22 +4,8 @@ import html
 from itertools import zip_longest
 
 from reporting import content
+from reporting.illustrations import illustration
 from reporting.schema import ReportData
-
-
-_RESULT_BACKGROUNDS = {
-    "good": "var(--pass)",
-    "bad": "var(--fail)",
-    "neutral": "var(--accent)",
-}
-
-
-def _resolve_css(css: str, result_kind: str) -> str:
-    if css.count("__RESULT_BG__") != 1:
-        raise ValueError("report.css must contain __RESULT_BG__ exactly once")
-    if result_kind not in _RESULT_BACKGROUNDS:
-        raise ValueError("unsupported report result kind: {0}".format(result_kind))
-    return css.replace("__RESULT_BG__", _RESULT_BACKGROUNDS[result_kind])
 
 
 def _diff_line_class(line: str) -> str:
@@ -177,8 +163,11 @@ _REPORT_INTERACTIONS = """<script>
   const openLinkedEdit = () => {
     const target = document.getElementById(location.hash.slice(1));
     if (!target || !target.id.startsWith("edit-hunk-")) return;
-    const disclosure = target.closest("details");
-    if (disclosure) disclosure.open = true;
+    let disclosure = target.closest("details");
+    while (disclosure) {
+      disclosure.open = true;
+      disclosure = disclosure.parentElement.closest("details");
+    }
     target.focus({preventScroll: true});
     target.scrollIntoView({block: "start"});
   };
@@ -287,6 +276,73 @@ def _comparison_table(report: ReportData, indexes, column: str, count_note: str)
 def _decision_links(indexes) -> str:
     return " · ".join(
         f'<a href="#decision-{index}">Decision {index}</a>' for index in indexes
+    )
+
+
+def _summary_side(side, label: str) -> str:
+    choices = []
+    for choice in side.choices:
+        detail = f"<p>{html.escape(choice.detail)}</p>" if choice.detail else ""
+        choices.append(
+            '<li class="summary-choice">'
+            f"<h3>{html.escape(choice.label)}</h3>{detail}"
+            '<span class="summary-count">'
+            f"{html.escape(content.trial_count(choice.count, side.total))}"
+            "</span></li>"
+        )
+    body = (
+        f'<ul class="summary-choices">{"".join(choices)}</ul>'
+        if choices
+        else '<p class="summary-empty">No supported comparison is available.</p>'
+    )
+    return (
+        f'<section class="summary-card summary-{label.lower()}" '
+        f'aria-label="{label} choices">'
+        f'<h3 class="summary-side-label">{label}</h3>'
+        f"{illustration(side.icon)}{body}</section>"
+    )
+
+
+def _visual_summary(report: ReportData) -> str:
+    summary = report.summary
+    claims = ""
+    for label, claim, css_class in (
+        ("Why it matters", summary.why, "summary-why"),
+        ("Watch out", summary.caution, "summary-caution"),
+    ):
+        if claim:
+            claims += (
+                f'<div class="{css_class}"><strong>{label}</strong>'
+                f"<p>{html.escape(claim.text)}"
+                f'<span class="evidence-links">{_decision_links(claim.decisions)}</span>'
+                "</p></div>"
+            )
+    lead_link = (
+        f'<a class="summary-evidence-button" href="#decision-{summary.decision}">'
+        'See the evidence <span aria-hidden="true">↗</span></a>'
+        if summary.decision is not None
+        else ""
+    )
+    notices = "".join(f"<li>{html.escape(note)}</li>" for note in summary.notices)
+    scenario = (
+        f'<p class="summary-context">{html.escape(summary.scenario)}</p>'
+        if summary.scenario
+        else ""
+    )
+    return (
+        '<div class="visual-summary">'
+        f'<p class="summary-provenance">{html.escape(summary.evidence_label)}</p>'
+        f'<h2 class="summary-headline">{html.escape(summary.headline)}</h2>'
+        f"{scenario}"
+        f'<p class="summary-status">Comparison: {html.escape(summary.status)}</p>'
+        '<div class="summary-pair">'
+        f"{_summary_side(summary.before, 'Before')}"
+        '<span class="summary-arrow" aria-hidden="true">→</span>'
+        f"{_summary_side(summary.after, 'After')}</div>"
+        f'{claims}<ul class="summary-notices">{notices}</ul>'
+        '<nav class="evidence-nav" aria-label="Summary evidence">'
+        f'{lead_link}<a href="#panel-trials">Inspect trial evidence</a></nav>'
+        "</div>"
     )
 
 
@@ -587,21 +643,26 @@ def render_artifact(report: ReportData, css: str) -> str:
     )
     evidence_links += '<a href="#panel-trials">Inspect trial evidence</a>'
     limits_html = "".join(f"<li>{escaped(limit)}</li>" for limit in result.limits)
-    summary_html = f"""{_instruction_edit(report)}
+    summary_html = f"""{_visual_summary(report)}
+<details class="summary-details"><summary>Instruction edit</summary>
+{_instruction_edit(report)}
 <p class="note">{escaped(content.EDIT_LINK_NOTE)}</p>
-{consistent_html}
-{targeted_html}
-<h2 class="section-label">{escaped(report_content.result_heading)}</h2>
-<p class="result">{escaped(result.text)}</p>
-<p class="result-summary">{escaped(result.summary)}</p>
+</details>
+<details class="summary-details"><summary>Full scenario and expected behavior</summary>
 <h2 class="section-label">{escaped(report_content.scenario_heading)}</h2>
 <pre class="scenario">{escaped(report_content.scenario)}</pre>
 {expected_html}
+</details>
+<details class="summary-details"><summary>Additional findings and comparisons</summary>
+{consistent_html}
+{targeted_html}
 {comparisons_html}
 {claims_html}
 <nav class="evidence-nav" aria-label="Supporting evidence">{evidence_links}</nav>
-<h2 class="section-label">{escaped(report_content.limits_heading)}</h2>
-<ul class="evidence-limits">{limits_html}</ul>"""
+</details>
+<details class="summary-details"><summary>{escaped(report_content.limits_heading)}</summary>
+<ul class="evidence-limits">{limits_html}</ul>
+</details>"""
 
     tabs = [("summary", "Summary", "", summary_html)]
     if decisions_html:
@@ -624,11 +685,10 @@ def render_artifact(report: ReportData, css: str) -> str:
         )
     )
 
-    resolved_css = _resolve_css(css, report.result.kind)
     return f"""<title>{escaped(report_content.title)}</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <style>
-{resolved_css}</style>
+{css}</style>
 
 <h1>{escaped(report_content.title)}</h1>
 {meta_html}

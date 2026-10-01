@@ -189,14 +189,17 @@ The modules below live in the skill's [`scripts/`](../plugin/skills/behavior-dif
 
 - **Model-based interpretation:** `decisions.py` reads the task, trial actions,
   final answers, and numbered instruction-diff hunks. A separate model extracts
-  choices, counts, a primary result, supported implications, and links to edits.
-  The script checks the reply structure, counts, and references before it
-  writes `decisions.json`. Extraction failure leaves the raw evidence usable.
+  choices, counts, a primary result, supported implications, links to edits, and
+  optional plain-language Summary text in the same call. The script validates
+  references and exact choice coverage before it writes `decisions.json`.
+  Invalid Summary text is discarded without losing valid decision evidence.
 - **Deterministic assembly:** `reporting/load.py` reads saved evidence and
   compares recorded command sequences. `reporting/instruction.py` supplies the
   instruction diff. `reporting/content.py` derives shared wording and evidence
-  limits. Together they build the format-neutral `ReportData` defined in
-  `reporting/schema.py`.
+  limits. `reporting/summary.py` validates narrative and selects the visual lead,
+  retaining mixed-result, incomplete-evidence, and single-trial cautions.
+  Together they build the format-neutral schema-v5 `ReportData` defined in
+  `reporting/schema.py`. Summary counts come from existing decision rows.
 
 Command flow comes from recorded events. Decision comparisons come from model
 interpretation of those events and answers. The report keeps these sources
@@ -213,6 +216,13 @@ distinct. Links between decisions and edits do not prove causality.
 | `report.md` | Markdown version for reading and sharing after review. |
 | `report-data.json` | Structured, versioned report data. |
 | `report-artifact.html` | Embeddable HTML body. |
+
+The default Summary pairs a short takeaway with illustrated Before/After cards.
+`reporting/illustrations.py` supplies fixed SVG shapes; model output supplies
+text and icon selectors, never markup. Plans are not presented as executions.
+Longer evidence lives in expandable details. Markdown uses the same summary
+without illustrations. Saved decisions without narrative use original choices
+and an explicit availability notice; rendering never requests new explanations.
 
 The runner attempts to open the HTML report. The skill summarizes observed
 differences and evidence limits in the conversation. Missing extraction does

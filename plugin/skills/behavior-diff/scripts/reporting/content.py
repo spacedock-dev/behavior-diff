@@ -121,8 +121,29 @@ def unanimous_choices(row, decisions):
     return tuple(choices)
 
 
+def valid_decision_choices(row, decisions):
+    return all(
+        choices
+        and all(choice.choice.strip() and choice.count > 0 for choice in choices)
+        and len({choice.choice for choice in choices}) == len(choices)
+        and sum(choice.count for choice in choices) == total
+        for choices, total in (
+            (row.before, decisions.before_count),
+            (row.after, decisions.after_count),
+        )
+    )
+
+
 def complete_trial_evidence(report):
-    return not report.decisions.dropped and all(
+    return complete_evidence(report.variants, report.decisions)
+
+
+def complete_evidence(variants, decisions):
+    if not decisions.rows or not all(
+        valid_decision_choices(row, decisions) for row in decisions.rows
+    ):
+        return False
+    return not decisions.dropped and all(
         total == variant.total
         and variant.total > 0
         and variant.valid == variant.total
@@ -130,8 +151,8 @@ def complete_trial_evidence(report):
         and len(variant.trials) == variant.total
         and all(trial.final.strip() for trial in variant.trials)
         for variant, total in (
-            (report.variants.before, report.decisions.before_count),
-            (report.variants.after, report.decisions.after_count),
+            (variants.before, decisions.before_count),
+            (variants.after, decisions.after_count),
         )
     )
 
