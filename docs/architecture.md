@@ -189,17 +189,20 @@ The modules below live in the skill's [`scripts/`](../plugin/skills/behavior-dif
 
 - **Model-based interpretation:** `decisions.py` reads the task, trial actions,
   final answers, and numbered instruction-diff hunks. A separate model extracts
-  choices, counts, a primary result, supported implications, links to edits, and
-  optional plain-language Summary text in the same call. The script validates
-  references and exact choice coverage before it writes `decisions.json`.
-  Invalid Summary text is discarded without losing valid decision evidence.
+  choices, counts, a primary result, supported implications, links to edits,
+  plain-language Summary text, and the edit's likely aim in the same call.
+  The inferred aim cites instruction hunks independently of trial outcomes.
+  The script validates references and exact choice coverage before writing
+  `decisions.json`. Invalid interpretation does not discard valid observations.
 - **Deterministic assembly:** `reporting/load.py` reads saved evidence and
   compares recorded command sequences. `reporting/instruction.py` supplies the
   instruction diff. `reporting/content.py` derives shared wording and evidence
   limits. `reporting/summary.py` validates narrative and selects the visual lead,
   retaining mixed-result, incomplete-evidence, and single-trial cautions.
-  Together they build the format-neutral schema-v5 `ReportData` defined in
-  `reporting/schema.py`. Summary counts come from existing decision rows.
+  It also derives the story's aim from supplied expected behavior or a
+  validated inference whose stored diff matches the current instruction diff.
+  Together these modules build schema-v7 `ReportData` in `reporting/schema.py`.
+  Summary counts come from existing decision rows.
 
 Command flow comes from recorded events. Decision comparisons come from model
 interpretation of those events and answers. The report keeps these sources
@@ -217,12 +220,36 @@ distinct. Links between decisions and edits do not prove causality.
 | `report-data.json` | Structured, versioned report data. |
 | `report-artifact.html` | Embeddable HTML body. |
 
-The default Summary pairs a short takeaway with illustrated Before/After cards.
-`reporting/illustrations.py` supplies fixed SVG shapes; model output supplies
-text and icon selectors, never markup. Plans are not presented as executions.
-Longer evidence lives in expandable details. Markdown uses the same summary
-without illustrations. Saved decisions without narrative use original choices
-and an explicit availability notice; rendering never requests new explanations.
+The default Summary tells a numbered story: the edit's aim, the scenario's
+observations, and their meaning. The goal is one sentence with a compact
+source label and edit link; an info popup holds the source caveat. Supplied
+expectations and inferred aims remain distinct; neither becomes proof of
+author intent or goal completion. Markdown retains the caveat as plain text.
+`reporting/illustrations.py` supplies fixed SVG shapes for the Before/After
+comparison. Model output supplies text and selectors, never markup.
+Plans are not presented as executions. `content.additional_findings` selects
+at most three compact comparisons; full decisions stay in Decision diff.
+Markdown shares the same story and findings without illustrations.
+Saved decisions without interpretations show explicit availability notices;
+rendering never requests new explanations.
+
+The scenario disclosure explains the simulated situation, instruction versions,
+trial setup, and supplied expectation (or its absence). A nested disclosure
+holds the full original scenario prompt, closed by default.
+The loader stores `content.task` separately from the scenario description,
+preferring the run's `task.md` over a capsule copy. Missing task text remains
+unavailable rather than treating a description as the prompt. Shared
+`content.scenario_sections` supplies both HTML and Markdown; rendering adds
+no inferred setup details.
+
+Instruction edit begins with a plain-language explanation from the saved
+`intent`, labeled as a likely aim or supplied expectation. Rendering does not
+infer missing explanations or claim confirmed author intent. It contains one
+complete diff, with no duplicate excerpt or nested diff toggle.
+`content.instruction_edit_counts` counts added and removed
+lines across validated hunks. Stable diff and hunk anchors open the enclosing
+disclosure. Missing or unparseable diffs do not acquire invented counts.
+Both output formats retain the full evidence.
 
 The runner attempts to open the HTML report. The skill summarizes observed
 differences and evidence limits in the conversation. Missing extraction does

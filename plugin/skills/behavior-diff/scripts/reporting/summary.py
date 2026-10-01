@@ -3,6 +3,8 @@
 from dataclasses import dataclass
 from typing import Optional, Tuple
 
+from reporting.instruction import normalize_edit_hunks
+
 ICONS = ("neutral", "continue", "stop", "report", "edit", "inspect", "test", "delegate")
 EVIDENCE_KINDS = ("plans", "answers", "actions")
 SUMMARY_STATUSES = ("changed", "unchanged", "mixed", "unavailable")
@@ -37,6 +39,40 @@ class NarrativeData:
     after: NarrativeSideData
     why: Optional[NarrativeClaimData]
     caution: Optional[NarrativeClaimData]
+
+
+@dataclass(frozen=True)
+class EditIntentData:
+    text: str
+    edit_hunks: Tuple[int, ...]
+
+
+def parse_intent(raw, hunk_count):
+    """Validate an edit-only interpretation independently of trial observations."""
+    if type(raw) is not dict:
+        return None
+    try:
+        text = _text(raw.get("text"), 240)
+        edit_hunks = normalize_edit_hunks(raw.get("edit_hunks"), hunk_count)
+        if not edit_hunks:
+            return None
+        return EditIntentData(text, edit_hunks)
+    except ValueError:
+        return None
+
+
+def build_intent(expected, decisions):
+    from reporting.schema import InstructionIntentData
+
+    if type(expected) is str and expected.strip():
+        return InstructionIntentData(expected, "expected", ())
+    if decisions.intent is not None:
+        return InstructionIntentData(
+            decisions.intent.text, "inferred", decisions.intent.edit_hunks
+        )
+    return InstructionIntentData(
+        "No interpretation of this instruction edit is available.", "unavailable", ()
+    )
 
 
 def _text(value, limit):

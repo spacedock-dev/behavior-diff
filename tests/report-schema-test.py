@@ -30,7 +30,7 @@ from report_fixtures import SCENARIOS, build_reports  # noqa: E402
 
 def synthetic_raw():
     raw = {
-        "schema_version": 5,
+        "schema_version": 7,
         "metadata": {
             "model": "synthetic/model",
             "mode": "review",
@@ -48,6 +48,7 @@ def synthetic_raw():
             "limits_heading": "Evidence limits",
             "scenario_heading": "Scenario",
             "scenario": "Compare two synthetic files.",
+            "task": "Compare the synthetic files. Report differences without modifying them.",
             "expected_heading": "Expected behavior",
             "expected": "Test the changed behavior.",
             "diff_heading": "Diff of AGENTS.md",
@@ -191,10 +192,11 @@ def synthetic_raw():
                 {"text": "The evidence method changed.", "decisions": [1, 2]}
             ],
             "narrative": None,
+            "intent": None,
         },
     }
     from reporting.schema import _decisions, _metadata, _variants
-    from reporting.summary import build_summary
+    from reporting.summary import build_intent, build_summary
 
     raw["summary"] = json.loads(
         json.dumps(
@@ -202,6 +204,16 @@ def synthetic_raw():
                 build_summary(
                     _metadata(raw["metadata"], "metadata"),
                     _variants(raw["variants"], "variants"),
+                    _decisions(raw["decisions"], "decisions", 0),
+                )
+            )
+        )
+    )
+    raw["intent"] = json.loads(
+        json.dumps(
+            asdict(
+                build_intent(
+                    raw["content"]["expected"],
                     _decisions(raw["decisions"], "decisions", 0),
                 )
             )
@@ -713,59 +725,6 @@ def assert_intent_reports(reports, root):
     assert flip.decisions.outcome == 3
     assert content.consistent_changes(flip.decisions) == (2,)
     assert flip.decisions.rows[1].edit_hunks == (1,)
-    groups = content.decision_groups(flip.decisions)
-    assert groups[0][1] == (2,)
-    assert sorted(index for _, indexes in groups for index in indexes) == [1, 2, 3]
-    assert content.unchanged_targeted(flip) == ()
-
-    same = reports["intent-unchanged"]
-    assert content.unchanged_targeted(same) == (2, 3)
-    assert content.consistent_changes(same.decisions) == ()
-    assert all(
-        same.decisions.rows[index - 1].anchor == "answer"
-        for index in content.unchanged_targeted(same)
-    ), "Answer-anchored targeted behavior must remain visible."
-    for after in (
-        replace(same.variants.after, blocked=1, valid=2),
-        replace(same.variants.after, trials=same.variants.after.trials[:2]),
-    ):
-        incomplete = replace(same, variants=replace(same.variants, after=after))
-        assert not content.complete_trial_evidence(incomplete)
-        assert content.unchanged_targeted(incomplete) == (), (
-            "Missing or blocked trials must not imply all targeted behavior is unchanged."
-        )
-    blocked_flip = replace(
-        flip,
-        variants=replace(
-            flip.variants, after=replace(flip.variants.after, blocked=1, valid=2)
-        ),
-    )
-    assert all(
-        indexes != (2,)
-        for _, indexes in content.decision_groups(blocked_flip.decisions, blocked_flip)
-    ), "A blocked run must not promote its apparent unanimous flip."
-    mixed = replace(
-        same.decisions.rows[1],
-        before=(DecisionChoiceData("flagged", 2), DecisionChoiceData("missed", 1)),
-        after=(DecisionChoiceData("flagged", 2), DecisionChoiceData("missed", 1)),
-    )
-    mixed_report = replace(
-        same,
-        decisions=replace(
-            same.decisions, rows=(same.decisions.rows[0], mixed, same.decisions.rows[2])
-        ),
-    )
-    assert content.unchanged_targeted(mixed_report) == (3,), (
-        "Equal mixed proportions do not establish unanimous unchanged behavior."
-    )
-    missing_links = replace(
-        same,
-        decisions=replace(
-            same.decisions,
-            rows=tuple(replace(row, edit_hunks=()) for row in same.decisions.rows),
-        ),
-    )
-    assert content.unchanged_targeted(missing_links) == ()
 
     changed_row = flip.decisions.rows[1]
     for before_count, after_count, before_n, after_n, expected in (
@@ -924,6 +883,135 @@ def assert_visual_summaries(reports):
     assert "](javascript:" not in render_markdown(unsafe)
 
 
+def assert_additional_findings(reports):
+    flip = reports["intent-flip"]
+    findings = content.additional_findings(flip)
+    assert tuple(index for index, _ in findings) == (3, 1), (
+        "Mixed primary results must precede secondary changes without repeating the lead."
+    )
+    assert content.additional_findings(reports["unchanged"]) == ()
+    assert tuple(
+        index for index, _ in content.additional_findings(reports["intent-unchanged"])
+    ) == (2, 3), "Supported edit-related unchanged behavior must remain discoverable."
+    for report in reports.values():
+        indexes = tuple(index for index, _ in content.additional_findings(report))
+        assert len(indexes) <= 3 and len(indexes) == len(set(indexes))
+        assert report.summary.decision not in indexes
+        assert all(1 <= index <= len(report.decisions.rows) for index in indexes)
+
+
+def assert_instruction_intent(reports, root):
+    """The edit's inferred aim is distinct from both supplied expectations and results."""
+    from reporting.load import load_report
+    from reporting.summary import build_intent
+
+    planned = reports["planned-actions"]
+    assert planned.intent.source == "inferred"
+    assert planned.intent.edit_hunks == (1,)
+    assert reports["missing-extraction"].intent.source == "unavailable"
+    supplied = "Return a repair plan; do not execute it."
+    intent = build_intent(supplied, planned.decisions)
+    assert intent.source == "expected" and intent.text == supplied
+    assert intent.edit_hunks == ()
+    assert build_intent("  ", planned.decisions) == planned.intent
+    for field, value in (
+        ("source", "expected"),
+        ("text", "The trials prove the author wanted this result."),
+        ("edit_hunks", [2]),
+    ):
+        raw = planned.to_dict()
+        raw["intent"][field] = value
+        try:
+            ReportData.from_dict(raw)
+        except ValueError:
+            pass
+        else:
+            raise AssertionError("Report accepted unsupported instruction intent.")
+
+    run = root / "planned-actions"
+    path = run / "decisions.json"
+    original = path.read_text()
+    try:
+        raw = json.loads(original)
+        for provenance in ("different diff", None):
+            stale = dict(raw)
+            if provenance is None:
+                stale.pop("instruction_diff")
+            else:
+                stale["instruction_diff"] = provenance
+            path.write_text(json.dumps(stale))
+            loaded = load_report(run, run, "synthetic/authored", run / "config.json")
+            assert loaded.intent.source == "unavailable"
+            assert loaded.decisions.rows == planned.decisions.rows
+        legacy = dict(raw)
+        legacy.pop("intent")
+        path.write_text(json.dumps(legacy))
+        loaded = load_report(run, run, "synthetic/authored", run / "config.json")
+        assert loaded.intent.source == "unavailable"
+        assert loaded.summary == planned.summary
+    finally:
+        path.write_text(original)
+
+    grades = run / "grades.tsv"
+    original_grades = grades.read_text()
+    try:
+        grades.write_text(
+            original_grades.replace("after-1\tREVIEW", "after-1\tBLOCKED")
+        )
+        blocked = load_report(run, run, "synthetic/authored", run / "config.json")
+        assert blocked.summary.status == "unavailable"
+        assert blocked.intent == planned.intent, (
+            "Incomplete trials must not erase independently supported edit interpretation."
+        )
+    finally:
+        grades.write_text(original_grades)
+
+    config_path = run / "config.json"
+    original_config = config_path.read_text()
+    try:
+        config = json.loads(original_config)
+        config["expected"] = supplied
+        config_path.write_text(json.dumps(config))
+        loaded = load_report(run, run, "synthetic/authored", config_path)
+        assert loaded.intent == intent
+        assert loaded.decisions.intent == planned.decisions.intent
+    finally:
+        config_path.write_text(original_config)
+
+
+def assert_saved_scenario_task(root):
+    """A short description must not replace the prompt actually given to the agent."""
+    from reporting.load import load_report
+
+    run = root / "planned-actions"
+    config_path = run / "config.json"
+    task_path = run / "task.md"
+    original_config = config_path.read_text()
+    original_task = task_path.read_text()
+    config = json.loads(original_config)
+    config["scenario"] = "A synthetic failing-check scenario."
+    config_path.write_text(json.dumps(config))
+    try:
+        with tempfile.TemporaryDirectory() as directory:
+            capsule = Path(directory)
+            (capsule / "task.md").write_text("A different capsule task.")
+            report = load_report(run, capsule, "synthetic/model", config_path)
+            assert report.content.scenario == config["scenario"]
+            assert report.content.task == original_task.strip()
+            assert_round_trip(report.to_dict())
+            task_path.unlink()
+            report = load_report(run, capsule, "synthetic/model", config_path)
+            assert report.content.task == "A different capsule task."
+            (capsule / "task.md").unlink()
+            report = load_report(run, capsule, "synthetic/model", config_path)
+            assert report.content.task is None
+            assert report.content.scenario == config["scenario"]
+            assert_round_trip(report.to_dict())
+    finally:
+        config_path.write_text(original_config)
+        task_path.write_text(original_task)
+
+
 def assert_gallery_reports():
     """Exercise the same authored cases used by the local gallery through the CLI."""
     expected = {
@@ -1018,7 +1106,10 @@ def assert_gallery_reports():
         ):
             assert branch.prefix == branch.paths == ()
         assert_visual_summaries(reports)
+        assert_instruction_intent(reports, root)
+        assert_additional_findings(reports)
         assert_intent_reports(reports, root)
+        assert_saved_scenario_task(root)
 
     with tempfile.TemporaryDirectory() as directory:
         root = Path(directory)

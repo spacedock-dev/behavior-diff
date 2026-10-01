@@ -23,7 +23,7 @@ from reporting.schema import (
     VariantData,
     VariantsData,
 )
-from reporting.summary import build_summary, parse_narrative
+from reporting.summary import build_intent, build_summary, parse_intent, parse_narrative
 
 
 def load_report(
@@ -40,9 +40,11 @@ def load_report(
     decisions = _read_decisions(
         run, command_flow.before.total, command_flow.after.total, instruction_diff
     )
+    task = _task(run, capsule)
     report_content = content.build_content(
         config,
-        _scenario(config, capsule),
+        config.get("scenario") or task or "",
+        task,
         metadata,
         decisions,
         before.total,
@@ -60,6 +62,7 @@ def load_report(
         command_flow=command_flow,
         decisions=decisions,
         summary=build_summary(metadata, variants, decisions),
+        intent=build_intent(report_content.expected, decisions),
     )
     return ReportData.from_dict(report.to_dict())
 
@@ -435,6 +438,7 @@ def _convert_decisions(raw, before_default, after_default, instruction_diff):
         outcome,
         implications,
         parse_narrative(raw.get("summary"), rows),
+        parse_intent(raw.get("intent"), hunk_count),
     )
 
 
@@ -520,5 +524,10 @@ def _is_int(value):
     return type(value) is int
 
 
-def _scenario(config, capsule):
-    return config.get("scenario") or (capsule / "task.md").read_text().strip()
+def _task(run, capsule):
+    """Prefer the prompt saved with the run over a separate capsule's copy."""
+    for root in (run, capsule):
+        path = root / "task.md"
+        if path.is_file():
+            return path.read_text().strip() or None
+    return None
