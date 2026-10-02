@@ -197,8 +197,11 @@ The modules below live in the skill's [`scripts/`](../plugin/skills/behavior-dif
 - **Deterministic assembly:** `reporting/load.py` reads saved evidence and
   compares recorded command sequences. `reporting/instruction.py` supplies the
   instruction diff. `reporting/content.py` derives shared wording and evidence
-  limits. `reporting/summary.py` validates narrative and selects the visual lead,
-  retaining mixed-result, incomplete-evidence, and single-trial cautions.
+  limits. `reporting/summary.py` validates narrative and selects the visual lead.
+  A validated narrative for the primary result takes priority over secondary
+  actions when its choice proportions change, even if the result is mixed.
+  Otherwise the existing evidence ranking applies. Mixed-result,
+  incomplete-evidence, and single-trial cautions remain visible.
   It also derives the story's aim from supplied expected behavior or a
   validated inference whose stored diff matches the current instruction diff.
   Together these modules build schema-v7 `ReportData` in `reporting/schema.py`.
