@@ -187,19 +187,11 @@ def _row_status(row, decisions):
 
 
 def _lead_candidates(decisions):
-    """Prefer outcomes and meaningful process differences over answer wording."""
+    """Rank fallback rows when no usable narrative selects the lead."""
     rows = decisions.rows
     outcome = decisions.outcome
-    if outcome:
-        primary = rows[outcome - 1]
-        status = _row_status(primary, decisions)
-        if status == "changed" or (
-            status == "mixed"
-            and content_changed(primary)
-            and decisions.narrative is not None
-            and decisions.narrative.decision == outcome
-        ):
-            return (outcome,)
+    if outcome and _row_status(rows[outcome - 1], decisions) == "changed":
+        return (outcome,)
     changed_actions = tuple(
         index
         for index, row in enumerate(rows, 1)
@@ -264,7 +256,13 @@ def build_summary(metadata, variants, decisions):
     ):
         candidates = ()
     narrative = decisions.narrative
-    if not complete or narrative is None or narrative.decision not in candidates:
+    if not complete:
+        narrative = None
+    elif (
+        narrative is not None
+        and narrative.decision not in candidates
+        and not content_changed(decisions.rows[narrative.decision - 1])
+    ):
         narrative = None
     lead = narrative.decision if narrative else next(iter(candidates), None)
     row = decisions.rows[lead - 1] if lead else None
