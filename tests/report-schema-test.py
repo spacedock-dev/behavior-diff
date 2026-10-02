@@ -805,6 +805,66 @@ def assert_visual_summaries(reports):
         assert reports[name].summary.why is None
     assert reports["unchanged"].summary.status == "unchanged"
 
+    non_outcome = reports["non-outcome-narrative"]
+    assert non_outcome.decisions.outcome == 4
+    assert non_outcome.decisions.narrative.decision == 5
+    assert non_outcome.decisions.rows[4].edit_hunks == (1,)
+    assert non_outcome.summary.decision == 5, (
+        "A changed outcome must not displace a validated changed non-outcome narrative."
+    )
+    assert non_outcome.summary.headline == non_outcome.decisions.narrative.headline
+    assert non_outcome.summary.status == "changed"
+    selected = non_outcome.decisions.rows[4]
+    narrative = non_outcome.decisions.narrative
+    mixed_selected = replace(
+        selected,
+        before=(
+            replace(selected.before[0], count=2),
+            replace(selected.after[0], count=1),
+        ),
+    )
+    mixed_narrative = replace(
+        narrative,
+        before=replace(
+            narrative.before, choices=narrative.before.choices + narrative.after.choices
+        ),
+    )
+    mixed_decisions = replace(
+        non_outcome.decisions,
+        rows=non_outcome.decisions.rows[:4] + (mixed_selected,),
+        narrative=mixed_narrative,
+    )
+    mixed_lead = build_summary(
+        non_outcome.metadata, non_outcome.variants, mixed_decisions
+    )
+    assert mixed_lead.decision == 5
+    assert mixed_lead.headline == narrative.headline
+    assert mixed_lead.status == "mixed"
+    assert [choice.count for choice in mixed_lead.before.choices] == [2, 1]
+    assert [choice.count for choice in mixed_lead.after.choices] == [3]
+    for row, story in (
+        (selected, narrative),
+        (mixed_selected, mixed_narrative),
+    ):
+        matching = replace(
+            non_outcome.decisions,
+            rows=non_outcome.decisions.rows[:4] + (replace(row, after=row.before),),
+            narrative=replace(story, after=story.before),
+        )
+        fallback = build_summary(non_outcome.metadata, non_outcome.variants, matching)
+        assert fallback.decision == non_outcome.decisions.outcome
+        assert fallback.headline != narrative.headline
+        assert fallback.why is None
+    for decisions, status in (
+        (replace(non_outcome.decisions, narrative=None), "changed"),
+        (replace(non_outcome.decisions, dropped=1), "unavailable"),
+    ):
+        fallback = build_summary(non_outcome.metadata, non_outcome.variants, decisions)
+        assert fallback.decision == non_outcome.decisions.outcome
+        assert fallback.status == status
+        assert fallback.headline != narrative.headline
+        assert fallback.why is None
+
     mixed_primary = reports["mixed-primary"]
     assert mixed_primary.decisions.narrative is not None
     assert mixed_primary.summary.decision == mixed_primary.decisions.outcome, (
@@ -838,7 +898,6 @@ def assert_visual_summaries(reports):
     )
     for decisions in (
         replace(primary_decisions, narrative=None),
-        replace(primary_decisions, outcome=None),
         matching_proportions,
     ):
         fallback = build_summary(
@@ -856,6 +915,14 @@ def assert_visual_summaries(reports):
     assert incomplete.status == "unavailable"
     assert incomplete.headline != primary_decisions.narrative.headline
     assert incomplete.why is None
+    missing_primary = build_summary(
+        mixed_primary.metadata,
+        mixed_primary.variants,
+        replace(primary_decisions, outcome=None),
+    )
+    assert missing_primary.decision == primary_decisions.narrative.decision
+    assert missing_primary.headline == primary_decisions.narrative.headline
+    assert missing_primary.status == "mixed"
 
     def summarize(variants=changed.variants, decisions=changed.decisions):
         return build_summary(changed.metadata, variants, decisions)
@@ -1073,6 +1140,7 @@ def assert_gallery_reports():
         "answer-details": ("unchanged", "unchanged"),
         "mixed": ("varies", "changed"),
         "mixed-primary": ("varies", "changed"),
+        "non-outcome-narrative": ("changed", "changed"),
         "missing-primary": ("changed", "changed"),
         "blocked": ("unavailable", "unavailable"),
         "missing-extraction": ("unavailable", "unavailable"),

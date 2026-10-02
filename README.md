@@ -246,10 +246,12 @@ remains accessible. These observations do not establish that a goal was met.
 Equivalent meanings should use identical choice labels. Summary counts come
 from the decision rows, not a second estimate. Code validates references and
 choice coverage; it cannot prove that model-written explanations are true.
-A validated primary-result narrative leads when its choice proportions change,
-even if some trials disagree. A unanimous secondary action does not displace it.
-Without that narrative, or with matching mixed proportions, the existing
-evidence ranking applies. Mixed results keep their full counts and cautions.
+With complete evidence, a validated narrative can lead with any row whose choice
+proportions change, even if it is mixed or is not the primary result. Selecting
+that row does not change the primary-result identity. Evidence ranking is the
+fallback when narrative is missing or unsupported; unchanged or matching-proportion
+rows must still qualify under that ranking. Mixed results keep their full counts
+and cautions. Structural validation does not prove a narrative's interpretation.
 The renderer owns HTML, colors, and a fixed set of SVG illustrations.
 A named unchanged targeted behavior applies only to the observed scenario.
 Missing links do not mean the edit had no effect. A changed result is not an
@@ -348,8 +350,9 @@ Remove that directory when you no longer need the reports.
 
 The examples cover changed and unchanged results, action changes, answer details,
 mixed results, blocked trials, missing comparisons, and self-reported evidence.
-They include a mixed primary-result headline competing with a unanimous
-secondary action, added command categories, and mixed command patterns.
+They include a mixed primary-result headline competing with a unanimous secondary
+action, a non-primary headline competing with a changed outcome, added command
+categories, and mixed command patterns.
 Each example links to HTML and Markdown reports.
 
 The gallery and deterministic report checks share `tests/report_fixtures.py`.

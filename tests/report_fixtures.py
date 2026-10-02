@@ -52,6 +52,11 @@ SCENARIOS = (
         "Two before reviews flag a prior payment; no after review does.",
     ),
     Scenario(
+        "non-outcome-narrative",
+        "A changed evidence format leads ahead of the verdict",
+        "The narrative explains the answer format while the primary verdict also changes.",
+    ),
+    Scenario(
         "missing-primary",
         "Answers without a primary result",
         "Partial migration notes differ without establishing a rollout decision.",
@@ -406,6 +411,11 @@ def _invoice_review(run, scenario):
             "payment-history check. State that payment history was not checked.\n"
             "A full review remains permitted. Missing required records still block review.\n"
         )
+    if scenario.name == "non-outcome-narrative":
+        edited = edited.replace(
+            "Return the verdict and one sentence of evidence.",
+            "Return the verdict followed by separate evidence bullets.",
+        )
     rules = {"before": baseline, "after": edited}
     if mixed_primary:
         rules["before"] = edited
@@ -485,14 +495,20 @@ def _invoice_review(run, scenario):
                         "no payment was made."
                     )
                 presentation = "Verdict with one evidence sentence"
-                if scenario.name == "answer-details" and side == "after":
+                if (
+                    scenario.name in {"answer-details", "non-outcome-narrative"}
+                    and side == "after"
+                ):
                     presentation = "Verdict with separate evidence bullets"
+                    history_note = (
+                        "no LUM-104 payment." if inspect_history else "not checked."
+                    )
                     final = (
                         "APPROVE\n"
                         "- Invoice: LUM-104 for 480 credits.\n"
                         "- Receipt: 480 credits received.\n"
                         "- Vendor: Lumen Paper is active.\n"
-                        "- Payment history: no LUM-104 payment.\n"
+                        f"- Payment history: {history_note}\n"
                         "No payment was made."
                     )
                 choices = {
@@ -547,7 +563,7 @@ def _invoice_review(run, scenario):
         ),
         _row("Review verdict", "What review verdict was returned?", "answer", trials),
     ]
-    if scenario.name == "answer-details":
+    if scenario.name in {"answer-details", "non-outcome-narrative"}:
         rows.append(
             _row(
                 "Answer presentation",
@@ -556,6 +572,8 @@ def _invoice_review(run, scenario):
                 trials,
             )
         )
+        if scenario.name == "non-outcome-narrative":
+            rows[-1]["edit_hunks"] = [1]
     fork = None
     fork_note = ""
     claims = ()
@@ -619,6 +637,41 @@ def _invoice_review(run, scenario):
         }
         if mixed_primary:
             summary["headline"] = "After the edit, no review flags the prior payment."
+    if scenario.name == "non-outcome-narrative":
+        summary = {
+            "decision": 5,
+            "headline": "The review now lists the evidence record by record.",
+            "scenario": "An agent explains an invoice review without making a payment.",
+            "evidence_kind": "answers",
+            "before": {
+                "icon": "report",
+                "choices": [
+                    {
+                        "choice": "Verdict with one evidence sentence",
+                        "label": "One evidence sentence",
+                        "detail": "The answer combines the supporting records in a sentence.",
+                    }
+                ],
+            },
+            "after": {
+                "icon": "report",
+                "choices": [
+                    {
+                        "choice": "Verdict with separate evidence bullets",
+                        "label": "Evidence by record",
+                        "detail": "The answer lists the invoice, receipt, vendor, and history separately.",
+                    }
+                ],
+            },
+            "why": {
+                "text": "Supporting records are listed separately rather than combined.",
+                "decisions": [5],
+            },
+            "caution": {
+                "text": "An approval answer does not mean a payment occurred.",
+                "decisions": [4],
+            },
+        }
     _write_extraction(
         run,
         rows,
