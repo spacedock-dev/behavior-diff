@@ -805,6 +805,58 @@ def assert_visual_summaries(reports):
         assert reports[name].summary.why is None
     assert reports["unchanged"].summary.status == "unchanged"
 
+    mixed_primary = reports["mixed-primary"]
+    assert mixed_primary.decisions.narrative is not None
+    assert mixed_primary.summary.decision == mixed_primary.decisions.outcome, (
+        "A unanimous secondary action must not displace a mixed primary-result narrative."
+    )
+    assert mixed_primary.summary.headline == mixed_primary.decisions.narrative.headline
+    assert mixed_primary.summary.status == "mixed"
+    assert [
+        (choice.choice, choice.count) for choice in mixed_primary.summary.before.choices
+    ] == [
+        ("HOLD", 2),
+        ("APPROVE", 1),
+    ]
+    assert [
+        (choice.choice, choice.count) for choice in mixed_primary.summary.after.choices
+    ] == [
+        ("APPROVE", 3),
+    ]
+    primary_decisions = mixed_primary.decisions
+    matching_proportions = replace(
+        primary_decisions,
+        rows=tuple(
+            replace(row, after=row.before)
+            if index == primary_decisions.outcome
+            else row
+            for index, row in enumerate(primary_decisions.rows, 1)
+        ),
+        narrative=replace(
+            primary_decisions.narrative, after=primary_decisions.narrative.before
+        ),
+    )
+    for decisions in (
+        replace(primary_decisions, narrative=None),
+        replace(primary_decisions, outcome=None),
+        matching_proportions,
+    ):
+        fallback = build_summary(
+            mixed_primary.metadata, mixed_primary.variants, decisions
+        )
+        assert fallback.decision == 2, (
+            "Without a supported changed primary narrative, retain the action fallback."
+        )
+        assert fallback.headline != primary_decisions.narrative.headline
+    incomplete = build_summary(
+        mixed_primary.metadata,
+        mixed_primary.variants,
+        replace(primary_decisions, dropped=1),
+    )
+    assert incomplete.status == "unavailable"
+    assert incomplete.headline != primary_decisions.narrative.headline
+    assert incomplete.why is None
+
     def summarize(variants=changed.variants, decisions=changed.decisions):
         return build_summary(changed.metadata, variants, decisions)
 
@@ -1020,6 +1072,7 @@ def assert_gallery_reports():
         "unchanged": ("unchanged", "unchanged"),
         "answer-details": ("unchanged", "unchanged"),
         "mixed": ("varies", "changed"),
+        "mixed-primary": ("varies", "changed"),
         "missing-primary": ("changed", "changed"),
         "blocked": ("unavailable", "unavailable"),
         "missing-extraction": ("unavailable", "unavailable"),

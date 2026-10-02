@@ -47,6 +47,11 @@ SCENARIOS = (
         "Two after trials use a quick review; the third checks payment history.",
     ),
     Scenario(
+        "mixed-primary",
+        "A mixed result matters more than a consistent reading-order change",
+        "Two before reviews flag a prior payment; no after review does.",
+    ),
+    Scenario(
         "missing-primary",
         "Answers without a primary result",
         "Partial migration notes differ without establishing a rollout decision.",
@@ -367,6 +372,7 @@ def _pr_description(run, scenario):
 def _invoice_review(run, scenario):
     full_review = scenario.name in {"unchanged", "answer-details"}
     reported = scenario.name == "self-reported"
+    mixed_primary = scenario.name == "mixed-primary"
     task = (
         "Synthetic task: Review invoice LUM-104 from the fictional Lumen Paper "
         "supplier for 480 credits. Return APPROVE or HOLD with your evidence. "
@@ -401,6 +407,11 @@ def _invoice_review(run, scenario):
             "A full review remains permitted. Missing required records still block review.\n"
         )
     rules = {"before": baseline, "after": edited}
+    if mixed_primary:
+        rules["before"] = edited
+        rules["after"] = edited + (
+            "Prefer the quick review; read the vendor record before the receipt.\n"
+        )
     history = "invoice_id,vendor,amount,status\n" + (
         "LUM-099,Lumen Paper,125,PAID\n"
         if full_review
@@ -424,7 +435,7 @@ def _invoice_review(run, scenario):
         for number in range(1, 4):
             blocked = scenario.name == "blocked" and side == "after" and number == 3
             inspect_history = (
-                side == "before"
+                (side == "before" and not (mixed_primary and number == 3))
                 or full_review
                 or (scenario.name == "mixed" and number == 3)
             )
@@ -448,6 +459,8 @@ def _invoice_review(run, scenario):
                 }
             else:
                 paths = ["invoice.csv", "receipt.csv", "vendor.csv"]
+                if mixed_primary and side == "after":
+                    paths = ["invoice.csv", "vendor.csv", "receipt.csv"]
                 if inspect_history:
                     paths.append("payment-history.csv")
                 actions.extend((f"cat {path}", files[path]) for path in paths)
@@ -493,6 +506,12 @@ def _invoice_review(run, scenario):
                     "Review verdict": verdict,
                     "Answer presentation": presentation,
                 }
+                if mixed_primary:
+                    choices["Record checks"] = (
+                        "Matched receipt then active vendor"
+                        if side == "before"
+                        else "Matched active vendor then receipt"
+                    )
             if reported:
                 final = (
                     "Synthetic self-report: I report reading the instructions, "
@@ -540,7 +559,7 @@ def _invoice_review(run, scenario):
     fork = None
     fork_note = ""
     claims = ()
-    if scenario.name in {"changed-result", "mixed", "self-reported"}:
+    if scenario.name in {"changed-result", "mixed", "mixed-primary", "self-reported"}:
         fork = "Payment-history check"
         fork_note = (
             "The omitted history check can explain why the quick reviews do not "
@@ -553,7 +572,7 @@ def _invoice_review(run, scenario):
             ),
         )
     summary = None
-    if scenario.name in {"changed-result", "mixed", "self-reported"}:
+    if scenario.name in {"changed-result", "mixed", "mixed-primary", "self-reported"}:
         summary = {
             "decision": 4,
             "headline": "The review no longer always holds an already-paid invoice.",
@@ -563,10 +582,15 @@ def _invoice_review(run, scenario):
                 "icon": "stop",
                 "choices": [
                     {
-                        "choice": "HOLD",
-                        "label": "Hold the invoice",
-                        "detail": "The answer flags the payment already on record.",
+                        "choice": branch["choice"],
+                        "label": "Hold the invoice"
+                        if branch["choice"] == "HOLD"
+                        else "Approve the invoice",
+                        "detail": "The answer flags the payment already on record."
+                        if branch["choice"] == "HOLD"
+                        else "This answer approves without checking payment history.",
                     }
+                    for branch in rows[3]["before"]
                 ],
             },
             "after": {
@@ -593,6 +617,8 @@ def _invoice_review(run, scenario):
                 "decisions": [4],
             },
         }
+        if mixed_primary:
+            summary["headline"] = "After the edit, no review flags the prior payment."
     _write_extraction(
         run,
         rows,
@@ -602,7 +628,11 @@ def _invoice_review(run, scenario):
         claims=claims,
         summary=summary,
         intent={
-            "text": "Allow a quick review without checking payment history.",
+            "text": (
+                "Prefer quick review and check the vendor before the receipt."
+                if mixed_primary
+                else "Allow a quick review without checking payment history."
+            ),
             "edit_hunks": [1],
         }
         if not full_review

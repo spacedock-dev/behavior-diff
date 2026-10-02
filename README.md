@@ -246,6 +246,10 @@ remains accessible. These observations do not establish that a goal was met.
 Equivalent meanings should use identical choice labels. Summary counts come
 from the decision rows, not a second estimate. Code validates references and
 choice coverage; it cannot prove that model-written explanations are true.
+A validated primary-result narrative leads when its choice proportions change,
+even if some trials disagree. A unanimous secondary action does not displace it.
+Without that narrative, or with matching mixed proportions, the existing
+evidence ranking applies. Mixed results keep their full counts and cautions.
 The renderer owns HTML, colors, and a fixed set of SVG illustrations.
 A named unchanged targeted behavior applies only to the observed scenario.
 Missing links do not mean the edit had no effect. A changed result is not an
@@ -342,9 +346,10 @@ python3 tests/report-demo.py
 This command prints a local file URL and keeps the temporary directory.
 Remove that directory when you no longer need the reports.
 
-The eleven examples cover changed and unchanged results, action changes, answer
-details, mixed results, blocked trials, missing comparisons, and self-reported
-evidence. Two examples show added command categories and mixed command patterns.
+The examples cover changed and unchanged results, action changes, answer details,
+mixed results, blocked trials, missing comparisons, and self-reported evidence.
+They include a mixed primary-result headline competing with a unanimous
+secondary action, added command categories, and mixed command patterns.
 Each example links to HTML and Markdown reports.
 
 The gallery and deterministic report checks share `tests/report_fixtures.py`.

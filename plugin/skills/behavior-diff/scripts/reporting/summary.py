@@ -190,8 +190,16 @@ def _lead_candidates(decisions):
     """Prefer outcomes and meaningful process differences over answer wording."""
     rows = decisions.rows
     outcome = decisions.outcome
-    if outcome and _row_status(rows[outcome - 1], decisions) == "changed":
-        return (outcome,)
+    if outcome:
+        primary = rows[outcome - 1]
+        status = _row_status(primary, decisions)
+        if status == "changed" or (
+            status == "mixed"
+            and content_changed(primary)
+            and decisions.narrative is not None
+            and decisions.narrative.decision == outcome
+        ):
+            return (outcome,)
     changed_actions = tuple(
         index
         for index, row in enumerate(rows, 1)
