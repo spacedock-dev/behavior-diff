@@ -8,7 +8,7 @@ from reporting.schema import ContentData, ResultData
 TRIAL_EVIDENCE_HEADING = "Trial evidence"
 FINAL_ANSWER_HEADING = "Final answer"
 NO_COMMANDS_RECORDED = "No commands recorded"
-NO_EXTRACTED_CHOICE = "No extracted choice"
+NO_EXTRACTED_CHOICE = "No recorded behaviors"
 NO_FINAL_ANSWER = "No final answer recorded"
 RECORDED_COMMAND_LIMIT = (
     "Records can be incomplete and do not prove successful execution."
@@ -33,7 +33,7 @@ SELF_REPORTED_LIMIT = (
 )
 DECISION_PROGRESSION_NOTE = (
     "Read top to bottom in the model-extracted decision order. "
-    "Before and After choices are aligned at each decision. "
+    "Before and After sides are aligned at each decision. "
     "This is not a recorded execution path or a causal chain; "
     "counts across decisions do not establish a complete path through one trial."
 )
@@ -199,6 +199,11 @@ def additional_findings_note(report):
         if report.metadata.trace_source == "self-reported"
         else "Answer choices do not prove execution."
     )
+    reason = (
+        ""
+        if report.metadata.trace_source == "self-reported"
+        else "Answer summaries do not prove execution."
+    )
     note = (
         "Model-extracted counts describe trials, not repeated actions. "
         + execution_note
@@ -256,7 +261,7 @@ def additional_findings(report):
         if not complete or not valid_decision_choices(row, decisions):
             status = "Incomplete evidence"
         elif unanimous_choices(row, decisions) is None:
-            status = "Choices varied across trials"
+            status = "Behaviors varied across trials"
         text = "{0} — {1}. {2}".format(
             row.topic.strip() or row.decision, status, " ".join(sides)
         )
@@ -374,7 +379,7 @@ def result_data(metadata, variants, decisions, expected):
             "No usable final result or reported-answer comparison is available."
         )
     elif outcome_status == "unavailable" and not missing:
-        missing.append("Result choices are missing or blank.")
+        missing.append("Result states are missing or blank.")
     if not explicit:
         limits.insert(
             0,
@@ -402,8 +407,8 @@ def result_data(metadata, variants, decisions, expected):
             else "Reported answers vary across trials"
         )
         summary = (
-            "The model identified different choices within at least one side. "
-            "The table shows the trial counts for each choice."
+            "The model identified different behaviors within at least one side. "
+            "The table shows the trial counts for each behavior."
         )
     elif outcome_status == "changed":
         if explicit:
@@ -557,7 +562,7 @@ def _evidence_limits(metadata, variants, decisions, expected):
             "No explicit expected behavior was supplied. The report makes no correctness claim."
         )
     limits.append(
-        "A model extracts comparison choices and counts from trial evidence. "
+        "A model extracts behaviors and counts from trial evidence. "
         "They are not independent measurements. "
         "The primary result, explanations, and proposed causal links are model interpretations."
     )
@@ -623,17 +628,17 @@ def source_label(anchor, trace_source):
 def tag_legend(trace_source):
     """What each tag on a decision row means."""
     return (
-        ("changed", "Changed", "the extracted choice proportions differ between sides"),
-        ("same", "Unchanged", "complete trials show the same unanimous choice"),
+        ("changed", "Changed", "extracted behavior proportions differ between sides"),
+        ("same", "Unchanged", "complete trials show the same unanimous behavior"),
         (
             "same",
-            "Same choice proportions",
-            "proportions match, but choices are mixed or trial evidence is incomplete",
+            "Same proportions",
+            "proportions match, but behaviors are mixed or trial evidence is incomplete",
         ),
         (
             "unavailable",
             "Unavailable",
-            "the extracted choices do not support a comparison",
+            "the extracted states do not support a comparison",
         ),
         ("action", "Action", "a comparison of actions in the trial evidence"),
         ("result", "Final result", "the primary result identified by the model"),
@@ -668,12 +673,14 @@ def headings(target_file):
 def decision_footer(rows):
     changed = sum(decision_status(row) == "Changed" for row in rows)
     unavailable = sum(decision_status(row) == "Unavailable" for row in rows)
-    summary = "{0} of {1} comparisons have different choice proportions.".format(
+    summary = "{0} of {1} comparisons have different behavior proportions.".format(
         changed, len(rows)
     )
     if unavailable:
-        summary += " {0} comparisons lack usable choices on one or both sides.".format(
-            unavailable
+        summary += (
+            " {0} comparisons lack usable behaviors on one or both sides.".format(
+                unavailable
+            )
         )
     return summary
 
