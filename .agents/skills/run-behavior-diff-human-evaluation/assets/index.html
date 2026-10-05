@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Behavior Diff — human evaluation</title>
+  <link rel="stylesheet" href="/quiz.css">
+  <script src="/quiz.js" defer></script>
+</head>
+<body>
+<header>
+  <p class="eyebrow">Behavior Diff · Human evaluation</p>
+  <h1>Read the summary. Choose the supported statement.</h1>
+  <p>For each case, read the generated Before/After summary and select one of four statements.
+  Record your confidence. If the summary does not provide enough evidence to choose, flag that too;
+  still select your best answer. An optional note can explain ambiguity.</p>
+  <p class="notice">Your first complete submission is final. Answers, rationales, source commits and full reports
+  become available afterward. Draft answers are saved only in this browser for this session.</p>
+</header>
+<main>
+  <p id="status" role="status" aria-live="polite">Loading this evaluation…</p>
+  <form id="quiz" hidden>
+    <div id="cases"></div>
+    <div class="submit-row"><button id="submit" type="submit">Submit all five answers</button>
+    <span id="progress"></span></div>
+  </form>
+  <section id="results" hidden aria-labelledby="results-title">
+    <h2 id="results-title">Your session results</h2>
+    <div id="score"></div>
+    <div id="reviews"></div>
+  </section>
+</main>
+<footer>These questions measure comprehension of the displayed reports in this session, not overall model accuracy.</footer>
+</body>
+</html>
