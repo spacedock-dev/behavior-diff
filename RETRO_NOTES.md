@@ -107,3 +107,17 @@ Process lessons, both of which cost real runs here:
   as "the diagram appeared but the plain-English half barely moved"; at 3+3
   the drawing is what is unanimous. Use `--fast` to show shape in a demo,
   never to characterise an effect.
+
+## 2026-10-05 — summary previews and development tooling
+
+- Internal artifact URIs are tool-specific, not ordinary filesystem paths.
+  Before passing a PR body to an external CLI, resolve its file path or feed
+  its content through stdin. A successful internal read does not mean `gh`
+  can open the same URI.
+- Long-lived Python kernels retain imported modules after their source changes.
+  Use a fresh process for verification, or explicitly reload a changed fixture
+  module during interactive preview work. Re-importing alone can use old data.
+- Repeated screenshot timeouts are not proof that the page failed to render.
+  Check DOM and interactions separately, then try another capture backend.
+  Attaching to the terminal browser succeeded when headless capture timed out.
+  Report capture limits; never label DOM inspection as visual verification.

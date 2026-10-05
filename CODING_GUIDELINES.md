@@ -22,6 +22,18 @@ Engram-only Reflection and Tricorder rules are not part of this repository.
 - Use the least expensive check that covers the demonstrated risk. Keep fast,
   deterministic checks in CI. Keep model-backed checks manual.
 
+## Report presentation changes
+
+Before implementing changes to report hierarchy, navigation, or the main
+comparison, show a representative synthetic preview and agree on the reader's
+question and information hierarchy. Small copy corrections do not require a
+prototype. Use the local `preview-behavior-diff-summary` skill for the workflow.
+
+Reuse the shipped renderer and hold trial evidence constant across presentation
+variants. Label authored previews separately from model-generated results.
+Keep prototypes temporary; retain only the accepted decision and appropriate
+synthetic regression coverage, not a second rendering system.
+
 ## Agent-skill Markdown
 
 ### Structure and discovery
@@ -135,6 +147,20 @@ output.
 
 Run the checks relevant to the changed files. Do not claim checks that did not
 run.
+
+Name the claim being verified and the evidence that supports it:
+
+- Schema and contract checks establish structure and invariants.
+- Authored synthetic previews establish how supplied content is presented.
+- Raw-trial audits establish fidelity for the inspected generated reports.
+- Approved live extraction establishes observed prompt behavior on those inputs.
+- Human evaluations establish reader performance subject to question validity.
+
+Do not substitute one evidence level for another. A renderer check does not
+prove that a model follows a revised prompt; a stated plan does not prove
+execution. Report remaining gaps explicitly. Live checks still require consent
+and must remain outside CI. Keep evaluation-specific validity procedures in the
+human-evaluation skill rather than duplicating them here.
 
 ```bash
 docker run --rm -v "$PWD:/mnt" -w /mnt \
