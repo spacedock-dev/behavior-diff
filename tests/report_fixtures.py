@@ -8,7 +8,6 @@ import json
 import os
 import subprocess
 import sys
-from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -212,21 +211,28 @@ def _write_sources(run, scenario, task, rules, files, trials):
 
 
 def _row(topic, question, anchor, trials):
-    counts = {
-        side: Counter(trial.choices[topic] for trial in trials[side])
-        for side in ("before", "after")
-    }
+    memberships = {}
+    for side in ("before", "after"):
+        branches = {}
+        for number, trial in enumerate(trials[side], 1):
+            branches.setdefault(trial.choices[topic], []).append(f"{side}-{number}")
+        memberships[side] = branches
     return {
         "topic": topic,
         "decision": question,
         "anchor": anchor,
         "before": [
-            {"choice": choice, "n": count} for choice, count in counts["before"].items()
+            {"choice": choice, "trials": names}
+            for choice, names in memberships["before"].items()
         ],
         "after": [
-            {"choice": choice, "n": count} for choice, count in counts["after"].items()
+            {"choice": choice, "trials": names}
+            for choice, names in memberships["after"].items()
         ],
-        "diverges": counts["before"] != counts["after"],
+        "diverges": {
+            choice: len(names) for choice, names in memberships["before"].items()
+        }
+        != {choice: len(names) for choice, names in memberships["after"].items()},
     }
 
 
@@ -735,10 +741,14 @@ def _invoice_review(run, scenario):
         }
         if mixed_primary:
             summary["headline"] = "After the edit, no review flags the prior payment."
-    if scenario.name == "non-outcome-narrative":
+    if scenario.name in {"answer-details", "non-outcome-narrative"}:
         summary = {
             "decision": 5,
-            "headline": "The review now lists the evidence record by record.",
+            "headline": (
+                "The review still approves the invoice; only its explanation changes."
+                if scenario.name == "answer-details"
+                else "The review now lists the evidence record by record."
+            ),
             "scenario": "An agent explains an invoice review without making a payment.",
             "evidence_kind": "answers",
             "before": {
@@ -765,7 +775,9 @@ def _invoice_review(run, scenario):
                 "text": "Supporting records are listed separately rather than combined.",
                 "decisions": [5],
             },
-            "caution": {
+            "caution": None
+            if scenario.name == "answer-details"
+            else {
                 "text": "An approval answer does not mean a payment occurred.",
                 "decisions": [4],
             },

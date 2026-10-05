@@ -513,6 +513,21 @@ def _summary_side(side, label: str) -> str:
     )
 
 
+def _primary_result_context(report) -> str:
+    context = content.primary_result_context(report)
+    if context is None:
+        return ""
+    sides = "".join(
+        f"<p><strong>{html.escape(label)}:</strong> {html.escape(text)}</p>"
+        for label, text in context.sides
+    )
+    return (
+        '<section class="primary-result-context" aria-label="Primary result context">'
+        f"<h4>{html.escape(context.heading)} — {html.escape(context.status)}</h4>"
+        f'{sides}<p class="note">{html.escape(context.note)}</p></section>'
+    )
+
+
 def _short_story_summary(report: ReportData) -> str:
     summary = report.summary
     intent = report.intent
@@ -538,12 +553,10 @@ def _short_story_summary(report: ReportData) -> str:
     comparison_available = (
         summary.decision is not None and summary.status != "unavailable"
     )
-    destination = (
-        f"#decision-{summary.decision}" if comparison_available else "#panel-trials"
-    )
+    destination = "#panel-decision" if comparison_available else "#panel-trials"
     lead_link = (
         f'<a class="summary-evidence-button" href="{destination}">'
-        f"{'View this comparison' if comparison_available else 'View available trial records'}"
+        f"{'View behavior comparisons' if comparison_available else 'View available trial records'}"
         ' <span aria-hidden="true">→</span></a>'
     )
     notices = "".join(f"<li>{html.escape(note)}</li>" for note in summary.notices)
@@ -573,6 +586,7 @@ def _short_story_summary(report: ReportData) -> str:
         f"{_summary_side(summary.before, 'Before')}"
         '<span class="summary-arrow" aria-hidden="true">→</span>'
         f"{_summary_side(summary.after, 'After')}</div>"
+        f"{_primary_result_context(report)}"
         '<nav class="evidence-nav" aria-label="Summary evidence">'
         f"{lead_link}</nav>"
         "</div></li>"

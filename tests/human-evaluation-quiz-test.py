@@ -354,6 +354,47 @@ class ReportAndServerTests(unittest.TestCase):
             quiz._hash(original.encode()),
         )
 
+    def test_blinding_retains_primary_result_beside_answer_detail_contrast(self):
+        for scenario in ("answer-details", "non-outcome-narrative", "missing-primary"):
+            with self.subTest(scenario=scenario):
+                source = (self.gallery / scenario / "report.html").read_text()
+                original = quiz._ReportParser().finish(source)
+                context = quiz._single(
+                    [
+                        node
+                        for node in quiz._walk(original)
+                        if node.has_class("primary-result-context")
+                    ],
+                    "primary result",
+                )
+                blinded = quiz._ReportParser().finish(quiz._blinded_report(source))
+                retained = quiz._single(
+                    [
+                        node
+                        for node in quiz._walk(blinded)
+                        if node.has_class("primary-result-context")
+                    ],
+                    "blinded primary result",
+                )
+                self.assertEqual(
+                    [
+                        quiz._plain(node)
+                        for node in context.children
+                        if isinstance(node, quiz._Node) and node.tag in ("h4", "p")
+                    ],
+                    [
+                        quiz._plain(node)
+                        for node in retained.children
+                        if isinstance(node, quiz._Node) and node.tag in ("h4", "p")
+                    ],
+                )
+                self.assertFalse(
+                    any(
+                        node.tag == "a" or "href" in node.attrs
+                        for node in quiz._walk(retained)
+                    )
+                )
+
     def test_all_saved_report_shapes_and_unavailable_extraction(self):
         for report in self.gallery.glob("*/report.html"):
             with self.subTest(scenario=report.parent.name):

@@ -1,6 +1,8 @@
 """Format-neutral wording for Behavior Diff reports."""
 
 from collections import Counter
+from dataclasses import dataclass
+from typing import Optional, Tuple
 
 from reporting.instruction import parse_diff_hunks
 from reporting.schema import ContentData, ResultData
@@ -212,6 +214,70 @@ def intent_context(intent):
         "Aim unavailable",
         "Inspect the instruction edit for the recorded changes. "
         "The observed outcomes alone do not establish the edit's aim.",
+    )
+
+
+@dataclass(frozen=True)
+class PrimaryResultContext:
+    heading: str
+    status: str
+    decision: Optional[int]
+    sides: Tuple[Tuple[str, str], ...]
+    note: str
+
+
+def primary_result_context(report):
+    """Keep a secondary lead from obscuring the canonical primary result."""
+    decisions = report.decisions
+    primary = decisions.outcome
+    if primary is not None and primary == report.summary.decision:
+        return None
+    if primary is None:
+        return PrimaryResultContext(
+            "Primary result",
+            "unavailable",
+            None,
+            (),
+            "No primary result was identified; the selected comparison does not establish one.",
+        )
+    row = decisions.rows[primary - 1]
+    status = "unavailable"
+    if complete_trial_evidence(report):
+        unanimous = unanimous_choices(row, decisions)
+        status = (
+            "mixed"
+            if unanimous is None
+            else "unchanged"
+            if unanimous[0] == unanimous[1]
+            else "changed"
+        )
+    sides = tuple(
+        (
+            label,
+            "; ".join(
+                "{0} ({1})".format(choice.choice, trial_count(choice.count, total))
+                for choice in choices
+            )
+            or NO_EXTRACTED_CHOICE,
+        )
+        for label, choices, total in (
+            ("Before", row.before, decisions.before_count),
+            ("After", row.after, decisions.after_count),
+        )
+    )
+    note = (
+        "Based on reported final answers; these outcomes do not prove execution."
+        if row.anchor == "answer"
+        else "Model-extracted outcomes do not establish successful execution."
+    )
+    if status == "unavailable":
+        note += " Evidence is incomplete; these counts do not establish a result comparison."
+    return PrimaryResultContext(
+        "Reported primary result" if row.anchor == "answer" else "Primary result",
+        status,
+        primary,
+        sides,
+        note,
     )
 
 

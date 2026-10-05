@@ -632,7 +632,7 @@ def assert_guided_report_structure(report):
         )
         if is_html:
             assert evidence.primary_targets == [
-                f"#decision-{report.summary.decision}"
+                "#panel-decision"
                 if report.summary.decision is not None
                 and report.summary.status != "unavailable"
                 else "#panel-trials"
@@ -1170,6 +1170,105 @@ def assert_visual_summaries(reports):
         assert_unchanged_scripts(render(changed), rendered)
         assert "&lt;script&gt;" in rendered
     assert "](javascript:" not in render_markdown(unsafe)
+    assert_primary_result_context(reports)
+
+
+def assert_primary_result_context(reports):
+    """A secondary lead cannot conceal canonical primary outcomes or uncertainty."""
+    from reporting.render_html import render_artifact
+    from reporting.render_markdown import render_markdown
+    from reporting.summary import build_summary
+
+    base = reports["non-outcome-narrative"]
+    primary = base.decisions.outcome
+    original = base.decisions.rows[primary - 1]
+
+    def with_primary(row=original, **changes):
+        rows = tuple(
+            row if index == primary else value
+            for index, value in enumerate(base.decisions.rows, 1)
+        )
+        decisions = replace(base.decisions, rows=rows, **changes)
+        return replace(
+            base,
+            decisions=decisions,
+            summary=build_summary(base.metadata, base.variants, decisions),
+        )
+
+    same = with_primary(replace(original, after=original.before))
+    assert same.summary.decision != primary
+    assert same.decisions.rows[same.summary.decision - 1].anchor == "answer"
+    mixed = with_primary(
+        replace(
+            original,
+            before=(
+                replace(original.before[0], count=2),
+                replace(original.after[0], count=1),
+            ),
+        )
+    )
+    no_primary = with_primary(outcome=None)
+    cases = (
+        (same, "unchanged"),
+        (base, "changed"),
+        (mixed, "mixed"),
+        (with_primary(dropped=1), "unavailable"),
+        (no_primary, "unavailable"),
+    )
+    for report, expected_status in cases:
+        # Incomplete evidence may select the primary fallback; force the existing
+        # secondary lead here to exercise the context's independent safety gate.
+        if report.summary.decision == report.decisions.outcome:
+            report = replace(
+                report,
+                summary=replace(report.summary, decision=base.summary.decision),
+            )
+        context = content.primary_result_context(report)
+        assert context is not None and context.status == expected_status
+        assert context.decision == report.decisions.outcome
+        rendered = render_artifact(report, "")
+        block = rendered.split('class="primary-result-context"', 1)[1].split(
+            "</section>", 1
+        )[0]
+        markdown = render_markdown(report)
+        md_block = markdown.split(f"#### {context.heading}", 1)[1].split("### 3.", 1)[0]
+        assert expected_status in block and expected_status in md_block
+        assert "<a " not in block, (
+            "Primary-result context must not add a competing link."
+        )
+        target = (
+            "panel-decision"
+            if report.summary.decision is not None
+            and report.summary.status != "unavailable"
+            else "panel-trials"
+        )
+        assert re.findall(r"\]\(#(?:panel-decision|panel-trials)\)", md_block) == [
+            f"](#{target})"
+        ], "The observed comparison has one shared evidence destination."
+        if context.decision is None:
+            assert not context.sides
+        else:
+            row = report.decisions.rows[context.decision - 1]
+            for side in ("before", "after"):
+                for choice in getattr(row, side):
+                    assert html.escape(choice.choice) in block
+                    assert choice.choice in md_block
+                    count = content.trial_count(
+                        choice.count, getattr(report.decisions, side + "_count")
+                    )
+                    assert count in block and count in md_block
+            if row.anchor == "answer":
+                assert "reported" in context.heading.lower()
+                assert "execution" in context.note.lower()
+    assert content.primary_result_context(reports["changed-result"]) is None
+
+    for field, value in (("blocked", 1), ("valid", 2)):
+        variants = replace(
+            base.variants,
+            after=replace(base.variants.after, **{field: value}),
+        )
+        report = replace(base, variants=variants)
+        assert content.primary_result_context(report).status == "unavailable"
 
 
 def assert_additional_findings(reports):
@@ -1711,10 +1810,12 @@ def assert_trial_summary_pipeline():
             ("before-review-extra", "after-alpha"),
             ("", "after-z-missing"),
         )
-        prompt, counts, instruction_diff = decisions.build_prompt(run)
-        assert counts == {"before": 2, "after": 2}
+        prompt, completed_names, instruction_diff = decisions.build_prompt(run)
+        assert completed_names == {
+            "before": ["before-02", "before-review-extra"],
+            "after": ["after-10", "after-alpha"],
+        }
         assert "NOT paired executions" in prompt
-        assert "aggregate decision counts" in prompt
         assert "before-00-ungraded" not in prompt
         assert "(not recorded)" in prompt and "after-z-missing" in prompt
         encoded_groups = json.dumps(
@@ -1753,8 +1854,8 @@ def assert_trial_summary_pipeline():
                     "decision": "Which evidence was recorded?",
                     "topic": "File review",
                     "anchor": 1,
-                    "before": [{"choice": "read", "n": 2}],
-                    "after": [{"choice": "read", "n": 2}],
+                    "before": [{"choice": "read", "trials": completed_names["before"]}],
+                    "after": [{"choice": "read", "trials": completed_names["after"]}],
                 }
             ],
             "trial_summaries": summaries,
@@ -1763,7 +1864,7 @@ def assert_trial_summary_pipeline():
             assert decisions.write_decisions(
                 run,
                 json.dumps(extraction),
-                counts,
+                completed_names,
                 "synthetic/no-model",
                 instruction_diff,
             )
@@ -1787,7 +1888,9 @@ def assert_trial_summary_pipeline():
             [summaries[0], summaries[0]],
         ):
             normalized = decisions.normalize(
-                dict(extraction, trial_summaries=malformed), counts, groups=groups
+                dict(extraction, trial_summaries=malformed),
+                completed_names,
+                groups=groups,
             )
             assert normalized["trial_summaries"] == []
             assert len(normalized["chain"]) == 1
@@ -1807,7 +1910,7 @@ def assert_trial_summary_pipeline():
             assert decisions.write_decisions(
                 run,
                 json.dumps(summary_only),
-                counts,
+                completed_names,
                 "synthetic/no-model",
                 instruction_diff,
             )

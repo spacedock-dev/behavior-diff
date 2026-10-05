@@ -157,9 +157,11 @@ one side. Each run creates a local HTML report with five tabs:
 
 - **Summary** tells a numbered story: the intended change, what the evidence
   shows, and what it means. Illustrated Before/After cards retain exact counts
-  and distinguish plans, answers, and recorded actions. Mixed results and
-  evidence gaps remain visible. **View this comparison** opens the supporting
-  comparison, or links to trial records when extraction is unavailable.
+  and distinguish plans, answers, and recorded actions. When the cards focus on
+  an explanation or another secondary comparison, the primary result and its
+  full Before/After distribution remain visible beside them. Mixed results and
+  evidence gaps remain visible. One **View behavior comparisons** button opens
+  Behavior diff for both the featured comparison and the primary result.
   **Full scenario and expected behavior** explains the simulated situation,
   instruction versions, trial setup, and supplied expectation or its absence.
   **View full scenario prompt** is nested inside that disclosure.
@@ -214,8 +216,11 @@ come from recorded commands or self-reported actions; **Answer detail** comparis
 come from the final answer. Wording differences alone do not establish an action change.
 
 In Summary and Behavior diff, counts such as **3 of 3 trials** refer to trials,
-not repeated actions within one trial. A model extracts these counts from the
-evidence. Separate row counts do not show a complete sequence within one trial.
+not repeated actions within one trial. For new extractions, the model assigns
+named trials to behaviors; code derives counts from complete, unique membership
+on each side. Those assignments remain in `decisions.json` for auditing.
+This validates bookkeeping, not whether a trial was classified correctly.
+Separate row counts do not show a complete sequence within one trial.
 **Changed** compares extracted behavior proportions. **Unchanged** is shown for
 complete, unanimous same-behavior evidence; matching proportions without that
 evidence are labeled **Same proportions**. **Unavailable** means extracted
@@ -233,7 +238,7 @@ The command-category table groups each trial into one category combination.
 Category order is not execution order. Matching categories can contain different
 commands or files, so matching patterns do not establish unchanged behavior.
 
-Follow **View this comparison** to Behavior diff, or inspect the trial records
+Follow **View behavior comparisons** to Behavior diff, or inspect the trial records
 for original commands and answers. Markdown retains the five sections, story,
 counts, complete instruction diff, and grouped trial evidence without illustrations.
 
@@ -243,6 +248,10 @@ interprets their relationship to the supplied edit. **Related edit** links are
 labeled as model interpretation, not causal proof or knowledge of author intent.
 The same call supplies optional plain-language Summary text: a takeaway, short
 scenario, Before/After descriptions, and supported implications or cautions.
+The writing instructions require concrete actor/action/object contrasts, parallel
+Before/After descriptions, and a clear distinction between changed decisions or
+actions and changed explanations, citations, or presentation. The decisive
+contrast belongs in the headline and cards, not only in an additional finding.
 It also interprets the edit's likely aim, citing instruction-diff hunks rather
 than inferring intent from trial outcomes. **Edit goal** shows one sentence
 with an **Inferred** badge and an edit link; the info popup explains the source

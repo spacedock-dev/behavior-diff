@@ -285,13 +285,19 @@ def _summary_markdown(report):
             if choice.detail:
                 markdown.append(_text(choice.detail) + "\n")
             markdown.append(_text(content.trial_count(choice.count, side.total)) + "\n")
+    context = content.primary_result_context(report)
+    if context is not None:
+        markdown.append(f"#### {_text(context.heading)} — {_text(context.status)}\n")
+        for label, text in context.sides:
+            markdown.append(f"**{label}:** {_text(text)}\n")
+        markdown.append(_text(context.note) + "\n")
     target = (
-        f"decision-{summary.decision}"
+        "panel-decision"
         if summary.decision is not None and summary.status != "unavailable"
         else "panel-trials"
     )
     label = (
-        "View this comparison"
+        "View behavior comparisons"
         if target != "panel-trials"
         else "View available trial records"
     )

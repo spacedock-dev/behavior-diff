@@ -421,6 +421,12 @@ details { margin-bottom:.25rem; }
 .summary-count { display:block; font-size:12px; font-weight:700; color:#142b35;
   font-variant-numeric:tabular-nums; }
 .summary-arrow { align-self:center; text-align:center; font-size:30px; color:#758790; }
+.primary-result-context { border:1px solid #dbe5e8; border-radius:10px;
+  background:#f5f8fa; padding:14px 18px; margin:16px 0; }
+.primary-result-context h4 { margin:0 0 10px; font-size:16px; }
+.primary-result-context p { margin:6px 0; font-size:14px; line-height:1.5; }
+.primary-result-context a { display:inline-block; padding:.35rem 0;
+  font-size:13px; font-weight:700; }
 .summary-why, .summary-caution { display:grid; grid-template-columns:110px minmax(0, 1fr);
   align-items:baseline; gap:16px; margin:0 0 14px; }
 .summary-why strong, .summary-caution strong { font-size:13px; }
