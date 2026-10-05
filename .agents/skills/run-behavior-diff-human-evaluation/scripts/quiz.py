@@ -462,9 +462,11 @@ def _blinded_report(source):
             ("p", "summary-provenance"),
             ("p", "summary-status"),
             ("div", "summary-pair"),
-            ("nav", "evidence-nav"),
         ]
     )
+    if any(node.has_class("primary-result-context") for node in _children(bodies[1])):
+        evidence_shape.append(("section", "primary-result-context"))
+    evidence_shape.append(("nav", "evidence-nav"))
     evidence_body = _shape(bodies[1], evidence_shape)
     if _plain(evidence_body[0]) != "What the evidence shows":
         raise ValueError("Unknown evidence heading.")

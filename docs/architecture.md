@@ -35,7 +35,7 @@ scripts handle execution, evidence, and reporting.
                              v
 +---------------------------------------------------------+
 | Evidence analysis                                       |
-| decisions.py: comparisons and trial summaries           |
+| decisions.py: trial assignments -> counts and summaries |
 | reporting/: deterministic comparison and report data    |
 +----------------------------+----------------------------+
                              v
@@ -189,13 +189,18 @@ The modules below live in the skill's [`scripts/`](../plugin/skills/behavior-dif
 
 - **Model-based interpretation:** `decisions.py` reads the task, trial actions,
   final answers, and numbered instruction-diff hunks. A separate model extracts
-  choices, counts, a primary result, supported implications, links to edits,
-  plain-language Summary text, the edit's likely aim, and short per-group trial
-  summaries in the same call. Each trial summary names its exact Before/After
-  records and separates answers and plans from recorded actions.
-  The inferred aim cites instruction hunks independently of trial outcomes.
-  The script validates references and exact choice coverage before writing
-  `decisions.json`. Invalid interpretation does not discard valid observations.
+  choices with named trial assignments, a primary result, supported implications,
+  links to edits, plain-language Summary text, the edit's likely aim, and short
+  per-group trial summaries in the same call. New raw branches supply `trials`,
+  not aggregate counts. The script requires each completed trial exactly once
+  per side of every row, derives `n`, and retains both in `decisions.json`.
+  Foreign, duplicate, incomplete, or missing assignments invalidate the row.
+  Count-only raw extraction is not accepted; saved normalized report evidence
+  remains renderable. Membership validation cannot prove classification truth.
+  Each trial summary names its exact Before/After records and separates answers
+  and plans from recorded actions. The inferred aim cites instruction hunks
+  independently of trial outcomes. The script validates references and exact
+  choice coverage; invalid interpretation does not discard valid observations.
 - **Deterministic assembly:** `reporting/load.py` reads saved evidence and
   compares recorded command sequences. `reporting/instruction.py` supplies the
   instruction diff. `reporting/content.py` derives shared wording and evidence
@@ -238,6 +243,17 @@ expectations and inferred aims remain distinct; neither becomes proof of
 author intent or goal completion. Markdown retains the caveat as plain text.
 `reporting/illustrations.py` supplies fixed SVG shapes for the Before/After
 comparison. Model output supplies text and selectors, never markup.
+Summary and trial-summary instructions require concrete, parallel descriptions
+of the same subject, with the decisive contrast and any unchanged decision
+explicitly stated. Changed explanations, citations, or presentation must not
+be described as changed actions. When the selected lead is not the primary
+result, `content.primary_result_context` exposes the primary status and full
+distribution beside the cards in both formats. Missing or incomplete evidence
+cannot become an unchanged-result claim. This is derived presentation, not a
+new serialized report field; schema v8 is unchanged.
+The primary-result block is context, not a second navigation choice. One
+**View behavior comparisons** link opens Behavior diff for the selected
+comparison and the primary result; unavailable evidence links to trial records.
 Plans are not presented as executions. `content.additional_findings` selects
 at most three compact comparisons; full comparisons stay in Behavior diff.
 Markdown shares the same story and findings without illustrations.

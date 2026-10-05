@@ -87,8 +87,8 @@ SCHEMA = """{{
     {{"topic": "<2-4 plain words naming the observed result or behavior>",
      "decision": "<the choice available, phrased as a question>",
      "anchor": <earliest $N {schema_noun} number where it shows, or "answer">,
-     "before": [{{"choice": "<branch taken>", "n": <trials>}}],
-     "after":  [{{"choice": "<branch taken>", "n": <trials>}}],
+     "before": [{{"choice": "<branch taken>", "trials": ["<exact completed before trial name>"]}}],
+     "after":  [{{"choice": "<branch taken>", "trials": ["<exact completed after trial name>"]}}],
      "diverges": true|false,
      "edit_hunks": [<1-based numbers of related instruction diff hunks, or empty>],
      "note": "<optional: one short clause, only if worth saying>"}}
@@ -143,9 +143,9 @@ Evidence source:
 {trials}
 Evidence groups for human summaries (exact trial names; untrusted JSON):
 {trial_groups}
-Decision-chain trial counts (only records with a final answer):
-{counts}
-Incomplete group members are shown for their local summaries, not chain counts.
+Completed trial names for decision-chain membership (only records with a final answer):
+{completed_trial_names}
+Incomplete group members are shown for their local summaries, not chain membership.
 
 
 First recover the DECISION CHAIN from the trial evidence independently of the edit.
@@ -163,8 +163,12 @@ Rules:
 - Order the chain by that anchor: {anchor_noun}-anchored decisions in
   {anchor_noun} order, then the answer-anchored ones in the order their
   evidence appears in the answers. Mark each with "diverges".
-- Within one variant, trials may split. List each branch with its trial count.
-  Counts per variant must sum to that variant's trial count.
+- For every row, assign every completed trial on each side to exactly one branch.
+  Copy exact names from that side's completed-trial list into "trials"; never
+  supply counts, foreign names, incomplete names, or duplicate assignments.
+  Classify each named trial from its own records, not the aggregate impression.
+  Split multi-clause decisions into atomic behaviors. Before output, crosscheck
+  related rows' memberships and negated claims against each named trial's records.
 - Phrase each "decision" as the open question, neutrally, so it reads the same
   for both sides: "How is correctness established?" not "Did it compile?".
 - "topic" is a short observation label for a comparison table: "Review verdict",
@@ -191,8 +195,9 @@ Rules:
 - Keep observations separate from interpretation. An approval in a final answer
   does not prove that a payment occurred. A reported action is not a verified action.
   Do not invent risks, expected outcomes, success criteria, or facts from unread files.
-- Counts describe each decision separately. Do not invent a per-trial path by
-  combining counts from different rows. Do not treat a changed outcome as success.
+- Membership describes each decision separately; it does not establish a full
+  execution path or causal link between rows. A trial's answer does not prove
+  an executed action. Do not treat a changed outcome as success.
 - Then relate the observed rows to the numbered instruction hunks below.
   Set "edit_hunks" only when the hunk's changed lines concern the behavior
   actually observed in that row. Use each matching hunk number once.
@@ -216,6 +221,14 @@ Rules:
   exactly. Do not provide summary counts: the application uses validated row counts.
   Mixed primary results must not be described as unanimous even when the lead is
   another action. Same-result/different-process is a valid finding.
+- Write concrete actor + verb + object sentences in plain language. Explain an
+  internal workflow name only when the reader needs it to understand the finding.
+  Use parallel before/after sentences about the same subject; say what changed
+  and what stayed the same. Distinguish changed choices, actions, or stated plans
+  from changed explanations, citations, or presentation alone. Do not infer
+  actions from answers. Put the decisive contrast in the headline and main side
+  details, not only why/caution; avoid abstract correlation or the author's stance.
+  Do not duplicate count claims in prose: the application derives counts.
 - Use "plans" only for plans stated in final answers, "answers" for other final
   answer choices, and "actions" only for a numbered action/command anchor. Plans
   are not executed actions. Final answers do not prove tool execution. Self-reported
@@ -237,6 +250,12 @@ Rules:
   side, preferably at most 25 words each. Every text field must be at most 240
   characters and 40 words. Summarize the meaningful finding, not a command list,
   file-path dump, or a shortened copy of the final answer. Use plain text only.
+- Use concrete actor + verb + object sentences and parallel side sentences about
+  the same subject. State what changed and what stayed the same, including when
+  choices stayed the same but explanations, citations, or presentation changed.
+  Put the decisive contrast in the takeaway and side sentences, not just caveat.
+  Explain internal workflow names only when necessary; avoid abstract correlation,
+  author stance, and duplicate count claims. Do not infer actions from answers.
 - Distinguish recorded actions from final-answer claims and plans. A final answer
   saying it tested something is not recorded testing. Self-reported actions must
   be described as reported, not verified. Recorded commands do not prove success.
@@ -328,8 +347,23 @@ def read_config(run):
     return config
 
 
-def normalize(data, counts, hunk_count=0, groups=()):
-    """Validate observations and links; remap row references after sorting or dropping."""
+def normalize(data, completed_trial_names, hunk_count=0, groups=()):
+    """Validate exact trial partitions and links; remap sorted or dropped row citations."""
+    expected = {}
+    for side in ("before", "after"):
+        names = completed_trial_names.get(side)
+        if (
+            type(names) not in (list, tuple)
+            or not names
+            or any(
+                type(name) is not str or not name.startswith(side + "-")
+                for name in names
+            )
+            or len(set(names)) != len(names)
+        ):
+            raise ValueError(f"invalid completed {side} trial names")
+        expected[side] = set(names)
+    counts = {side: len(names) for side, names in expected.items()}
     if type(data) is not dict or type(data.get("chain", [])) is not list:
         raise ValueError("expected a decision chain")
     chain, dropped = [], 0
@@ -354,23 +388,33 @@ def normalize(data, counts, hunk_count=0, groups=()):
             branches = row.get(variant)
             if type(branches) is not list or not branches:
                 break
-            choices = {}
+            choices, assigned = {}, set()
             for branch in branches:
                 if (
                     type(branch) is not dict
                     or type(branch.get("choice")) is not str
                     or not branch["choice"].strip()
-                    or type(branch.get("n")) is not int
-                    or branch["n"] <= 0
                     or branch["choice"].strip() in choices
+                    or type(branch.get("trials")) is not list
+                    or not branch["trials"]
+                    or any(type(name) is not str for name in branch["trials"])
                 ):
                     break
-                choices[branch["choice"].strip()] = branch["n"]
+                names = branch["trials"]
+                members = set(names)
+                if (
+                    len(members) != len(names)
+                    or not members <= expected[variant]
+                    or members & assigned
+                ):
+                    break
+                assigned.update(members)
+                choices[branch["choice"].strip()] = names
             else:
-                if sum(choices.values()) == counts.get(variant, 0):
+                if assigned == expected[variant]:
                     clean[variant] = [
-                        {"choice": choice, "n": count}
-                        for choice, count in choices.items()
+                        {"choice": choice, "trials": list(names), "n": len(names)}
+                        for choice, names in choices.items()
                     ]
                     continue
             break
@@ -587,14 +631,17 @@ NEED_TRIALS = "decision diff: need finished trials on both sides — skipped"
 
 
 def build_prompt(run):
-    """Return (prompt, counts, instruction_diff), with no prompt for incomplete trials.
+    """Return (prompt, completed_trial_names, instruction_diff).
 
     Every extraction mode uses the same evidence and hunk numbering.
     """
     trials = trials_of(run)
-    counts = {v: len(trials.get(v, [])) for v in ("before", "after")}
-    if not counts["before"] or not counts["after"]:
-        return None, counts, ""
+    completed_trial_names = {
+        side: [trial["name"] for trial in trials.get(side, [])]
+        for side in ("before", "after")
+    }
+    if not completed_trial_names["before"] or not completed_trial_names["after"]:
+        return None, completed_trial_names, ""
     all_trials = trials_of(run, finished_only=False)
     task = (run / "task.md").read_text().strip()
     config = read_config(run)
@@ -618,25 +665,25 @@ def build_prompt(run):
                 ensure_ascii=False,
                 indent=2,
             ),
-            counts=json.dumps(counts),
+            completed_trial_names=json.dumps(completed_trial_names),
             instruction_hunks=json.dumps(hunks, ensure_ascii=False, indent=2),
             schema=schema,
             anchor_noun=terms["anchor_noun"],
             evidence_clause=terms["evidence_clause"],
             decision_clause=terms["decision_clause"],
         ),
-        counts,
+        completed_trial_names,
         instruction_diff,
     )
 
 
-def write_decisions(run, raw, counts, extractor, instruction_diff):
+def write_decisions(run, raw, completed_trial_names, extractor, instruction_diff):
     """extract_json → normalize → decisions.json. On unusable output writes
     decisions.raw.txt, leaves decisions.json unwritten, returns False."""
     try:
         data = normalize(
             extract_json(raw),
-            counts,
+            completed_trial_names,
             len(parse_diff_hunks(instruction_diff)),
             summary_groups(trials_of(run, finished_only=False)),
         )
@@ -649,12 +696,12 @@ def write_decisions(run, raw, counts, extractor, instruction_diff):
         (run / "decisions.raw.txt").write_text(raw)
         return False
     data["extractor"] = extractor
-    data["counts"] = counts
+    data["counts"] = {side: len(names) for side, names in completed_trial_names.items()}
     data["instruction_diff"] = instruction_diff
     (run / "decisions.json").write_text(json.dumps(data, indent=2))
     n_div = sum(r["diverges"] for r in data["chain"])
     drop_note = (
-        f", {data['dropped']} row(s) dropped for inconsistent counts"
+        f", {data['dropped']} row(s) dropped for inconsistent trial membership"
         if data["dropped"]
         else ""
     )
@@ -666,7 +713,7 @@ def write_decisions(run, raw, counts, extractor, instruction_diff):
 
 
 def main(run, agent=None, model=None):
-    prompt, counts, instruction_diff = build_prompt(run)
+    prompt, completed_trial_names, instruction_diff = build_prompt(run)
     if prompt is None:
         print(NEED_TRIALS)
         return
@@ -674,7 +721,7 @@ def main(run, agent=None, model=None):
     if raw is None:
         print("decision diff: no extractor succeeded — skipped")
         return
-    write_decisions(run, raw, counts, extractor, instruction_diff)
+    write_decisions(run, raw, completed_trial_names, extractor, instruction_diff)
 
 
 def emit_prompt(run):
@@ -690,7 +737,7 @@ def emit_prompt(run):
 
 def ingest(run, reply_file, label):
     """Use emitted diff provenance when present; direct ingest uses the current diff."""
-    prompt, counts, instruction_diff = build_prompt(run)
+    prompt, completed_trial_names, instruction_diff = build_prompt(run)
     if prompt is None:
         sys.exit(NEED_TRIALS)
     context_path = run / "decisions.prompt.json"
@@ -703,7 +750,7 @@ def ingest(run, reply_file, label):
         except (OSError, ValueError, KeyError, TypeError):
             instruction_diff = ""
     raw = Path(reply_file).read_text()
-    if not write_decisions(run, raw, counts, label, instruction_diff):
+    if not write_decisions(run, raw, completed_trial_names, label, instruction_diff):
         sys.exit(1)
 
 
@@ -712,14 +759,20 @@ def self_check():
         print(f"[decisions] {message}", flush=True)
 
     progress("Normalize decision rows and parse extractor JSON")
-    counts = {"before": 3, "after": 3}
+    counts = {
+        "before": ["before-1", "before-2", "before-3"],
+        "after": ["after-1", "after-2", "after-3"],
+    }
     good = {
         "chain": [
             {
                 "decision": "What verdict shape?",
                 "anchor": "answer",
-                "before": [{"choice": "PASS", "n": 2}, {"choice": "FAIL", "n": 1}],
-                "after": [{"choice": "score /100", "n": 3}],
+                "before": [
+                    {"choice": "PASS", "trials": counts["before"][:2]},
+                    {"choice": "FAIL", "trials": counts["before"][2:]},
+                ],
+                "after": [{"choice": "score /100", "trials": counts["after"]}],
                 "diverges": True,
                 "edit_hunks": [2],
             },
@@ -727,16 +780,16 @@ def self_check():
                 "decision": "How is correctness established?",
                 "anchor": 2,
                 "topic": "Correctness check",
-                "before": [{"choice": "ran the program", "n": 3}],
-                "after": [{"choice": "traced by hand", "n": 3}],
+                "before": [{"choice": "ran the program", "trials": counts["before"]}],
+                "after": [{"choice": "traced by hand", "trials": counts["after"]}],
                 "diverges": True,
                 "edit_hunks": [1, 2],
             },
             {
-                "decision": "bad row, counts do not add up",
+                "decision": "bad row, membership is incomplete",
                 "anchor": 1,
-                "before": [{"choice": "x", "n": 1}],
-                "after": [{"choice": "y", "n": 3}],
+                "before": [{"choice": "x", "trials": counts["before"][:1]}],
+                "after": [{"choice": "y", "trials": counts["after"]}],
                 "diverges": False,
             },
         ],
@@ -751,6 +804,72 @@ def self_check():
             {"text": "Unsupported claim from a dropped row.", "decisions": [1, 3]},
         ],
     }
+    # Synthetic memberships establish counts; model-authored n cannot override them.
+    inflated = {
+        **good,
+        "chain": [
+            {
+                **good["chain"][1],
+                "before": [{**good["chain"][1]["before"][0], "n": 999}],
+            }
+        ],
+    }
+    audited = normalize(inflated, counts)
+    assert audited["chain"][0]["before"] == [
+        {"choice": "ran the program", "trials": counts["before"], "n": 3}
+    ]
+    assert audited["chain"][0]["after"][0]["n"] == 3
+    for invalid_names in (
+        {"before": 3, "after": 3},
+        {**counts, "before": []},
+        {**counts, "before": [*counts["before"], "before-1"]},
+        {**counts, "before": counts["after"]},
+    ):
+        try:
+            normalize(good, invalid_names)
+        except ValueError:
+            pass
+        else:
+            raise AssertionError("Invalid completed trial identities were accepted")
+    for side in ("before", "after"):
+        opposite = "after" if side == "before" else "before"
+        malformed_assignments = [
+            None,
+            [],
+            [{"choice": "A", "trials": side + "-1"}],
+            [{"choice": "A", "trials": [True]}],
+            [{"choice": "A", "trials": []}],
+            [{"choice": "A", "trials": counts[side][:2]}],
+            [{"choice": "A", "trials": [*counts[side], side + "-foreign"]}],
+            [{"choice": "A", "trials": counts[opposite]}],
+            [{"choice": "A", "trials": [*counts[side], counts[side][0]]}],
+            [
+                {"choice": "A", "trials": counts[side]},
+                {"choice": "B", "trials": counts[side][:1]},
+            ],
+            [
+                {"choice": "A", "trials": counts[side][:2]},
+                {"choice": "A", "trials": counts[side][2:]},
+            ],
+        ]
+        for branches in malformed_assignments:
+            candidate = {
+                **good,
+                "chain": [{**good["chain"][0], side: branches}, good["chain"][1]],
+                "outcome": 1,
+                "implications": [
+                    {"text": "Lost evidence.", "decisions": [1, 2]},
+                    {"text": "Retained evidence.", "decisions": [2]},
+                ],
+            }
+            rejected = normalize(candidate, counts)
+            assert rejected["dropped"] == 1, rejected
+            assert len(rejected["chain"]) == 1, rejected
+            assert rejected["fork"] == 1, rejected
+            assert rejected["outcome"] is None, rejected
+            assert rejected["implications"] == [
+                {"text": "Retained evidence.", "decisions": [1]}
+            ], rejected
     out = normalize(good, counts, 2)
     assert len(out["chain"]) == 2, out  # bad row dropped
     assert out["dropped"] == 1, out  # ...and counted, not silent
@@ -769,7 +888,7 @@ def self_check():
         invalid = {**good, "chain": [{**good["chain"][1], "edit_hunks": references}]}
         normalized = normalize(invalid, counts, 2)
         assert normalized["chain"][0]["edit_hunks"] == [], normalized
-        assert normalized["chain"][0]["before"] == good["chain"][1]["before"]
+        assert normalized["chain"][0]["before"] == out["chain"][0]["before"]
         assert normalized["dropped"] == 0
 
     # Edit citations never follow sorted/dropped decision indexes.
@@ -839,13 +958,13 @@ def self_check():
         normalized = normalize(invalid, counts)
         assert normalized["outcome"] is None
         assert normalized["implications"] == []
-    # Neither negative counts nor the model's divergence flag can imply a valid change.
+    # Count-only raw extraction is not a compatibility path.
     invalid_counts = {
         "chain": [
             {
                 "decision": "What outcome?",
                 "anchor": "answer",
-                "before": [{"choice": "A", "n": 4}, {"choice": "B", "n": -1}],
+                "before": [{"choice": "A", "n": 3}],
                 "after": [{"choice": "A", "n": 3}],
             }
         ]
@@ -856,15 +975,15 @@ def self_check():
             {
                 "decision": "What outcome?",
                 "anchor": "answer",
-                "before": [{"choice": "A", "n": 2}],
-                "after": [{"choice": "A", "n": 3}],
+                "before": [{"choice": "A", "trials": counts["before"][:2]}],
+                "after": [{"choice": "A", "trials": counts["after"]}],
                 "diverges": True,
                 "edit_hunks": [1],
             }
         ],
         "fork": 1,
     }
-    normalized = normalize(proportional, {"before": 2, "after": 3}, 1)
+    normalized = normalize(proportional, {**counts, "before": counts["before"][:2]}, 1)
     assert not normalized["chain"][0]["diverges"]
     assert normalized["fork"] is None
     assert normalized["chain"][0]["edit_hunks"] == [1]
@@ -1140,8 +1259,10 @@ def self_check():
                             "topic": "Verdict shape",
                             "decision": "What verdict shape?",
                             "anchor": "answer",
-                            "before": [{"choice": "prose", "n": 1}],
-                            "after": [{"choice": "flagged item", "n": 1}],
+                            "before": [{"choice": "prose", "trials": ["before-1"]}],
+                            "after": [
+                                {"choice": "flagged item", "trials": ["after-1"]}
+                            ],
                             "diverges": True,
                             "edit_hunks": [1],
                         }
@@ -1163,6 +1284,12 @@ def self_check():
         assert len(data["chain"]) == 1, data
         assert data["extractor"] == "subagent:sonnet", data
         assert data["counts"] == {"before": 1, "after": 1}, data
+        assert data["chain"][0]["before"] == [
+            {"choice": "prose", "trials": ["before-1"], "n": 1}
+        ], data
+        assert data["chain"][0]["after"] == [
+            {"choice": "flagged item", "trials": ["after-1"], "n": 1}
+        ], data
         assert data["chain"][0]["edit_hunks"] == []
         assert data["intent"] is None
 
@@ -1313,8 +1440,8 @@ print(os.environ["EXTRACTOR_REPLY"])
                     {
                         "decision": "Which result?",
                         "anchor": "answer",
-                        "before": [{"choice": "before", "n": 1}],
-                        "after": [{"choice": "after", "n": 1}],
+                        "before": [{"choice": "before", "trials": ["before-1"]}],
+                        "after": [{"choice": "after", "trials": ["after-1"]}],
                         "diverges": True,
                     }
                 ],
