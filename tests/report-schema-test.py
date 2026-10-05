@@ -2,6 +2,7 @@
 import contextlib
 import copy
 import importlib.util
+import html
 import io
 import json
 import os
@@ -25,12 +26,17 @@ from reporting.schema import (  # noqa: E402
     ReportData,
     TrialData,
 )
+from reporting.trial_summary import (  # noqa: E402
+    TrialSummaryData,
+    parse_trial_summaries,
+    trial_group_names,
+)
 from report_fixtures import SCENARIOS, build_reports  # noqa: E402
 
 
 def synthetic_raw():
     raw = {
-        "schema_version": 7,
+        "schema_version": 8,
         "metadata": {
             "model": "synthetic/model",
             "mode": "review",
@@ -193,6 +199,24 @@ def synthetic_raw():
             ],
             "narrative": None,
             "intent": None,
+            "trial_summaries": [
+                {
+                    "before_trial": "before-1",
+                    "after_trial": "after-1",
+                    "takeaway": "The after record adds testing to the file review.",
+                    "before": "The before record shows a file read.",
+                    "after": "The after record shows a file read and a test command.",
+                    "caveat": "The recorded test command alone does not establish success.",
+                },
+                {
+                    "before_trial": "before-2",
+                    "after_trial": "after-2",
+                    "takeaway": "Both records show the same search activity.",
+                    "before": "The before record shows a file search.",
+                    "after": "The after record shows a file search.",
+                    "caveat": "",
+                },
+            ],
         },
     }
     from reporting.schema import _decisions, _metadata, _variants
@@ -490,6 +514,152 @@ def assert_evidence_links(report):
                 assert target in links.targets and target in links.ids
                 assert f"](#{target})" in markdown
                 assert f'id="{target}"' in markdown
+
+
+def assert_guided_report_structure(report):
+    """Navigation and paired records retain evidence without inventing pairing."""
+    from reporting.render_html import render_artifact
+    from reporting.render_markdown import render_markdown
+
+    diff = (
+        "--- a/WORKFLOW.md\n+++ b/WORKFLOW.md\n"
+        "@@ -20,2 +20,2 @@ Questions\n-old questions\n+new questions\n context\n"
+        "@@ -26 +26 @@ Transition\n-old gate\n+new gate\n"
+    )
+    labels = [content.instruction_hunk_label(diff, number) for number in (1, 2)]
+    assert labels[0] != labels[1], "Neighboring edit blocks need distinct locations."
+    assert "Questions" in labels[0] and "Transition" in labels[1]
+    assert "20" in labels[0] and "21" in labels[0] and "26" in labels[1]
+    raw_lines = tuple(content.instruction_diff_lines(diff))
+    assert tuple(line for line, _ in raw_lines) == tuple(diff.splitlines())
+    assert tuple(number for _, number in raw_lines if number) == (1, 2)
+
+    class Evidence(HTMLParser):
+        def __init__(self):
+            super().__init__()
+            self.in_trials = False
+            self.details = 0
+            self.pre = None
+            self.visible_answers = []
+            self.ids = []
+            self.primary_targets = []
+            self.missing_cells = 0
+
+        def handle_starttag(self, tag, attrs):
+            attrs = dict(attrs)
+            anchor = attrs.get("id", "")
+            if anchor:
+                self.ids.append(anchor)
+            if anchor == "panel-trials":
+                self.in_trials = True
+            if tag == "details":
+                self.details += 1
+            if tag == "pre" and self.in_trials and self.details == 0:
+                self.pre = []
+            if (
+                tag == "a"
+                and "summary-evidence-button" in attrs.get("class", "").split()
+            ):
+                self.primary_targets.append(attrs["href"])
+            if "trial-missing" in attrs.get("class", "").split():
+                self.missing_cells += 1
+
+        def handle_data(self, text):
+            if self.pre is not None:
+                self.pre.append(text)
+
+        def handle_endtag(self, tag):
+            if tag == "pre" and self.pre is not None:
+                self.visible_answers.append("".join(self.pre))
+                self.pre = None
+            if tag == "details":
+                self.details -= 1
+
+    first = replace(
+        report.variants.before.trials[0],
+        final="Before evidence | workflow feedback run 1",
+        commands=("printf 'before|one'\nprintf 'before-two'",),
+    )
+    second = replace(
+        report.variants.after.trials[0],
+        final="After evidence | workflow feedback run 1",
+        verdict="BLOCKED",
+        commands=(),
+    )
+    missing = replace(second, name="after-missing", final="")
+    specimen = replace(
+        report,
+        variants=replace(
+            report.variants,
+            before=replace(report.variants.before, trials=(first,), total=1, valid=1),
+            after=replace(
+                report.variants.after,
+                trials=(second, missing),
+                total=2,
+                valid=1,
+                blocked=1,
+            ),
+        ),
+    )
+    assert_evidence_links(specimen)
+    for rendered, is_html in (
+        (render_artifact(specimen, ""), True),
+        (render_markdown(specimen), False),
+    ):
+        evidence = Evidence()
+        evidence.feed(rendered)
+        for panel in ("summary", "instruction", "decision", "flow", "trials"):
+            assert f"panel-{panel}" in evidence.ids
+        assert [
+            anchor
+            for anchor in evidence.ids
+            if re.fullmatch(r"trial-group-\d+", anchor)
+        ] == [content.trial_group_anchor(1), content.trial_group_anchor(2)], (
+            "Unequal sides lost a shared trial group."
+        )
+        before_anchor = content.trial_anchor("before", first.name)
+        after_anchor = content.trial_anchor("after", second.name)
+        assert evidence.ids.index(before_anchor) < evidence.ids.index(after_anchor)
+        assert first.final in evidence.visible_answers
+        assert second.final in evidence.visible_answers
+        assert content.NO_FINAL_ANSWER in rendered
+        assert "BLOCKED" in rendered
+        assert evidence.missing_cells, (
+            "An unequal side needs an explicit missing-record cell."
+        )
+        assert "workflow feedback run 1" in rendered, (
+            "Domain run terminology was rewritten."
+        )
+        if is_html:
+            assert evidence.primary_targets == [
+                f"#decision-{report.summary.decision}"
+                if report.summary.decision is not None
+                and report.summary.status != "unavailable"
+                else "#panel-trials"
+            ], "The Summary must have one primary evidence destination."
+
+    # Independently retained records remain navigable without an extraction.
+    unavailable = replace(
+        report,
+        decisions=replace(report.decisions, rows=(), outcome=None, narrative=None),
+    )
+    from reporting.summary import build_summary
+
+    unavailable = replace(
+        unavailable,
+        summary=build_summary(
+            unavailable.metadata, unavailable.variants, unavailable.decisions
+        ),
+    )
+    assert_evidence_links(unavailable)
+    assert unavailable.summary.status == "unavailable"
+    assert unavailable.summary.before.choices == unavailable.summary.after.choices == ()
+    assert unavailable.summary.why is None and unavailable.summary.caution is None
+    for render in (lambda value: render_artifact(value, ""), render_markdown):
+        rendered = render(unavailable)
+        for variant in (report.variants.before, report.variants.after):
+            for trial in variant.trials:
+                assert html.escape(trial.final) in rendered
 
 
 def assert_no_invented_causality():
@@ -1181,6 +1351,25 @@ def assert_gallery_reports():
                 for index in report.result.behavior
             ), "An answer detail appeared as an action change."
 
+        mixed_summaries = reports["mixed"].decisions.trial_summaries
+        assert len(mixed_summaries) == 3
+        assert "changes" in mixed_summaries[0].takeaway
+        assert "changes" in mixed_summaries[1].takeaway
+        assert mixed_summaries[2].takeaway.startswith("Both reviews")
+        assert "changes" not in mixed_summaries[2].takeaway
+        assert reports["missing-extraction"].decisions.trial_summaries == ()
+        for name, report in reports.items():
+            if name != "missing-extraction":
+                assert len(report.decisions.trial_summaries) == 3, name
+            for number, summary in enumerate(report.decisions.trial_summaries):
+                assert (
+                    summary.before_trial == report.variants.before.trials[number].name
+                )
+                assert summary.after_trial == report.variants.after.trials[number].name
+        assert reports["planned-actions"].decisions.trial_summaries[0].caveat == (
+            "Neither proposed step is recorded as executed."
+        )
+
         assert content.flow_patterns(reports["same-result"].command_flow) == (
             (("Read files",), 3, 3),
         ), "Different files must not become different command categories."
@@ -1246,13 +1435,412 @@ def assert_gallery_reports():
         assert list(root.iterdir()) == [sentinel], "Refusal left partial gallery files."
 
 
+def assert_trial_summary_rendering(report):
+    """Every group leads with its own short summary while retaining complete evidence."""
+    from unittest.mock import patch
+
+    from reporting.render_html import render_artifact
+    from reporting.render_markdown import render_markdown
+
+    def rendered_groups(specimen):
+        with patch(
+            "subprocess.run", side_effect=AssertionError("Rendering called a process")
+        ):
+            outputs = (render_artifact(specimen, ""), render_markdown(specimen))
+        for rendered in outputs:
+            for number in range(
+                1,
+                max(
+                    len(specimen.variants.before.trials),
+                    len(specimen.variants.after.trials),
+                )
+                + 1,
+            ):
+                group = rendered.split(f'id="trial-group-{number}"', 1)[1]
+                group = group.split(f'id="trial-group-{number + 1}"', 1)[0]
+                yield number, group
+
+    for number, group in rendered_groups(report):
+        summary = report.decisions.trial_summaries[number - 1]
+        plain = html.unescape(group).replace("\\", "")
+        assert plain.index(content.TRIAL_CHANGE_HEADING) < plain.index(summary.takeaway)
+        assert plain.index(summary.takeaway) < plain.index(content.FINAL_ANSWER_HEADING)
+        assert summary.before in plain and summary.after in plain
+        assert summary.caveat in plain
+        for variant in (report.variants.before, report.variants.after):
+            trial = variant.trials[number - 1]
+            assert html.escape(trial.final) in group
+            for command in trial.commands:
+                assert html.escape(command) in group
+        if number == 2:
+            assert report.decisions.trial_summaries[0].takeaway not in plain
+
+    first, second = report.decisions.trial_summaries
+    for summaries in (
+        (),
+        (replace(first, after_trial=second.after_trial),),
+        (first, first),
+        (first, replace(first, before="Different duplicate description.")),
+    ):
+        specimen = replace(
+            report, decisions=replace(report.decisions, trial_summaries=summaries)
+        )
+        for _, group in rendered_groups(specimen):
+            plain = html.unescape(group).replace("\\", "")
+            assert content.TRIAL_SUMMARY_UNAVAILABLE in plain
+            assert first.takeaway not in plain
+            assert second.takeaway not in plain
+            for trial in report.variants.before.trials + report.variants.after.trials:
+                if html.escape(trial.name) in group:
+                    assert html.escape(trial.final) in group
+
+    one_side = replace(
+        second,
+        before_trial="",
+        before="",
+        takeaway="Only the after review is recorded in this group.",
+    )
+    unequal = replace(
+        report,
+        variants=replace(
+            report.variants,
+            before=replace(
+                report.variants.before, trials=report.variants.before.trials[:1]
+            ),
+        ),
+        decisions=replace(report.decisions, trial_summaries=(first, one_side)),
+    )
+    for number, group in rendered_groups(unequal):
+        if number == 2:
+            plain = html.unescape(group).replace("\\", "")
+            assert one_side.takeaway in plain and one_side.after in plain
+            assert "No trial record on this side." in plain
+            assert html.escape(report.variants.after.trials[1].final) in group
+
+    payload = '<script>alert("synthetic")</script> & [link](javascript:alert(1))'
+    unsafe = replace(
+        report,
+        decisions=replace(
+            report.decisions,
+            trial_summaries=(
+                replace(
+                    first,
+                    takeaway=payload,
+                    before=payload,
+                    after=payload,
+                    caveat=payload,
+                ),
+                second,
+            ),
+        ),
+    )
+    for baseline, rendered in (
+        (render_artifact(report, ""), render_artifact(unsafe, "")),
+        (render_markdown(report), render_markdown(unsafe)),
+    ):
+        assert_unchanged_scripts(baseline, rendered)
+        assert "&lt;script&gt;" in rendered
+
+
+def assert_trial_summary_validation(raw):
+    """Optional copy is bounded, canonical, and attached only to its own group."""
+    groups = (("before-1", "after-1"), ("before-2", "after-2"))
+    first, second = copy.deepcopy(raw["decisions"]["trial_summaries"])
+    expected = tuple(TrialSummaryData(**item) for item in (first, second))
+    assert parse_trial_summaries([second, first], groups) == expected
+    assert parse_trial_summaries([dict(first, caveat="")], groups)[0].caveat == ""
+    without_caveat = dict(first)
+    del without_caveat["caveat"]
+    assert parse_trial_summaries([without_caveat], groups)[0].caveat == ""
+    assert (
+        parse_trial_summaries([dict(first, takeaway="  Short finding.  ")], groups)[
+            0
+        ].takeaway
+        == "Short finding."
+    )
+    for field in ("takeaway", "before", "after", "caveat"):
+        for text in ("x" * 240, " ".join(["word"] * 40)):
+            accepted = parse_trial_summaries([dict(first, **{field: text})], groups)
+            assert accepted and getattr(accepted[0], field) == text
+        for text in (
+            "x" * 241,
+            " ".join(["word"] * 41),
+            "Two\nlines",
+            "Two\tcolumns",
+            "Control\x7f",
+            "<script>unsafe</script>",
+            "`command dump`",
+            "**Markdown emphasis**",
+            "[Markdown link](https://example.invalid)",
+            False,
+            None,
+            [],
+        ):
+            assert parse_trial_summaries([dict(first, **{field: text})], groups) == ()
+    for field in ("takeaway", "before", "after"):
+        assert parse_trial_summaries([dict(first, **{field: " "})], groups) == ()
+        missing = dict(first)
+        del missing[field]
+        assert parse_trial_summaries([missing], groups) == ()
+    for malformed in (None, False, {}, "summary", [None], [[]]):
+        assert parse_trial_summaries(malformed, groups) == ()
+    for invalid in (
+        dict(first, before_trial=True),
+        dict(first, after_trial=None),
+        dict(first, before_trial="after-1"),
+        dict(first, before_trial="", after_trial=""),
+        dict(first, before_trial="before-1 ", after_trial="after-1"),
+        dict(first, before_trial="before-1", after_trial="after-2"),
+        dict(first, before_trial="before-unknown"),
+    ):
+        assert parse_trial_summaries([invalid, second], groups) == (expected[1],)
+    assert parse_trial_summaries([first, first, second], groups) == (expected[1],)
+    assert parse_trial_summaries(
+        [first, dict(first, takeaway=False), second], groups
+    ) == (expected[1],), "A malformed duplicate must not leave an arbitrary winner."
+
+    one_sided = dict(first, before_trial="", before="")
+    absent_groups = (("", "after-1"),)
+    assert parse_trial_summaries([one_sided], absent_groups) == (
+        TrialSummaryData(**one_sided),
+    )
+    assert (
+        parse_trial_summaries([dict(one_sided, before="No work.")], absent_groups) == ()
+    )
+    other_side = dict(first, after_trial="", after="")
+    assert parse_trial_summaries([other_side], (("before-1", ""),)) == (
+        TrialSummaryData(**other_side),
+    )
+    assert trial_group_names(("before-10", "before-2"), ("after-alpha",)) == (
+        ("before-10", "after-alpha"),
+        ("before-2", ""),
+    )
+
+    canonical_error = (
+        "invalid report-data field decisions.trial_summaries: "
+        "expected valid canonical trial group summaries"
+    )
+    for invalid in (
+        None,
+        {},
+        [dict(first, takeaway=" padded ")],
+        [dict(first, after_trial="after-2")],
+        [first, first],
+        [second, first],
+        [dict(first, extra="not part of the contract")],
+        [dict(first, before=False)],
+    ):
+        specimen = copy.deepcopy(raw)
+        specimen["decisions"]["trial_summaries"] = invalid
+        assert_rejected(specimen, canonical_error)
+    empty = copy.deepcopy(raw)
+    empty["decisions"]["trial_summaries"] = []
+    assert assert_round_trip(empty).decisions.trial_summaries == ()
+    missing = copy.deepcopy(raw)
+    del missing["decisions"]["trial_summaries"]
+    assert_rejected(
+        missing,
+        "invalid report-data field decisions.trial_summaries: expected present field",
+    )
+    assert_rejected(
+        dict(raw, schema_version=7), "unsupported report-data schema version: 7"
+    )
+
+
+def assert_trial_summary_pipeline():
+    """Production prompt, ingestion, loading, and offline rendering share identities."""
+    import decisions
+    from reporting.load import load_report
+
+    with tempfile.TemporaryDirectory() as directory:
+        run = Path(directory)
+        (run / "task.md").write_text("Review the synthetic widget without changing it.")
+        (run / "config.json").write_text(
+            json.dumps(
+                {"mode": "review", "vocab": "generic", "target_file": "AGENTS.md"}
+            )
+        )
+        names = (
+            "before-review-extra",
+            "after-alpha",
+            "before-02",
+            "after-10",
+            "after-z-missing",
+        )
+        (run / "grades.tsv").write_text(
+            "".join(
+                f"{name}\t{'BLOCKED' if name == 'after-z-missing' else 'REVIEW'}\t-\n"
+                for name in names
+            )
+        )
+        for name in names[:-1]:
+            trial = run / name
+            trial.mkdir()
+            (trial / "trace.jsonl").write_text(
+                "\n".join(
+                    json.dumps(event)
+                    for event in (
+                        False,
+                        {"type": "assistant", "message": {"content": [False]}},
+                        {
+                            "type": "assistant",
+                            "message": {
+                                "content": [
+                                    {
+                                        "type": "tool_use",
+                                        "input": {
+                                            "command": "read synthetic-widget.txt"
+                                        },
+                                    }
+                                ]
+                            },
+                        },
+                        {
+                            "type": "result",
+                            "result": f"Complete synthetic answer for {name}.",
+                        },
+                    )
+                )
+            )
+        # Unlisted directories cannot shift the report's persisted groups.
+        (run / "before-00-ungraded").mkdir()
+        all_trials = decisions.trials_of(run, finished_only=False)
+        groups = decisions.summary_groups(all_trials)
+        assert groups == (
+            ("before-02", "after-10"),
+            ("before-review-extra", "after-alpha"),
+            ("", "after-z-missing"),
+        )
+        prompt, counts, instruction_diff = decisions.build_prompt(run)
+        assert counts == {"before": 2, "after": 2}
+        assert "NOT paired executions" in prompt
+        assert "aggregate decision counts" in prompt
+        assert "before-00-ungraded" not in prompt
+        assert "(not recorded)" in prompt and "after-z-missing" in prompt
+        encoded_groups = json.dumps(
+            [
+                {"before_trial": before, "after_trial": after}
+                for before, after in groups
+            ],
+            ensure_ascii=False,
+            indent=2,
+        )
+        assert encoded_groups in prompt
+        summaries = [
+            {
+                "before_trial": before,
+                "after_trial": after,
+                "takeaway": (
+                    "Both records show a file read."
+                    if before
+                    else "Only an incomplete after record is available."
+                ),
+                "before": "The before record shows a file read." if before else "",
+                "after": (
+                    "The after record shows a file read."
+                    if before
+                    else "The after record has no recorded final answer."
+                ),
+                "caveat": ""
+                if before
+                else "No before record is available in this group.",
+            }
+            for before, after in groups
+        ]
+        extraction = {
+            "chain": [
+                {
+                    "decision": "Which evidence was recorded?",
+                    "topic": "File review",
+                    "anchor": 1,
+                    "before": [{"choice": "read", "n": 2}],
+                    "after": [{"choice": "read", "n": 2}],
+                }
+            ],
+            "trial_summaries": summaries,
+        }
+        with contextlib.redirect_stdout(io.StringIO()):
+            assert decisions.write_decisions(
+                run,
+                json.dumps(extraction),
+                counts,
+                "synthetic/no-model",
+                instruction_diff,
+            )
+        saved = json.loads((run / "decisions.json").read_text())
+        assert saved["trial_summaries"] == summaries
+        report = load_report(run, run, "synthetic/no-model", run / "config.json")
+        assert [
+            (item.before_trial, item.after_trial)
+            for item in report.decisions.trial_summaries
+        ] == list(groups)
+        assert report.variants.after.trials[-1].final == ""
+        assert report.variants.after.trials[-1].verdict == "BLOCKED"
+        assert assert_round_trip(report.to_dict()) == report
+        baseline_trials = report.variants
+        baseline_rows = report.decisions.rows
+        for malformed in (
+            None,
+            "not a list",
+            [dict(summaries[0], after_trial="after-alpha")],
+            [dict(summaries[0], takeaway="x" * 241)],
+            [summaries[0], summaries[0]],
+        ):
+            normalized = decisions.normalize(
+                dict(extraction, trial_summaries=malformed), counts, groups=groups
+            )
+            assert normalized["trial_summaries"] == []
+            assert len(normalized["chain"]) == 1
+            saved["trial_summaries"] = malformed
+            (run / "decisions.json").write_text(json.dumps(saved))
+            loaded = load_report(run, run, "synthetic/no-model", run / "config.json")
+            assert loaded.decisions.trial_summaries == ()
+            assert loaded.decisions.rows == baseline_rows
+            assert loaded.variants == baseline_trials
+        del saved["trial_summaries"]
+        (run / "decisions.json").write_text(json.dumps(saved))
+        loaded = load_report(run, run, "synthetic/no-model", run / "config.json")
+        assert loaded.decisions.rows == baseline_rows
+        # A valid local summary is independent of invalid aggregate observations.
+        summary_only = dict(extraction, chain=[{"decision": "Bad row."}])
+        with contextlib.redirect_stdout(io.StringIO()):
+            assert decisions.write_decisions(
+                run,
+                json.dumps(summary_only),
+                counts,
+                "synthetic/no-model",
+                instruction_diff,
+            )
+        loaded = load_report(run, run, "synthetic/no-model", run / "config.json")
+        assert loaded.decisions.rows == ()
+        assert len(loaded.decisions.trial_summaries) == 3
+        assert loaded.variants == baseline_trials
+        from reporting.render_html import render_artifact
+        from reporting.render_markdown import render_markdown
+
+        for rendered in (render_artifact(loaded, ""), render_markdown(loaded)):
+            plain = html.unescape(rendered).replace("\\", "")
+            assert summaries[0]["takeaway"] in plain
+            assert summaries[-1]["takeaway"] in plain
+            assert content.TRIAL_SUMMARY_UNAVAILABLE not in plain
+            assert content.NO_FINAL_ANSWER in plain
+            for variant in (loaded.variants.before, loaded.variants.after):
+                for trial in variant.trials:
+                    if trial.final:
+                        assert html.escape(trial.final) in rendered
+
+
 def main():
     assert_render_import_safe()
     raw = synthetic_raw()
     report = assert_round_trip(raw)
+    assert_trial_summary_validation(raw)
+    assert_trial_summary_pipeline()
+    assert_trial_summary_rendering(report)
     assert_summary_evidence(report)
     assert_summary_boundaries(report)
     assert_evidence_links(report)
+    assert_guided_report_structure(report)
     assert_no_invented_causality()
     assert_tab_comparison_boundaries(report)
     assert_flow_pattern_boundaries()
@@ -1371,8 +1959,6 @@ def main():
         (render_markdown(report), render_markdown(escaping_report)),
     ):
         assert_unchanged_scripts(baseline, rendered)
-    assert 'class="badge review&quot;&gt;&lt;script&gt;&amp;"' in escaping_artifact
-    assert "REVIEW&quot;&gt;&lt;script&gt;&amp;</span>" in escaping_artifact
     unsafe_summary = copy.deepcopy(raw)
     payload = '<script>alert("x")</script>|[link](javascript:alert(1))'
     unsafe_summary["result"]["text"] = payload

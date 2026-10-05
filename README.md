@@ -153,53 +153,59 @@ IDs when comparisons across runs must retain the same model version.
 ## Read the report
 
 A **run** compares the instruction versions. A **trial** is one agent execution on
-one side. Each run creates a local HTML report with up to four tabs:
+one side. Each run creates a local HTML report with five tabs:
 
-- **Summary** tells a short story: what the instruction edit aims to change,
-  what happened in the scenario, and what the observations mean. Illustrated
-  Before/After cards retain exact counts and distinguish plans, answers, and
-  recorded actions. Mixed results and evidence gaps remain visible.
-  **Other findings** contains at most three compact comparisons, with a link
-  to all decisions. **Full scenario and expected behavior** explains the
-  simulated situation, compared instruction versions, trial counts, model,
-  and evidence type. **View full scenario prompt** expands the saved task,
-  including its constraints, without crowding the explanation. Supplied
-  expectations stay distinct from results; missing expectations are explicit.
-  **Instruction edit** explains the saved aim in plain language above the
-  complete diff, filename, and line counts. **Likely aim** marks an inferred
-  interpretation; **Supplied expectation** marks an explicit expectation.
-  Missing explanations stay unavailable. There is no duplicate excerpt or
-  second diff toggle. Evidence links open the exact diff hunk. Complete
+- **Summary** tells a numbered story: the intended change, what the evidence
+  shows, and what it means. Illustrated Before/After cards retain exact counts
+  and distinguish plans, answers, and recorded actions. Mixed results and
+  evidence gaps remain visible. **View this comparison** opens the supporting
+  comparison, or links to trial records when extraction is unavailable.
+  **Full scenario and expected behavior** explains the simulated situation,
+  instruction versions, trial setup, and supplied expectation or its absence.
+  **View full scenario prompt** is nested inside that disclosure.
+  **Other findings** contains at most three additional comparisons; complete
   evidence limits remain in their own disclosure.
-- **Decision diff** shows an ordered, two-lane comparison. Before and After
-  choices align at each decision in the model-extracted order, with all trial
-  counts visible. Mixed choices stay within each decision, not in connected branches.
+- **Instruction changes** shows the saved aim, filename, line counts, and
+  complete instruction diff. **Likely aim** marks an inferred interpretation;
+  **Supplied expectation** marks an explicit expectation. Missing explanations
+  stay unavailable. Section or line-range links select a diff block, highlight
+  its changed lines, and scroll to it without hiding the rest of the diff.
+  Related edits are interpretations, not causal proof.
+- **Behavior diff** shows an ordered, two-lane comparison. Before and After
+  behaviors align at each comparison in the model-extracted order, with all
+  trial counts visible. Mixed behaviors stay within each comparison, not in
+  connected branches.
 
-  Amber marks changed choices. Teal marks unchanged choices or matching choice
-  proportions. Gray marks unavailable comparisons. Text labels distinguish these
-  states. Colors do not mean success or failure.
-  The **Decision labels** info popup groups definitions by comparison status,
-  decision role, and evidence source.
+  Amber marks changed comparisons, teal marks unchanged or matching
+  proportions, and gray marks unavailable comparisons. The info popup beside
+  the heading separates comparison status, decision role, and evidence source.
+  Blue identifies actions, violet the primary result, and indigo answer
+  details; teal identifies recorded-command sources and amber final-answer
+  sources. Labels and colors do not mean success or failure.
 
-  Blue identifies actions and command evidence. Violet identifies the primary
-  result. Indigo identifies answer details and final-answer evidence.
-  The popup and decision badges use the same colors.
+  Open a comparison to inspect its question, source, notes, related edits,
+  and supporting **Trial 1 / Trial 2 / Trial 3** links. Each is a separately
+  spaced link to a complete Before/After trial group; links wrap on narrow screens.
+  The report states when individual-trial
+  attribution is unavailable. **Expand all** and **Collapse all** control
+  comparison disclosures. The comparison order is not an execution path.
+- **Flow diff** groups only identical complete recorded command sequences,
+  retaining counts and links to every contributing trial. Different paths
+  remain separate. A table also compares command-category combinations.
+  Without captured command evidence, the tab explains why flow is unavailable;
+  it does not infer commands from answers or self-reported actions.
+- **Trial evidence** aligns Before on the left and After on the right within
+  each numbered group, including on mobile. **What changed** gives a short
+  takeaway, one sentence per side, and a caveat only when needed. These
+  model-written summaries describe that group's records, not aggregate counts.
+  Full final answers remain visible below. Shared supporting-detail and command
+  disclosures open both sides
+  together; **Show both** and **Hide both** control a whole group. Missing
+  records remain explicit. Trial numbers align records for reading, not paired
+  execution: Before and After trials are independent.
 
-  Each decision keeps its original number, topic, and role. Open it to inspect
-  the full question, source, notes, related edit hunks, and trial links.
-  Several decisions can stay open. Direct links open the matching decision or
-  diff hunk, and **Expand all** shows all evidence.
-
-  Printing includes all evidence. Markdown keeps the same decision order with
-  comparisons fully expanded. The sequence is not a recorded execution path or
-  proof of causality.
-- **Flow diff** starts with each side's recorded command progression. Identical
-  recorded sequences share a path with counts and links to their trial evidence.
-  A separate table compares command-category combinations. This tab appears only
-  when the run captured tool calls.
-- **Trial evidence** shows each trial's recorded commands or self-reported actions
-  and its final answer. Before and After trials are independent, even when their
-  numbers match. Side labels and trial counts remain visible on mobile.
+Printing includes all tabs and disclosure content, with legends below their
+headings. The screen's disclosure states are restored afterward.
 
 Start with the instruction edit and the prominent comparisons. **Final result**
 still means the primary result identified by the model, not the highest-ranked
@@ -207,14 +213,15 @@ comparison. **Final answer** is the recorded answer text. **Action** comparisons
 come from recorded commands or self-reported actions; **Answer detail** comparisons
 come from the final answer. Wording differences alone do not establish an action change.
 
-In Summary and Decision diff, counts such as **3 of 3 trials** refer to trials,
+In Summary and Behavior diff, counts such as **3 of 3 trials** refer to trials,
 not repeated actions within one trial. A model extracts these counts from the
 evidence. Separate row counts do not show a complete sequence within one trial.
-**Changed** compares choice proportions. **Unchanged** is shown for complete,
-unanimous same-choice evidence; matching mixed distributions are labeled
-**Same choice proportions**. **Unavailable** means extracted choices cannot support
-a comparison. A consistent change requires a different unanimous choice on each
-side, at least two trials per side, and complete trial evidence. This is an observed
+**Changed** compares extracted behavior proportions. **Unchanged** is shown for
+complete, unanimous same-behavior evidence; matching proportions without that
+evidence are labeled **Same proportions**. **Unavailable** means extracted
+states cannot support a comparison. A consistent change requires a different
+unanimous behavior on each side, at least two trials per side, and complete trial
+evidence. This is an observed
 pattern, not statistical significance. Single-trial, blocked, missing, and mixed
 evidence is not promoted as a consistent change.
 
@@ -226,9 +233,9 @@ The command-category table groups each trial into one category combination.
 Category order is not execution order. Matching categories can contain different
 commands or files, so matching patterns do not establish unchanged behavior.
 
-Follow **See the evidence** to the full comparison in Decision diff. Inspect
-the trial records for the original commands and answers. The Markdown report
-contains the same takeaway, choices, counts, and evidence links without illustrations.
+Follow **View this comparison** to Behavior diff, or inspect the trial records
+for original commands and answers. Markdown retains the five sections, story,
+counts, complete instruction diff, and grouped trial evidence without illustrations.
 
 The existing extraction call identifies the primary result, possible explanations,
 and related instruction-diff hunks. It first recovers observed choices, then
@@ -269,9 +276,10 @@ Expected behavior is labeled as supplied, or explicitly unavailable. The evidenc
 limits state trial counts, provenance, and grading limits. Self-reported actions
 remain distinct from captured tool calls.
 
-The structured `report-data.json` uses schema version 7, including the visual
-`summary`, sourced instruction `intent`, saved `content.task`, optional narrative,
-and `edit_hunks`. The task comes from the run's `task.md`, or the capsule's copy
+The structured `report-data.json` uses schema version 8, including per-group
+`decisions.trial_summaries`, visual `summary`, sourced instruction `intent`,
+saved `content.task`, optional narrative, and `edit_hunks`.
+The task comes from the run's `task.md`, or the capsule's copy
 when absent from the run. A scenario description never replaces missing task text.
 Regenerate reports from their original run artifacts;
 older report-data files are not accepted. `render.py` needs the run directory,
@@ -280,7 +288,9 @@ does not run trials or call a model.
 
 Old `decisions.json` observations can be re-rendered with the new layout.
 Without narrative, the Summary uses original choice text and marks explanations
-unavailable. Missing aim interpretations and edit mappings remain unavailable.
+unavailable. Missing trial summaries, aim interpretations, and edit mappings
+remain unavailable. Trial summaries are produced in the existing extraction
+call; rendering never substitutes an overall conclusion for a trial's summary.
 To obtain them, explicitly rerun extraction on saved evidence after approving
 its model cost; no new trials are needed. Rendering never triggers extraction.
 The extractor stores the exact `instruction_diff` with its mappings. External

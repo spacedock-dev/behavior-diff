@@ -69,7 +69,7 @@ SCENARIOS = (
     Scenario(
         "missing-extraction",
         "Comparison extraction is unavailable",
-        "Complete invoice-review traces remain available without a decision diff.",
+        "Complete invoice-review traces remain available without an extracted comparison.",
     ),
     Scenario(
         "self-reported",
@@ -109,6 +109,7 @@ class _Trial:
     actions: tuple[tuple[str, str], ...]
     final: str
     choices: dict[str, str]
+    summary: str
     verdict: str = "REVIEW"
     missing_files: tuple[str, ...] = ()
 
@@ -229,6 +230,25 @@ def _row(topic, question, anchor, trials):
     }
 
 
+def _trial_summaries(trials, comparisons):
+    """Attach authored prose to the exact synthetic trial group identities."""
+    if not len(trials["before"]) == len(trials["after"]) == len(comparisons):
+        raise ValueError("Synthetic trial summaries must cover both sides.")
+    return [
+        {
+            "before_trial": f"before-{number}",
+            "after_trial": f"after-{number}",
+            "takeaway": takeaway,
+            "before": before.summary,
+            "after": after.summary,
+            "caveat": caveat,
+        }
+        for number, (before, after, (takeaway, caveat)) in enumerate(
+            zip(trials["before"], trials["after"], comparisons), 1
+        )
+    ]
+
+
 def _write_extraction(
     run,
     rows,
@@ -238,6 +258,7 @@ def _write_extraction(
     claims=(),
     summary=None,
     intent=None,
+    trial_summaries=(),
 ):
     positions = {row["topic"]: index for index, row in enumerate(rows, 1)}
     _write_json(
@@ -253,6 +274,7 @@ def _write_extraction(
             ],
             "summary": summary,
             "intent": intent,
+            "trial_summaries": list(trial_summaries),
         },
     )
 
@@ -342,6 +364,13 @@ def _pr_description(run, scenario):
                         "Description scope": "Cache-expiry fix and regression coverage",
                         "Unrelated changes": "Excluded session-only and out-of-scope work",
                     },
+                    summary=(
+                        "Recorded reads include session notes, the branch patch, and scope; "
+                        "the answer describes only the cache-expiry fix."
+                        if side == "before"
+                        else "Recorded reads use the branch patch and scope without session notes; "
+                        "the answer still describes only the cache-expiry fix."
+                    ),
                 )
             )
     _write_sources(run, scenario, task, rules, files, trials)
@@ -370,6 +399,16 @@ def _pr_description(run, scenario):
                 "The description covers the same cache-expiry work despite different review sources.",
                 ("Review sources", "Description scope"),
             ),
+        ),
+        trial_summaries=_trial_summaries(
+            trials,
+            [
+                (
+                    "The PR description keeps the same scope while its recorded review sources change.",
+                    "The answer describes regression coverage but says the test was not run.",
+                )
+            ]
+            * 3,
         ),
     )
 
@@ -540,11 +579,43 @@ def _invoice_review(run, scenario):
                     + final
                     + " These actions are self-reported; no independent tool capture is available."
                 )
+            if blocked:
+                sentence = (
+                    "The recorded invoice read fails; the answer reports a blocked review "
+                    "without inspecting the remaining records."
+                )
+            elif presentation == "Verdict with separate evidence bullets":
+                sentence = (
+                    "Recorded reads "
+                    + ("include" if inspect_history else "omit")
+                    + " payment history; the answer approves "
+                    "and lists the evidence in separate bullets."
+                )
+            else:
+                sentence = (
+                    "The self-report describes " if reported else "Recorded reads show "
+                )
+                if verdict == "HOLD":
+                    sentence += "a payment-history check; the answer holds the invoice for its prior payment."
+                elif inspect_history:
+                    sentence += "a payment-history check; the answer approves after finding no prior payment."
+                elif mixed_primary:
+                    sentence += (
+                        "receipt then vendor checks"
+                        if side == "before"
+                        else "vendor then receipt checks"
+                    ) + " without payment history; the answer approves the invoice."
+                else:
+                    sentence += (
+                        "invoice, receipt, and vendor checks without payment history; "
+                        "the answer approves the invoice."
+                    )
             trials[side].append(
                 _Trial(
                     actions=tuple(actions),
                     final=final,
                     choices=choices,
+                    summary=sentence,
                     verdict="BLOCKED" if blocked else "REVIEW",
                     missing_files=("invoice.csv",) if blocked else (),
                 )
@@ -552,6 +623,33 @@ def _invoice_review(run, scenario):
     _write_sources(run, scenario, task, rules, files, trials)
     if scenario.name == "missing-extraction":
         return
+    comparisons = []
+    for before, after in zip(trials["before"], trials["after"]):
+        before_choices, after_choices = before.choices, after.choices
+        if after.verdict == "BLOCKED":
+            takeaway = (
+                "After cannot complete the review because its invoice read fails."
+            )
+        elif before_choices["Review verdict"] != after_choices["Review verdict"]:
+            takeaway = (
+                "The answer changes from HOLD for a prior payment to APPROVE "
+                "without checking payment history."
+            )
+        elif (
+            before_choices["Answer presentation"]
+            != after_choices["Answer presentation"]
+        ):
+            takeaway = "The verdict stays APPROVE, but After lists the evidence in separate bullets."
+        elif before_choices["Record checks"] != after_choices["Record checks"]:
+            takeaway = (
+                "Both answers approve without checking payment history, "
+                "but the supporting records are read in a different order."
+            )
+        elif before_choices["Review verdict"] == "HOLD":
+            takeaway = "Both reviews check payment history and answer HOLD for the prior payment."
+        else:
+            takeaway = "Both reviews perform the same checks and answer APPROVE."
+        comparisons.append((takeaway, ""))
     rows = [
         _row("Invoice access", "Was the invoice available for review?", 2, trials),
         _row("Record checks", "Which supporting records were checked?", 3, trials),
@@ -680,6 +778,7 @@ def _invoice_review(run, scenario):
         fork_note=fork_note,
         claims=claims,
         summary=summary,
+        trial_summaries=_trial_summaries(trials, comparisons),
         intent={
             "text": (
                 "Prefer quick review and check the vendor before the receipt."
@@ -749,6 +848,13 @@ def _missing_primary(run, scenario):
                         ),
                         "Readiness caveat": "Pending status; no rollout decision",
                     },
+                    summary=(
+                        "Recorded reads cover the migration and pending deployment; "
+                        "the answer describes the schema addition without a rollout verdict."
+                        if side == "before"
+                        else "Recorded reads also cover rollback notes; the answer adds "
+                        "the backup prerequisite without a rollout verdict."
+                    ),
                 )
             )
     _write_sources(run, scenario, task, rules, files, trials)
@@ -782,6 +888,16 @@ def _missing_primary(run, scenario):
         ],
         fork="Rollback inspection",
         fork_note="The added rollback note can explain the additional backup observation.",
+        trial_summaries=_trial_summaries(
+            trials,
+            [
+                (
+                    "After adds a rollback prerequisite, but neither answer decides rollout readiness.",
+                    "The records show inspection, not execution of the migration.",
+                )
+            ]
+            * 3,
+        ),
     )
 
 
@@ -873,6 +989,13 @@ def _availability_review(run, scenario):
                         ),
                         "Review verdict": "APPROVE",
                     },
+                    summary=(
+                        "Recorded actions include source inspection and a passing test run; "
+                        "the answer approves the implementation."
+                        if run_tests
+                        else "Recorded actions show source inspection without a test run; "
+                        "the answer approves the implementation."
+                    ),
                 )
             )
     _write_sources(run, scenario, task, rules, files, trials)
@@ -896,6 +1019,18 @@ def _availability_review(run, scenario):
                 "the review verdict.",
                 ("Test execution", "Review verdict"),
             ),
+        ),
+        trial_summaries=_trial_summaries(
+            trials,
+            [
+                (
+                    "After adds a passing test run while the review answer stays APPROVE."
+                    if trial.choices["Test execution"] != "Did not run tests"
+                    else "Both reviews inspect the source without running tests and answer APPROVE.",
+                    "",
+                )
+                for trial in trials["after"]
+            ],
         ),
     )
 
@@ -958,7 +1093,15 @@ def _intent_review(run, scenario):
                     "Do not ship. The token is predictable and the secret comparison "
                     "is not constant-time."
                 )
-            trials[side].append(_Trial(actions, final, choices))
+            sentence = (
+                f"The recorded query uses the {'old' if side == 'before' else 'new'} "
+                f"interface on {'archived' if source == 'archive.csv' else 'current'} records; "
+                f"the answer identifies {result} as the largest amount."
+                if flip
+                else "The recorded read inspects the authentication code; the answer "
+                "flags predictable tokens and unsafe secret comparison."
+            )
+            trials[side].append(_Trial(actions, final, choices, sentence))
     _write_sources(run, scenario, task, rules, files, trials)
     if flip:
         rows = [
@@ -982,7 +1125,28 @@ def _intent_review(run, scenario):
         for row in rows[1:]:
             row["edit_hunks"] = [1]
         primary = "Review verdict"
-    _write_extraction(run, rows, primary=primary)
+    _write_extraction(
+        run,
+        rows,
+        primary=primary,
+        trial_summaries=_trial_summaries(
+            trials,
+            [
+                (
+                    (
+                        "After queries archived rather than current records with a new interface; "
+                        "the answer changes from North to West."
+                        if number == 2
+                        else "The query interface changes, but both answers identify North."
+                    )
+                    if flip
+                    else "Both answers flag the same security problems and say not to ship.",
+                    "",
+                )
+                for number in range(3)
+            ],
+        ),
+    )
 
 
 def _planned_actions(run, scenario):
@@ -996,6 +1160,11 @@ def _planned_actions(run, scenario):
                 actions=(("cat AGENTS.md", rules[side]),),
                 final="I would " + choice + ". No changes have been made.",
                 choices={"Next step": choice},
+                summary=(
+                    "The answer proposes to "
+                    + choice
+                    + "; only an instruction read is recorded."
+                ),
             )
             for _ in range(3)
         ]
@@ -1044,6 +1213,16 @@ def _planned_actions(run, scenario):
         rows,
         primary="Next step",
         summary=summary,
+        trial_summaries=_trial_summaries(
+            trials,
+            [
+                (
+                    "The proposed next step changes from reviewing the failure to repairing it.",
+                    "Neither proposed step is recorded as executed.",
+                )
+            ]
+            * 3,
+        ),
         intent={
             "text": "Ask for a repair plan rather than another review step.",
             "edit_hunks": [1],

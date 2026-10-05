@@ -287,7 +287,7 @@ def build_summary(metadata, variants, decisions):
     )
     if primary_status == "mixed":
         notices.append(
-            "The primary result has mixed trial choices; see its full distribution in Decision diff."
+            "The primary result varies across trials; see its full distribution in Behavior diff."
         )
     elif primary_status == "unavailable":
         notices.append(
@@ -305,27 +305,27 @@ def build_summary(metadata, variants, decisions):
     )
     if different_process:
         notices.append(
-            "The primary result is the same; process choices differ in this scenario."
+            "The primary result is the same; actions differ in this scenario."
         )
     if not narrative:
         notices.append(
-            "Plain-language narrative unavailable; original extracted choices are shown without added explanation."
+            "Plain-language narrative unavailable; original extracted comparisons are shown without added explanation."
         )
     if status == "unavailable":
         headline = "Insufficient evidence for a Before/After conclusion."
     elif narrative:
         headline = narrative.headline
     elif different_process:
-        headline = "Same result; different process choices."
+        headline = "Same result; different actions."
     elif status == "mixed":
-        headline = "Trial choices vary in this scenario."
+        headline = "Answers or actions vary across trials in this scenario."
     elif status == "changed":
-        headline = "Different choices were observed in this scenario."
+        headline = "Different answers or actions were observed in this scenario."
     else:
         headline = "No difference was observed in the selected comparison."
     if status == "unchanged":
         notices.append(
-            "Matching choices in this scenario do not prove that the instruction edit has no effect."
+            "Matching observations in this scenario do not prove that the instruction edit has no effect."
         )
     sides = []
     for side in ("before", "after"):
@@ -354,20 +354,18 @@ def build_summary(metadata, variants, decisions):
         )
     if row is None:
         evidence_label = (
-            "No usable decision extraction; trial records remain available."
+            "No usable comparison extraction; trial records remain available."
         )
     elif row.anchor == "answer":
         evidence_label = (
             "Plans stated in final answers; not executed actions."
             if narrative and narrative.evidence_kind == "plans"
-            else "Choices extracted from final answers; not evidence of tool execution."
+            else "Based on final answers. An answer describing an action does not prove it happened."
         )
     elif metadata.trace_source == "self-reported":
-        evidence_label = (
-            "Choices extracted from self-reported actions; not captured tool evidence."
-        )
+        evidence_label = "Based on self-reported actions. These are not independently captured tool evidence."
     else:
-        evidence_label = "Choices extracted from recorded tool events; records do not prove successful completion."
+        evidence_label = "Based on recorded tool calls. Recorded calls do not establish successful completion."
 
     def claim(value):
         return EvidenceClaimData(value.text, value.decisions) if value else None

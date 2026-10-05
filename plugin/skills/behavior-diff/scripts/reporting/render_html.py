@@ -5,6 +5,7 @@ from itertools import zip_longest
 
 from reporting import content
 from reporting.illustrations import illustration
+from reporting.instruction import parse_diff_hunks
 from reporting.schema import ReportData
 
 
@@ -16,29 +17,128 @@ def _diff_line_class(line: str) -> str:
     return "d-ctx"
 
 
-def _trial_card(trial, self_reported: bool, mode: str, side: str) -> str:
-    escaped = html.escape
-    verdict_class = escaped(trial.verdict.lower())
-    action_heading, empty_actions = content.trial_action_labels(self_reported)
-    evidence = (
-        "\n\n".join(
-            command if self_reported else "$ " + command for command in trial.commands
-        )
-        or empty_actions
+def _trial_cell(trial, side: str, body: str, *, anchor: bool = False) -> str:
+    identity = (
+        f' id="{html.escape(content.trial_anchor(side, trial.name))}" tabindex="-1"'
+        if trial and anchor
+        else ""
     )
-    actions = (
-        "" if trial.actions == "-" else f'<p class="acts">{escaped(trial.actions)}</p>'
-    )
+    if not trial:
+        body = '<p class="note">No trial record on this side.</p>'
     return (
-        f'<article class="trial" id="{escaped(content.trial_anchor(side, trial.name))}" tabindex="-1">'
-        f'<p class="trial-head"><strong>{escaped(trial.name)}</strong>'
-        f'<span class="badge {verdict_class}">{escaped(trial.verdict)}</span></p>{actions}'
-        f"<details {'open' if mode == 'review' else ''}>"
-        f"<summary>{escaped(action_heading)} "
-        f"({len(trial.commands)})</summary><pre>{escaped(evidence)}</pre></details>"
-        f"<details {'open' if mode == 'review' else ''}>"
-        f"<summary>{escaped(content.FINAL_ANSWER_HEADING)}</summary>"
-        f"<pre>{escaped(trial.final if trial.final.strip() else content.NO_FINAL_ANSWER)}</pre></details></article>"
+        f'<div class="trial-cell {side} {"b" if side == "before" else "a"}'
+        f'{" trial" if anchor else ""}{" trial-missing" if not trial else ""}"{identity}>'
+        f"{body}"
+        "</div>"
+    )
+
+
+def _trial_group(index, before, after, self_reported: bool, mode: str, summary) -> str:
+    escaped = html.escape
+    trials = (("before", before), ("after", after))
+    metadata = []
+    answers = []
+    actions = []
+    commands = []
+    action_heading, empty_actions = content.trial_action_labels(self_reported)
+    for side, trial in trials:
+        if trial:
+            header = (
+                f'<p class="trial-head"><strong>{escaped(trial.name)}</strong>'
+                f'<span class="badge {escaped(trial.verdict.lower())}">'
+                f"{escaped(trial.verdict)}</span></p>"
+            )
+            answer = (
+                f"<pre>{escaped(trial.final)}</pre>"
+                if trial.final.strip()
+                else f'<p class="note">{escaped(content.NO_FINAL_ANSWER)}</p>'
+            )
+            action = (
+                f'<p class="acts">{escaped(trial.actions)}</p>'
+                if trial.actions and trial.actions != "-"
+                else '<p class="note">No action summary recorded.</p>'
+            )
+            evidence = (
+                "\n\n".join(
+                    command if self_reported else "$ " + command
+                    for command in trial.commands
+                )
+                or empty_actions
+            )
+            command_body = (
+                f'<p class="note">{len(trial.commands)} '
+                f"{'self-reported actions' if self_reported else 'recorded commands'}</p>"
+                f"<pre>{escaped(evidence)}</pre>"
+            )
+        else:
+            header = answer = action = command_body = ""
+        metadata.append(_trial_cell(trial, side, header, anchor=True))
+        answers.append(
+            _trial_cell(
+                trial,
+                side,
+                f'<section class="trial-answer" aria-label="{side.capitalize()} final answer">{answer}</section>',
+            )
+        )
+        actions.append(_trial_cell(trial, side, action))
+        commands.append(_trial_cell(trial, side, command_body))
+    summary_intro = (
+        f'<p class="trial-change-takeaway">{escaped(summary.takeaway)}</p>'
+        if summary is not None
+        else f'<p class="note trial-change-unavailable">{escaped(content.TRIAL_SUMMARY_UNAVAILABLE)}</p>'
+    )
+    descriptions = (
+        "".join(
+            _trial_cell(
+                trial,
+                side,
+                f'<p class="trial-change-description">{escaped(sentence)}</p>',
+            )
+            for (side, trial), sentence in zip(trials, (summary.before, summary.after))
+        )
+        if summary is not None
+        else ""
+    )
+    caveat = (
+        f'<p class="note trial-change-caveat">{escaped(summary.caveat)}</p>'
+        if summary is not None and summary.caveat
+        else ""
+    )
+    group = content.trial_group_anchor(index)
+    return (
+        f'<section class="trial-group" id="{escaped(group)}" tabindex="-1" '
+        f'aria-labelledby="{escaped(group)}-heading">'
+        f'<h3 id="{escaped(group)}-heading">Trial {index}</h3>'
+        f'<div class="evidence-controls" role="group" aria-label="Trial {index} supporting details" hidden>'
+        '<button type="button" data-trial-details="show">Show both</button>'
+        '<button type="button" data-trial-details="hide">Hide both</button></div>'
+        '<div class="trial-pair">'
+        f'<h4 class="trial-section-heading trial-change-heading">{escaped(content.TRIAL_CHANGE_HEADING)}</h4>'
+        f"{summary_intro}"
+        '<h4 class="trial-pair-heading before">Before</h4>'
+        '<h4 class="trial-pair-heading after">After</h4>'
+        f"{descriptions}{caveat}"
+        '<h4 class="trial-section-heading">Trial record and verdict</h4>'
+        f"{''.join(metadata)}"
+        f'<h4 class="trial-section-heading">{escaped(content.FINAL_ANSWER_HEADING)}</h4>'
+        f"{''.join(answers)}</div>"
+        f'<details class="trial-shared-details" id="{escaped(group)}-support" '
+        f"{'open' if mode == 'review' else ''}>"
+        "<summary>Supporting details · Before and After</summary>"
+        f'<div class="trial-pair">{"".join(actions)}</div>'
+        f'<details class="trial-shared-details" id="{escaped(group)}-commands" '
+        f"{'open' if mode == 'review' else ''}>"
+        f"<summary>{escaped(action_heading)} · Before and After</summary>"
+        f'<div class="trial-pair">{"".join(commands)}</div></details>'
+        "</details></section>"
+    )
+
+
+def _trial_group_links(report) -> str:
+    count = max(len(report.variants.before.trials), len(report.variants.after.trials))
+    return "".join(
+        f'<a href="#{html.escape(content.trial_group_anchor(index))}">Trial {index}</a>'
+        for index in range(1, count + 1)
     )
 
 
@@ -50,13 +150,15 @@ def _decision_choices(choices, total: int) -> str:
     return "".join(lines) or html.escape(content.NO_EXTRACTED_CHOICE)
 
 
-def _edit_links(row) -> str:
+def _edit_links(row, report) -> str:
     if not row.edit_hunks:
         return (
             '<span class="dnote">Related edit unavailable — no mapping recorded.</span>'
         )
     links = " · ".join(
-        f'<a href="#edit-hunk-{number}">Hunk {number}</a>' for number in row.edit_hunks
+        f'<a href="#edit-hunk-{number}">'
+        f"{html.escape(content.instruction_hunk_label(report.rule_diff, number))}</a>"
+        for number in row.edit_hunks
     )
     return (
         f'<span class="edit-links">Related edit (model interpretation): {links}</span>'
@@ -65,21 +167,50 @@ def _edit_links(row) -> str:
 
 def _instruction_edit(report) -> str:
     lines = []
+    blocks = []
+    current = None
+    remaining = 0
+    hunks = {hunk.number: hunk for hunk in parse_diff_hunks(report.rule_diff)}
     for line, number in content.instruction_diff_lines(report.rule_diff):
+        in_body = current is not None and remaining > 0
+        if number:
+            current = number
+            remaining = len(hunks[number].lines)
+            in_body = False
+            label = content.instruction_hunk_label(report.rule_diff, number)
+            blocks.append(
+                f'<button type="button" data-select-edit="{number}" aria-pressed="false">'
+                f"{html.escape(label)}</button>"
+            )
         anchor = f' id="edit-hunk-{number}" tabindex="-1"' if number else ""
+        block = f' data-edit-hunk="{current}"' if in_body or number else ""
+        css_class = _diff_line_class(line) if in_body else "d-ctx"
         lines.append(
-            f'<span{anchor} class="{_diff_line_class(line)}">{html.escape(line)}</span>\n'
+            f'<span{anchor}{block} class="{css_class}">{html.escape(line)}</span>\n'
         )
+        if in_body:
+            remaining -= 1
+    controls = (
+        '<div class="diff-toolbar" role="group" aria-label="Highlight changed instruction lines" hidden>'
+        f"{''.join(blocks)}</div>"
+        '<p class="note" id="edit-selection-status" role="status" aria-live="polite"></p>'
+        if blocks
+        else ""
+    )
+    aim_links = _edit_links(report.intent, report) if report.intent.edit_hunks else ""
     return (
         '<section class="instruction-edit" id="instruction-diff" tabindex="-1" '
         'aria-labelledby="instruction-edit-heading">'
         '<div class="edit-heading">'
         f'<h2 id="instruction-edit-heading">{html.escape(report.content.diff_heading)}</h2>'
-        f"{_info('edit-info', 'About this edit', f'<p>{html.escape(content.EDIT_LINK_NOTE)}</p>')}"
+        f"{_info('edit-info', 'About these instruction changes', f'<p>{html.escape(content.EDIT_LINK_NOTE)}</p>')}"
         "</div>"
         f'<p class="edit-aim">{html.escape(content.instruction_edit_aim(report.intent))}</p>'
+        f"{aim_links}"
         f'<p class="edit-summary">{html.escape(content.instruction_edit_counts(report.rule_diff))}</p>'
-        f"<pre>{''.join(lines)}</pre></section>"
+        f"{controls}<pre>{''.join(lines)}</pre>"
+        '<p class="note">+ added · − removed · unmarked context. '
+        "Selected blocks highlight changed lines, not behavior evidence.</p></section>"
     )
 
 
@@ -103,7 +234,8 @@ def _decision_progression(report) -> str:
         choices = (
             '<span class="decision-lanes">'
             + "".join(
-                f'<span class="decision-lane"><span class="preview-label">{label}</span>'
+                f'<span class="decision-lane {label.lower()} {"b" if label == "Before" else "a"}">'
+                f'<span class="preview-label">{label}</span>'
                 f"{_decision_choices(values, total)}</span>"
                 for label, values, total in (
                     ("Before", row.before, decisions.before_count),
@@ -126,21 +258,28 @@ def _decision_progression(report) -> str:
             '<span class="progression-heading">'
             f'<span class="progression-topic">{html.escape(title)}</span>'
             f'<strong class="decision-status">{html.escape(status)}</strong>'
-            f'<span class="progression-role decision-tag tag-{role_key}">{html.escape(role)}</span></span>'
+            f'<span class="progression-role decision-tag tag-{role_key}">{html.escape(role)}</span>'
+            f'<span class="decision-tag tag-{source_key}">{html.escape(source)}</span></span>'
             '<span class="decision-disclosure"><span class="hint-show">Show evidence</span>'
             f'<span class="hint-hide">Hide evidence</span>{_CHEVRON}</span>'
             f"{choices}</summary>"
             f'<div class="decision-evidence">{question}'
             f'<p class="decision-meta"><span class="decision-tag tag-{source_key}">{html.escape(source)}</span></p>'
-            f"{_edit_links(row)}{note}"
-            '<a class="decision-evidence-link" href="#panel-trials">Inspect trial evidence</a>'
+            f"{_edit_links(row, report)}{note}"
+            '<details class="supporting-trials"><summary>View supporting trial records</summary>'
+            f'<nav class="record-links" aria-label="Available trial records">{_trial_group_links(report)}</nav>'
+            '<p class="note">These are the available source records. The saved comparison does not '
+            "map each extracted behavior to individual trials.</p></details>"
             "</div></details></li>"
         )
     return (
         '<section class="progression" id="decision-progression" tabindex="-1" aria-labelledby="decision-progression-heading">'
         '<div class="decision-toolbar">'
-        '<h2 class="comparison-heading" id="decision-progression-heading">Decision sequence</h2>'
-        '<button type="button" class="decision-toggle" id="decision-toggle" aria-controls="decision-list" hidden>Expand all</button></div>'
+        '<h2 class="comparison-heading" id="decision-progression-heading">Behavior comparisons</h2>'
+        '<div class="evidence-controls" role="group" aria-label="Behavior comparison disclosures" hidden>'
+        '<button type="button" data-evidence-expand="true" aria-controls="decision-list">Expand all</button>'
+        '<button type="button" data-evidence-expand="false" aria-controls="decision-list">Collapse all</button>'
+        "</div></div>"
         f'<p class="note" id="decision-progression-note">{html.escape(content.DECISION_PROGRESSION_NOTE)}</p>'
         f'<p class="note">{html.escape(content.TRIAL_COUNT_NOTE)}</p>'
         '<ol class="decision-path" id="decision-list" role="list" aria-describedby="decision-progression-note">'
@@ -150,66 +289,127 @@ def _decision_progression(report) -> str:
 
 _REPORT_INTERACTIONS = """<script>
 (() => {
+  const tabs = document.querySelector(".tabs");
+  const panels = [...document.querySelectorAll(".panel")];
+  const rows = [...document.querySelectorAll(".decision-row")];
+  const editButtons = [...document.querySelectorAll("[data-select-edit]")];
+  const editLines = [...document.querySelectorAll("[data-edit-hunk]")];
   let printState = null;
-  window.addEventListener("beforeprint", () => {
-    if (printState !== null) return;
-    printState = [...document.querySelectorAll("details")].map(row => [row, row.open]);
-    printState.forEach(([row]) => { row.open = true; });
-  });
-  window.addEventListener("afterprint", () => {
-    if (printState === null) return;
-    printState.forEach(([row, open]) => { row.open = open; });
-    printState = null;
-  });
-  const openLinkedEdit = () => {
-    const target = document.getElementById(location.hash.slice(1));
-    if (!target || !(target.id.startsWith("edit-hunk-") || target.id === "instruction-diff")) return;
-    let disclosure = target.matches("details") ? target : target.closest("details");
+  const selectEdit = number => {
+    editLines.forEach(line => line.classList.toggle("edit-selected",
+      line.dataset.editHunk === number && line.matches(".d-add, .d-del")));
+    editButtons.forEach(button =>
+      button.setAttribute("aria-pressed", String(button.dataset.selectEdit === number)));
+    const selected = editButtons.find(button => button.dataset.selectEdit === number);
+    const status = document.getElementById("edit-selection-status");
+    if (status) status.textContent = selected ? "Highlighted changed lines: " + selected.textContent : "";
+  };
+  const route = focus => {
+    let id;
+    try { id = decodeURIComponent(location.hash.slice(1)); }
+    catch { id = ""; }
+    const target = document.getElementById(id);
+    const panel = target?.closest(".panel") || document.getElementById("panel-summary");
+    panels.forEach(section => {
+      section.hidden = section !== panel;
+      section.classList.toggle("is-active", section === panel);
+    });
+    document.querySelectorAll(".tabbar a").forEach(link => {
+      if (link.hash === "#" + panel.id) link.setAttribute("aria-current", "page");
+      else link.removeAttribute("aria-current");
+    });
+    let disclosure = target?.closest("details");
     while (disclosure) {
       disclosure.open = true;
       disclosure = disclosure.parentElement.closest("details");
     }
-    target.focus({preventScroll: true});
-    target.scrollIntoView({block: "start"});
+    if (target?.id.startsWith("edit-hunk-")) selectEdit(target.dataset.editHunk);
+    if (focus && target) {
+      const focusTarget = target.matches("details") ? target.querySelector("summary") : target;
+      focusTarget.setAttribute("tabindex", "-1");
+      focusTarget.focus({preventScroll: true});
+      target.scrollIntoView({block: "start"});
+    }
   };
-  window.addEventListener("hashchange", openLinkedEdit);
+  const updateControls = () => {
+    document.querySelectorAll("[data-evidence-expand]").forEach(button => {
+      const expanded = button.dataset.evidenceExpand === "true";
+      button.disabled = rows.every(row => row.open === expanded);
+    });
+    document.querySelectorAll(".trial-group").forEach(group => {
+      const details = [...group.querySelectorAll("details")];
+      group.querySelectorAll("[data-trial-details]").forEach(button => {
+        const expanded = button.dataset.trialDetails === "show";
+        button.disabled = details.every(detail => detail.open === expanded);
+      });
+    });
+  };
+  document.querySelectorAll(".evidence-controls, .diff-toolbar").forEach(control => {
+    control.hidden = false;
+  });
+  document.addEventListener("toggle", updateControls, true);
   document.addEventListener("click", event => {
+    const info = event.target.closest(".info > button");
+    if (info) {
+      const expanded = info.getAttribute("aria-expanded") !== "true";
+      document.querySelectorAll(".info > button").forEach(button => {
+        button.setAttribute("aria-expanded", "false");
+        button.parentElement.classList.remove("info-open");
+      });
+      info.setAttribute("aria-expanded", String(expanded));
+      info.parentElement.classList.toggle("info-open", expanded);
+    } else if (!event.target.closest(".info")) {
+      document.querySelectorAll(".info > button").forEach(button => {
+        button.setAttribute("aria-expanded", "false");
+        button.parentElement.classList.remove("info-open");
+      });
+    }
+    const expand = event.target.closest("[data-evidence-expand]");
+    if (expand) rows.forEach(row => { row.open = expand.dataset.evidenceExpand === "true"; });
+    const trialButton = event.target.closest("[data-trial-details]");
+    if (trialButton) trialButton.closest(".trial-group").querySelectorAll("details").forEach(detail => {
+      detail.open = trialButton.dataset.trialDetails === "show";
+    });
+    const edit = event.target.closest("[data-select-edit]");
+    if (edit) {
+      selectEdit(edit.dataset.selectEdit);
+      document.querySelector(".edit-selected")?.scrollIntoView({block: "center"});
+    }
+    updateControls();
     if (event.defaultPrevented || event.button !== 0 ||
         event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
-    const link = event.target.closest('a[href^="#edit-hunk-"], a[href="#instruction-diff"]');
-    if (link && link.getAttribute("href") === location.hash) openLinkedEdit();
+    const link = event.target.closest('a[href^="#"]');
+    if (link && link.hash === location.hash) route(true);
   });
-  openLinkedEdit();
-  const list = document.getElementById("decision-list");
-  const button = document.getElementById("decision-toggle");
-  if (!list || !button) return;
-  const rows = [...list.querySelectorAll(".decision-row")];
-  const updateButton = () => {
-    button.textContent = rows.every(row => row.open) ? "Collapse all" : "Expand all";
-  };
-  button.hidden = false;
-  button.addEventListener("click", () => {
-    const expand = !rows.every(row => row.open);
-    rows.forEach(row => { row.open = expand; });
-    updateButton();
+  document.addEventListener("keydown", event => {
+    if (event.key !== "Escape") return;
+    document.querySelectorAll(".info > button").forEach(button => {
+      button.setAttribute("aria-expanded", "false");
+      button.parentElement.classList.remove("info-open");
+    });
+    if (document.activeElement?.closest(".info")) document.activeElement.blur();
   });
-  list.addEventListener("toggle", updateButton, true);
-  const openLinkedDecision = () => {
-    const row = document.getElementById(location.hash.slice(1));
-    if (!row || !row.matches(".decision-row")) return;
-    row.open = true;
-    row.querySelector("summary").focus({preventScroll: true});
-    row.scrollIntoView({block: "start"});
-    updateButton();
-  };
-  window.addEventListener("hashchange", openLinkedDecision);
-  document.addEventListener("click", event => {
-    if (event.defaultPrevented || event.button !== 0 ||
-        event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
-    const link = event.target.closest('a[href^="#decision-"]');
-    if (link && link.getAttribute("href") === location.hash) openLinkedDecision();
+  window.addEventListener("hashchange", () => route(true));
+  window.addEventListener("beforeprint", () => {
+    if (printState !== null) return;
+    printState = {
+      details: [...document.querySelectorAll("details")].map(row => [row, row.open]),
+      panels: panels.map(panel => [panel, panel.hidden])
+    };
+    printState.details.forEach(([row]) => { row.open = true; });
+    panels.forEach(panel => { panel.hidden = false; });
   });
-  openLinkedDecision();
+  window.addEventListener("afterprint", () => {
+    if (printState === null) return;
+    printState.details.forEach(([row, open]) => { row.open = open; });
+    printState.panels.forEach(([panel, hidden]) => { panel.hidden = hidden; });
+    printState = null;
+    updateControls();
+  });
+  if (tabs) tabs.dataset.enhanced = "true";
+  if (editButtons.length) selectEdit(editButtons[0].dataset.selectEdit);
+  route(Boolean(location.hash));
+  updateControls();
 })();
 </script>"""
 
@@ -234,7 +434,10 @@ def _flow_lane(variant, side: str, label: str) -> str:
         sequence = (
             f'<ol class="command-path" role="list" aria-label="Recorded command order">{steps}</ol>'
             if commands
-            else f'<p class="note">{html.escape(content.NO_COMMANDS_RECORDED)}</p>'
+            else (
+                f'<p class="note">{html.escape(content.NO_COMMANDS_RECORDED)}. '
+                "This does not establish that no actions occurred.</p>"
+            )
         )
         paths.append(
             '<article class="command-group">'
@@ -245,7 +448,7 @@ def _flow_lane(variant, side: str, label: str) -> str:
         )
     body = "".join(paths) or '<p class="note">No trials</p>'
     return (
-        f'<section class="flow-lane" aria-labelledby="flow-{side}-heading">'
+        f'<section class="flow-lane {side}" aria-labelledby="flow-{side}-heading">'
         f'<h3 id="flow-{side}-heading">{html.escape(label)}</h3>{body}</section>'
     )
 
@@ -256,11 +459,12 @@ def _other_findings(report: ReportData) -> str:
     for index, text in findings:
         row = report.decisions.rows[index - 1]
         source = content.source_label(row.anchor, report.metadata.trace_source)
-        links = (
-            f'<a href="#decision-{index}">Decision {index} · {html.escape(source)}</a>'
-        )
+        links = f'<a href="#decision-{index}">Comparison {index} · {html.escape(source)}</a>'
         for number in row.edit_hunks:
-            links += f' · <a href="#edit-hunk-{number}">See edit {number}</a>'
+            links += (
+                f' · <a href="#edit-hunk-{number}">'
+                f"{html.escape(content.instruction_hunk_label(report.rule_diff, number))}</a>"
+            )
         items.append(
             f"<li><p>{html.escape(text)}</p>"
             f'<span class="evidence-links">{links}</span></li>'
@@ -272,7 +476,7 @@ def _other_findings(report: ReportData) -> str:
         else f'<p class="note">{html.escape(content.NO_ADDITIONAL_FINDINGS)}</p>'
     )
     link = (
-        '<a href="#panel-decision">View all decisions</a>'
+        '<a href="#panel-decision">View all behavior comparisons</a>'
         if report.decisions.rows
         else '<a href="#panel-trials">Inspect trial evidence</a>'
     )
@@ -281,7 +485,7 @@ def _other_findings(report: ReportData) -> str:
 
 def _decision_links(indexes) -> str:
     return " · ".join(
-        f'<a href="#decision-{index}">Decision {index}</a>' for index in indexes
+        f'<a href="#decision-{index}">Comparison {index}</a>' for index in indexes
     )
 
 
@@ -303,7 +507,7 @@ def _summary_side(side, label: str) -> str:
     )
     return (
         f'<section class="summary-card summary-{label.lower()}" '
-        f'aria-label="{label} choices">'
+        f'aria-label="{label} observed behavior">'
         f'<h4 class="summary-side-label">{label}</h4>'
         f"{illustration(side.icon)}{body}</section>"
     )
@@ -318,14 +522,7 @@ def _short_story_summary(report: ReportData) -> str:
         "inferred": "Inferred",
         "unavailable": "Unavailable",
     }[intent.source]
-    intent_links = (
-        " · ".join(
-            f'<a href="#edit-hunk-{number}">See edit {number}</a>'
-            for number in intent.edit_hunks
-        )
-        if intent.edit_hunks
-        else '<a href="#instruction-diff">See edit</a>'
-    )
+    intent_links = '<a href="#instruction-diff">View instruction changes</a>'
     claims = ""
     for label, claim, css_class in (
         ("Why it matters", summary.why, "summary-why"),
@@ -334,15 +531,20 @@ def _short_story_summary(report: ReportData) -> str:
         if claim:
             claims += (
                 f'<div class="{css_class}"><strong>{label}</strong>'
-                f"<p>{html.escape(claim.text)}"
+                f"<p>{html.escape(claim.text)}</p>"
                 f'<span class="evidence-links">{_decision_links(claim.decisions)}</span>'
-                "</p></div>"
+                "</div>"
             )
+    comparison_available = (
+        summary.decision is not None and summary.status != "unavailable"
+    )
+    destination = (
+        f"#decision-{summary.decision}" if comparison_available else "#panel-trials"
+    )
     lead_link = (
-        f'<a class="summary-evidence-button" href="#decision-{summary.decision}">'
-        'See the evidence <span aria-hidden="true">↗</span></a>'
-        if summary.decision is not None
-        else ""
+        f'<a class="summary-evidence-button" href="{destination}">'
+        f"{'View this comparison' if comparison_available else 'View available trial records'}"
+        ' <span aria-hidden="true">→</span></a>'
     )
     notices = "".join(f"<li>{html.escape(note)}</li>" for note in summary.notices)
     scenario = (
@@ -355,7 +557,7 @@ def _short_story_summary(report: ReportData) -> str:
         f'<h2 class="summary-headline">{html.escape(summary.headline)}</h2>'
         '<ol class="story-steps" role="list">'
         '<li class="story-step"><span class="story-number" aria-hidden="true">1</span>'
-        '<div class="story-body"><div class="intent-heading"><h3>Edit goal</h3>'
+        '<div class="story-body"><div class="intent-heading"><h3>The intended change</h3>'
         f'<span class="intent-source">{intent_badge}</span>'
         f"{_info('intent-info', intent_label, f'<p>{html.escape(intent_note)}</p>')}"
         f'<nav class="intent-evidence" aria-label="Instruction aim evidence">{intent_links}</nav>'
@@ -363,7 +565,7 @@ def _short_story_summary(report: ReportData) -> str:
         f'<p class="story-intent">{html.escape(intent.text)}</p>'
         "</div></li>"
         '<li class="story-step"><span class="story-number" aria-hidden="true">2</span>'
-        '<div class="story-body"><h3>What happened in this scenario</h3>'
+        '<div class="story-body"><h3>What the evidence shows</h3>'
         f"{scenario}"
         f'<p class="summary-provenance">{html.escape(summary.evidence_label)}</p>'
         f'<p class="summary-status">Comparison: {html.escape(summary.status)}</p>'
@@ -372,7 +574,7 @@ def _short_story_summary(report: ReportData) -> str:
         '<span class="summary-arrow" aria-hidden="true">→</span>'
         f"{_summary_side(summary.after, 'After')}</div>"
         '<nav class="evidence-nav" aria-label="Summary evidence">'
-        f'{lead_link}<a href="#panel-trials">Inspect trial evidence</a></nav>'
+        f"{lead_link}</nav>"
         "</div></li>"
         '<li class="story-step"><span class="story-number" aria-hidden="true">3</span>'
         '<div class="story-body"><h3>What this means</h3>'
@@ -426,7 +628,7 @@ def _info(pop_id: str, label: str, body: str) -> str:
     """An info icon whose popover opens on hover, focus, or tap."""
     return (
         f'<div class="info"><button type="button" aria-label="{html.escape(label)}" '
-        f'aria-describedby="{pop_id}">{_INFO_ICON}</button>'
+        f'aria-describedby="{pop_id}" aria-controls="{pop_id}" aria-expanded="false">{_INFO_ICON}</button>'
         f'<div class="pop" id="{pop_id}" role="note">'
         f'<p class="pop-title">{html.escape(label)}</p>{body}</div></div>'
     )
@@ -469,37 +671,52 @@ def render_artifact(report: ReportData, css: str) -> str:
     after = report.variants.after
     flow = report.command_flow
 
-    before_note = f'<span class="col-note">{escaped(before.note)}</span>'
-    after_note = f'<span class="col-note">{escaped(after.note)}</span>'
-    runs = ""
-    for index, (before_trial, after_trial) in enumerate(
-        zip_longest(before.trials, after.trials), 1
-    ):
-        halves = ""
-        for trial, css_class in ((before_trial, "b"), (after_trial, "a")):
-            side = "before" if css_class == "b" else "after"
-            body = (
-                _trial_card(trial, self_reported, metadata.mode, side)
-                if trial
-                else '<p class="fnote">(no trial on this side)</p>'
+    trial_groups = (
+        "".join(
+            _trial_group(
+                index,
+                before_trial,
+                after_trial,
+                self_reported,
+                metadata.mode,
+                content.trial_summary_for_group(
+                    report.decisions, before_trial, after_trial
+                ),
             )
-            halves += (
-                f'<div class="half {css_class}">'
-                f'<p class="trial-side">{side.capitalize()}</p>{body}</div>'
+            for index, (before_trial, after_trial) in enumerate(
+                zip_longest(before.trials, after.trials), 1
             )
-        runs += f'<article class="run"><p class="run-label">Trial {index}</p>{halves}</article>'
+        )
+        or '<p class="note">No trial records are available.</p>'
+    )
+    trial_overview = "".join(
+        f'<section class="trial-cell {side}"><h3>{side.capitalize()}</h3>'
+        f'<p class="col-note">{escaped(variant.note)}</p>'
+        f'<p class="count">{escaped(variant.count_text + variant.count_suffix)}</p></section>'
+        for side, variant in (("before", before), ("after", after))
+    )
     trials_html = (
-        f'<p class="section-label">{escaped(content.TRIAL_EVIDENCE_HEADING)}</p>'
+        f'<h2 class="section-label">{escaped(content.TRIAL_EVIDENCE_HEADING)}</h2>'
         f'<p class="sub">{escaped(content.trial_evidence_note(self_reported))}</p>'
-        f'<div class="run run-head"><span></span>'
-        f'<div class="half-head b"><h2>Before</h2>{before_note}'
-        f'<span class="count">{escaped(before.count_text + before.count_suffix)}</span></div>'
-        f'<div class="half-head a"><h2>After</h2>{after_note}'
-        f'<span class="count">{escaped(after.count_text + after.count_suffix)}</span></div>'
-        f"</div>{runs}"
+        '<p class="note">Final answers are visible below. Each numbered comparison aligns '
+        "Before on the left and After on the right. Supporting-detail disclosures open both "
+        "sides together; matching numbers do not establish paired execution.</p>"
+        f'<div class="trial-pair trial-overview">{trial_overview}</div>'
+        f'<nav class="record-links" aria-label="Jump to trial">{_trial_group_links(report)}</nav>'
+        f"{trial_groups}"
     )
 
-    decisions_html = ""
+    decisions_html = (
+        '<div class="comparison-heading-with-info">'
+        f'<h2 id="behavior-diff-heading">{escaped(report_content.decision_heading)}</h2>'
+        f"{_info('pop-decision', 'Behavior comparison labels', _tag_legend(report_content.tag_legend))}</div>"
+        '<div class="empty-state"><h3>Behavior comparison unavailable</h3>'
+        f"<p>{escaped(content.NO_EXTRACTED_CHOICE)}</p>"
+        "<p>Missing extraction does not establish absent behavior. "
+        "The retained trial records remain available for inspection.</p></div>"
+        f'<p class="note">{escaped(report.result.summary)}</p>'
+        '<a href="#panel-trials">View available trial records</a>'
+    )
     if report.decisions.rows:
         decisions = report.decisions
         footer = content.decision_footer(decisions.rows)
@@ -528,19 +745,31 @@ def render_artifact(report: ReportData, css: str) -> str:
             if self_reported
             else ""
         )
+        if not content.complete_trial_evidence(report):
+            limitation += (
+                '<p class="note">Trial evidence is incomplete. The extracted comparisons below '
+                "are retained for inspection, not a complete Before/After conclusion.</p>"
+            )
         decisions_html = (
-            f'<div class="section-label">{escaped(report_content.decision_heading)}'
-            f"{_info('pop-decision', 'Decision labels', _tag_legend(report_content.tag_legend))}</div>"
+            '<div class="comparison-heading-with-info">'
+            f'<h2 id="behavior-diff-heading">{escaped(report_content.decision_heading)}</h2>'
+            f"{_info('pop-decision', 'Behavior comparison labels', _tag_legend(report_content.tag_legend))}</div>"
             f'<p class="tab-overview">{escaped(content.decision_overview(report))}</p>'
             f'<p class="sub">{escaped(report_content.decision_blurb)}</p>'
             f"{limitation}"
             f"{_decision_progression(report)}"
             f'<p class="note">{escaped(footer)}</p>{explanation}'
-            '<nav class="evidence-nav" aria-label="Decision evidence">'
-            '<a href="#panel-trials">Inspect trial evidence</a></nav>'
+            '<nav class="evidence-nav" aria-label="Behavior comparison evidence">'
+            '<a href="#panel-trials">View supporting trial records</a></nav>'
         )
 
-    flow_section = ""
+    flow_section = (
+        '<h2 class="section-label">Flow diff</h2>'
+        '<div class="empty-state"><h3>Recorded command flow unavailable</h3>'
+        f"<p>{escaped(content.SELF_REPORTED_LIMIT)}</p>"
+        "<p>No command sequence is inferred from answer text or self-reported actions.</p></div>"
+        '<a href="#panel-trials">View available trial records</a>'
+    )
     if not self_reported:
         patterns = content.flow_patterns(flow)
         pattern_rows = []
@@ -576,15 +805,16 @@ def render_artifact(report: ReportData, css: str) -> str:
             + "</ul>"
         )
         flow_links = (
-            '<a href="#panel-decision">Compare decisions</a>'
+            '<a href="#panel-decision">Compare behavior</a>'
             if report.decisions.rows
             else ""
         )
         flow_section = (
-            f'<div class="section-label">{escaped(report_content.flow_heading)}'
+            '<div class="comparison-heading-with-info">'
+            f"<h2>{escaped(report_content.flow_heading)}</h2>"
             f"{_info('pop-flow', content.flow_kinds_heading(flow.kinds).rstrip(':'), kinds_html)}</div>"
             '<section class="progression" id="flow-progression" tabindex="-1" aria-labelledby="flow-progression-heading">'
-            '<h2 class="comparison-heading" id="flow-progression-heading">Flow progression</h2>'
+            '<h2 class="comparison-heading" id="flow-progression-heading">Recorded command sequences</h2>'
             f'<p class="note">{escaped(content.FLOW_PROGRESSION_NOTE)}</p>'
             '<div class="flow-lanes">'
             f"{_flow_lane(before, 'before', 'Before')}"
@@ -622,9 +852,7 @@ def render_artifact(report: ReportData, css: str) -> str:
     result = report.result
     limits_html = "".join(f"<li>{escaped(limit)}</li>" for limit in result.limits)
     summary_html = f"""{_short_story_summary(report)}
-<details class="summary-details"><summary>Instruction edit</summary>
-{_instruction_edit(report)}
-</details>
+<p class="note summary-boundary">{escaped(report_content.boundary)}</p>
 <details class="summary-details"><summary>Full scenario and expected behavior</summary>
 <div class="scenario-context">{scenario_html}</div>
 {scenario_prompt}
@@ -636,26 +864,25 @@ def render_artifact(report: ReportData, css: str) -> str:
 <ul class="evidence-limits">{limits_html}</ul>
 </details>"""
 
-    tabs = [("summary", "Summary", "", summary_html)]
-    if decisions_html:
-        tabs.append(
-            (
-                "decision",
-                "Decision diff",
-                f"{len(report.decisions.rows)} decision{'s' if len(report.decisions.rows) != 1 else ''}",
-                decisions_html,
-            )
-        )
-    if flow_section:
-        tabs.append(("flow", "Flow diff", "", flow_section))
-    tabs.append(
+    tabs = [
+        ("summary", "Summary", "", summary_html),
+        ("instruction", "Instruction changes", "", _instruction_edit(report)),
+        (
+            "decision",
+            "Behavior diff",
+            f"{len(report.decisions.rows)} comparisons"
+            if report.decisions.rows
+            else "",
+            decisions_html,
+        ),
+        ("flow", "Flow diff", "", flow_section),
         (
             "trials",
             content.TRIAL_EVIDENCE_HEADING,
             f"{before.total} + {after.total} trials",
             trials_html,
-        )
-    )
+        ),
+    ]
 
     return f"""<title>{escaped(report_content.title)}</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
@@ -677,7 +904,7 @@ def render_artifact(report: ReportData, css: str) -> str:
 def render_document(artifact: str) -> str:
     """Wrap an artifact body in a complete HTML document."""
     return (
-        '<!doctype html><html><head><meta charset="utf-8">'
+        '<!doctype html><html lang="en"><head><meta charset="utf-8">'
         '<meta name="viewport" content="width=device-width, initial-scale=1">'
         "</head><body>" + artifact + "</body></html>"
     )
