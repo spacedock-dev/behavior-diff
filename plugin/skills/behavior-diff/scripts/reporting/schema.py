@@ -15,8 +15,13 @@ from reporting.summary import (
     parse_intent,
     parse_narrative,
 )
+from reporting.trial_summary import (
+    TrialSummaryData,
+    parse_trial_summaries,
+    trial_group_names,
+)
 
-SCHEMA_VERSION = 7
+SCHEMA_VERSION = 8
 RESULT_KINDS = ("good", "bad", "neutral")
 
 
@@ -110,6 +115,7 @@ class DecisionData:
     implications: Tuple[EvidenceClaimData, ...]
     narrative: Optional[NarrativeData] = None
     intent: Optional[EditIntentData] = None
+    trial_summaries: Tuple[TrialSummaryData, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -219,16 +225,20 @@ class ReportData:
             )
 
         rule_diff = _expect_str(_field(data, "rule_diff", "report-data"), "rule_diff")
+        variants = _variants(_field(data, "variants", "report-data"), "variants")
         decisions = _decisions(
             _field(data, "decisions", "report-data"),
             "decisions",
             len(parse_diff_hunks(rule_diff)),
+            trial_group_names(
+                (trial.name for trial in variants.before.trials),
+                (trial.name for trial in variants.after.trials),
+            ),
         )
         result = _result(
             _field(data, "result", "report-data"), "result", len(decisions.rows)
         )
         metadata = _metadata(_field(data, "metadata", "report-data"), "metadata")
-        variants = _variants(_field(data, "variants", "report-data"), "variants")
         report_content = _content(_field(data, "content", "report-data"), "content")
         intent = _intent(
             _field(data, "intent", "report-data"),
@@ -445,7 +455,7 @@ def _flow_path(value, path):
     )
 
 
-def _decisions(value, path, hunk_count):
+def _decisions(value, path, hunk_count, groups=None):
     value = _expect_dict(value, path)
     rows = _expect_list(_field(value, "rows", path), path + ".rows")
     parsed_rows = tuple(
@@ -471,6 +481,10 @@ def _decisions(value, path, hunk_count):
         intent is None or _json_value(asdict(intent)) != raw_intent
     ):
         _invalid(path + ".intent", "valid canonical instruction edit interpretation")
+    raw_trial_summaries = _field(value, "trial_summaries", path)
+    trial_summaries = parse_trial_summaries(raw_trial_summaries, groups)
+    if [asdict(item) for item in trial_summaries] != raw_trial_summaries:
+        _invalid(path + ".trial_summaries", "valid canonical trial group summaries")
     decisions = DecisionData(
         rows=parsed_rows,
         fork=_optional_reference(
@@ -489,6 +503,7 @@ def _decisions(value, path, hunk_count):
         ),
         narrative=narrative,
         intent=intent,
+        trial_summaries=trial_summaries,
     )
     from reporting.content import valid_decision_choices
 

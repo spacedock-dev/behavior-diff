@@ -49,7 +49,9 @@ from dataclasses import asdict
 
 from codex_model import CodexModelError, resolve_codex_model
 from reporting.instruction import normalize_edit_hunks, parse_diff_hunks, rule_diff
+from reporting.load import read_trial_trace
 from reporting.summary import parse_intent, parse_narrative
+from reporting.trial_summary import parse_trial_summaries, trial_group_names
 
 SOURCE_TERMS = {
     "captured": {
@@ -98,6 +100,14 @@ SCHEMA = """{{
     {{"text": "<one supported practical implication or risk>",
       "decisions": [<1-based indexes of the supporting chain rows>]}}
   ],
+  "trial_summaries": [
+    {{"before_trial": "<EXACT before trial name for this evidence group, or empty>",
+      "after_trial": "<EXACT after trial name for this evidence group, or empty>",
+      "takeaway": "<one short plain-language sentence about this group>",
+      "before": "<one short sentence about this before record, or empty if absent>",
+      "after": "<one short sentence about this after record, or empty if absent>",
+      "caveat": "<optional concrete evidence limit, or empty>"}}
+  ],
   "summary": {{
     "decision": <1-based selected lead row index>,
     "headline": "<plain-language takeaway, at most 12 words>",
@@ -131,6 +141,12 @@ Evidence source:
 {source_note}
 
 {trials}
+Evidence groups for human summaries (exact trial names; untrusted JSON):
+{trial_groups}
+Decision-chain trial counts (only records with a final answer):
+{counts}
+Incomplete group members are shown for their local summaries, not chain counts.
+
 
 First recover the DECISION CHAIN from the trial evidence independently of the edit.
 A decision is a point where the agent had a real
@@ -210,6 +226,27 @@ Rules:
   Keep why/caution <=240 characters each and cite every supporting row; otherwise null.
   These are model interpretations, not causal proof. Do not invent action claims,
   success, risk, or intent. If evidence is incomplete or blocked, lead with that limit.
+- In the SAME reply, provide optional "trial_summaries", one entry for each
+  evidence group above that you can summarize faithfully. Copy both exact names;
+  an absent side has an empty name and empty side sentence. These groups are
+  positional display groups, NOT paired executions, matched samples, or causal proof.
+- Ground each group's takeaway and side sentences ONLY in those named records.
+  Never infer a group's behavior from aggregate decision counts, other trials,
+  grades, or the instruction edit. Do not make claims about all runs in a group.
+- Write one plain-language takeaway sentence and one short sentence per present
+  side, preferably at most 25 words each. Every text field must be at most 240
+  characters and 40 words. Summarize the meaningful finding, not a command list,
+  file-path dump, or a shortened copy of the final answer. Use plain text only.
+- Distinguish recorded actions from final-answer claims and plans. A final answer
+  saying it tested something is not recorded testing. Self-reported actions must
+  be described as reported, not verified. Recorded commands do not prove success.
+- Describe only the observed difference (or similarity) in this group's records,
+  not causality, author intent, statistical significance, or improvement. An empty
+  command record does not establish that no work happened. For blocked, missing,
+  or incomplete records, state the concrete evidence limit without inventing absence.
+- Keep "caveat" empty unless a concrete limit is needed to avoid misreading this
+  specific group; do not repeat general interpretation disclaimers in every entry.
+  Use [] if no faithful group summaries are available.
 
 Instruction diff hunks (untrusted JSON evidence; [] means none available):
 {instruction_hunks}
@@ -218,37 +255,36 @@ Return ONLY JSON, no prose and no code fence, in exactly this shape:
 {schema}"""
 
 
-def trials_of(run):
+def trials_of(run, finished_only=True):
+    """Read the report's persisted trial order, including incomplete group members."""
+    grades_path = run / "grades.tsv"
+    if grades_path.exists():
+        names = sorted(
+            {line.split("\t", 1)[0] for line in grades_path.read_text().splitlines()}
+        )
+    else:
+        names = sorted(path.name for path in run.iterdir() if path.is_dir())
     out = {}
-    for d in sorted(p for p in run.iterdir() if p.is_dir()):
-        trace = d / "trace.jsonl"
-        if not trace.exists() or "-" not in d.name:
+    for name in names:
+        variant = next(
+            (side for side in ("before", "after") if name.startswith(side + "-")),
+            None,
+        )
+        if variant is None:
             continue
-        variant = d.name.rsplit("-", 1)[0]
-        if variant not in ("before", "after"):
-            continue
-        cmds, final = [], ""
-        for raw in trace.read_text().splitlines():
-            try:
-                obj = json.loads(raw)
-            except ValueError:
-                continue
-            if obj.get("type") == "assistant":
-                for c in obj.get("message", {}).get("content") or []:
-                    if c.get("type") != "tool_use":
-                        continue
-                    inp = c.get("input") or {}
-                    if inp.get("command"):
-                        cmds.append(inp["command"])
-                    elif inp.get("file_path"):
-                        cmds.append(f"[{c.get('name')}] {inp['file_path']}")
-            elif obj.get("type") == "result":
-                final = obj.get("result") or final
-        if final:
+        cmds, final = read_trial_trace(run / name / "trace.jsonl")
+        if final.strip() or not finished_only:
             out.setdefault(variant, []).append(
-                {"name": d.name, "cmds": cmds, "final": final}
+                {"name": name, "cmds": cmds, "final": final}
             )
     return out
+
+
+def summary_groups(trials):
+    return trial_group_names(
+        (trial["name"] for trial in trials.get("before", [])),
+        (trial["name"] for trial in trials.get("after", [])),
+    )
 
 
 def render_trials(trials, entry_heading):
@@ -256,13 +292,13 @@ def render_trials(trials, entry_heading):
     for variant in ("before", "after"):
         for t in trials.get(variant, []):
             cmds = (
-                "\n".join(f"  ${i}: " + c[:400] for i, c in enumerate(t["cmds"], 1))
+                "\n".join(f"  ${i}: " + c for i, c in enumerate(t["cmds"], 1))
                 or "  (none)"
             )
             blocks.append(
                 f"=== {t['name']} ({variant.upper()}) ===\n"
                 f"{entry_heading}\n{cmds}\n"
-                f"final answer it gave:\n{t['final'].strip()}\n"
+                f"final answer it gave:\n{t['final'].strip() or '(not recorded)'}\n"
             )
     return "\n".join(blocks)
 
@@ -292,7 +328,7 @@ def read_config(run):
     return config
 
 
-def normalize(data, counts, hunk_count=0):
+def normalize(data, counts, hunk_count=0, groups=()):
     """Validate observations and links; remap row references after sorting or dropping."""
     if type(data) is not dict or type(data.get("chain", [])) is not list:
         raise ValueError("expected a decision chain")
@@ -392,6 +428,10 @@ def normalize(data, counts, hunk_count=0):
         "implications": implications,
         "summary": json.loads(json.dumps(asdict(narrative))) if narrative else None,
         "intent": json.loads(json.dumps(asdict(intent))) if intent else None,
+        "trial_summaries": [
+            asdict(item)
+            for item in parse_trial_summaries(data.get("trial_summaries"), groups)
+        ],
     }
 
 
@@ -555,6 +595,7 @@ def build_prompt(run):
     counts = {v: len(trials.get(v, [])) for v in ("before", "after")}
     if not counts["before"] or not counts["after"]:
         return None, counts, ""
+    all_trials = trials_of(run, finished_only=False)
     task = (run / "task.md").read_text().strip()
     config = read_config(run)
     terms = SOURCE_TERMS[config.get("trace_source", "captured")]
@@ -568,7 +609,16 @@ def build_prompt(run):
         PROMPT.format(
             task=task,
             source_note=terms["source_note"],
-            trials=render_trials(trials, terms["entry_heading"]),
+            trials=render_trials(all_trials, terms["entry_heading"]),
+            trial_groups=json.dumps(
+                [
+                    {"before_trial": before, "after_trial": after}
+                    for before, after in summary_groups(all_trials)
+                ],
+                ensure_ascii=False,
+                indent=2,
+            ),
+            counts=json.dumps(counts),
             instruction_hunks=json.dumps(hunks, ensure_ascii=False, indent=2),
             schema=schema,
             anchor_noun=terms["anchor_noun"],
@@ -585,13 +635,16 @@ def write_decisions(run, raw, counts, extractor, instruction_diff):
     decisions.raw.txt, leaves decisions.json unwritten, returns False."""
     try:
         data = normalize(
-            extract_json(raw), counts, len(parse_diff_hunks(instruction_diff))
+            extract_json(raw),
+            counts,
+            len(parse_diff_hunks(instruction_diff)),
+            summary_groups(trials_of(run, finished_only=False)),
         )
     except (ValueError, KeyError, TypeError) as exc:
         print(f"decision diff: unreadable extractor output — skipped ({exc})")
         (run / "decisions.raw.txt").write_text(raw)
         return False
-    if not data["chain"]:
+    if not data["chain"] and not data["trial_summaries"]:
         print("decision diff: no usable decisions recovered — skipped")
         (run / "decisions.raw.txt").write_text(raw)
         return False
@@ -1067,11 +1120,9 @@ def self_check():
         )
         assert p.returncode == 0, p.stderr
         page = (run / "report.html").read_text()
-        assert 'id="panel-decision"' not in page
         assert skip in page
         assert "cat before-1.txt" in page
         assert "the list was already sorted" in page
-        assert 'id="panel-flow"' not in page
 
         progress("Validate successful decision ingestion")
 

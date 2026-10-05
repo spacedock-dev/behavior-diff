@@ -2,6 +2,7 @@
 
 import html
 import re
+from itertools import zip_longest
 
 from reporting import content
 from reporting.schema import ReportData
@@ -22,14 +23,15 @@ def _choices(choices, total: int) -> str:
 
 
 def _decision_links(indexes) -> str:
-    return " · ".join(f"[Decision {index}](#decision-{index})" for index in indexes)
+    return " · ".join(f"[Comparison {index}](#decision-{index})" for index in indexes)
 
 
-def _edit_links(row):
+def _edit_links(row, diff):
     if not row.edit_hunks:
         return "Related edit unavailable — no mapping recorded."
     links = " · ".join(
-        f"[Hunk {number}](#edit-hunk-{number})" for number in row.edit_hunks
+        f"[{_text(content.instruction_hunk_label(diff, number))}](#edit-hunk-{number})"
+        for number in row.edit_hunks
     )
     return "Related edit (model interpretation): " + links
 
@@ -39,7 +41,10 @@ def _instruction_edit(report):
     for line, number in content.instruction_diff_lines(report.rule_diff):
         text = html.escape(line)
         if number:
-            text = f'<span id="edit-hunk-{number}">{text}</span>'
+            label = html.escape(
+                content.instruction_hunk_label(report.rule_diff, number)
+            )
+            text = f'<span id="edit-hunk-{number}">{label}<br>{text}</span>'
         lines.append(text)
     return [
         f"### {_text(report.content.diff_heading)}\n",
@@ -57,15 +62,16 @@ def _other_findings_markdown(report):
         for index, text in findings:
             row = report.decisions.rows[index - 1]
             source = content.source_label(row.anchor, report.metadata.trace_source)
-            links = f"[Decision {index} · {_text(source)}](#decision-{index})"
+            links = f"[Comparison {index} · {_text(source)}](#decision-{index})"
             for number in row.edit_hunks:
-                links += f" · [See edit {number}](#edit-hunk-{number})"
+                label = _text(content.instruction_hunk_label(report.rule_diff, number))
+                links += f" · [{label}](#edit-hunk-{number})"
             markdown.append(f"- {_text(text)}<br>{links}\n")
         markdown.append(_text(content.additional_findings_note(report)) + "\n")
     else:
         markdown.append(_text(content.NO_ADDITIONAL_FINDINGS) + "\n")
     markdown.append(
-        "[View all decisions](#panel-decision)\n"
+        "[View all behavior comparisons](#panel-decision)\n"
         if report.decisions.rows
         else "[Inspect trial evidence](#panel-trials)\n"
     )
@@ -76,7 +82,12 @@ def _other_findings_markdown(report):
 def _decision_markdown(report):
     decisions = report.decisions
     if not decisions.rows:
-        return []
+        return [
+            '<a id="panel-decision"></a>\n',
+            "## Behavior diff\n",
+            _text(content.NO_EXTRACTED_CHOICE) + "\n",
+            "[View available trial records](#panel-trials)\n",
+        ]
     markdown = [
         '<a id="panel-decision"></a>\n',
         f"## {_text(report.content.decision_heading)}\n",
@@ -89,7 +100,7 @@ def _decision_markdown(report):
     if report.metadata.trace_source == "self-reported":
         markdown.append(_text(content.SELF_REPORTED_LIMIT) + "\n")
     markdown += [
-        "**Decision labels**\n",
+        "**Comparison labels · status, role, and source**\n",
         "\n".join(
             f"- **{_text(label)}** — {_text(meaning)}"
             for _, label, meaning in report.content.tag_legend
@@ -116,9 +127,24 @@ def _decision_markdown(report):
             f"| {_choices(row.before, decisions.before_count)}"
             f" | {_choices(row.after, decisions.after_count)} |\n"
         )
-        markdown.append(_edit_links(row) + "\n")
+        markdown.append(_edit_links(row, report.rule_diff) + "\n")
         if row.note:
             markdown.append(f"Note: {_text(row.note)}\n")
+        markdown.append(
+            "Available trial records (all trials; row attribution is not recorded): "
+            + " · ".join(
+                f"[Trial {number}](#{content.trial_group_anchor(number)})"
+                for number in range(
+                    1,
+                    max(
+                        len(report.variants.before.trials),
+                        len(report.variants.after.trials),
+                    )
+                    + 1,
+                )
+            )
+            + "\n"
+        )
     markdown.append(_text(content.decision_footer(decisions.rows)) + "\n")
     if decisions.dropped:
         markdown.append(_text(content.dropped_rows(decisions.dropped)) + "\n")
@@ -215,7 +241,7 @@ def _flow_markdown(report):
     markdown.append("\n</details>\n")
     links = []
     if report.decisions.rows:
-        links.append("[Compare decisions](#panel-decision)")
+        links.append("[Compare behaviors](#panel-decision)")
     links.append("[Inspect trial evidence](#panel-trials)")
     markdown.append(" · ".join(links) + "\n")
     return markdown
@@ -237,21 +263,14 @@ def _summary_markdown(report):
     markdown = [
         "## Summary\n",
         f"**{_text(summary.headline)}**\n",
-        "### 1. Edit goal\n",
+        "### 1. The intended change\n",
         f"**{_text(intent_label)}**\n",
         _text(intent.text) + "\n",
         _text(intent_note) + "\n",
     ]
-    intent_links = (
-        " · ".join(
-            f"[See edit {number}](#edit-hunk-{number})" for number in intent.edit_hunks
-        )
-        if intent.edit_hunks
-        else "[Inspect the instruction edit](#instruction-diff)"
-    )
     markdown += [
-        intent_links + "\n",
-        "### 2. What happened in this scenario\n",
+        "[View instruction changes](#instruction-diff)\n",
+        "### 2. What was observed\n",
     ]
     if summary.scenario:
         markdown.append(_text(summary.scenario) + "\n")
@@ -266,12 +285,18 @@ def _summary_markdown(report):
             if choice.detail:
                 markdown.append(_text(choice.detail) + "\n")
             markdown.append(_text(content.trial_count(choice.count, side.total)) + "\n")
-    links = []
-    if summary.decision is not None:
-        links.append(f"[See the evidence](#decision-{summary.decision})")
-    links.append("[Inspect trial evidence](#panel-trials)")
-    markdown.append(" · ".join(links) + "\n")
-    markdown.append("### 3. What this means\n")
+    target = (
+        f"decision-{summary.decision}"
+        if summary.decision is not None and summary.status != "unavailable"
+        else "panel-trials"
+    )
+    label = (
+        "View this comparison"
+        if target != "panel-trials"
+        else "View available trial records"
+    )
+    markdown.append(f"[{label}](#{target})\n")
+    markdown.append("### 3. What this does — and does not — establish\n")
     for label, claim in (
         ("Why it matters", summary.why),
         ("Watch out", summary.caution),
@@ -295,11 +320,6 @@ def render_markdown(report: ReportData) -> str:
         markdown.append(_text(content_data.note) + "\n")
     markdown.append('<a id="panel-summary"></a>\n')
     markdown += _summary_markdown(report)
-    markdown.append(
-        '<details id="instruction-diff"><summary>Instruction edit</summary>\n'
-    )
-    markdown += _instruction_edit(report)
-    markdown.append("</details>\n")
     markdown += [
         "<details><summary>Full scenario and expected behavior</summary>\n",
     ]
@@ -321,9 +341,19 @@ def render_markdown(report: ReportData) -> str:
     markdown += [f"- {_text(limit)}" for limit in result.limits]
     markdown.append("")
     markdown.append("</details>\n")
+    markdown.append('<a id="panel-instruction"></a>\n')
+    markdown.append('<a id="instruction-diff"></a>\n')
+    markdown.append("## Instruction changes\n")
+    markdown += _instruction_edit(report)
     markdown += _decision_markdown(report)
     if metadata.trace_source != "self-reported":
         markdown += _flow_markdown(report)
+    else:
+        markdown += [
+            '<a id="panel-flow"></a>\n',
+            "## Flow diff\n",
+            _text(content.SELF_REPORTED_LIMIT) + "\n",
+        ]
     self_reported = metadata.trace_source == "self-reported"
     action_label, empty_actions = content.trial_action_labels(self_reported)
     markdown += [
@@ -331,30 +361,101 @@ def render_markdown(report: ReportData) -> str:
         f"## {_text(content.TRIAL_EVIDENCE_HEADING)}\n",
         _text(content.trial_evidence_note(self_reported)) + "\n",
     ]
-    for side, variant, label in (
-        ("before", report.variants.before, f"Before — {metadata.before_label}"),
-        ("after", report.variants.after, f"After — {metadata.after_label}"),
+    markdown.append(
+        "Before and After are independent attempts, aligned by trial number for reading; "
+        "they are not consecutive steps or verified paired executions.\n"
+    )
+    markdown.append(
+        f"Before — {_text(metadata.before_label)}: {_count_line(report.variants.before)}\n"
+    )
+    markdown.append(
+        f"After — {_text(metadata.after_label)}: {_count_line(report.variants.after)}\n"
+    )
+    for number, pair in enumerate(
+        zip_longest(report.variants.before.trials, report.variants.after.trials), 1
     ):
-        markdown.append(f"### {_text(label)}\n")
-        markdown.append(_count_line(variant) + "\n")
-        for trial in variant.trials:
+        summary = content.trial_summary_for_group(report.decisions, *pair)
+        markdown += [
+            f'<a id="{content.trial_group_anchor(number)}"></a>\n',
+            f"### Trial {number}\n",
+            f"#### {_text(content.TRIAL_CHANGE_HEADING)}\n",
+            _text(summary.takeaway if summary else content.TRIAL_SUMMARY_UNAVAILABLE)
+            + "\n",
+            '<table><thead><tr><th scope="col">Before</th><th scope="col">After</th></tr></thead><tbody>',
+        ]
+        if summary is not None:
+            markdown.append(
+                "<tr><td>"
+                + "</td><td>".join(
+                    html.escape(sentence)
+                    if trial is not None
+                    else "No trial record on this side."
+                    for trial, sentence in zip(pair, (summary.before, summary.after))
+                )
+                + "</td></tr>"
+            )
+            if summary.caveat:
+                markdown.append(
+                    '<tr><td colspan="2">' + html.escape(summary.caveat) + "</td></tr>"
+                )
+        markdown += [
+            '<tr><th colspan="2">Trial record and verdict</th></tr>',
+        ]
+        cells = []
+        answers = []
+        for side, trial in zip(("before", "after"), pair):
+            if trial is None:
+                cells.append(
+                    '<span class="trial-missing">No trial record on this side.</span>'
+                )
+                answers.append(
+                    '<span class="trial-missing">No trial record on this side.</span>'
+                )
+                continue
             anchor = content.trial_anchor(side, trial.name)
-            markdown += [
-                f'<a id="{anchor}"></a>\n',
-                f"#### {_text(trial.name)} — {_text(trial.verdict)}\n",
-            ]
-            if trial.actions != "-":
-                markdown.append(_text(trial.actions) + "\n")
-            actions = "\n\n".join(trial.commands) or empty_actions
-            markdown.append(
-                f"<details><summary>{html.escape(action_label)} ({len(trial.commands)})</summary>\n"
-                "<pre>" + html.escape(actions) + "</pre>\n"
-                "</details>\n"
+            cells.append(
+                f'<a id="{anchor}"></a><strong>{html.escape(trial.name)}</strong> — {html.escape(trial.verdict)}'
             )
-            final = trial.final if trial.final.strip() else content.NO_FINAL_ANSWER
-            markdown.append(
-                f"<details><summary>{html.escape(content.FINAL_ANSWER_HEADING)}</summary>\n"
-                "<pre>" + html.escape(final) + "</pre>\n"
-                "</details>\n"
+            answers.append(
+                "<pre>"
+                + html.escape(
+                    trial.final if trial.final.strip() else content.NO_FINAL_ANSWER
+                )
+                + "</pre>"
             )
+        markdown += [
+            "<tr><td>" + "</td><td>".join(cells) + "</td></tr>",
+            f'<tr><th colspan="2">{content.FINAL_ANSWER_HEADING}</th></tr>',
+            "<tr><td>" + "</td><td>".join(answers) + "</td></tr></tbody></table>\n",
+        ]
+        markdown.append("<details><summary>Supporting details · both sides</summary>\n")
+        markdown.append(
+            '<table><thead><tr><th scope="col">Before</th><th scope="col">After</th></tr></thead><tbody><tr><td>'
+            + "</td><td>".join(
+                "<pre>" + html.escape(trial.actions) + "</pre>"
+                if trial is not None and trial.actions != "-"
+                else (
+                    "No trial record available"
+                    if trial is None
+                    else "No action summary recorded"
+                )
+                for trial in pair
+            )
+            + "</td></tr></tbody></table>\n</details>\n"
+        )
+        markdown.append(
+            f"<details><summary>{html.escape(action_label)} · both sides</summary>\n"
+        )
+        markdown.append(
+            '<table><thead><tr><th scope="col">Before</th><th scope="col">After</th></tr></thead><tbody><tr><td>'
+            + "</td><td>".join(
+                "<pre>"
+                + html.escape("\n\n".join(trial.commands) or empty_actions)
+                + "</pre>"
+                if trial is not None
+                else "No trial record available"
+                for trial in pair
+            )
+            + "</td></tr></tbody></table>\n</details>\n"
+        )
     return "\n".join(markdown)

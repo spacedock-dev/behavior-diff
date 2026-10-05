@@ -7,8 +7,12 @@ from reporting.schema import ContentData, ResultData
 
 TRIAL_EVIDENCE_HEADING = "Trial evidence"
 FINAL_ANSWER_HEADING = "Final answer"
+TRIAL_CHANGE_HEADING = "What changed"
+TRIAL_SUMMARY_UNAVAILABLE = (
+    "Summary unavailable for these trial records. The full evidence remains below."
+)
 NO_COMMANDS_RECORDED = "No commands recorded"
-NO_EXTRACTED_CHOICE = "No recorded behaviors"
+NO_EXTRACTED_CHOICE = "No extracted comparison available"
 NO_FINAL_ANSWER = "No final answer recorded"
 RECORDED_COMMAND_LIMIT = (
     "Records can be incomplete and do not prove successful execution."
@@ -32,10 +36,10 @@ SELF_REPORTED_LIMIT = (
     "Flow diff is unavailable for this report."
 )
 DECISION_PROGRESSION_NOTE = (
-    "Read top to bottom in the model-extracted decision order. "
-    "Before and After sides are aligned at each decision. "
+    "Read top to bottom in the model-extracted comparison order. "
+    "Before and After sides are aligned at each comparison. "
     "This is not a recorded execution path or a causal chain; "
-    "counts across decisions do not establish a complete path through one trial."
+    "counts across comparisons do not establish a complete path through one trial."
 )
 FLOW_PROGRESSION_NOTE = (
     "Commands follow their recorded order, including repeats. "
@@ -91,6 +95,29 @@ def instruction_diff_lines(diff):
             number = hunk.number
             hunk = next(hunks, None)
         yield line, number
+
+
+def _hunk_line_location(value):
+    start, _, count = value[1:].partition(",")
+    start, count = int(start), int(count or "1")
+    if count == 0:
+        return "at line {0} (empty range)".format(start)
+    if count == 1:
+        return "line {0}".format(start)
+    return "lines {0}–{1}".format(start, start + count - 1)
+
+
+def instruction_hunk_label(diff, number):
+    """Name the saved section and line locations, without inferring edit meaning."""
+    for hunk in parse_diff_hunks(diff):
+        if hunk.number == number:
+            locations, section = hunk.header[3:].split(" @@", 1)
+            before, after = locations.split()
+            location = "Before {0} · After {1}".format(
+                _hunk_line_location(before), _hunk_line_location(after)
+            )
+            return (section.strip() + " · " if section.strip() else "") + location
+    return "Instruction change"
 
 
 def unanimous_choices(row, decisions):
@@ -152,7 +179,7 @@ def decision_evidence_status(row, decisions, report=None):
     if status == "Unchanged" and (
         not complete or unanimous_choices(row, decisions) is None
     ):
-        return "Same choice proportions"
+        return "Same proportions"
     return status
 
 
@@ -197,12 +224,7 @@ def additional_findings_note(report):
     execution_note = (
         "Self-reported actions and answers do not prove execution."
         if report.metadata.trace_source == "self-reported"
-        else "Answer choices do not prove execution."
-    )
-    reason = (
-        ""
-        if report.metadata.trace_source == "self-reported"
-        else "Answer summaries do not prove execution."
+        else "Final answers do not prove execution."
     )
     note = (
         "Model-extracted counts describe trials, not repeated actions. "
@@ -287,11 +309,30 @@ def trial_evidence_note(self_reported):
     return (
         "Before and After trials are independent, even when their trial numbers match. "
         + (SELF_REPORTED_LIMIT if self_reported else RECORDED_COMMAND_LIMIT)
+        + " Short summaries interpret each group's records; they are not causal proof."
     )
 
 
 def trial_anchor(side, name):
     return "trial-{0}-{1}".format(side, name.encode("utf-8").hex())
+
+
+def trial_group_anchor(index):
+    return "trial-group-{0}".format(index)
+
+
+def trial_summary_for_group(decisions, before, after):
+    """Return only one saved summary matching both exact group identities."""
+    identity = (
+        before.name if before is not None else "",
+        after.name if after is not None else "",
+    )
+    matches = [
+        summary
+        for summary in decisions.trial_summaries
+        if (summary.before_trial, summary.after_trial) == identity
+    ]
+    return matches[0] if len(matches) == 1 else None
 
 
 def command_progressions(variant):
@@ -437,7 +478,7 @@ def result_data(metadata, variants, decisions, expected):
         if answer_details_changed:
             text = "Final result unchanged; answer details changed"
     if answer_details_changed:
-        summary += " Other answer details changed. The Decision diff preserves these comparisons."
+        summary += " Other answer details changed. The Behavior diff preserves these comparisons."
     if behavior_status == "unchanged":
         summary += " No change was observed in the compared actions."
     if not explicit:
@@ -535,7 +576,7 @@ def _evidence_limits(metadata, variants, decisions, expected):
             )
         ):
             missing.append(
-                "{0} decision counts disagree with the trial count.".format(
+                "{0} comparison counts disagree with the trial count.".format(
                     variant.label
                 )
             )
@@ -628,12 +669,12 @@ def source_label(anchor, trace_source):
 def tag_legend(trace_source):
     """What each tag on a decision row means."""
     return (
-        ("changed", "Changed", "extracted behavior proportions differ between sides"),
-        ("same", "Unchanged", "complete trials show the same unanimous behavior"),
+        ("changed", "Changed", "the compared answers or actions differ between sides"),
+        ("same", "Unchanged", "complete trials show the same answer or action"),
         (
             "same",
             "Same proportions",
-            "proportions match, but behaviors are mixed or trial evidence is incomplete",
+            "counts have matching proportions, but answers or actions vary or evidence is incomplete",
         ),
         (
             "unavailable",
@@ -664,7 +705,7 @@ def headings(target_file):
         "scenario": "What we simulated",
         "expected": "Expected behavior",
         "diff": "Diff of {0}".format(target_file),
-        "decision": "Decision diff: actions and answers compared",
+        "decision": "Behavior diff: actions and answers compared",
         "flow": "Flow diff: recorded commands",
         "result": "Result",
     }
@@ -673,14 +714,12 @@ def headings(target_file):
 def decision_footer(rows):
     changed = sum(decision_status(row) == "Changed" for row in rows)
     unavailable = sum(decision_status(row) == "Unavailable" for row in rows)
-    summary = "{0} of {1} comparisons have different behavior proportions.".format(
+    summary = "{0} of {1} comparisons differ between Before and After.".format(
         changed, len(rows)
     )
     if unavailable:
-        summary += (
-            " {0} comparisons lack usable behaviors on one or both sides.".format(
-                unavailable
-            )
+        summary += " {0} comparisons lack usable extracted evidence on one or both sides.".format(
+            unavailable
         )
     return summary
 

@@ -35,7 +35,7 @@ scripts handle execution, evidence, and reporting.
                              v
 +---------------------------------------------------------+
 | Evidence analysis                                       |
-| decisions.py: model-based decision extraction           |
+| decisions.py: comparisons and trial summaries           |
 | reporting/: deterministic comparison and report data    |
 +----------------------------+----------------------------+
                              v
@@ -190,7 +190,9 @@ The modules below live in the skill's [`scripts/`](../plugin/skills/behavior-dif
 - **Model-based interpretation:** `decisions.py` reads the task, trial actions,
   final answers, and numbered instruction-diff hunks. A separate model extracts
   choices, counts, a primary result, supported implications, links to edits,
-  plain-language Summary text, and the edit's likely aim in the same call.
+  plain-language Summary text, the edit's likely aim, and short per-group trial
+  summaries in the same call. Each trial summary names its exact Before/After
+  records and separates answers and plans from recorded actions.
   The inferred aim cites instruction hunks independently of trial outcomes.
   The script validates references and exact choice coverage before writing
   `decisions.json`. Invalid interpretation does not discard valid observations.
@@ -206,7 +208,11 @@ The modules below live in the skill's [`scripts/`](../plugin/skills/behavior-dif
   single-trial cautions remain visible.
   It also derives the story's aim from supplied expected behavior or a
   validated inference whose stored diff matches the current instruction diff.
-  Together these modules build schema-v7 `ReportData` in `reporting/schema.py`.
+  `reporting/trial_summary.py` validates bounded plain-text trial summaries
+  against exact positional record identities; duplicates and invalid entries
+  are omitted without losing raw evidence. Extraction and loading share
+  `read_trial_trace` so they read the same source fields.
+  Together these modules build schema-v8 `ReportData` in `reporting/schema.py`.
   Summary counts come from existing decision rows.
 
 Command flow comes from recorded events. Decision comparisons come from model
@@ -220,7 +226,7 @@ distinct. Links between decisions and edits do not prove causality.
 
 | Artifact | Purpose |
 | --- | --- |
-| `report.html` | Local browser report with Summary, Decision diff, Flow diff, and Trial evidence views. |
+| `report.html` | Local browser report with Summary, Instruction changes, Behavior diff, Flow diff, and Trial evidence tabs. |
 | `report.md` | Markdown version for reading and sharing after review. |
 | `report-data.json` | Structured, versioned report data. |
 | `report-artifact.html` | Embeddable HTML body. |
@@ -233,7 +239,7 @@ author intent or goal completion. Markdown retains the caveat as plain text.
 `reporting/illustrations.py` supplies fixed SVG shapes for the Before/After
 comparison. Model output supplies text and selectors, never markup.
 Plans are not presented as executions. `content.additional_findings` selects
-at most three compact comparisons; full decisions stay in Decision diff.
+at most three compact comparisons; full comparisons stay in Behavior diff.
 Markdown shares the same story and findings without illustrations.
 Saved decisions without interpretations show explicit availability notices;
 rendering never requests new explanations.
@@ -247,14 +253,27 @@ unavailable rather than treating a description as the prompt. Shared
 `content.scenario_sections` supplies both HTML and Markdown; rendering adds
 no inferred setup details.
 
-Instruction edit begins with a plain-language explanation from the saved
-`intent`, labeled as a likely aim or supplied expectation. Rendering does not
-infer missing explanations or claim confirmed author intent. It contains one
-complete diff, with no duplicate excerpt or nested diff toggle.
-`content.instruction_edit_counts` counts added and removed
-lines across validated hunks. Stable diff and hunk anchors open the enclosing
-disclosure. Missing or unparseable diffs do not acquire invented counts.
-Both output formats retain the full evidence.
+Instruction changes has its own tab, linked from the Summary's goal. It begins
+with the saved `intent`, labeled as a likely aim or supplied expectation.
+Rendering does not infer missing explanations or claim confirmed author intent.
+Both output formats retain one complete diff. `content.instruction_edit_counts`
+counts changed lines across validated hunks; `content.instruction_hunk_label`
+names blocks by section and line range. Selecting a block highlights only its
+changed lines and scrolls to its stable anchor. Missing or unparseable diffs
+do not acquire invented counts.
+
+All five tabs remain available. Missing extraction and uncaptured command flow
+have explicit unavailable states, with links to the retained trial evidence.
+Flow groups only identical complete command sequences within each side.
+Trial evidence aligns the saved Before/After lists by position into numbered
+groups, not paired executions. Missing sides are explicit. A short saved
+takeaway, Before/After descriptions, and optional caveat precede each group's
+full answers. Missing summaries stay unavailable; rendering does not infer them
+from aggregate decisions. Final answers remain visible; shared disclosures
+expand supporting details and commands on both
+sides. Group and individual-record anchors remain available. Per-comparison
+trial links expose the available groups without inventing individual attribution.
+Printing opens every disclosure and restores screen state afterward.
 
 The runner attempts to open the HTML report. The skill summarizes observed
 differences and evidence limits in the conversation. Missing extraction does
@@ -316,9 +335,9 @@ All output formats share `ReportData`. Only the HTML branch uses
    into `ReportData`. Its schema checks the structure before rendering.
 4. **Build the HTML body.** `render_artifact(report, css)` creates HTML from
    that object and inlines `reporting/report.css`. Python functions build the
-   Summary, decision comparisons, command flow, and expandable trial evidence.
-   Decision diff appears only with extracted decisions. Evidence text is
-   HTML-escaped, so recorded code and answers appear as text rather than markup.
+   Summary, instruction changes, behavior comparisons, command flow, and shared
+   trial evidence sections. Unavailable evidence does not remove a tab.
+   Evidence text is HTML-escaped, so recorded code and answers remain text.
 5. **Create the page.** `render_document(artifact)` adds the HTML document
    wrapper, character encoding, and viewport metadata. `render.py` writes the
    body to `report-artifact.html` and the full document to `report.html`.

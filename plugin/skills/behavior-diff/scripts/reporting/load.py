@@ -24,6 +24,7 @@ from reporting.schema import (
     VariantsData,
 )
 from reporting.summary import build_intent, build_summary, parse_intent, parse_narrative
+from reporting.trial_summary import parse_trial_summaries, trial_group_names
 
 
 def load_report(
@@ -38,7 +39,14 @@ def load_report(
     command_flow = _command_flow(before, after, metadata)
     instruction_diff = rule_diff(run, capsule, metadata.target_file)
     decisions = _read_decisions(
-        run, command_flow.before.total, command_flow.after.total, instruction_diff
+        run,
+        command_flow.before.total,
+        command_flow.after.total,
+        instruction_diff,
+        trial_group_names(
+            (trial.name for trial in before.trials),
+            (trial.name for trial in after.trials),
+        ),
     )
     task = _task(run, capsule)
     report_content = content.build_content(
@@ -127,7 +135,7 @@ def _variants(run, grades, metadata):
 
 def _trial(run, name, grade, metadata):
     verdict, actions = grade
-    commands, final = _read_trace(run / name / "trace.jsonl")
+    commands, final = read_trial_trace(run / name / "trace.jsonl")
     return TrialData(
         name=name,
         verdict=verdict,
@@ -138,7 +146,8 @@ def _trial(run, name, grade, metadata):
     )
 
 
-def _read_trace(path):
+def read_trial_trace(path):
+    """Read recorded entries and the last final answer without inventing evidence."""
     commands = []
     final = ""
     if not path.exists():
@@ -364,18 +373,20 @@ def _common_prefix(sequences):
     return tuple(prefix)
 
 
-def _read_decisions(run, before_default, after_default, instruction_diff):
+def _read_decisions(run, before_default, after_default, instruction_diff, groups=()):
     path = run / "decisions.json"
     if not path.exists():
         return _empty_decisions(before_default, after_default)
     try:
         raw = json.loads(path.read_text())
-        return _convert_decisions(raw, before_default, after_default, instruction_diff)
+        return _convert_decisions(
+            raw, before_default, after_default, instruction_diff, groups
+        )
     except (TypeError, ValueError, KeyError):
         return _empty_decisions(before_default, after_default)
 
 
-def _convert_decisions(raw, before_default, after_default, instruction_diff):
+def _convert_decisions(raw, before_default, after_default, instruction_diff, groups=()):
     if type(raw) is not dict or type(raw.get("chain")) is not list:
         raise ValueError("malformed decisions")
     counts = raw.get("counts", {})
@@ -439,6 +450,7 @@ def _convert_decisions(raw, before_default, after_default, instruction_diff):
         implications,
         parse_narrative(raw.get("summary"), rows),
         parse_intent(raw.get("intent"), hunk_count),
+        parse_trial_summaries(raw.get("trial_summaries"), groups),
     )
 
 
