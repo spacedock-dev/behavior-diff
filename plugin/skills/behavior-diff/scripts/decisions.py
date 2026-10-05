@@ -212,23 +212,40 @@ Rules:
   decision observations, or presumed author motivation. Do not claim the aim was met.
   This edit-only model interpretation is independent of "summary" and chain indexes.
 - In the SAME reply, optionally give a concise plain-language "summary" grounded
-  in a meaningful selected chain row, or null when unsupported. Prefer a changed
-  primary result, then a unanimous changed action, then a mixed primary result,
-  then a changed mixed action or changed edit-linked comparison. Do not elevate
-  answer wording over a supported process difference. For no observed difference,
-  limit the headline to this scenario, never claim the edit has no effect.
+  in a meaningful selected chain row, or null when unsupported. Prefer the observed
+  changed operative rule: the condition, timing, scope, or prerequisite that changes
+  what the agent does or plans. Select that row rather than only its downstream
+  result, even when the primary result also changes or either row has mixed choices.
+  The application keeps the primary result and its full distribution beside the
+  cards. An edit link alone does not establish an observed rule change.
+  If no operative-rule contrast is supported, prefer a changed primary result,
+  then a unanimous changed action, then a mixed primary result, then a changed mixed
+  action or changed edit-linked comparison. Do not elevate answer wording over a
+  supported process difference. For no observed difference, limit the headline to
+  this scenario, never claim the edit has no effect.
 - Include EVERY choice on both sides of that row, copying its canonical "choice"
   exactly. Do not provide summary counts: the application uses validated row counts.
   Mixed primary results must not be described as unanimous even when the lead is
   another action. Same-result/different-process is a valid finding.
+- Ground each side's label and detail in the records of EVERY named trial assigned
+  to that selected branch. Do not borrow a condition, interval, deadline, or other
+  fact from another branch or row's memberships, even when their counts match.
+  If a detail is not shared by those trials, split the observed choices faithfully,
+  select the row that records the rule, or omit that detail; do not combine rows
+  into a counted execution path. Why/caution citations do not support card details.
 - Write concrete actor + verb + object sentences in plain language. Explain an
   internal workflow name only when the reader needs it to understand the finding.
   Use parallel before/after sentences about the same subject; say what changed
   and what stayed the same. Distinguish changed choices, actions, or stated plans
   from changed explanations, citations, or presentation alone. Do not infer
   actions from answers. Put the decisive contrast in the headline and main side
-  details, not only why/caution; avoid abstract correlation or the author's stance.
-  Do not duplicate count claims in prose: the application derives counts.
+  details, not only why/caution or Other findings. Include material intervals,
+  deadlines and their units, triggers, prerequisites, and exceptions when supported;
+  a vague "waits longer" or "uses a stricter gate" is not enough. Describe the observed
+  gate separately from what the instruction requires: a newly written gate may
+  already appear in Before, and a rule in the diff is not evidence that After used it.
+  Avoid abstract correlation or the author's stance. Do not duplicate count claims
+  in prose: the application derives counts.
 - Use "plans" only for plans stated in final answers, "answers" for other final
   answer choices, and "actions" only for a numbered action/command anchor. Plans
   are not executed actions. Final answers do not prove tool execution. Self-reported
