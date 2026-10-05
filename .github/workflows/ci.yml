@@ -78,6 +78,7 @@ jobs:
         run: |
           python3 -m py_compile \
             .agents/skills/release-behavior-diff/scripts/bump-version.py \
+            .agents/skills/run-behavior-diff-human-evaluation/scripts/*.py \
             plugin/skills/behavior-diff/scripts/codex_model.py \
             plugin/skills/behavior-diff/scripts/decisions.py \
             plugin/skills/behavior-diff/scripts/render.py \
@@ -97,3 +98,8 @@ jobs:
 
       - name: Run release skill unit check
         run: python3 .agents/skills/release-behavior-diff/scripts/bump-version.py --check
+
+      - name: Run human evaluation helper checks
+        run: |
+          python3 tests/human-evaluation-workflow-test.py
+          python3 tests/human-evaluation-quiz-test.py

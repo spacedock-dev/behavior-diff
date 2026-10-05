@@ -348,6 +348,45 @@ The page includes JavaScript for evidence links, expand/collapse controls, and
 printing. It opens as a local file without an application server. Styles are
 inline, but the page also references Google Fonts.
 
+## Manual human evaluation
+
+The repository-local
+[`run-behavior-diff-human-evaluation`](../.agents/skills/run-behavior-diff-human-evaluation/SKILL.md)
+skill is a maintainer workflow, not part of the installable plugin or edit hooks.
+It uses the existing trial/extraction/rendering pipeline without changing summary
+wording:
+
+```text
+Manual request + fresh live-cost approval
+  -> fixed recce-team upstream + pinned main + fresh random sample
+  -> five synthetic fixtures and patch-grounded four-option questions
+  -> frozen inputs/key + current local implementation fingerprint
+  -> unchanged local runner: 3 Before + 3 After per case
+  -> saved report HTML -> blinded Summary excerpts
+  -> loopback quiz -> first human submission -> score and full-report reveal
+```
+
+`evaluate.py` owns sampling, source/fixture validation, input freezing, guarded
+live execution, and provenance. `quiz.py` projects the original saved HTML without
+model calls and owns the local quiz server and scoring. Agent instructions own
+scenario design, question truth, and interpretation; structural validation is
+not a semantic judgment of the options.
+
+Each new session samples five eligible single-existing-skill-file changes from
+`DataRecce/recce-team`, never a handpicked commit list or another repository.
+The helper records the source tip, seed, exclusions, HEAD, and source-content
+fingerprint, including uncommitted implementation changes. Questions freeze
+before trials; attempts cannot be silently retried or replaced after results.
+The Claude-only read-only launcher disables external tools and suppresses the
+runner's automatic report opening so the quiz stays blind.
+
+The server binds only to loopback and serves an explicit public allowlist.
+Instruction intent/diff, the full scenario, and source metadata stay private
+before submission. The answer key is server-side; the first complete submission
+unlocks original reports and commit links. Saved sessions remain available for
+analysis after the checkout changes. A score out of five measures this reader's
+answers to these questions, not product-wide accuracy or execution correctness.
+
 ## Local state and system boundaries
 
 State lives under `${BEHAVIOR_DIFF_HOME:-~/.behavior-diff}/`:
@@ -356,6 +395,8 @@ State lives under `${BEHAVIOR_DIFF_HOME:-~/.behavior-diff}/`:
 - `nudge/`: session state that prevents repeated hook suggestions.
 - `runs/`: each comparison's task, configuration, project copies, traces,
   completion grades, extracted decisions, and generated reports.
+- `human-evaluations/`: private source snapshots, frozen scenarios/questions,
+  original reports, quiz projections, and human submissions for manual evaluations.
 
 The runner prepares copies without changing the source project. Separate
 working directories are not a universal security sandbox. Tool restrictions

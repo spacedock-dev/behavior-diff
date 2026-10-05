@@ -61,6 +61,9 @@ when the flow changes.
 - To run an end-to-end demo, use the local
   `run-behavior-diff-demo-journey` skill.
 - To release Behavior Diff, use the local `release-behavior-diff` skill.
+- To evaluate summary comprehension with a blind human quiz, use the local
+  `run-behavior-diff-human-evaluation` skill. It always samples skill changes
+  from `DataRecce/recce-team`; live trials require fresh model-cost approval.
 
 ## Verification
 
@@ -80,6 +83,8 @@ bash tests/hooks-test.sh
 python3 plugin/skills/behavior-diff/scripts/decisions.py --check
 bash tests/live-report-contract.sh
 bash tests/release-workflow-test.sh
+python3 tests/human-evaluation-workflow-test.py
+python3 tests/human-evaluation-quiz-test.py
 ```
 
 For Markdown-only changes, also run `git diff --check`. Do not replace these

@@ -374,6 +374,37 @@ For live agent journeys, see [`e2e/README.md`](e2e/README.md).
 Each command builds fresh reports outside the repository. After changing the
 report code or fixtures, run the command again to see the change.
 
+## Manually evaluate summary quality
+
+From this checkout, ask your coding agent:
+
+> Run a Behavior Diff human evaluation.
+
+The local
+[`run-behavior-diff-human-evaluation`](.agents/skills/run-behavior-diff-human-evaluation/SKILL.md)
+skill prepares five blind, four-option questions using randomly sampled skill
+changes from **`DataRecce/recce-team`**. Every new evaluation pins the current
+upstream `main` and records a fresh random seed. It uses this checkout's current
+Behavior Diff code, including uncommitted changes—not the installed plugin.
+
+The skill requires private-repository access through authenticated `gh` and fresh
+approval for 30 Claude Code trials plus extraction. Trial execution is a
+read-only local replay; it does not post to GitHub or change Linear issues.
+Both Claude Code and Codex maintainer sessions can invoke the workflow; its
+trial stack is explicitly Claude Code.
+
+The localhost quiz hides instruction diffs, stated intent, and commit metadata
+until submission. It preserves generated summary wording, collects confidence
+and insufficient-evidence feedback, saves the first complete submission, then
+reveals the correct answers and full reports. To analyze a completed session,
+ask the agent to **analyze the human evaluation results**.
+
+All private artifacts remain under `~/.behavior-diff/human-evaluations/`, outside
+the checkout. The workflow is manual only; CI runs synthetic helper tests, never
+live evaluations. Five cases are diagnostic evidence, not an overall accuracy
+estimate. See the skill's [protocol](.agents/skills/run-behavior-diff-human-evaluation/references/workflow.md)
+for sampling eligibility, preparation, consent, and scoring.
+
 ## Release
 
 1. Update both plugin manifests to the same `X.Y.Z` version.

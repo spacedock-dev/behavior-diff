@@ -163,6 +163,8 @@ python3 plugin/skills/behavior-diff/scripts/decisions.py --check
 bash tests/live-report-contract.sh
 bash tests/release-workflow-test.sh
 python3 .agents/skills/release-behavior-diff/scripts/bump-version.py --check
+python3 tests/human-evaluation-workflow-test.py
+python3 tests/human-evaluation-quiz-test.py
 git diff --check
 ```
 
