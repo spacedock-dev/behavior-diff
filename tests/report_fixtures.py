@@ -100,6 +100,11 @@ SCENARIOS = (
         "A different next step is proposed",
         "The answers propose a repair instead of another review; neither is executed.",
     ),
+    Scenario(
+        "timing-rule",
+        "Retry timing leads alongside mixed recommendations",
+        "Planned intervals and deadlines change; signoff remains required in both answers.",
+    ),
 )
 
 
@@ -1242,6 +1247,125 @@ def _planned_actions(run, scenario):
     )
 
 
+def _timing_rule(run, scenario):
+    rules = {
+        "before": (
+            "# Retry review\n"
+            "State a retry plan: after signoff, poll every 5 minutes for 15 minutes.\n"
+        ),
+        "after": (
+            "# Retry review\n"
+            "State a retry plan. Do not poll until signoff; then poll every "
+            "10 minutes for 30 minutes.\n"
+        ),
+    }
+    plans = (
+        "After signoff, poll every 5 minutes for 15 minutes",
+        "After signoff, poll every 10 minutes for 30 minutes",
+        "After signoff, check once at the 30-minute deadline",
+    )
+    details = (
+        "It would wait for signoff, then poll every 5 minutes until a 15-minute deadline.",
+        "It would wait for signoff, then poll every 10 minutes until a 30-minute deadline.",
+        "It would wait for signoff, then check once at the 30-minute deadline.",
+    )
+    trials = {"before": [], "after": []}
+    for side in trials:
+        for number in range(1, 4):
+            plan = 0 if side == "before" else 1 if number != 3 else 2
+            deferred = number == (3 if side == "before" else 2)
+            recommendation = (
+                "Recommend deferring" if deferred else "Recommend proceeding"
+            )
+            trials[side].append(
+                _Trial(
+                    actions=(("cat AGENTS.md", rules[side]),),
+                    final=(
+                        details[plan]
+                        + " "
+                        + recommendation
+                        + " with this retry plan. No polling or signoff is recorded."
+                    ),
+                    choices={
+                        "Retry plan": plans[plan],
+                        "Recommendation": recommendation,
+                    },
+                    summary=details[plan],
+                )
+            )
+    _write_sources(
+        run,
+        scenario,
+        "Synthetic task: State your retry plan and recommend proceeding or deferring.",
+        rules,
+        {},
+        trials,
+    )
+    rows = [
+        _row("Retry plan", "What retry plan is stated?", "answer", trials),
+        _row("Recommendation", "What is recommended?", "answer", trials),
+    ]
+    rows[0]["edit_hunks"] = [1]
+    _write_extraction(
+        run,
+        rows,
+        primary="Recommendation",
+        summary={
+            "decision": 1,
+            "headline": "Retry plans extend the deadline; some use longer intervals.",
+            "scenario": "An agent proposes retry timing without executing the plan.",
+            "evidence_kind": "plans",
+            "before": {
+                "icon": "inspect",
+                "choices": [
+                    {
+                        "choice": plans[0],
+                        "label": "Plan five-minute polling",
+                        "detail": details[0],
+                    }
+                ],
+            },
+            "after": {
+                "icon": "inspect",
+                "choices": [
+                    {
+                        "choice": plans[index],
+                        "label": label,
+                        "detail": details[index],
+                    }
+                    for index, label in (
+                        (1, "Plan ten-minute polling"),
+                        (2, "Plan one deadline check"),
+                    )
+                ],
+            },
+            "why": None,
+            "caution": None,
+        },
+        intent={
+            "text": "Restate the signoff gate and extend retry intervals and deadline.",
+            "edit_hunks": [1],
+        },
+        trial_summaries=_trial_summaries(
+            trials,
+            [
+                (
+                    "Both plans wait for signoff; After extends the interval and deadline.",
+                    "Neither retry plan is recorded as executed.",
+                ),
+                (
+                    "Both plans wait for signoff; After extends the interval and deadline.",
+                    "Neither retry plan is recorded as executed.",
+                ),
+                (
+                    "Both plans wait for signoff; After proposes one later deadline check.",
+                    "Neither retry plan is recorded as executed.",
+                ),
+            ],
+        ),
+    )
+
+
 def build_reports(root: Path) -> None:
     """Build all catalog reports beneath an existing, empty directory.
 
@@ -1268,6 +1392,8 @@ def build_reports(root: Path) -> None:
             _missing_primary(run, scenario)
         elif scenario.name == "planned-actions":
             _planned_actions(run, scenario)
+        elif scenario.name == "timing-rule":
+            _timing_rule(run, scenario)
         elif scenario.name in {"flow-changed", "flow-mixed"}:
             _availability_review(run, scenario)
         elif scenario.name in {"intent-flip", "intent-unchanged"}:

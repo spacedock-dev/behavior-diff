@@ -67,10 +67,10 @@ pinned parent revision. Do not inspect unrelated private company material.
 
    ```json
    {
-     "stem": "Which statement describes the instruction change?",
+     "stem": "Which statement describes the Before/After contrast in this scenario?",
      "scope": "The decision this scenario can expose; identify the relevant patch section.",
      "options": [
-       {"statement": "First candidate statement.", "correct": true, "rationale": "Patch support and why the scenario covers it."},
+       {"statement": "First candidate contrast.", "correct": true, "rationale": "Before: source support. After: changed rule. Scenario: triggering facts. Contrast: anticipated observable difference and limits."},
        {"statement": "Second candidate statement.", "correct": false, "rationale": "Why the patch contradicts or does not introduce it."},
        {"statement": "Third candidate statement.", "correct": false, "rationale": "Why this is false for the selected change."},
        {"statement": "Fourth candidate statement.", "correct": false, "rationale": "Why this is false for the selected change."}
@@ -79,15 +79,47 @@ pinned parent revision. Do not inspect unrelated private company material.
    ```
 
    This is a schema example, not ready-to-use question content. Author four
-   concrete, similarly specific statements with exactly one supported by the
-   patch. Avoid bundled claims outside the scenario, trivia, obvious nonsense,
+   concrete, similarly specific statements with exactly one patch-grounded
+   contrast that the scenario can expose. The keyed statement must distinguish
+   anticipated After behavior from Before; a statement true of both sides is
+   not a discriminating answer, even if it accurately describes After.
+   Avoid bundled claims outside the scenario, trivia, obvious nonsense,
    uniquely repeated keywords, or an answer longer than all the distractors.
-   A clarification-only change is valid; do not claim it changes the outcome.
-   Check each rationale against the actual patch, independently of the report.
-5. **Freeze all cases.** `freeze` validates inputs, shuffles options, writes
-   the private answer key and public questions, and records input hashes.
+   A clarification-only change can target a stated reason, condition, or timing;
+   do not claim it changes the action or outcome. Check each rationale against
+   both complete source sides and the patch, independently of the report.
+5. **Complete the prefreeze contrast audit.** Before authorizing `freeze`,
+   record these four checks in the keyed option's existing `rationale`:
+
+   - **Before:** cite the relevant source section and say whether the keyed
+     behavior is already required, permitted, or illustrated there. Check
+     surrounding rules and relevant references, not only removed patch lines.
+   - **After:** cite the changed rule and identify the precise added or changed
+     condition, timing, next step, or explanation. Separate explicit wording
+     from an inference about how a trial might respond.
+   - **Scenario:** identify the local facts and decision point that activate
+     that rule. State what the read-only task can and cannot demonstrate.
+   - **Contrast:** state what observable Before/After difference would support
+     the keyed statement and what would instead make it an unchanged or
+     both-sides match. A difference must concern the whole statement, not merely
+     a keyword appearing in After.
+
+   Have the maintainer review all four checks before freezing all five cases.
+   Revise an unsupported or both-sides statement, or its scenario, only during
+   preparation, without seeing live results. Do not replace a sampled commit
+   because its rule is redundant or its expected contrast is weak. If no
+   defensible contrast can be authored, report the design limitation before
+   live execution rather than inventing a difference.
+6. **Freeze all cases.** `freeze` validates input structure, shuffles options,
+   writes the private answer key and public questions, and records input hashes.
+   The existing schema is unchanged: `scope` bounds the claim and the keyed
+   `rationale` holds the audit. The deterministic helper enforces structure and
+   immutability, **not semantic contrast**; a successful freeze does not prove
+   that the question discriminates. The audit is a required maintainer gate.
    After freezing, do not edit fixtures, questions, or the key. Start a new
    evaluation if the design must change; retain the abandoned session and why.
+   Once results exist, a weak or absent contrast is evidence, never grounds to
+   reject, resample, retry, or change the keyed answer.
 
 Scenario design is model-assisted maintainer work, not a claim that the installed
 Behavior Diff plugin independently drafted the scenario. When delegating, keep
@@ -147,11 +179,67 @@ source commit links, and the full reports become available afterward. Keep the
 service running until the human finishes; restart `serve` to resume later.
 
 `results SESSION` reads the saved submission without a model call. Report the
-score out of five, confidence, insufficient-evidence count, and comments.
-Investigate misses against the original reports, scenarios, patches, and traces.
-Do not infer comprehension from keyword matching or score alone. Inspect factual
-consistency even in correctly answered cases. Preserve the first score; do not
-rescore after changing a question or revealing the answers.
+original score out of five, confidence, insufficient-evidence count, and comments.
+Then complete the question-validity assessment below for all cases, not just
+misses. Do not infer comprehension from keyword matching or score alone. Preserve
+the first submission and score; do not rescore after changing a question,
+excluding weak cases, or revealing the answers. These instructions apply when
+analyzing older sessions too; never retrofit their questions or frozen rationales.
+
+## Question validity assessment
+
+After submission, use only saved evidence. For every case, compare the frozen
+keyed statement and rationale with both complete source sides, the patch,
+scenario, original Before/After trial answers, and the blinded summaries that
+the human saw. Record the assessment in private analysis notes alongside the
+session, without editing hashed inputs, reports, the answer key, or submission.
+No new model run is needed or authorized by this assessment.
+
+Separate two judgments:
+
+1. **Observed contrast:** does the whole keyed statement distinguish After from
+   Before in the saved answers?
+   - **Observed delta:** the answers support the stated Before/After distinction.
+     Name the changed condition, timing, next step, or explanation and any trial
+     variability; do not turn a partial pattern into a universal claim.
+   - **Unchanged / both-sides match:** the keyed behavior is present on both
+     sides, or the scoped behavior is unchanged. Explicitly label the question
+     **non-discriminating in this run**, even if the key is source-supported or
+     the human selected it correctly.
+   - **Not observed / contradicted:** usable answers do not show the forecast
+     contrast or instead show a different direction. Preserve that result.
+   - **Inconclusive:** missing, blocked, or inconsistent evidence prevents a
+     supported distinction. Name the missing evidence; do not infer a delta.
+2. **Summary exposure:** do the blinded summaries faithfully expose the supported
+   distinction? Separate omitted operative rules or timing from factual errors,
+   scenario undercoverage, and question ambiguity. A delta visible only in full
+   traces does not prove the human could infer it from the quiz excerpt.
+
+Cite private evidence locations and describe what each side actually says.
+Assess correctly answered cases as well as misses. Retain the raw keyed score
+out of five and qualify non-discriminating, unobserved, or inconclusive cases in
+the analysis. Do not count an unchanged match as evidence of successful delta
+comprehension, or its missed key as evidence of poor comprehension. Report
+validity counts separately from the score; do not publish a revised denominator
+or retroactively choose a different correct option.
+
+### Synthetic table-and-wait example
+
+Suppose Before already documents a blast-radius table, and After adds a rule to
+disclose that table before applying a change. In saved trials, both responses
+show the table, but only After explicitly says it will wait before proceeding.
+The keyed statement “After shows a blast-radius table” is a both-sides match,
+not an observed delta. Preserve its original score and mark it non-discriminating.
+The supported observed contrast is the stated wait/next-step difference, not
+the presence of the table. A future question can target that timing distinction
+only if its source-and-scenario audit supports it, and must be frozen before
+its own trials; do not rewrite this session's key using the example.
+
+Keep source intent separate from observed behavior: a disclosure-before-action
+rule does **not** by itself require literal user approval. If After says it
+will wait for approval, report that as observed response wording, not as an
+explicit source requirement unless the source actually contains that requirement.
+A stated wait is not evidence that any command executed or approval was obtained.
 
 A random guess averages 1.25/5. Five possibly correlated cases cannot establish
 product-wide accuracy. Separate summary readability/fidelity from scenario

@@ -44,9 +44,12 @@ plugin payload. Never trigger it from hooks, CI, or a scheduled job.
    For every case, prepare a neutral synthetic decision-point fixture and
    `scenario.json`, then four patch-grounded options in `question.json`.
    Prefer a fresh scenario worker that cannot see the options/answer key.
-   The correct statement must concern behavior this scenario can expose;
-   do not bundle unrelated changes. Keep unchanged or weak results.
-6. Freeze all five fixtures and questions **before** any live trial:
+   The keyed statement must distinguish the anticipated After behavior from
+   Before at that decision point, not merely describe behavior true of both.
+   Complete the workflow's prefreeze contrast audit in the keyed rationale;
+   source support alone does not establish an observable contrast. Keep
+   unchanged or weak results.
+6. Freeze all five fixtures and audited questions **before** any live trial:
 
    ```bash
    python3 "$EVAL" freeze "$SESSION"
@@ -76,10 +79,15 @@ python3 "$EVAL" results "$SESSION"
 ```
 
 If no submission exists, say so; never invent a score. Report correct out of
-five, confidence, and insufficient-evidence count. Compare misses with the
-saved scenarios, patches, and trial answers—not just the answer key. Separate
-readability, factual fidelity, scenario coverage, and quiz ambiguity. An
-explanation-only change is not necessarily a changed action or outcome.
+five, confidence, and insufficient-evidence count. Assess question validity for
+**all five cases** against saved Before/After answers, source sides, scenarios,
+and blinded summaries using [the workflow](references/workflow.md#question-validity-assessment).
+Distinguish an observed delta from an unchanged or both-sides match. Retain the
+original score and explicitly qualify non-discriminating questions, whether
+answered correctly or incorrectly; do not reinterpret them as comprehension
+successes or failures. Separate readability, factual fidelity, scenario coverage,
+and quiz ambiguity. An explanation-only change is not necessarily a changed
+action or outcome.
 
 Chance averages 1.25/5. Five cases may share a skill; this score is not an
 estimate of overall product accuracy. Record methodology and aggregate

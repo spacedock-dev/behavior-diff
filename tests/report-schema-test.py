@@ -1271,6 +1271,73 @@ def assert_primary_result_context(reports):
         assert content.primary_result_context(report).status == "unavailable"
 
 
+def assert_timing_rule_cards(report):
+    """Rule cards retain timing and their own counts beside a mixed primary result."""
+    from reporting.render_html import render_artifact
+    from reporting.render_markdown import render_markdown
+    from reporting.summary import build_summary
+
+    assert report.summary.decision == 1 and report.decisions.outcome == 2
+    assert report.summary.status == "mixed"
+    assert report.summary.evidence_label == (
+        "Plans stated in final answers; not executed actions."
+    )
+    primary = report.decisions.rows[1]
+    changed_primary = replace(
+        primary,
+        after=(
+            DecisionChoiceData("Recommend proceeding", 1),
+            DecisionChoiceData("Recommend deferring", 2),
+        ),
+    )
+    decisions = replace(
+        report.decisions, rows=(report.decisions.rows[0], changed_primary)
+    )
+    changed = replace(
+        report,
+        decisions=decisions,
+        summary=build_summary(report.metadata, report.variants, decisions),
+    )
+    assert changed.summary.before == report.summary.before
+    assert changed.summary.after == report.summary.after
+    rendered = render_artifact(report, "")
+    changed_html = render_artifact(changed, "")
+    markdown = render_markdown(report)
+    cards = {}
+    md_cards = {}
+    for side, timing in (
+        ("before", ("every 5 minutes", "15-minute deadline")),
+        ("after", ("every 10 minutes", "30-minute deadline", "check once")),
+    ):
+        marker = f'class="summary-card summary-{side}"'
+        cards[side] = html.unescape(
+            rendered.split(marker, 1)[1].split("</section>", 1)[0]
+        )
+        assert cards[side] == html.unescape(
+            changed_html.split(marker, 1)[1].split("</section>", 1)[0]
+        ), "Primary-result counts must not rewrite operative-rule cards."
+        md_cards[side] = (
+            markdown.split(f"#### {side.capitalize()}\n", 1)[1]
+            .split("#### ", 1)[0]
+            .replace(r"\-", "-")
+        )
+        for text in ("wait for signoff", *timing):
+            assert text in cards[side] and text in md_cards[side]
+        assert "Recommend" not in cards[side] and "Recommend" not in md_cards[side]
+    for text in ("2 of 3 trials", "1 of 3 trials"):
+        assert text in cards["after"] and text in md_cards["after"]
+    context = content.primary_result_context(report)
+    changed_context = content.primary_result_context(changed)
+    assert context.status == changed_context.status == "mixed"
+    assert context.sides != changed_context.sides
+    assert all(
+        "Recommend proceeding" in text and "Recommend deferring" in text
+        for _, text in context.sides
+    )
+    assert "primary result varies across trials" in rendered
+    assert "primary result varies across trials" in markdown
+
+
 def assert_additional_findings(reports):
     flip = reports["intent-flip"]
     findings = content.additional_findings(flip)
@@ -1419,6 +1486,7 @@ def assert_gallery_reports():
         "intent-flip": ("varies", "changed"),
         "intent-unchanged": ("unchanged", "unavailable"),
         "planned-actions": ("changed", "unavailable"),
+        "timing-rule": ("varies", "unavailable"),
     }
     with tempfile.TemporaryDirectory() as directory:
         root = Path(directory)
@@ -1468,6 +1536,7 @@ def assert_gallery_reports():
         assert reports["planned-actions"].decisions.trial_summaries[0].caveat == (
             "Neither proposed step is recorded as executed."
         )
+        assert_timing_rule_cards(reports["timing-rule"])
 
         assert content.flow_patterns(reports["same-result"].command_flow) == (
             (("Read files",), 3, 3),

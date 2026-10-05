@@ -245,8 +245,17 @@ author intent or goal completion. Markdown retains the caveat as plain text.
 comparison. Model output supplies text and selectors, never markup.
 Summary and trial-summary instructions require concrete, parallel descriptions
 of the same subject, with the decisive contrast and any unchanged decision
-explicitly stated. Changed explanations, citations, or presentation must not
-be described as changed actions. When the selected lead is not the primary
+explicitly stated. Summary selection prefers the observed changed operative rule
+(conditions, timing, scope, or prerequisites) over its downstream outcome, including
+mixed comparisons. Material intervals, deadlines, units, and gates belong in the
+main cards, not only Other findings. Each card detail must hold for every named trial
+in its selected branch; counts or citations from other rows cannot supply membership.
+An instruction's gate is distinct from an observed gate, which may already appear
+in Before. These are extraction policies, not deterministic semantic guarantees;
+the existing validator checks references, choice coverage, and evidence anchors.
+No schema field or keyword-based semantic check is added; fallback ranking is unchanged.
+Changed explanations, citations, or presentation must not be described as changed
+actions. When the selected lead is not the primary
 result, `content.primary_result_context` exposes the primary status and full
 distribution beside the cards in both formats. Missing or incomplete evidence
 cannot become an unchanged-result claim. This is derived presentation, not a
