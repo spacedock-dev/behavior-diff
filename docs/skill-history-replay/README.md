@@ -9,7 +9,7 @@ stages:
   # Stage names must match ^[a-z0-9][a-z0-9-]*[a-z0-9]$ (kebab-case lowercase, no underscores or spaces); `status --validate` rejects others.
   defaults:
     worktree: false
-    concurrency: 2
+    concurrency: 4
   states:
     - name: candidate
       initial: true
