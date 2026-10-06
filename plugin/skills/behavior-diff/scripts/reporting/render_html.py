@@ -528,6 +528,98 @@ def _primary_result_context(report) -> str:
     )
 
 
+def _change_explanation(report: ReportData) -> str:
+    explanation = report.decisions.explanation
+    navigation = (
+        '<nav class="evidence-nav" aria-label="Change explanation evidence">'
+        '<a href="#panel-decision">View behavior comparisons</a>'
+        '<a href="#panel-flow">View recorded command flow</a>'
+        '<a href="#instruction-diff">View instruction changes</a>'
+        '<a href="#panel-trials">Inspect trial evidence</a></nav>'
+    )
+    complete = content.complete_trial_evidence(report)
+    if explanation is None or not complete:
+        notice = (
+            content.CHANGE_EXPLANATION_UNAVAILABLE
+            if complete
+            else content.CHANGE_EXPLANATION_INCOMPLETE
+        )
+        return (
+            "<h2>Understand the change</h2>"
+            '<div class="empty-state"><h3>Change explanation unavailable</h3>'
+            f"<p>{html.escape(notice)}</p></div>" + navigation
+        )
+    parts = [
+        '<div class="change-explanation"><p class="explanation-kicker">Understand the change</p>',
+        f'<h2 class="explanation-headline">{html.escape(explanation.headline)}</h2>',
+        f'<p class="explanation-overview">{html.escape(explanation.overview)}</p>',
+        f'<p class="note">{html.escape(content.INTERPRETATION_NOTE)}</p>',
+        '<ol class="explanation-steps" role="list">',
+    ]
+    references = []
+    for number, step in enumerate(explanation.steps, 1):
+        references.extend(step.decisions)
+        parts.append(
+            '<li class="explanation-step">'
+            f'<h3><span class="explanation-number" aria-hidden="true">{number}</span>'
+            f'{html.escape(step.title)}</h3><div class="explanation-pair">'
+            f'<section class="explanation-side before"><h4>Before</h4><p>{html.escape(step.before)}</p></section>'
+            f'<section class="explanation-side after"><h4>After</h4><p>{html.escape(step.after)}</p></section>'
+            '</div><div class="explanation-meaning"><h4>What this means</h4>'
+            f"<p>{html.escape(step.meaning)}</p>"
+            f'<span class="evidence-links">{_decision_links(step.decisions)}</span></div></li>'
+        )
+    parts.append("</ol>")
+    for heading, claims in (
+        ("What stays the same", explanation.unchanged),
+        ("What this evidence cannot establish", explanation.limits),
+    ):
+        if claims:
+            parts.append(f'<section class="explanation-claims"><h3>{heading}</h3><ul>')
+            for claim in claims:
+                references.extend(claim.decisions)
+                parts.append(
+                    f"<li>{html.escape(claim.text)}"
+                    f'<span class="evidence-links">{_decision_links(claim.decisions)}</span></li>'
+                )
+            parts.append("</ul></section>")
+    comparisons = content.explanation_comparisons(
+        report, tuple(dict.fromkeys(references))
+    )
+    if comparisons:
+        parts.append(
+            '<section class="explanation-consistency"><h3>Consistency across trials</h3>'
+            '<p class="note">All extracted branches for the cited comparisons are shown, '
+            "including minority choices. Before and After trials are independent; "
+            "these counts are model extractions, not causal proof.</p>"
+        )
+        for index, title, sides in comparisons:
+            parts.append(f"<h4>{html.escape(title)}</h4>")
+            parts.extend(
+                f"<p><strong>{label}:</strong> {html.escape(text)}</p>"
+                for label, text in sides
+            )
+            parts.append(
+                f'<span class="evidence-links">{_decision_links((index,))}</span>'
+            )
+        parts.append("</section>")
+    if explanation.examples:
+        parts.append(
+            '<section class="explanation-examples"><h3>From the final answers</h3>'
+        )
+        for example in explanation.examples:
+            anchor = html.escape(content.trial_anchor(example.side, example.trial))
+            parts.append(
+                f'<figure class="explanation-excerpt {example.side}">'
+                f"<figcaption>{example.side.capitalize()} · {html.escape(example.trial)} · "
+                f'<a href="#{anchor}">View full trial evidence</a></figcaption>'
+                f"<pre>{html.escape(example.text)}</pre></figure>"
+            )
+        parts.append("</section>")
+    parts.append(navigation + "</div>")
+    return "".join(parts)
+
+
 def _short_story_summary(report: ReportData) -> str:
     summary = report.summary
     intent = report.intent
@@ -550,14 +642,9 @@ def _short_story_summary(report: ReportData) -> str:
                 f'<span class="evidence-links">{_decision_links(claim.decisions)}</span>'
                 "</div>"
             )
-    comparison_available = (
-        summary.decision is not None and summary.status != "unavailable"
-    )
-    destination = "#panel-decision" if comparison_available else "#panel-trials"
     lead_link = (
-        f'<a class="summary-evidence-button" href="{destination}">'
-        f"{'View behavior comparisons' if comparison_available else 'View available trial records'}"
-        ' <span aria-hidden="true">→</span></a>'
+        '<a class="summary-evidence-button" href="#panel-explanation">'
+        'Understand the change <span aria-hidden="true">→</span></a>'
     )
     notices = "".join(f"<li>{html.escape(note)}</li>" for note in summary.notices)
     scenario = (
@@ -880,6 +967,7 @@ def render_artifact(report: ReportData, css: str) -> str:
 
     tabs = [
         ("summary", "Summary", "", summary_html),
+        ("explanation", "Understand the change", "", _change_explanation(report)),
         ("instruction", "Instruction changes", "", _instruction_edit(report)),
         (
             "decision",

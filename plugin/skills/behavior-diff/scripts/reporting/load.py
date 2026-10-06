@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Optional
 
 from reporting import content
+from reporting.explanation import parse_explanation
 from reporting.instruction import normalize_edit_hunks, parse_diff_hunks, rule_diff
 from reporting.schema import (
     SCHEMA_VERSION,
@@ -47,6 +48,10 @@ def load_report(
             (trial.name for trial in before.trials),
             (trial.name for trial in after.trials),
         ),
+        {
+            side: {trial.name: trial.final for trial in variant.trials}
+            for side, variant in (("before", before), ("after", after))
+        },
     )
     task = _task(run, capsule)
     report_content = content.build_content(
@@ -373,20 +378,24 @@ def _common_prefix(sequences):
     return tuple(prefix)
 
 
-def _read_decisions(run, before_default, after_default, instruction_diff, groups=()):
+def _read_decisions(
+    run, before_default, after_default, instruction_diff, groups=(), final_answers=None
+):
     path = run / "decisions.json"
     if not path.exists():
         return _empty_decisions(before_default, after_default)
     try:
         raw = json.loads(path.read_text())
         return _convert_decisions(
-            raw, before_default, after_default, instruction_diff, groups
+            raw, before_default, after_default, instruction_diff, groups, final_answers
         )
     except (TypeError, ValueError, KeyError):
         return _empty_decisions(before_default, after_default)
 
 
-def _convert_decisions(raw, before_default, after_default, instruction_diff, groups=()):
+def _convert_decisions(
+    raw, before_default, after_default, instruction_diff, groups=(), final_answers=None
+):
     if type(raw) is not dict or type(raw.get("chain")) is not list:
         raise ValueError("malformed decisions")
     counts = raw.get("counts", {})
@@ -451,6 +460,7 @@ def _convert_decisions(raw, before_default, after_default, instruction_diff, gro
         parse_narrative(raw.get("summary"), rows),
         parse_intent(raw.get("intent"), hunk_count),
         parse_trial_summaries(raw.get("trial_summaries"), groups),
+        parse_explanation(raw.get("explanation"), rows, final_answers),
     )
 
 

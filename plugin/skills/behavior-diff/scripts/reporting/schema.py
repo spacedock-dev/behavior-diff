@@ -4,6 +4,12 @@ import json
 from dataclasses import asdict, dataclass
 from typing import Dict, Optional, Tuple, Union
 
+from reporting.explanation import (
+    ChangeExplanationData,
+    ExplanationExampleData as ExplanationExampleData,
+    ExplanationStepData as ExplanationStepData,
+    parse_explanation,
+)
 from reporting.instruction import parse_diff_hunks
 from reporting.summary import (
     ICONS,
@@ -21,7 +27,7 @@ from reporting.trial_summary import (
     trial_group_names,
 )
 
-SCHEMA_VERSION = 8
+SCHEMA_VERSION = 9
 RESULT_KINDS = ("good", "bad", "neutral")
 
 
@@ -116,6 +122,7 @@ class DecisionData:
     narrative: Optional[NarrativeData] = None
     intent: Optional[EditIntentData] = None
     trial_summaries: Tuple[TrialSummaryData, ...] = ()
+    explanation: Optional[ChangeExplanationData] = None
 
 
 @dataclass(frozen=True)
@@ -234,6 +241,13 @@ class ReportData:
                 (trial.name for trial in variants.before.trials),
                 (trial.name for trial in variants.after.trials),
             ),
+            {
+                side: {trial.name: trial.final for trial in variant.trials}
+                for side, variant in (
+                    ("before", variants.before),
+                    ("after", variants.after),
+                )
+            },
         )
         result = _result(
             _field(data, "result", "report-data"), "result", len(decisions.rows)
@@ -455,7 +469,7 @@ def _flow_path(value, path):
     )
 
 
-def _decisions(value, path, hunk_count, groups=None):
+def _decisions(value, path, hunk_count, groups=None, final_answers=None):
     value = _expect_dict(value, path)
     rows = _expect_list(_field(value, "rows", path), path + ".rows")
     parsed_rows = tuple(
@@ -485,6 +499,12 @@ def _decisions(value, path, hunk_count, groups=None):
     trial_summaries = parse_trial_summaries(raw_trial_summaries, groups)
     if [asdict(item) for item in trial_summaries] != raw_trial_summaries:
         _invalid(path + ".trial_summaries", "valid canonical trial group summaries")
+    raw_explanation = _field(value, "explanation", path)
+    explanation = parse_explanation(raw_explanation, parsed_rows, final_answers)
+    if raw_explanation is not None and (
+        explanation is None or _json_value(asdict(explanation)) != raw_explanation
+    ):
+        _invalid(path + ".explanation", "valid canonical change explanation")
     decisions = DecisionData(
         rows=parsed_rows,
         fork=_optional_reference(
@@ -504,6 +524,7 @@ def _decisions(value, path, hunk_count, groups=None):
         narrative=narrative,
         intent=intent,
         trial_summaries=trial_summaries,
+        explanation=explanation,
     )
     from reporting.content import valid_decision_choices
 

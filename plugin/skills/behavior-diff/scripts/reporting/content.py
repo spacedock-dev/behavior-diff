@@ -401,6 +401,41 @@ def trial_summary_for_group(decisions, before, after):
     return matches[0] if len(matches) == 1 else None
 
 
+CHANGE_EXPLANATION_UNAVAILABLE = (
+    "A change explanation is unavailable in the saved evidence. "
+    "No new interpretation is generated when this report is opened. "
+    "Inspect the retained comparisons and trial records below."
+)
+
+CHANGE_EXPLANATION_INCOMPLETE = (
+    "Trial evidence is incomplete, blocked, invalid, or dropped. "
+    "The saved explanation is withheld because it cannot establish a complete "
+    "Before/After comparison. Inspect the retained comparisons and trial records."
+)
+
+
+def explanation_comparisons(report, indexes):
+    """Describe every saved branch, including minorities, without inferring counts."""
+    comparisons = []
+    for index in indexes:
+        row = report.decisions.rows[index - 1]
+        sides = []
+        for label, choices, total in (
+            ("Before", row.before, report.decisions.before_count),
+            ("After", row.after, report.decisions.after_count),
+        ):
+            branches = (
+                "; ".join(
+                    "{0} ({1})".format(choice.choice, trial_count(choice.count, total))
+                    for choice in choices
+                )
+                or NO_EXTRACTED_CHOICE
+            )
+            sides.append((label, branches))
+        comparisons.append((index, row.topic or row.decision, tuple(sides)))
+    return tuple(comparisons)
+
+
 def command_progressions(variant):
     """Group complete recorded sequences without normalizing or joining paths."""
     groups = {}

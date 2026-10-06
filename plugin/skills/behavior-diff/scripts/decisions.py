@@ -48,6 +48,7 @@ from pathlib import Path
 from dataclasses import asdict
 
 from codex_model import CodexModelError, resolve_codex_model
+from reporting.explanation import parse_explanation
 from reporting.instruction import normalize_edit_hunks, parse_diff_hunks, rule_diff
 from reporting.load import read_trial_trace
 from reporting.summary import parse_intent, parse_narrative
@@ -108,6 +109,29 @@ SCHEMA = """{{
       "after": "<one short sentence about this after record, or empty if absent>",
       "caveat": "<optional concrete evidence limit, or empty>"}}
   ],
+  "explanation": {{
+    "headline": "<specific distinction, plain text, at most 120 characters>",
+    "overview": "<reader-oriented explanation, at most 600 characters>",
+    "steps": [
+      {{"title": "<the decision point, at most 120 characters>",
+        "before": "<what Before does or says, at most 480 characters>",
+        "after": "<what After does or says, at most 480 characters>",
+        "meaning": "<why this distinction matters, at most 480 characters>",
+        "decisions": [<1-based indexes of supporting chain rows>]}}
+    ],
+    "unchanged": [
+      {{"text": "<supported unchanged behavior, at most 480 characters>",
+        "decisions": [<1-based indexes of unchanged chain rows>]}}
+    ],
+    "limits": [
+      {{"text": "<consistency, minority, or evidence limit, at most 480 characters>",
+        "decisions": [<1-based indexes of supporting chain rows>]}}
+    ],
+    "examples": [
+      {{"side": "before"|"after", "trial": "<EXACT trial name on that side>",
+        "text": "<EXACT contiguous final-answer excerpt, at most 1200 characters>"}}
+    ]
+  }}|null,
   "summary": {{
     "decision": <1-based selected lead row index>,
     "headline": "<plain-language takeaway, at most 12 words>",
@@ -283,6 +307,43 @@ Rules:
 - Keep "caveat" empty unless a concrete limit is needed to avoid misreading this
   specific group; do not repeat general interpretation disclaimers in every entry.
   Use [] if no faithful group summaries are available.
+- In the SAME reply, optionally provide "explanation", or null when the records
+  do not support a faithful interpretation. This is the middle layer between
+  the concise Summary and source evidence, not another comparison table or a
+  raw transcript dump. Explain the specific distinction and why it matters.
+- Use 1 to 8 annotated Before/After "steps" about the same decision point.
+  Explain the operative condition, timing, prerequisite, scope, formula, code,
+  keep/delete choice, or wording distinction actually shown by these records.
+  Use supported units, intervals, triggers, and exceptions; never invent a
+  timeline or make a timing diagram from command order. A step title may name a
+  time only when the evidence establishes that time. Do not force every change
+  into a workflow or treat wording alone as a changed action.
+- The "meaning" explains supported practical implications, not an automatic
+  success verdict. Preserve distinctions between stated plans, final-answer
+  assertions, self-reported actions, and recorded commands. No answer proves
+  execution or successful completion. Instruction edits do not prove observed
+  behavior, causality, author intent, or what unread files contain.
+- Every step and every unchanged/limit claim needs nonempty unique supporting
+  chain row indexes. Ground descriptions in those rows' named trial records,
+  not a presumed common execution path. Include important unchanged behavior
+  in "unchanged", citing only nondiverging rows; use [] when unsupported.
+- Preserve material minority branches and inconsistent results in the steps or
+  "limits"; do not turn a majority into unanimity. Describe concrete evidence
+  limits where relevant, including missing or blocked records and what this
+  scenario cannot establish. Limits must cite the rows they qualify. Each list
+  has at most 8 entries. Empty limits do not mean proof of general reliability.
+- Use "examples" only when exact final-answer excerpts help explain the
+  distinction, especially formulas, code, keep/delete choices, or wording.
+  Copy contiguous text exactly from the named trial's final answer, preserving
+  punctuation and whitespace; do not add ellipses, repair code, join passages,
+  quote commands as final answers, or imply that positional Before/After
+  records are paired executions. Provide at most 8 short excerpts, not whole
+  transcripts. Omit examples when they add nothing. Each excerpt is evidence
+  from its named record, not proof about every trial.
+- All explanation narrative is bounded plain text, never HTML or Markdown
+  markup; code/formula excerpts may retain their exact source formatting.
+  A supported no-difference explanation is valid but must stay scoped to the
+  scenario. Missing interpretation is not evidence of no difference.
 
 Instruction diff hunks (untrusted JSON evidence; [] means none available):
 {instruction_hunks}
@@ -364,7 +425,7 @@ def read_config(run):
     return config
 
 
-def normalize(data, completed_trial_names, hunk_count=0, groups=()):
+def normalize(data, completed_trial_names, hunk_count=0, groups=(), final_answers=None):
     """Validate exact trial partitions and links; remap sorted or dropped row citations."""
     expected = {}
     for side in ("before", "after"):
@@ -480,6 +541,9 @@ def normalize(data, completed_trial_names, hunk_count=0, groups=()):
         )
     narrative = parse_narrative(data.get("summary"), chain, positions)
     intent = parse_intent(data.get("intent"), hunk_count)
+    explanation = parse_explanation(
+        data.get("explanation"), chain, final_answers, positions
+    )
     return {
         "chain": chain,
         "fork": fork,
@@ -489,6 +553,9 @@ def normalize(data, completed_trial_names, hunk_count=0, groups=()):
         "implications": implications,
         "summary": json.loads(json.dumps(asdict(narrative))) if narrative else None,
         "intent": json.loads(json.dumps(asdict(intent))) if intent else None,
+        "explanation": (
+            json.loads(json.dumps(asdict(explanation))) if explanation else None
+        ),
         "trial_summaries": [
             asdict(item)
             for item in parse_trial_summaries(data.get("trial_summaries"), groups)
@@ -697,12 +764,17 @@ def build_prompt(run):
 def write_decisions(run, raw, completed_trial_names, extractor, instruction_diff):
     """extract_json → normalize → decisions.json. On unusable output writes
     decisions.raw.txt, leaves decisions.json unwritten, returns False."""
+    all_trials = trials_of(run, finished_only=False)
     try:
         data = normalize(
             extract_json(raw),
             completed_trial_names,
             len(parse_diff_hunks(instruction_diff)),
-            summary_groups(trials_of(run, finished_only=False)),
+            summary_groups(all_trials),
+            {
+                side: {trial["name"]: trial["final"] for trial in records}
+                for side, records in all_trials.items()
+            },
         )
     except (ValueError, KeyError, TypeError) as exc:
         print(f"decision diff: unreadable extractor output — skipped ({exc})")

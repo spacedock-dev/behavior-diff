@@ -190,8 +190,9 @@ The modules below live in the skill's [`scripts/`](../plugin/skills/behavior-dif
 - **Model-based interpretation:** `decisions.py` reads the task, trial actions,
   final answers, and numbered instruction-diff hunks. A separate model extracts
   choices with named trial assignments, a primary result, supported implications,
-  links to edits, plain-language Summary text, the edit's likely aim, and short
-  per-group trial summaries in the same call. New raw branches supply `trials`,
+  links to edits, plain-language Summary text, the edit's likely aim, short
+  per-group trial summaries, and an optional change explanation in the same call.
+  New raw branches supply `trials`,
   not aggregate counts. The script requires each completed trial exactly once
   per side of every row, derives `n`, and retains both in `decisions.json`.
   Foreign, duplicate, incomplete, or missing assignments invalidate the row.
@@ -215,9 +216,19 @@ The modules below live in the skill's [`scripts/`](../plugin/skills/behavior-dif
   validated inference whose stored diff matches the current instruction diff.
   `reporting/trial_summary.py` validates bounded plain-text trial summaries
   against exact positional record identities; duplicates and invalid entries
-  are omitted without losing raw evidence. Extraction and loading share
+  are omitted without losing raw evidence. `reporting/explanation.py` validates
+  the immutable middle-layer explanation: headline, overview, annotated
+  Before/After steps with practical meaning, unchanged claims, limits, and
+  optional exact final-answer excerpts. Step and claim citations are nonempty,
+  unique decision-row references, remapped when extraction sorts or drops rows.
+  Unchanged claims cannot cite diverging rows. Excerpts must be contiguous,
+  bounded text from the exact named trial on the declared side; formulas and
+  code retain their source formatting. Invalid optional extraction is omitted
+  without discarding valid comparisons. Canonical report-data parsing rejects
+  invalid persisted explanation data. Extraction and loading share
   `read_trial_trace` so they read the same source fields.
-  Together these modules build schema-v8 `ReportData` in `reporting/schema.py`.
+  Together these modules build schema-v9 `ReportData` in `reporting/schema.py`;
+  `decisions.explanation` is explicitly null when unavailable.
   Summary counts come from existing decision rows.
 
 Command flow comes from recorded events. Decision comparisons come from model
@@ -231,7 +242,7 @@ distinct. Links between decisions and edits do not prove causality.
 
 | Artifact | Purpose |
 | --- | --- |
-| `report.html` | Local browser report with Summary, Instruction changes, Behavior diff, Flow diff, and Trial evidence tabs. |
+| `report.html` | Local browser report with Summary, Understand the change, Behavior diff, Flow diff, Instruction changes, and Trial evidence tabs. |
 | `report.md` | Markdown version for reading and sharing after review. |
 | `report-data.json` | Structured, versioned report data. |
 | `report-artifact.html` | Embeddable HTML body. |
@@ -256,16 +267,31 @@ in its selected branch; counts or citations from other rows cannot supply member
 An instruction's gate is distinct from an observed gate, which may already appear
 in Before. These are extraction policies, not deterministic semantic guarantees;
 the existing validator checks references, choice coverage, and evidence anchors.
-No schema field or keyword-based semantic check is added; fallback ranking is unchanged.
+Explanation validation additionally checks bounded narrative, row citations,
+unchanged-row status, and exact example excerpts; it does not prove semantic
+interpretation truth. Summary fallback ranking is unchanged.
 Changed explanations, citations, or presentation must not be described as changed
 actions. When the selected lead is not the primary
 result, `content.primary_result_context` exposes the primary status and full
 distribution beside the cards in both formats. Missing or incomplete evidence
-cannot become an unchanged-result claim. This is derived presentation, not a
-new serialized report field; schema v8 is unchanged.
-The primary-result block is context, not a second navigation choice. One
-**View behavior comparisons** link opens Behavior diff for the selected
-comparison and the primary result; unavailable evidence links to trial records.
+cannot become an unchanged-result claim. The primary-result block remains
+derived presentation, not a separate serialized report field.
+The primary-result block is context, not a second navigation choice.
+**Understand the change**, under the Summary's evidence section, opens a new
+top-level explanation tab. This middle layer explains the specific distinction,
+its practical implications, important unchanged behavior, consistency and
+minorities, and concrete limits, with links to decision rows and named trials.
+Annotated Before/After steps support workflow timing, formulas/code, keep/delete,
+wording, and unchanged choices without assuming every change is a workflow.
+Timing is shown only when established by the evidence. Examples are selected
+exact excerpts, not raw transcript dumps. Both formats retain the same
+explanation and source links; only HTML adds the visual walkthrough.
+Behavior diff, Flow diff, Instruction changes, and Trial evidence remain
+separate top-level tabs. Unavailable explanations link to retained evidence
+instead of inferring a no-difference claim or making a new model call.
+Both explanation renderers reuse the Summary's completeness guard: blocked,
+missing, invalid, or dropped trial evidence withholds the saved interpretation
+and shows an explicit coverage notice while retaining evidence navigation.
 Plans are not presented as executions. `content.additional_findings` selects
 at most three compact comparisons; full comparisons stay in Behavior diff.
 Markdown shares the same story and findings without illustrations.
@@ -290,7 +316,7 @@ names blocks by section and line range. Selecting a block highlights only its
 changed lines and scrolls to its stable anchor. Missing or unparseable diffs
 do not acquire invented counts.
 
-All five tabs remain available. Missing extraction and uncaptured command flow
+All six tabs remain available. Missing extraction and uncaptured command flow
 have explicit unavailable states, with links to the retained trial evidence.
 Flow groups only identical complete command sequences within each side.
 Trial evidence aligns the saved Before/After lists by position into numbered
@@ -326,11 +352,11 @@ All output formats share `ReportData`. Only the HTML branch uses
 ```text
 +-----------------------------------------------------+
 | Saved run: configuration, grades, traces, snapshots |
-| Optional decisions.json                             |
+| Optional decisions.json (including explanation)    |
 +--------------------------+--------------------------+
                            |
                            v
-                     load_report()
+           load_report() + evidence validation
                            |
                            v
                     +------------+
