@@ -243,6 +243,8 @@ expectations and inferred aims remain distinct; neither becomes proof of
 author intent or goal completion. Markdown retains the caveat as plain text.
 `reporting/illustrations.py` supplies fixed SVG shapes for the Before/After
 comparison. Model output supplies text and selectors, never markup.
+The edit illustration uses a symmetric, outlined wrench with a non-crossing jaw;
+check its silhouette in both card palettes when changing the SVG geometry.
 Summary and trial-summary instructions require concrete, parallel descriptions
 of the same subject, with the decisive contrast and any unchanged decision
 explicitly stated. Summary selection prefers the observed changed operative rule
