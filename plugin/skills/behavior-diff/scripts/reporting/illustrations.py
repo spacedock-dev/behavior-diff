@@ -14,9 +14,12 @@ _ICONS = {
     'fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>',
     "edit": _PAPER
     + '<circle cx="162" cy="106" r="48" fill="var(--summary-accent-bg)"/>'
-    '<path d="m155 104-35 35a8 8 0 0 0 11 11l35-35 '
-    'a27 27 0 0 0 15-39l-19 19-13-4-4-13 19-19a27 27 0 0 0-9 45z" '
-    'fill="currentColor"/>',
+    '<svg x="114" y="58" width="96" height="96" viewBox="0 0 100 100">'
+    '<g transform="translate(65 28) rotate(45)" fill="currentColor">'
+    '<path d="M0 8V60" fill="none" stroke="currentColor" '
+    'stroke-width="10" stroke-linecap="round"/>'
+    '<path d="M-9-14C-20-9-21 5-11 12C-5 17 5 17 11 12'
+    'C21 5 20-9 9-14V-2L0 3L-9-2Z"/></g></svg>',
     "inspect": _PAPER
     + '<circle cx="151" cy="94" r="33" fill="var(--summary-accent-bg)" '
     'stroke="currentColor" stroke-width="6"/>'
