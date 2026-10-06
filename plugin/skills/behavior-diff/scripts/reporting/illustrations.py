@@ -1,5 +1,25 @@
 """Bundled decorative illustrations; report text never supplies SVG markup."""
 
+# Keep this notice in the source and exported SVG: reports distribute the icon.
+_LUCIDE_WRENCH_NOTICE = """<!--
+Lucide wrench: https://lucide.dev/icons/wrench
+ISC License
+
+Copyright (c) 2026 Lucide Icons and Contributors
+
+Permission to use, copy, modify, and/or distribute this software for any
+purpose with or without fee is hereby granted, provided that the above
+copyright notice and this permission notice appear in all copies.
+
+THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+-->"""
+
 _PAPER = (
     '<rect x="32" y="21" width="112" height="134" rx="14" '
     'fill="var(--summary-paper)" stroke="currentColor" stroke-width="3"/>'
@@ -14,11 +34,14 @@ _ICONS = {
     'fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>',
     "edit": _PAPER
     + '<circle cx="162" cy="106" r="48" fill="var(--summary-accent-bg)"/>'
-    '<path d="M153 109C139 104 133 89 138 76L143 64H149V85L159 92'
-    "L169 85V64H175L180 76C185 89 179 104 165 109V143"
-    'a6 6 0 0 1-12 0Z" transform="rotate(45 159 106)" '
-    'fill="var(--summary-accent-bg)" stroke="currentColor" stroke-width="4" '
-    'stroke-linejoin="round"/>',
+    + _LUCIDE_WRENCH_NOTICE
+    + '<svg x="122" y="66" width="80" height="80" viewBox="0 0 24 24" '
+    'fill="none" stroke="currentColor" stroke-width="2" '
+    'stroke-linecap="round" stroke-linejoin="round">'
+    '<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0'
+    "l3.106-3.105c.32-.322.863-.22.983.218a6 6 0 0 1-8.259 7.057"
+    "l-7.91 7.91a1 1 0 0 1-2.999-3l7.91-7.91a6 6 0 0 1 7.057-8.259"
+    'c.438.12.54.662.219.984z"/></svg>',
     "inspect": _PAPER
     + '<circle cx="151" cy="94" r="33" fill="var(--summary-accent-bg)" '
     'stroke="currentColor" stroke-width="6"/>'
