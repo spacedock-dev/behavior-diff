@@ -270,7 +270,7 @@ def _summary_markdown(report):
     ]
     markdown += [
         "[View instruction changes](#instruction-diff)\n",
-        "### 2. What was observed\n",
+        "### 2. What the evidence shows\n",
     ]
     if summary.scenario:
         markdown.append(_text(summary.scenario) + "\n")
@@ -291,18 +291,8 @@ def _summary_markdown(report):
         for label, text in context.sides:
             markdown.append(f"**{label}:** {_text(text)}\n")
         markdown.append(_text(context.note) + "\n")
-    target = (
-        "panel-decision"
-        if summary.decision is not None and summary.status != "unavailable"
-        else "panel-trials"
-    )
-    label = (
-        "View behavior comparisons"
-        if target != "panel-trials"
-        else "View available trial records"
-    )
-    markdown.append(f"[{label}](#{target})\n")
-    markdown.append("### 3. What this does — and does not — establish\n")
+    markdown.append("[Understand the change](#panel-explanation)\n")
+    markdown.append("### 3. What this means\n")
     for label, claim in (
         ("Why it matters", summary.why),
         ("Watch out", summary.caution),
@@ -313,6 +303,86 @@ def _summary_markdown(report):
             )
     markdown += [f"- {_text(notice)}" for notice in summary.notices]
     markdown.append("")
+    return markdown
+
+
+def _explanation_markdown(report):
+    explanation = report.decisions.explanation
+    markdown = [
+        '<a id="panel-explanation"></a>\n',
+        "## Understand the change\n",
+    ]
+    complete = content.complete_trial_evidence(report)
+    if explanation is None or not complete:
+        notice = (
+            content.CHANGE_EXPLANATION_UNAVAILABLE
+            if complete
+            else content.CHANGE_EXPLANATION_INCOMPLETE
+        )
+        markdown += [
+            "### Change explanation unavailable\n",
+            _text(notice) + "\n",
+        ]
+    else:
+        markdown += [
+            f"### {_text(explanation.headline)}\n",
+            _text(explanation.overview) + "\n",
+            _text(content.INTERPRETATION_NOTE) + "\n",
+        ]
+        references = []
+        for number, step in enumerate(explanation.steps, 1):
+            references.extend(step.decisions)
+            markdown += [
+                f"### {number}. {_text(step.title)}\n",
+                "#### Before\n",
+                _text(step.before) + "\n",
+                "#### After\n",
+                _text(step.after) + "\n",
+                "#### What this means\n",
+                _text(step.meaning) + "\n",
+                _decision_links(step.decisions) + "\n",
+            ]
+        for heading, claims in (
+            ("What stays the same", explanation.unchanged),
+            ("What this evidence cannot establish", explanation.limits),
+        ):
+            if claims:
+                markdown.append(f"### {heading}\n")
+                for claim in claims:
+                    references.extend(claim.decisions)
+                    markdown.append(
+                        f"- {_text(claim.text)} {_decision_links(claim.decisions)}"
+                    )
+                markdown.append("")
+        comparisons = content.explanation_comparisons(
+            report, tuple(dict.fromkeys(references))
+        )
+        if comparisons:
+            markdown += [
+                "### Consistency across trials\n",
+                "All extracted branches for the cited comparisons are shown, "
+                "including minority choices. Before and After trials are independent; "
+                "these counts are model extractions, not causal proof.\n",
+            ]
+            for index, title, sides in comparisons:
+                markdown.append(f"#### {_text(title)}\n")
+                markdown += [f"**{label}:** {_text(text)}\n" for label, text in sides]
+                markdown.append(_decision_links((index,)) + "\n")
+        if explanation.examples:
+            markdown.append("### From the final answers\n")
+            for example in explanation.examples:
+                anchor = content.trial_anchor(example.side, example.trial)
+                markdown += [
+                    f"**{example.side.capitalize()} · {_text(example.trial)}** · "
+                    f"[View full trial evidence](#{anchor})\n",
+                    "<pre>" + html.escape(example.text) + "</pre>\n",
+                ]
+    markdown += [
+        "[View behavior comparisons](#panel-decision) · "
+        "[View recorded command flow](#panel-flow) · "
+        "[View instruction changes](#instruction-diff) · "
+        "[Inspect trial evidence](#panel-trials)\n",
+    ]
     return markdown
 
 
@@ -347,6 +417,7 @@ def render_markdown(report: ReportData) -> str:
     markdown += [f"- {_text(limit)}" for limit in result.limits]
     markdown.append("")
     markdown.append("</details>\n")
+    markdown += _explanation_markdown(report)
     markdown.append('<a id="panel-instruction"></a>\n')
     markdown.append('<a id="instruction-diff"></a>\n')
     markdown.append("## Instruction changes\n")

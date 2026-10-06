@@ -105,6 +105,11 @@ SCENARIOS = (
         "Retry timing leads alongside mixed recommendations",
         "Planned intervals and deadlines change; signoff remains required in both answers.",
     ),
+    Scenario(
+        "formula-writing",
+        "Formula and writing choices vary without changing the verdict",
+        "Two after answers simplify a formula and use bullets; source reads and approval stay the same.",
+    ),
 )
 
 
@@ -270,6 +275,7 @@ def _write_extraction(
     summary=None,
     intent=None,
     trial_summaries=(),
+    explanation=None,
 ):
     positions = {row["topic"]: index for index, row in enumerate(rows, 1)}
     _write_json(
@@ -286,6 +292,7 @@ def _write_extraction(
             "summary": summary,
             "intent": intent,
             "trial_summaries": list(trial_summaries),
+            "explanation": explanation,
         },
     )
 
@@ -1363,6 +1370,142 @@ def _timing_rule(run, scenario):
                 ),
             ],
         ),
+        explanation={
+            "headline": "The retry window extends, but a minority proposes only one check.",
+            "overview": "The answers describe future plans rather than executed polling.",
+            "steps": [
+                {
+                    "title": "After signoff",
+                    "before": "All three plan five-minute polling until 15 minutes.",
+                    "after": "Two plan ten-minute polling until 30 minutes; one plans one deadline check.",
+                    "meaning": "The longer window is consistent; repeated polling is not.",
+                    "decisions": [1],
+                },
+            ],
+            "unchanged": [],
+            "limits": [
+                {
+                    "text": "No polling or signoff is recorded; recommendations remain mixed.",
+                    "decisions": [1, 2],
+                },
+            ],
+            "examples": [
+                {"side": side, "trial": f"{side}-1", "text": trials[side][0].final}
+                for side in ("before", "after")
+            ],
+        },
+    )
+
+
+def _formula_writing(run, scenario):
+    rules = {
+        "before": "# Review\nExplain the bounded availability formula in a paragraph.\n",
+        "after": "# Review\nPrefer a concise equivalent formula and evidence bullets.\n",
+    }
+    trials = {"before": [], "after": []}
+    for side in trials:
+        for number in range(1, 4):
+            simplified = side == "after" and number < 3
+            formula = (
+                "max(stock - reserved, 0)"
+                if simplified
+                else ("stock - reserved if stock >= reserved else 0")
+            )
+            final = (
+                f"- Formula: {formula}\n- Verdict: APPROVE"
+                if simplified
+                else f"Formula: {formula}. Verdict: APPROVE."
+            )
+            trials[side].append(
+                _Trial(
+                    actions=(
+                        ("cat availability.py", "return max(stock - reserved, 0)\n"),
+                    ),
+                    final=final,
+                    choices={
+                        "Source inspection": "Read availability.py",
+                        "Formula representation": formula,
+                        "Answer presentation": "Evidence bullets"
+                        if simplified
+                        else "Paragraph",
+                        "Review verdict": "APPROVE",
+                    },
+                    summary="Reads the implementation and returns APPROVE.",
+                )
+            )
+    _write_sources(
+        run,
+        scenario,
+        "Synthetic task: Explain bounded availability for non-negative integer inputs.",
+        rules,
+        {"availability.py": "return max(stock - reserved, 0)\n"},
+        trials,
+    )
+    rows = [
+        _row("Source inspection", "Which source was inspected?", 1, trials),
+        _row("Formula representation", "Which formula is written?", "answer", trials),
+        _row("Answer presentation", "How is the evidence presented?", "answer", trials),
+        _row("Review verdict", "What verdict is returned?", "answer", trials),
+    ]
+    rows[1]["edit_hunks"] = [1]
+    rows[2]["edit_hunks"] = [1]
+    _write_extraction(
+        run,
+        rows,
+        primary="Review verdict",
+        trial_summaries=_trial_summaries(
+            trials,
+            [
+                (
+                    "After uses max notation and bullets; both return APPROVE.",
+                    "The answers do not establish behavior outside the stated inputs.",
+                ),
+                (
+                    "After uses max notation and bullets; both return APPROVE.",
+                    "The answers do not establish behavior outside the stated inputs.",
+                ),
+                (
+                    "Both retain conditional notation, paragraph presentation and APPROVE.",
+                    "This trial does not adopt the proposed presentation change.",
+                ),
+            ],
+        ),
+        explanation={
+            "headline": "Two answers simplify notation and switch to bullets.",
+            "overview": "This is a presentation distinction, not a changed availability result.",
+            "steps": [
+                {
+                    "title": "Formula notation",
+                    "before": "All three answers write an explicit conditional.",
+                    "after": "Two use max(stock - reserved, 0); one retains the conditional.",
+                    "meaning": "Both formulas clamp subtraction at zero for the stated inputs.",
+                    "decisions": [2],
+                },
+                {
+                    "title": "Evidence presentation",
+                    "before": "All three answers use a paragraph.",
+                    "after": "Two use bullets; one still uses a paragraph.",
+                    "meaning": "The format change is not consistent across all trials.",
+                    "decisions": [3],
+                },
+            ],
+            "unchanged": [
+                {
+                    "text": "Every trial reads availability.py and returns APPROVE.",
+                    "decisions": [1, 4],
+                },
+            ],
+            "limits": [
+                {
+                    "text": "These answers do not establish behavior for negative or non-integer inputs.",
+                    "decisions": [2],
+                },
+            ],
+            "examples": [
+                {"side": side, "trial": f"{side}-1", "text": trials[side][0].final}
+                for side in ("before", "after")
+            ],
+        },
     )
 
 
@@ -1394,6 +1537,8 @@ def build_reports(root: Path) -> None:
             _planned_actions(run, scenario)
         elif scenario.name == "timing-rule":
             _timing_rule(run, scenario)
+        elif scenario.name == "formula-writing":
+            _formula_writing(run, scenario)
         elif scenario.name in {"flow-changed", "flow-mixed"}:
             _availability_review(run, scenario)
         elif scenario.name in {"intent-flip", "intent-unchanged"}:

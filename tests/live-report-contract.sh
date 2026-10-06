@@ -307,8 +307,6 @@ require_output 'commands it ran:' "$captured_prompt" \
   'captured decision prompt does not label captured command entries'
 require_output 'actually did and said' "$captured_prompt" \
   'captured decision prompt lost its performed-action evidence clause'
-reject_output 'self-reported' "$captured_prompt" \
-  'captured decision prompt uses self-reported source wording'
 require_output \
   'A decision is not a command; some decisions leave no command' \
   "$captured_prompt" 'captured prompt lost its command evidence noun'

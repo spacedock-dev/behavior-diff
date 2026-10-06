@@ -32,11 +32,12 @@ from reporting.trial_summary import (  # noqa: E402
     trial_group_names,
 )
 from report_fixtures import SCENARIOS, build_reports  # noqa: E402
+from explanation_contract import assert_change_explanations  # noqa: E402
 
 
 def synthetic_raw():
     raw = {
-        "schema_version": 8,
+        "schema_version": 9,
         "metadata": {
             "model": "synthetic/model",
             "mode": "review",
@@ -199,6 +200,7 @@ def synthetic_raw():
             ],
             "narrative": None,
             "intent": None,
+            "explanation": None,
             "trial_summaries": [
                 {
                     "before_trial": "before-1",
@@ -608,7 +610,14 @@ def assert_guided_report_structure(report):
     ):
         evidence = Evidence()
         evidence.feed(rendered)
-        for panel in ("summary", "instruction", "decision", "flow", "trials"):
+        for panel in (
+            "summary",
+            "explanation",
+            "instruction",
+            "decision",
+            "flow",
+            "trials",
+        ):
             assert f"panel-{panel}" in evidence.ids
         assert [
             anchor
@@ -631,12 +640,9 @@ def assert_guided_report_structure(report):
             "Domain run terminology was rewritten."
         )
         if is_html:
-            assert evidence.primary_targets == [
-                "#panel-decision"
-                if report.summary.decision is not None
-                and report.summary.status != "unavailable"
-                else "#panel-trials"
-            ], "The Summary must have one primary evidence destination."
+            assert evidence.primary_targets == ["#panel-explanation"], (
+                "The Summary must open the dedicated explanation."
+            )
 
     # Independently retained records remain navigable without an extraction.
     unavailable = replace(
@@ -1236,15 +1242,9 @@ def assert_primary_result_context(reports):
         assert "<a " not in block, (
             "Primary-result context must not add a competing link."
         )
-        target = (
-            "panel-decision"
-            if report.summary.decision is not None
-            and report.summary.status != "unavailable"
-            else "panel-trials"
-        )
-        assert re.findall(r"\]\(#(?:panel-decision|panel-trials)\)", md_block) == [
-            f"](#{target})"
-        ], "The observed comparison has one shared evidence destination."
+        assert re.findall(r"\]\(#panel-explanation\)", md_block) == [
+            "](#panel-explanation)"
+        ], "The observed comparison opens the shared explanation destination."
         if context.decision is None:
             assert not context.sides
         else:
@@ -1487,6 +1487,7 @@ def assert_gallery_reports():
         "intent-unchanged": ("unchanged", "unavailable"),
         "planned-actions": ("changed", "unavailable"),
         "timing-rule": ("varies", "unavailable"),
+        "formula-writing": ("unchanged", "unchanged"),
     }
     with tempfile.TemporaryDirectory() as directory:
         root = Path(directory)
@@ -1588,6 +1589,13 @@ def assert_gallery_reports():
         assert_additional_findings(reports)
         assert_intent_reports(reports, root)
         assert_saved_scenario_task(root)
+        assert_change_explanations(
+            reports,
+            root,
+            assert_round_trip,
+            assert_evidence_links,
+            assert_unchanged_scripts,
+        )
 
     with tempfile.TemporaryDirectory() as directory:
         root = Path(directory)
