@@ -85,6 +85,7 @@ bash tests/live-report-contract.sh
 bash tests/release-workflow-test.sh
 python3 tests/human-evaluation-workflow-test.py
 python3 tests/human-evaluation-quiz-test.py
+python3 tests/human-evaluation-hosted-test.py
 ```
 
 For Markdown-only changes, also run `git diff --check`. Do not replace these

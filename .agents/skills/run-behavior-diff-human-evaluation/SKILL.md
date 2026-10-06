@@ -1,6 +1,6 @@
 ---
 name: run-behavior-diff-human-evaluation
-description: Run a private, five-question human evaluation of the current local Behavior Diff summaries using randomly sampled skill commits from DataRecce/recce-team. Use when a maintainer asks for a human evaluation, a blind report quiz, or to evaluate current summary ability; also use to resume or analyze an existing evaluation.
+description: Run a private, five-question human evaluation of the current local Behavior Diff summaries using randomly sampled skill commits from DataRecce/recce-team. Use when a maintainer asks for a human evaluation, a blind report quiz, or to evaluate current summary ability; also use to resume, export saved evidence, or analyze local or hosted responses.
 ---
 
 # Human evaluation of Behavior Diff
@@ -11,9 +11,11 @@ plugin payload. Never trigger it from hooks, CI, or a scheduled job.
 
 ## Start or resume
 
-1. For **analyze/resume**, locate the requested private session under
-   `~/.behavior-diff/human-evaluations/`; use its saved evidence. Never create
-   fresh trials to answer a request about an existing result.
+1. For **analyze/resume/export**, use the requested private session's saved
+   evidence. Never create fresh trials to answer a request about an existing
+   result. Read [the workflow](references/workflow.md) first. Hosted export is
+   a local handoff, **not publication permission**: an explicit publication-policy
+   update and review of actual outgoing content remain required before upload.
 2. For **new evaluation**, require this repository's checkout, Python 3.9+,
    Git, authenticated `gh` access to `DataRecce/recce-team`, Bash, `jq`, and
    the Claude Code CLI.
@@ -71,6 +73,40 @@ plugin payload. Never trigger it from hooks, CI, or a scheduled job.
    Do not show ground truth until submission. Original reports and commit
    links unlock afterward. Artifacts stay outside the checkout and are
    never attached to a public issue or committed.
+
+## Saved-evidence hosted handoff
+
+Keep the loopback workflow above as a separate supported mode. To export a
+saved, frozen, built evaluation without model calls:
+
+```bash
+python3 "$EVAL" export-package "$SESSION" \
+  --evaluation-id reviewed-cohort --title "Reviewed evaluation" \
+  --out "$PRIVATE_EXTERNAL_ROOT/quiz-package"
+```
+
+Use a new destination outside both working trees, separate from the private
+session; no symlinks or overwrites. The helper verifies frozen inputs and saved
+report/quiz receipts, copies the exact blinded summaries, and exports only the
+minimal frontend key. It retains provenance privately in the session. Follow
+[the v1 contract and approval gate](references/workflow.md#hosted-package-v1).
+Do not upload private sessions under the current policy. Synthetic local
+emulator compatibility checks do not grant deployment or publication permission.
+
+For a private response export from the site maintainer tooling:
+
+```bash
+python3 "$EVAL" hosted-results "$SESSION" \
+  --package "$PRIVATE_EXTERNAL_ROOT/quiz-package" \
+  --responses "$PRIVATE_EXTERNAL_ROOT/responses.json"
+```
+
+Output is private analysis JSON on stdout, including original records, recomputed
+scores, and duplicate-name advisories. Never commit it. All UIDs remain separate;
+names/emails do not prove identity or independent participants. Assess **all five
+cases** using the saved-evidence validity protocol below, not only missed answers.
+The helper marks semantic validity `not-assessed`; it does not invent a judgment.
+Retain each original keyed score and denominator independently of that assessment.
 
 ## Analyze the human's answers
 

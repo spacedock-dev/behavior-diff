@@ -418,11 +418,20 @@ Manual request + fresh live-cost approval
   -> unchanged local runner: 3 Before + 3 After per case
   -> saved report HTML -> blinded Summary excerpts
   -> loopback quiz -> first human submission -> score and full-report reveal
+     OR saved-evidence v1 export -> synthetic local site emulators
+        -> private multi-response export -> frozen-key scores + validity assessment
 ```
 
 `evaluate.py` owns sampling, source/fixture validation, input freezing, guarded
 live execution, and provenance. `quiz.py` projects the original saved HTML without
-model calls and owns the local quiz server and scoring. Agent instructions own
+model calls and owns the local quiz server and scoring. `hosted.py` owns the
+allowlisted v1 package and private multi-response analysis, dispatched through
+`evaluate.py export-package` / `hosted-results`. It verifies saved evidence,
+copies exact blinded HTML, and retains provenance in a private session receipt;
+packages and response exports stay outside both working trees. The contract and
+commands live in the skill's [workflow reference](../.agents/skills/run-behavior-diff-human-evaluation/references/workflow.md#hosted-package-v1).
+The separate site repository owns Firebase runtime/admin tooling; this repository
+has no deployment credentials or live Firebase path. Agent instructions own
 scenario design, question truth, and interpretation; structural validation is
 not a semantic judgment of the options.
 
@@ -440,6 +449,17 @@ before submission. The answer key is server-side; the first complete submission
 unlocks original reports and commit links. Saved sessions remain available for
 analysis after the checkout changes. A score out of five measures this reader's
 answers to these questions, not product-wide accuracy or execution correctness.
+
+Hosted packages intentionally expose only the minimal frontend answer mapping;
+this is inspectable trust-based scoring, unlike the server-side key in local mode.
+The analyzer checks the immutable manifest/hash and private session mapping,
+recomputes each score from the original frozen key, and retains every original
+UID record and site build. Duplicate names are advisory and never merged.
+All-case semantic validity remains a separate saved-evidence assessment, not an
+automatically revised score or denominator. Current implementation approval covers
+synthetic local emulators only. An explicit publication-policy update and review
+of actual outgoing content remain required before uploading any private session;
+blinding and private repository visibility are not publication permission.
 
 ## Local state and system boundaries
 

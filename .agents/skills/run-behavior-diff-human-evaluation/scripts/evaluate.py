@@ -876,6 +876,17 @@ def quiz_module():
     return module
 
 
+def hosted_module():
+    path = Path(__file__).with_name("hosted.py")
+    spec = importlib.util.spec_from_file_location(
+        "behavior_diff_hosted_evaluation", path
+    )
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
 def freeze_session(session):
     session = private_root(session)
     manifest = load_session(session)
@@ -1357,7 +1368,16 @@ def parser():
     commands.add_parser(
         "init", help="Create a fresh private session from fixed upstream main"
     )
-    for name in ("replace", "freeze", "run", "build", "serve", "results"):
+    for name in (
+        "replace",
+        "freeze",
+        "run",
+        "build",
+        "serve",
+        "results",
+        "export-package",
+        "hosted-results",
+    ):
         command = commands.add_parser(name)
         command.add_argument("session", type=Path)
         if name == "replace":
@@ -1368,6 +1388,13 @@ def parser():
             command.add_argument("--case", type=int, choices=range(1, 6))
         elif name == "serve":
             command.add_argument("--port", type=int, default=0)
+        elif name == "export-package":
+            command.add_argument("--evaluation-id", required=True)
+            command.add_argument("--title", required=True)
+            command.add_argument("--out", required=True, type=Path)
+        elif name == "hosted-results":
+            command.add_argument("--package", required=True, type=Path)
+            command.add_argument("--responses", required=True, type=Path)
     return cli
 
 
@@ -1410,6 +1437,16 @@ def main(arguments=None):
                 quiz.serve(session, args.port)
             elif args.command == "results":
                 print(json.dumps(quiz.results(session), indent=2, ensure_ascii=False))
+            elif args.command == "export-package":
+                result = hosted_module().export_package(
+                    session, quiz, REPO_ROOT, args.evaluation_id, args.title, args.out
+                )
+                print(json.dumps(result, indent=2, ensure_ascii=False))
+            elif args.command == "hosted-results":
+                result = hosted_module().analyze_responses(
+                    session, quiz, REPO_ROOT, args.package, args.responses
+                )
+                print(json.dumps(result, indent=2, ensure_ascii=False))
         return 0
     except (EvaluationError, OSError, ValueError) as exc:
         print("human evaluation: {}".format(exc), file=sys.stderr)
