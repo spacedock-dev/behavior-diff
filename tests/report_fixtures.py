@@ -122,8 +122,8 @@ SCENARIOS = (
     ),
     Scenario(
         "attention-plans",
-        "An additional pause is proposed, not executed",
-        "The answer proposes waiting for permission before editing a shared file.",
+        "The answer adds a proposed permission pause",
+        "Explaining the next step is required; waiting for shared-file permission is an added proposal.",
     ),
     Scenario(
         "attention-quiet",
@@ -1681,11 +1681,13 @@ def _attention_review(run, scenario):
                     for branch in row["after"]
                 ],
                 "explanation": (
-                    "The permission boundary is part of the proposed repair, not "
-                    "the completed review. It matters before a shared-file change; "
-                    "it does not show that reading the widget required approval. "
-                    "The unchanged enabled result therefore cannot tell you whether "
-                    "a later repair would be blocked."
+                    "This skill reviews the widget and reports a proposed next step "
+                    "without changing files. After explicitly requires that explanation; "
+                    "it does not require permission. The answers separately add a "
+                    "proposal to wait for shared-file permission instead of continuing "
+                    "with a local repair. That proposal concerns a later edit, not "
+                    "approval to inspect the widget. Every review still reports it "
+                    "enabled, and no repair or permission wait was executed."
                     if is_plan
                     else "An enabled setting and a passing check answer different "
                     "questions: inspection reads the configuration, while the check "
@@ -1700,9 +1702,10 @@ def _attention_review(run, scenario):
                     },
                     {
                         "text": (
-                            "Both checked and inspection-only review paths remain "
-                            "present on each side; that variation is separate "
-                            "from the proposed permission boundary."
+                            "Before includes two checked reviews and one inspection-only "
+                            "review; After includes one checked review and two "
+                            "inspection-only reviews. Both paths remain present, "
+                            "separately from the proposed permission boundary."
                             if is_plan
                             else "Answers change from proposing a local repair "
                             "to a permission pause, but neither proposal is executed."
@@ -1738,8 +1741,21 @@ def _attention_review(run, scenario):
         primary="Review result",
         attention=attention,
         explanation={
-            "headline": "Review checks vary while the reported widget state stays the same.",
-            "overview": "Completed checks and proposed repairs are separate observations.",
+            "headline": (
+                "The answers add a proposed permission pause; the widget result stays the same."
+                if plans
+                else "More reviews omit the widget check; the reported state stays the same."
+            ),
+            "overview": (
+                "The skill reviews the widget and reports a next step without editing files. "
+                "After requires an explanation of that next step, not a permission request. "
+                "Its answers additionally propose waiting for shared-file permission; "
+                "neither that pause nor a repair is executed. Checking remains mixed on both sides."
+                if plans
+                else "The skill reviews the widget without editing files. Inspection reports "
+                "the enabled setting; a completed check provides a separate result. "
+                "Both checking paths remain present, and every answer reports the widget enabled."
+            ),
             "steps": [
                 {
                     "title": "Checking the widget",
