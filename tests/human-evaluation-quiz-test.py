@@ -12,6 +12,7 @@ import shutil
 import tempfile
 import threading
 import unittest
+from unittest.mock import patch
 
 from report_fixtures import build_reports
 
@@ -343,6 +344,9 @@ class ReportAndServerTests(unittest.TestCase):
         self.assertNotIn("<nav", blinded)
         self.assertNotIn("<a ", blinded)
         self.assertNotIn("https://", blinded)
+        self.assertNotIn("Other findings", blinded)
+        self.assertNotIn("<button", blinded)
+        self.assertNotIn("data-attention-", blinded)
         self.assertNotIn("<link", blinded)
         self.assertEqual(
             (self.session / "case-1/state/runs/synthetic/report.html").read_text(),
@@ -353,6 +357,185 @@ class ReportAndServerTests(unittest.TestCase):
             receipt["reports"]["1"]["report.html"]["sha256"],
             quiz._hash(original.encode()),
         )
+
+    def test_attention_pictures_counts_and_states_survive_blinding(self):
+        for scenario in (
+            "attention-mixed",
+            "attention-self-reported",
+            "attention-plans",
+            "attention-quiet",
+            "attention-unavailable",
+            "attention-multiple",
+        ):
+            with self.subTest(scenario=scenario):
+                source = (self.gallery / scenario / "report.html").read_text()
+                original = quiz._ReportParser().finish(source)
+                blinded_html = quiz._blinded_report(source)
+                blinded = quiz._ReportParser().finish(blinded_html)
+                attention = quiz._single(
+                    [
+                        node
+                        for node in quiz._walk(original)
+                        if node.has_class("story-attention")
+                    ],
+                    "original attention step",
+                )
+                retained = quiz._single(
+                    [
+                        node
+                        for node in quiz._walk(blinded)
+                        if node.has_class("story-attention")
+                    ],
+                    "blinded attention step",
+                )
+                self.assertEqual(
+                    quiz._safe_fragment(attention), quiz._safe_fragment(retained)
+                )
+                original_nodes = list(quiz._walk(attention))
+                retained_nodes = list(quiz._walk(retained))
+                if scenario == "attention-self-reported":
+                    self.assertIn(
+                        "Self-reported actions, not independently captured command evidence",
+                        quiz._plain(retained),
+                    )
+                    self.assertNotIn("Recorded actions", quiz._plain(retained))
+                for name in (
+                    "attention-assessment",
+                    "attention-branch",
+                    "attention-consequence",
+                    "attention-evidence-kind",
+                    "attention-limit",
+                    "attention-guidance",
+                    "attention-empty",
+                    "attention-unavailable",
+                ):
+                    self.assertEqual(
+                        [
+                            quiz._plain(node)
+                            for node in original_nodes
+                            if node.has_class(name)
+                        ],
+                        [
+                            quiz._plain(node)
+                            for node in retained_nodes
+                            if node.has_class(name)
+                        ],
+                    )
+                self.assertEqual(
+                    [quiz._plain(node) for node in original_nodes if node.tag == "h4"],
+                    [quiz._plain(node) for node in retained_nodes if node.tag == "h4"],
+                )
+                for relationship in (
+                    node
+                    for node in original_nodes
+                    if node.has_class("attention-relationship")
+                ):
+                    self.assertNotIn(quiz._plain(relationship), quiz._plain(retained))
+                self.assertFalse(
+                    any(
+                        node.has_class("attention-relationship")
+                        for node in retained_nodes
+                    )
+                )
+                self.assertEqual(
+                    [
+                        quiz._plain(
+                            quiz._ReportParser().finish(quiz._safe_fragment(node))
+                        )
+                        for node in original_nodes
+                        if node.has_class("attention-meta")
+                    ],
+                    [
+                        quiz._plain(node)
+                        for node in retained_nodes
+                        if node.has_class("attention-meta")
+                    ],
+                )
+                branches = [
+                    node
+                    for node in retained_nodes
+                    if node.has_class("attention-branch")
+                ]
+                self.assertEqual(
+                    len(branches) * 2,
+                    sum(node.tag == "svg" for node in retained_nodes),
+                )
+                for svg in (node for node in retained_nodes if node.tag == "svg"):
+                    self.assertEqual(svg.attrs["aria-hidden"], "true")
+                    self.assertEqual(svg.attrs["focusable"], "false")
+                    self.assertIn("viewbox", svg.attrs)
+                    self.assertTrue(quiz._children(svg))
+                for forbidden in (
+                    "<button",
+                    "<nav",
+                    "<a ",
+                    "data-attention-",
+                    "Not relevant here",
+                    "Show again",
+                ):
+                    self.assertNotIn(forbidden, blinded_html)
+                steps = [
+                    node for node in quiz._walk(blinded) if node.has_class("story-step")
+                ]
+                self.assertEqual(len(steps), 3)
+                self.assertEqual(
+                    [
+                        quiz._plain(quiz._children(quiz._children(step)[1])[0])
+                        for step in steps
+                    ],
+                    [
+                        "What the evidence shows",
+                        "What needs your attention",
+                        "What this means",
+                    ],
+                )
+
+    def test_old_summary_shapes_and_wrapper_recovery_are_rejected(self):
+        source = (self.gallery / "changed-result/report.html").read_text()
+        for legacy in ("three-steps", "other-findings"):
+            with self.subTest(legacy=legacy):
+                root = quiz._ReportParser().finish(source)
+                panel = quiz._single(
+                    [
+                        node
+                        for node in quiz._walk(root)
+                        if node.attrs.get("id") == "panel-summary"
+                    ],
+                    "summary panel",
+                )
+                if legacy == "three-steps":
+                    steps = quiz._single(
+                        [
+                            node
+                            for node in quiz._walk(panel)
+                            if node.has_class("story-steps")
+                        ],
+                        "story steps",
+                    )
+                    steps.children = [
+                        child
+                        for child in steps.children
+                        if not isinstance(child, quiz._Node)
+                        or not child.has_class("story-attention")
+                    ]
+                else:
+                    panel.children.append(
+                        quiz._Node(
+                            "details",
+                            [("class", "summary-details")],
+                            [quiz._Node("summary", children=["Other findings"])],
+                        )
+                    )
+                with (
+                    patch.object(quiz._ReportParser, "finish", return_value=root),
+                    self.assertRaises(ValueError),
+                ):
+                    quiz._blinded_report(source)
+        with self.assertRaises(ValueError):
+            quiz._ReportParser().finish(
+                '<div class="short-story-summary"><p class="summary-boundary">'
+                "Boundary</p>"
+            )
 
     def test_blinding_retains_primary_result_beside_answer_detail_contrast(self):
         for scenario in ("answer-details", "non-outcome-narrative", "missing-primary"):
@@ -437,6 +620,50 @@ class ReportAndServerTests(unittest.TestCase):
         ):
             with self.subTest(shape=altered[:100]), self.assertRaises(ValueError):
                 quiz._blinded_report(altered)
+
+    def test_attention_structure_and_svg_resource_boundaries_fail_closed(self):
+        source = (self.gallery / "attention-mixed/report.html").read_text()
+        for name in (
+            "attention-assessment",
+            "attention-limit",
+            "attention-flow-step",
+            "attention-guidance",
+            "attention-relationship",
+            "attention-evidence-kind",
+            "summary-count",
+        ):
+            with self.subTest(element=name):
+                altered = source.replace(f'class="{name}"', 'class="unknown-element"')
+                self.assertNotEqual(source, altered)
+                with self.assertRaises(ValueError):
+                    quiz._blinded_report(altered)
+        with self.assertRaisesRegex(ValueError, "Unwrapped source-intent"):
+            quiz._blinded_report(
+                source.replace(
+                    '<p class="attention-meta">',
+                    '<p class="attention-meta">Unwrapped relationship',
+                    1,
+                )
+            )
+        attention_svg_end = source.index(
+            "</svg>", source.index('class="attention-flow-step"')
+        )
+        for markup in (
+            "<foreignObject><p>Arbitrary markup</p></foreignObject>",
+            '<image href="https://hostile.invalid/picture.svg"></image>',
+            "<text>Unbundled picture text</text>",
+        ):
+            with self.subTest(markup=markup), self.assertRaises(ValueError):
+                quiz._blinded_report(
+                    source[:attention_svg_end] + markup + source[attention_svg_end:]
+                )
+        for value in (
+            "url(https://hostile.invalid/resource)",
+            "javascript:hostile()",
+            "data:image/svg+xml,hostile",
+        ):
+            with self.subTest(resource=value), self.assertRaises(ValueError):
+                quiz._safe_fragment(quiz._Node("path", [("fill", value)]))
 
     def test_missing_reports_and_changed_receipt_fail_closed(self):
         report = self.session / "case-5/state/runs/synthetic/report.html"

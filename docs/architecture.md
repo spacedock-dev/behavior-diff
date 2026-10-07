@@ -36,6 +36,7 @@ scripts handle execution, evidence, and reporting.
 +---------------------------------------------------------+
 | Evidence analysis                                       |
 | decisions.py: trial assignments -> counts and summaries |
+| Same extraction: explanation and attention assessment   |
 | reporting/: deterministic comparison and report data    |
 +----------------------------+----------------------------+
                              v
@@ -191,7 +192,8 @@ The modules below live in the skill's [`scripts/`](../plugin/skills/behavior-dif
   final answers, and numbered instruction-diff hunks. A separate model extracts
   choices with named trial assignments, a primary result, supported implications,
   links to edits, plain-language Summary text, the edit's likely aim, short
-  per-group trial summaries, and an optional change explanation in the same call.
+  per-group trial summaries, an optional change explanation, and an attention
+  assessment in the same call.
   New raw branches supply `trials`,
   not aggregate counts. The script requires each completed trial exactly once
   per side of every row, derives `n`, and retains both in `decisions.json`.
@@ -227,9 +229,21 @@ The modules below live in the skill's [`scripts/`](../plugin/skills/behavior-dif
   without discarding valid comparisons. Canonical report-data parsing rejects
   invalid persisted explanation data. Extraction and loading share
   `read_trial_trace` so they read the same source fields.
-  Together these modules build schema-v9 `ReportData` in `reporting/schema.py`;
-  `decisions.explanation` is explicitly null when unavailable.
+  `reporting/attention.py` validates attention findings against changed choice
+  distributions: unique row references, every exact branch on both sides, two
+  fixed-icon steps per branch, bounded plain text, and compatible evidence kinds.
+  Counts come from canonical rows, not narrative output. References remap through
+  sorted or dropped rows; malformed bundles become unavailable without losing
+  comparisons. A valid assessment with no findings remains distinct from null.
+  Together these modules build schema-v11 `ReportData` in `reporting/schema.py`;
+  `decisions.explanation` and `decisions.attention` are null when unavailable.
+  Canonical parsing rejects malformed non-null attention and older schema versions.
   Summary counts come from existing decision rows.
+  Decision branches also retain validated trial memberships: exact coverage of
+  completed trials on each side, matching counts, and no duplicate or foreign
+  identities. Legacy aggregate-only branches show unavailable attribution;
+  counts never imply trial identities. Incomplete trials remain in Trial evidence
+  but do not enter the extractor's completed-trial branch assignments.
 
 Command flow comes from recorded events. Decision comparisons come from model
 interpretation of those events and answers. The report keeps these sources
@@ -247,8 +261,9 @@ distinct. Links between decisions and edits do not prove causality.
 | `report-data.json` | Structured, versioned report data. |
 | `report-artifact.html` | Embeddable HTML body. |
 
-The default Summary tells a numbered story: the edit's aim, the scenario's
-observations, and their meaning. The goal is one sentence with a compact
+The default Summary tells a four-part numbered story: the edit's aim, the
+scenario's observations, what needs attention, and what this means.
+The goal is one sentence with a compact
 source label and edit link; an info popup holds the source caveat. Supplied
 expectations and inferred aims remain distinct; neither becomes proof of
 author intent or goal completion. Markdown retains the caveat as plain text.
@@ -262,7 +277,7 @@ of the same subject, with the decisive contrast and any unchanged decision
 explicitly stated. Summary selection prefers the observed changed operative rule
 (conditions, timing, scope, or prerequisites) over its downstream outcome, including
 mixed comparisons. Material intervals, deadlines, units, and gates belong in the
-main cards, not only Other findings. Each card detail must hold for every named trial
+main cards, not only supporting detail. Each card detail must hold for every named trial
 in its selected branch; counts or citations from other rows cannot supply membership.
 An instruction's gate is distinct from an observed gate, which may already appear
 in Before. These are extraction policies, not deterministic semantic guarantees;
@@ -292,9 +307,25 @@ instead of inferring a no-difference claim or making a new model call.
 Both explanation renderers reuse the Summary's completeness guard: blocked,
 missing, invalid, or dropped trial evidence withholds the saved interpretation
 and shows an explicit coverage notice while retaining evidence navigation.
-Plans are not presented as executions. `content.additional_findings` selects
-at most three compact comparisons; full comparisons stay in Behavior diff.
-Markdown shares the same story and findings without illustrations.
+Plans are not presented as executions. The third Summary section shows relevant
+tradeoffs with Before/After pictures, every branch count, a consequence,
+applicability, an action, and explicit evidence limits. Expected tradeoffs can
+qualify; differences alone do not. There is no separate Other findings category
+or fixed finding cap. Assessed-empty and unavailable states use different wording.
+Attention action labels retain trace provenance: self-reported actions are
+explicitly not independently captured command evidence. HTML, Markdown, and
+blind Summary exports preserve this qualification.
+One **See why this matters** link opens an additive attention section inside
+Understand the change, preserving the original explanation steps. Unlike the
+Summary cards, this section separates model reasoning, every branch's count and
+named supporting trials, cited context, and uncertainty. It does not repeat the
+pictures, consequence, or action guidance. Optional **Check the evidence**
+disclosures contain raw comparison links. The existing extraction prompt asks
+for supported reasoning beyond the Summary, not invented detail or paraphrase.
+HTML dismissal changes only DOM state: **Not relevant here** is reversible with
+**Show again**, resets on reload, and does not hide content in print.
+Markdown retains the same findings, branch labels, counts, and explanation
+without SVG illustrations or interactive dismissal.
 Saved decisions without interpretations show explicit availability notices;
 rendering never requests new explanations.
 
@@ -352,7 +383,7 @@ All output formats share `ReportData`. Only the HTML branch uses
 ```text
 +-----------------------------------------------------+
 | Saved run: configuration, grades, traces, snapshots |
-| Optional decisions.json (including explanation)    |
+| decisions.json: comparisons, explanation, attention |
 +--------------------------+--------------------------+
                            |
                            v

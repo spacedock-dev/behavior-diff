@@ -110,6 +110,36 @@ SCENARIOS = (
         "Formula and writing choices vary without changing the verdict",
         "Two after answers simplify a formula and use bullets; source reads and approval stay the same.",
     ),
+    Scenario(
+        "attention-mixed",
+        "An expected tradeoff keeps every observed branch",
+        "Optional checking changes mixed review paths without hiding either minority.",
+    ),
+    Scenario(
+        "attention-self-reported",
+        "A checking tradeoff uses self-reported evidence",
+        "Reported checks are not independently captured tool activity.",
+    ),
+    Scenario(
+        "attention-plans",
+        "An additional pause is proposed, not executed",
+        "The answer proposes waiting for permission before editing a shared file.",
+    ),
+    Scenario(
+        "attention-quiet",
+        "The assessment finds no additional reader decision",
+        "A completed attention assessment is empty; the review remains available.",
+    ),
+    Scenario(
+        "attention-unavailable",
+        "An attention assessment is unavailable",
+        "Raw review comparisons survive without an attention assessment.",
+    ),
+    Scenario(
+        "attention-multiple",
+        "Two separate changes need a reader decision",
+        "An expected checking tradeoff and an additional proposed pause stay distinct.",
+    ),
 )
 
 
@@ -128,7 +158,7 @@ def _write_json(path, value):
 
 
 def _write_sources(run, scenario, task, rules, files, trials):
-    reported = scenario.name == "self-reported"
+    reported = scenario.name in {"self-reported", "attention-self-reported"}
     provenance = (
         "Actions and answers are authored self-reports, not independent tool captures."
         if reported
@@ -276,6 +306,7 @@ def _write_extraction(
     intent=None,
     trial_summaries=(),
     explanation=None,
+    attention=None,
 ):
     positions = {row["topic"]: index for index, row in enumerate(rows, 1)}
     _write_json(
@@ -293,6 +324,7 @@ def _write_extraction(
             "intent": intent,
             "trial_summaries": list(trial_summaries),
             "explanation": explanation,
+            "attention": attention,
         },
     )
 
@@ -1509,6 +1541,241 @@ def _formula_writing(run, scenario):
     )
 
 
+def _attention_review(run, scenario):
+    """Fictional traces distinguish completed checks from proposed shared edits."""
+    quiet = scenario.name == "attention-quiet"
+    plans = scenario.name in {"attention-plans", "attention-multiple"}
+    rules = {
+        "before": "# Synthetic review\nInspect the widget and run its check.\n",
+        "after": (
+            "# Synthetic review\nInspect the widget; its check is optional.\n"
+            "Explain your proposed next step without changing any files.\n"
+        ),
+    }
+    files = {"widget.txt": "Synthetic widget configuration: enabled.\n"}
+    trials = {"before": [], "after": []}
+    for side in trials:
+        for number in range(1, 4):
+            checked = quiet or (number != 3 if side == "before" else number == 3)
+            review = "Inspect and check" if checked else "Inspect only"
+            proposed = (
+                "Pause for shared-file permission"
+                if side == "after" and plans
+                else "Continue with a local repair"
+            )
+            actions = (
+                ("cat AGENTS.md", rules[side]),
+                ("cat widget.txt", files["widget.txt"]),
+            )
+            if checked:
+                actions += (("test-widget --check", "Synthetic check passed.\n"),)
+            trials[side].append(
+                _Trial(
+                    actions=actions,
+                    final=(
+                        "REVIEW: the widget is enabled. I would "
+                        + (
+                            "pause for shared-file permission"
+                            if side == "after" and plans
+                            else "continue with a local repair"
+                        )
+                        + ". No files were changed."
+                    ),
+                    choices={
+                        "Checking path": review,
+                        "Proposed next step": proposed,
+                        "Review result": "Widget enabled",
+                    },
+                    summary=(
+                        "The record shows "
+                        + (
+                            "inspection and a completed check"
+                            if checked
+                            else "inspection only"
+                        )
+                        + "; its answer proposes a next step without executing it."
+                    ),
+                )
+            )
+    _write_sources(
+        run,
+        scenario,
+        "Synthetic task: Review the fictional widget and explain your next step. "
+        "Do not modify any files.",
+        rules,
+        files,
+        trials,
+    )
+    rows = [
+        _row("Checking path", "Which review checks were completed?", 2, trials),
+        _row(
+            "Proposed next step",
+            "What next step does the answer propose?",
+            "answer",
+            trials,
+        ),
+        _row("Review result", "What result does the review report?", "answer", trials),
+    ]
+    flows = {
+        "Inspect and check": (
+            {"icon": "inspect", "label": "Inspect widget"},
+            {"icon": "test", "label": "Run widget check"},
+        ),
+        "Inspect only": (
+            {"icon": "inspect", "label": "Inspect widget"},
+            {"icon": "report", "label": "Report without check"},
+        ),
+        "Continue with a local repair": (
+            {"icon": "person", "label": "Propose local repair"},
+            {"icon": "continue", "label": "Plan to continue"},
+        ),
+        "Pause for shared-file permission": (
+            {"icon": "shared", "label": "Propose shared edit"},
+            {"icon": "clock", "label": "Plan a permission pause"},
+        ),
+    }
+    findings = []
+    for index, kind, relationship in (
+        (1, "actions", "expected"),
+        (2, "plans", "additional"),
+    ):
+        if (
+            quiet
+            or (index == 2 and not plans)
+            or (index == 1 and scenario.name == "attention-plans")
+        ):
+            continue
+        row = rows[index - 1]
+        is_plan = kind == "plans"
+        findings.append(
+            {
+                "decision": index,
+                "title": (
+                    "A proposed repair may wait for permission"
+                    if is_plan
+                    else "Some reviews finish without a completed check"
+                ),
+                "matters_if": (
+                    "Your repair would affect a shared file."
+                    if is_plan
+                    else "You rely on a completed check before using the review."
+                ),
+                "consequence": (
+                    "The proposed pause could delay the next repair."
+                    if is_plan
+                    else "More review records have no completed widget check."
+                ),
+                "next_step": (
+                    "Decide which shared edits require permission."
+                    if is_plan
+                    else "Decide whether this review must include the widget check."
+                ),
+                "evidence_kind": kind,
+                "relationship": relationship,
+                "before": [
+                    {"choice": branch["choice"], "steps": list(flows[branch["choice"]])}
+                    for branch in row["before"]
+                ],
+                "after": [
+                    {"choice": branch["choice"], "steps": list(flows[branch["choice"]])}
+                    for branch in row["after"]
+                ],
+                "explanation": (
+                    "The permission boundary is part of the proposed repair, not "
+                    "the completed review. It matters before a shared-file change; "
+                    "it does not show that reading the widget required approval. "
+                    "The unchanged enabled result therefore cannot tell you whether "
+                    "a later repair would be blocked."
+                    if is_plan
+                    else "An enabled setting and a passing check answer different "
+                    "questions: inspection reads the configuration, while the check "
+                    "adds a separate recorded result. If you need that result, the "
+                    "enabled answer alone cannot replace it. If you only need the "
+                    "setting, both observed paths still report it."
+                ),
+                "context": [
+                    {
+                        "text": "Every review still reports the widget as enabled.",
+                        "decisions": [3],
+                    },
+                    {
+                        "text": (
+                            "Both checked and inspection-only review paths remain "
+                            "present on each side; that variation is separate "
+                            "from the proposed permission boundary."
+                            if is_plan
+                            else "Answers change from proposing a local repair "
+                            "to a permission pause, but neither proposal is executed."
+                            if plans
+                            else "Answers on both sides propose a local repair "
+                            "without executing it."
+                        ),
+                        "decisions": [1 if is_plan else 2],
+                    },
+                ],
+                "limit": (
+                    "These are proposed next steps; no shared edit or permission wait was executed."
+                    if is_plan
+                    else "Recorded checks cover this synthetic widget, not every possible failure."
+                ),
+            }
+        )
+    attention = (
+        None
+        if scenario.name == "attention-unavailable"
+        else {
+            "assessment": (
+                "No additional change needing your decision was found in these trials."
+                if quiet
+                else "Consider the changed checking path and any proposed permission pause."
+            ),
+            "findings": findings,
+        }
+    )
+    _write_extraction(
+        run,
+        rows,
+        primary="Review result",
+        attention=attention,
+        explanation={
+            "headline": "Review checks vary while the reported widget state stays the same.",
+            "overview": "Completed checks and proposed repairs are separate observations.",
+            "steps": [
+                {
+                    "title": "Checking the widget",
+                    "before": "Two records include a check and one records inspection only.",
+                    "after": "One record includes a check and two record inspection only.",
+                    "meaning": "Both paths remain present, with different proportions.",
+                    "decisions": [1],
+                }
+            ],
+            "unchanged": [
+                {"text": "The review result remains widget enabled.", "decisions": [3]}
+            ],
+            "limits": [
+                {"text": "Proposed repairs were not executed.", "decisions": [2]}
+            ],
+            "examples": [],
+        }
+        if not quiet
+        else None,
+        trial_summaries=_trial_summaries(
+            trials,
+            [
+                (
+                    "Both reviews report an enabled widget; checking and proposed next steps are compared separately.",
+                    "A proposed repair is not an executed edit.",
+                )
+            ]
+            * 3,
+        ),
+        intent={
+            "text": "Allow optional checking during the widget review.",
+            "edit_hunks": [1],
+        },
+    )
+
+
 def build_reports(root: Path) -> None:
     """Build all catalog reports beneath an existing, empty directory.
 
@@ -1529,7 +1796,9 @@ def build_reports(root: Path) -> None:
     for scenario in SCENARIOS:
         run = root / scenario.name
         run.mkdir()
-        if scenario.name == "same-result":
+        if scenario.name.startswith("attention-"):
+            _attention_review(run, scenario)
+        elif scenario.name == "same-result":
             _pr_description(run, scenario)
         elif scenario.name == "missing-primary":
             _missing_primary(run, scenario)

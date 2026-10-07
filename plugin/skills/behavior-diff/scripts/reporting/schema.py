@@ -4,6 +4,7 @@ import json
 from dataclasses import asdict, dataclass
 from typing import Dict, Optional, Tuple, Union
 
+from reporting.attention import AttentionData, parse_attention
 from reporting.explanation import (
     ChangeExplanationData,
     ExplanationExampleData as ExplanationExampleData,
@@ -27,7 +28,7 @@ from reporting.trial_summary import (
     trial_group_names,
 )
 
-SCHEMA_VERSION = 9
+SCHEMA_VERSION = 11
 RESULT_KINDS = ("good", "bad", "neutral")
 
 
@@ -88,6 +89,7 @@ class CommandFlowData:
 class DecisionChoiceData:
     choice: str
     count: int
+    trials: Tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -123,6 +125,7 @@ class DecisionData:
     intent: Optional[EditIntentData] = None
     trial_summaries: Tuple[TrialSummaryData, ...] = ()
     explanation: Optional[ChangeExplanationData] = None
+    attention: Optional[AttentionData] = None
 
 
 @dataclass(frozen=True)
@@ -483,6 +486,7 @@ def _decisions(value, path, hunk_count, groups=None, final_answers=None):
     dropped = _expect_int(_field(value, "dropped", path), path + ".dropped")
     if before_count < 0 or after_count < 0 or dropped < 0:
         _invalid(path, "nonnegative counts")
+    validate_branch_memberships(parsed_rows, final_answers)
     raw_narrative = _field(value, "narrative", path)
     narrative = parse_narrative(raw_narrative, parsed_rows)
     if raw_narrative is not None and (
@@ -505,6 +509,12 @@ def _decisions(value, path, hunk_count, groups=None, final_answers=None):
         explanation is None or _json_value(asdict(explanation)) != raw_explanation
     ):
         _invalid(path + ".explanation", "valid canonical change explanation")
+    raw_attention = _field(value, "attention", path)
+    attention = parse_attention(raw_attention, parsed_rows)
+    if raw_attention is not None and (
+        attention is None or _json_value(asdict(attention)) != raw_attention
+    ):
+        _invalid(path + ".attention", "valid canonical attention assessment")
     decisions = DecisionData(
         rows=parsed_rows,
         fork=_optional_reference(
@@ -525,12 +535,39 @@ def _decisions(value, path, hunk_count, groups=None, final_answers=None):
         intent=intent,
         trial_summaries=trial_summaries,
         explanation=explanation,
+        attention=attention,
     )
     from reporting.content import valid_decision_choices
 
     if not all(valid_decision_choices(row, decisions) for row in decisions.rows):
         _invalid(path, "unique nonblank decision choices matching side trial totals")
     return decisions
+
+
+def validate_branch_memberships(rows, final_answers):
+    """Reject partial or invented attribution; aggregate-only evidence stays unavailable."""
+    for row in rows:
+        for side in ("before", "after"):
+            branches = getattr(row, side)
+            if not any(branch.trials for branch in branches):
+                continue
+            names = tuple(name for branch in branches for name in branch.trials)
+            if (
+                any(
+                    len(branch.trials) != branch.count
+                    or any(not name.strip() for name in branch.trials)
+                    for branch in branches
+                )
+                or len(set(names)) != len(names)
+                or final_answers is None
+                or set(names)
+                != {
+                    name
+                    for name, answer in final_answers.get(side, {}).items()
+                    if answer.strip()
+                }
+            ):
+                raise ValueError("invalid canonical branch trial memberships")
 
 
 def _decision_row(value, path, hunk_count):
@@ -563,7 +600,8 @@ def _decision_choice(value, path):
     count = _expect_int(_field(value, "count", path), path + ".count")
     if not choice.strip() or count <= 0:
         _invalid(path, "nonblank choice with positive trial count")
-    return DecisionChoiceData(choice, count)
+    trials = _string_tuple(value.get("trials", []), path + ".trials")
+    return DecisionChoiceData(choice, count, trials)
 
 
 def _summary_side(value, path):

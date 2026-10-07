@@ -5,6 +5,7 @@ import re
 from itertools import zip_longest
 
 from reporting import content
+from reporting.attention import AttentionFindingData
 from reporting.schema import ReportData
 
 
@@ -55,27 +56,134 @@ def _instruction_edit(report):
     ]
 
 
-def _other_findings_markdown(report):
-    findings = content.additional_findings(report)
-    markdown = ["<details><summary>Other findings</summary>\n"]
-    if findings:
-        for index, text in findings:
-            row = report.decisions.rows[index - 1]
-            source = content.source_label(row.anchor, report.metadata.trace_source)
-            links = f"[Comparison {index} · {_text(source)}](#decision-{index})"
-            for number in row.edit_hunks:
-                label = _text(content.instruction_hunk_label(report.rule_diff, number))
-                links += f" · [{label}](#edit-hunk-{number})"
-            markdown.append(f"- {_text(text)}<br>{links}\n")
-        markdown.append(_text(content.additional_findings_note(report)) + "\n")
-    else:
-        markdown.append(_text(content.NO_ADDITIONAL_FINDINGS) + "\n")
-    markdown.append(
-        "[View all behavior comparisons](#panel-decision)\n"
-        if report.decisions.rows
-        else "[Inspect trial evidence](#panel-trials)\n"
+def _attention_notice_markdown(attention):
+    if attention is None:
+        return [
+            _text(content.ATTENTION_UNAVAILABLE) + "\n",
+            _text(content.ATTENTION_UNAVAILABLE_NOTE) + "\n",
+        ]
+    markdown = [_text(attention.assessment) + "\n"]
+    if not attention.findings:
+        markdown.append(_text(content.ATTENTION_EMPTY_NOTE) + "\n")
+    return markdown
+
+
+def _attention_branches_markdown(report, finding: AttentionFindingData):
+    markdown = []
+    for side in ("before", "after"):
+        markdown.append(f"**{side.capitalize()}**\n")
+        for choice, steps, count, total in content.attention_branches(
+            report, finding, side
+        ):
+            story = " → ".join(_text(step.label) for step in steps)
+            markdown.append(
+                f"- {story}<br>{_text(choice)} — "
+                f"{_text(content.trial_count(count, total))}"
+            )
+        markdown.append("")
+    return markdown
+
+
+def _attention_details_markdown(finding: AttentionFindingData, trace_source: str):
+    relationship, evidence = content.attention_labels(finding, trace_source)
+    return [
+        _text(finding.consequence) + "\n",
+        f"**Relationship:** {_text(relationship)}<br>**Evidence:** {_text(evidence)}\n",
+        f"**Limit:** {_text(finding.limit)}\n",
+        f"**Matters if:** {_text(finding.matters_if)}\n",
+        f"**What you can do:** {_text(finding.next_step)}\n",
+    ]
+
+
+def _attention_summary_markdown(report):
+    attention = report.decisions.attention
+    markdown = ["### 3. What needs your attention\n"]
+    markdown += _attention_notice_markdown(attention)
+    if attention is not None:
+        for finding in attention.findings:
+            markdown.append(f"#### {_text(finding.title)}\n")
+            markdown += _attention_branches_markdown(report, finding)
+            markdown += _attention_details_markdown(
+                finding, report.metadata.trace_source
+            )
+    label = (
+        "See why this matters →"
+        if attention is not None and attention.findings
+        else "Read the assessment"
     )
-    markdown.append("</details>\n")
+    markdown.append(f"[{label}](#attention-explanation)\n")
+    return markdown
+
+
+def _attention_branch_evidence_markdown(report, finding: AttentionFindingData):
+    markdown = [
+        "**Observed branch evidence**\n",
+        _text(content.ATTENTION_COUNT_NOTE) + "\n",
+    ]
+    for side in ("before", "after"):
+        markdown.append(f"**{side.capitalize()}**\n")
+        for choice, count, total, members in content.attention_branch_evidence(
+            report, finding, side
+        ):
+            support = (
+                " · ".join(
+                    f"[{_text(name)}](#{content.trial_anchor(side, name)})"
+                    for name in members
+                )
+                if members
+                else _text(content.ATTENTION_MEMBERSHIP_UNAVAILABLE)
+            )
+            markdown.append(
+                f"- **{_text(choice)}** — {_text(content.trial_count(count, total))}"
+                f"<br>{support}"
+            )
+        markdown.append("")
+    return markdown
+
+
+def _attention_explanation_markdown(report):
+    attention = report.decisions.attention
+    markdown = [
+        '<a id="attention-explanation"></a>\n',
+        "### What needs your attention\n",
+    ]
+    markdown += _attention_notice_markdown(attention)
+    if attention is not None:
+        for finding in attention.findings:
+            relationship, evidence = content.attention_labels(
+                finding, report.metadata.trace_source
+            )
+            markdown += [
+                f"#### {_text(finding.title)}\n",
+                "**Why this difference matters (model interpretation)**\n",
+                f"**Relationship:** {_text(relationship)}<br>**Evidence:** {_text(evidence)}\n",
+                _text(finding.explanation) + "\n",
+            ]
+            markdown += _attention_branch_evidence_markdown(report, finding)
+            if finding.context:
+                markdown.append("**Related context (model interpretation)**\n")
+                markdown += [
+                    f"- {_text(claim.text)} ({_decision_links(claim.decisions)})"
+                    for claim in finding.context
+                ]
+                markdown.append("")
+            references = tuple(
+                dict.fromkeys(
+                    (finding.decision,)
+                    + tuple(
+                        index for claim in finding.context for index in claim.decisions
+                    )
+                )
+            )
+            markdown += [
+                "**Limits and uncertainty**\n",
+                _text(finding.limit) + "\n",
+            ]
+            markdown += [
+                "<details><summary>Check the evidence</summary>\n",
+                _decision_links(references) + "\n",
+                "</details>\n",
+            ]
     return markdown
 
 
@@ -292,7 +400,8 @@ def _summary_markdown(report):
             markdown.append(f"**{label}:** {_text(text)}\n")
         markdown.append(_text(context.note) + "\n")
     markdown.append("[Understand the change](#panel-explanation)\n")
-    markdown.append("### 3. What this means\n")
+    markdown += _attention_summary_markdown(report)
+    markdown.append("### 4. What this means\n")
     for label, claim in (
         ("Why it matters", summary.why),
         ("Watch out", summary.caution),
@@ -323,6 +432,7 @@ def _explanation_markdown(report):
             "### Change explanation unavailable\n",
             _text(notice) + "\n",
         ]
+        markdown += _attention_explanation_markdown(report)
     else:
         markdown += [
             f"### {_text(explanation.headline)}\n",
@@ -342,6 +452,7 @@ def _explanation_markdown(report):
                 _text(step.meaning) + "\n",
                 _decision_links(step.decisions) + "\n",
             ]
+        markdown += _attention_explanation_markdown(report)
         for heading, claims in (
             ("What stays the same", explanation.unchanged),
             ("What this evidence cannot establish", explanation.limits),
@@ -410,7 +521,6 @@ def render_markdown(report: ReportData) -> str:
     else:
         markdown.append(_text(content.SCENARIO_PROMPT_UNAVAILABLE) + "\n")
     markdown.append("</details>\n")
-    markdown += _other_findings_markdown(report)
     markdown += [
         f"<details><summary>{html.escape(content_data.limits_heading)}</summary>\n",
     ]
