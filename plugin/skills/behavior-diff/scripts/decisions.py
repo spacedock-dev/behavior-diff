@@ -293,6 +293,23 @@ Rules:
   If a detail is not shared by those trials, split the observed choices faithfully,
   select the row that records the rule, or omit that detail; do not combine rows
   into a counted execution path. Why/caution citations do not support card details.
+- Orient a reader who has not seen the task or skill. Use the existing "scenario"
+  to say what the agent was asked to do and the decision point being tested.
+  For a skill change, explain the skill's role in that task, not just its name.
+  Use the headline and Before/After details for the practical supported contrast;
+  use explanation.overview and steps for context that will not fit the cards.
+  Do not add fields or replace the task with an inferred reason for the edit.
+- At first use, explain unfamiliar objects, roles, acronyms, and table names by
+  their concrete function in the supplied evidence: who decides, what is checked,
+  or what a record contains. Do not guess acronym expansions, role authority,
+  table contents, or author motives. If the evidence does not define a name,
+  describe only its supported use or omit it rather than invent a definition.
+- Preserve overlap: if both sides check the same records, make the same decision,
+  or request approval, say so before naming the added condition or explanation.
+  A source instruction requiring disclosure of added instructions is not itself
+  a requirement to request approval. Distinguish that mandate from an observed
+  model-added approval request, and do not claim the edit newly introduced a
+  request or action that already appears in Before.
 - Write concrete actor + verb + object sentences in plain language. Explain an
   internal workflow name only when the reader needs it to understand the finding.
   Use parallel before/after sentences about the same subject; say what changed
@@ -347,6 +364,14 @@ Rules:
   do not support a faithful interpretation. This is the middle layer between
   the concise Summary and source evidence, not another comparison table or a
   raw transcript dump. Explain the specific distinction and why it matters.
+- Orient the reader in "overview": explain the agent's task, the skill's role
+  when relevant, and the choice at issue before elaborating the contrast.
+  Define unfamiliar roles or objects at first use from supplied evidence only.
+  Lead the headline and steps with the practical supported distinction, not
+  abstract labels, guessed acronym expansions, or presumed author motives.
+  Preserve shared checks and outcomes alongside added conditions or explanations.
+  Separate what the changed instruction mandates from what the responses show,
+  including added-instruction disclosure versus model-added approval requests.
 - Use 1 to 8 annotated Before/After "steps" about the same decision point.
   Explain the operative condition, timing, prerequisite, scope, formula, code,
   keep/delete choice, or wording distinction actually shown by these records.

@@ -82,6 +82,10 @@ For its own user-facing result summary, the host invokes an installed Humanizer
 skill when available. Otherwise it writes concise, natural technical prose
 itself. This prose-only step preserves evidence qualifiers, counts, citations
 and links, exact quotes, code, and excerpts. It never edits saved report artifacts.
+Both canonical skills orient the conversation summary around the task, the
+changed skill's role when relevant, and the tested decision point. They explain
+unfamiliar names by their evidenced function, without guessed expansions or
+author motives, and preserve shared behavior, mixed branches, and evidence limits.
 
 ## 3. The execution layer produces comparable trials
 
@@ -307,6 +311,14 @@ explicitly stated. Summary selection prefers the observed changed operative rule
 mixed comparisons. Material intervals, deadlines, units, and gates belong in the
 main cards, not only supporting detail. Each card detail must hold for every named trial
 in its selected branch; counts or citations from other rows cannot supply membership.
+The existing scenario supplies task orientation and the skill's role when
+relevant; the headline and side details lead with the practical supported
+contrast. Explanation overview and steps supply context that cannot fit the
+cards. First-use meanings for roles, objects, acronyms, and tables come only
+from supplied evidence, not guessed expansions, authority, or unread contents.
+Narrative preserves overlap and separates source mandates from observed
+responses: an added-instruction disclosure mandate is not an approval mandate,
+and a model-added approval request is not new when Before already requests it.
 An instruction's gate is distinct from an observed gate, which may already appear
 in Before. These are extraction policies, not deterministic semantic guarantees;
 the existing validator checks references, choice coverage, and evidence anchors.

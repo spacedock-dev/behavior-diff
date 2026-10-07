@@ -217,6 +217,18 @@ the sibling skill's bundled `scripts/` directory.
    findings.
 
 7. **Summarize in conversation.**
+   Orient the reader briefly: say what the agent was asked to do, the changed
+   skill's role when relevant, and the decision point tested. Lead with the
+   practical supported contrast, not an internal workflow label. At first use,
+   explain unfamiliar roles, acronyms, objects, or tables by their concrete
+   function in the evidence. Never guess an acronym expansion, unread table
+   contents, role authority, or the author's motive.
+   Preserve shared checks, unchanged outcomes, minority branches, and evidence
+   limits. Distinguish stated plans and answer explanations from completed
+   actions; explanation-only differences are not new actions. Separate what the
+   source instruction mandates from what the trials show: disclosure of added
+   instructions is not itself an approval requirement, and a model-added
+   approval request is not new if Before already requested approval.
    - If decision extraction succeeded, use the flow-diff shape: steps both
      took in order, the first divergence, each side's path, and both final
      answers quoted.
