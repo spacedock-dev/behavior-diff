@@ -1,6 +1,6 @@
 ---
 name: review-by-subagent
-description: Runs independent subagent review, fixes material findings, and repeats until approved; appends each review round to the PR when reviewing one. Use when the user says "review-by-subagent", "review by subagent", or asks for a subagent review of changes or a PR.
+description: Runs independent subagent review, fixes material findings, and repeats until approved; records review rounds and later findings on the PR before merge. Use when the user says "review-by-subagent", "review by subagent", asks for subagent review, or provides new dogfood or verification findings after review.
 ---
 
 # Review by subagent
@@ -65,13 +65,48 @@ this skill governs the loop. Keep this maintainer skill outside the plugin paylo
    report the exact blocker and pending findings, not approval or completion.
    Never repeat unchanged work without new evidence.
 
+## Findings after approval
+
+When new dogfood or verification evidence arrives after approval, assess it before
+claiming the review is complete or carrying out a requested merge. Do not rerun
+models automatically; existing consent and cost limits still apply.
+
+Append a follow-up PR comment even if the code has not changed. Identify the
+reviewed head/base, the tested revision or local snapshot, the new observation,
+its evidence limits, and whether it affects the reviewed change. Distinguish
+observed behavior from an inferred cause; do not attribute evidence from another
+revision to the PR head without checking its relevance.
+
+| Finding | Disposition |
+|---|---|
+| Confirmed defect introduced by the PR | Fix, verify, and repeat the existing independent review loop before merge. |
+| Pre-existing defect | Record why it is pre-existing and whether it is addressed in scope or deferred; do not expand scope silently. |
+| Model error with uncertain cause | Record the observation and uncertainty without claiming the PR caused it or dismissing it as harmless. |
+| Known limitation | State what remains unverified and record the user's decision to proceed or investigate. |
+
+Apply `REVIEWER_GUIDELINES.md` to materiality; an uncertain observation does not
+automatically invalidate approval. If evidence undermines the approval, return it
+to the reviewer with the full scope. Keep material findings in the fix-and-review
+loop; ask for a decision when proceeding with an unresolved risk or limitation.
+A merge request made before disclosure is not acceptance of a later finding.
+
+Before merge, check that every new finding has a disposition in the PR, required
+fixes are verified and independently approved, and any required user decision is
+recorded. Report missing gates rather than merging. Preserve earlier comments;
+append corrections and follow-up commits instead of rewriting the review history.
+For local-only work, record the same information in chat.
+
+Example: a late trial changes "before fixing" to "before proposing a fix."
+Record that timing difference, assess its relevance to the reviewed change, and
+record the disposition. Do not leave the PR with only the earlier green review.
+
 ## PR comments
 
 Append a new comment for each completed review round, including `REVISE` rounds;
 retain earlier comments as history. For local-only reviews, report in chat instead.
 Use `gh pr comment <PR> --body-file <file>` or the repository's GitHub tool.
 
-Each comment must include:
+Each review-round comment must include:
 - Reviewed head SHA (and base SHA), round number, and each reviewer's verdict.
   For local corrections, also identify the commit or patch snapshot and mark it
   unpublished until pushed. Posting review comments does not publish code fixes.
@@ -81,6 +116,10 @@ Each comment must include:
 - Fix disposition and follow-up commit when available; distinguish pending fixes
   from completed ones. The next round can record fixes to the preceding round.
 - Checks actually run by the primary agent, their results, and unverified limits.
+
+For post-approval findings, use the follow-up fields above rather than inventing
+a new review round or reviewer verdict. Include the disposition, completed versus
+pending actions, and user decision where required.
 
 Check the posting result and retain the comment URL. If it fails, report that
 publication is incomplete. Remove private evidence before posting; preserve the
