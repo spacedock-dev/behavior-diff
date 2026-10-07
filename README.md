@@ -150,6 +150,20 @@ retain the parent session's model.
 Family selectors can resolve to newer versions on later runs. Use explicit
 IDs when comparisons across runs must retain the same model version.
 
+### Report wording
+
+Behavior Diff applies installed Humanizer prose guidance while generating
+report narrative in the existing decision-extraction call. If Humanizer is
+unavailable, it uses concise, natural technical prose without installing or
+downloading a skill. This adds no model call and does not change trial execution.
+Report assembly and rendering stay deterministic.
+
+Humanizer edits prose only. Counts, trial memberships, evidence qualifiers,
+citations and links, exact quotes, code, and source excerpts stay intact.
+The host skill also invokes Humanizer when available for its own result summary,
+with the same plain-language fallback. It does not post-edit the HTML or other
+saved report artifacts.
+
 ## Read the report
 
 A **run** compares the instruction versions. A **trial** is one agent execution on

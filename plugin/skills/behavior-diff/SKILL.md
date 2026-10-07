@@ -43,6 +43,12 @@ Explicit Codex model IDs bypass discovery. If extraction cannot use the
 selected model, present the trial evidence without a decision diff rather
 than silently selecting another host or model.
 
+Report narrative is written during that same extraction call. The scripts
+include an installed Humanizer skill's prose guidance when available; otherwise
+the extractor uses concise, natural technical prose. Extraction does not invoke
+skill tools, add a model call, or install or download Humanizer. Report assembly
+and rendering remain deterministic.
+
 Never omit the Pi or OMP model. A user-specific default can test a different
 agent. Your job is to prepare `--file` and `--task` well. Runs land under
 `${BEHAVIOR_DIFF_HOME:-~/.behavior-diff}/runs/`.
@@ -127,6 +133,14 @@ the single-role or two-agent path. Create the fixtures with
    - Flows identical → say the task likely never reached the situation
      the rule targets, and suggest a sharper task. Do NOT claim the rule
      works or fails from identical flows.
+   Before returning your own user-facing summary, invoke the installed
+   `humanizer` skill in embedded mode if the host makes it available. If it is
+   unavailable, write concise, natural technical prose yourself: state the
+   observed change directly, avoid filler or inflated claims, and retain genuine
+   uncertainty. Do not install or download a skill.
+   This is a prose-only edit. Preserve counts, evidence qualifiers, citations
+   and links, exact quotes, code, and excerpts. Do not change saved artifacts or
+   post-edit `report.html`; report narrative belongs to extraction.
 
 ## Boundaries
 
