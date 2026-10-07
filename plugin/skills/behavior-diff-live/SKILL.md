@@ -151,6 +151,19 @@ the sibling skill's bundled `scripts/` directory.
    by each agent, not captured traces, one trial per side. Save both raw
    trial reports under `runs/live-<stamp>/reports/`.
 
+   Record comparison provenance separately from these display labels:
+   - Keep `target_file` relative to the original project and its Before/After
+     copies, so instruction diffs still read each snapshot's file.
+   - Set `compared_source_paths` to a nonempty JSON array of resolved absolute
+     paths. Include the original project's `target_file`, both scratch
+     instruction paths, and any external baseline or other source instruction
+     used to build the variants. For an absent Before file, include its intended
+     resolved path. Invoke extraction from the original project root.
+   - Preserve these fields when updating config. The extractor excludes all
+     listed sources from Humanizer discovery, including symlink destinations.
+     Missing or invalid provenance uses plain-language fallback instead of
+     loading an installed skill that could be the instruction under comparison.
+
    If Codex ran the two trials sequentially because the host has no subagent
    dispatch, append "decision diff skipped: host has no subagent dispatch"
    to `config.json`'s `sub`. Skip the extraction bullets below and continue

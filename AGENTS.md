@@ -64,6 +64,12 @@ when the flow changes.
 - To evaluate summary comprehension with a blind human quiz, use the local
   `run-behavior-diff-human-evaluation` skill. It always samples skill changes
   from `DataRecce/recce-team`; live trials require fresh model-cost approval.
+- For `review-by-subagent`, "review by subagent", or a request for subagent review,
+  use the local [review-by-subagent](.agents/skills/review-by-subagent/SKILL.md)
+  skill. Review, fix material findings, verify, and re-review until approved.
+  When reviewing a PR, append each review round's results to PR comments.
+  Follow `REVIEWER_GUIDELINES.md`; stop only for approval or an explicit blocker,
+  not merely because the first reviewer returned `REVISE`. Do not merge implicitly.
 
 ## Verification
 

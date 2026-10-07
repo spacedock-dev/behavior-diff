@@ -36,7 +36,7 @@ scripts handle execution, evidence, and reporting.
 +---------------------------------------------------------+
 | Evidence analysis                                       |
 | decisions.py: trial assignments -> counts and summaries |
-| Same extraction: explanation and attention assessment   |
+| Same extraction: narrative with optional Humanizer      |
 | reporting/: deterministic comparison and report data    |
 +----------------------------+----------------------------+
                              v
@@ -77,6 +77,11 @@ remain the only source of that guidance.
 The skill selects the trial host and model, calls the runner, and explains the
 result. It owns scenario quality and interpretation, not filesystem copying or
 report formatting.
+
+For its own user-facing result summary, the host invokes an installed Humanizer
+skill when available. Otherwise it writes concise, natural technical prose
+itself. This prose-only step preserves evidence qualifiers, counts, citations
+and links, exact quotes, code, and excerpts. It never edits saved report artifacts.
 
 ## 3. The execution layer produces comparable trials
 
@@ -204,6 +209,29 @@ The modules below live in the skill's [`scripts/`](../plugin/skills/behavior-dif
   and plans from recorded actions. The inferred aim cites instruction hunks
   independently of trial outcomes. The script validates references and exact
   choice coverage; invalid interpretation does not discard valid observations.
+  Report narrative uses installed Humanizer prose guidance in the same
+  extraction call, with concise, natural technical prose as the fallback.
+  The extractor receives the guidance in its prompt; it does not invoke skill
+  tools. No additional model call, dependency, installation, or download is
+  required. Humanizer applies only to prose, preserving schema, trial
+  memberships, counts, citations, evidence qualifiers, exact quotes, code,
+  and source excerpts. Deterministic assembly and rendering do not humanize
+  saved output or post-edit HTML.
+  Discovery reads only `humanizer/SKILL.md` in the invoking repository's skill
+  roots, then the user's. Claude checks `.claude/skills` before `.agents/skills`
+  at each scope; other extraction hosts use `.agents/skills`. Emitted prompts
+  use `CLAUDECODE` presence to select Claude's roots, otherwise the shared roots.
+  The first usable UTF-8 skill document supplies guidance; unavailable or invalid
+  files use the fallback. Discovery does not scan trial snapshots or load the
+  instruction file under comparison as Humanizer guidance.
+  Discovery requires a nonblank `target_file`. Self-reported live runs also
+  record `compared_source_paths`: resolved absolute paths for the original
+  target, scratch instruction copies, and external baseline sources. The list
+  must include the resolved original target; `target_file` stays project-relative
+  for snapshot diff lookup. Live extraction runs from the original project root.
+  These sources are excluded even when display labels
+  are descriptive rather than paths. Missing, malformed, or unresolvable source
+  provenance selects plain-language fallback without reading installed skills.
 - **Deterministic assembly:** `reporting/load.py` reads saved evidence and
   compares recorded command sequences. `reporting/instruction.py` supplies the
   instruction diff. `reporting/content.py` derives shared wording and evidence
