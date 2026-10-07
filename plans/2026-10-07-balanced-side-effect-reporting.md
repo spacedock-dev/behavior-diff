@@ -2,7 +2,8 @@
 
 **Recorded:** 2026-10-07
 
-**Status:** Recorded product direction; no implementation authorized by this plan.
+**Status:** D picture-first presentation approved for production implementation after
+synthetic previews and five fresh-commit comparisons.
 
 **Scope:** How Behavior Diff selects and presents additional behavior changes without
 obscuring the user's original question or creating warning fatigue.
@@ -17,13 +18,13 @@ change their decision to keep the instruction edit. A surprising difference is n
 necessarily important, and an unchanged headline can hide an important difference.
 
 Do not assume the owner's expectations or call every difference an unintended regression.
-Use neutral labels such as **Also changed** or **One tradeoff to consider**. A report
-with no warning is a valid result; finding a concern is not a success criterion.
+Use neutral descriptions and distinguish expected, additional, and unclear changes.
+A report with no attention finding is a valid result; finding a concern is not a
+success criterion.
 
-Default presentation target:
-
-> One primary answer, usually zero or one additional decision-worthy callout, and
-> expandable observations.
+The approved Summary has four numbered sections: **The intended change**,
+**What the evidence shows**, **What needs your attention**, and **What this means**.
+The third section usually contains zero or one decision-worthy finding.
 
 This is not a hard cap: multiple serious risks must remain visible.
 
@@ -32,8 +33,8 @@ This is not a hard cap: multiple serious risks must remain visible.
 | Level | Content | Placement |
 |---|---|---|
 | Main result | What happened to the behavior the user wanted to change | Summary headline and Before/After comparison |
-| Needs your decision | A supported additional change with a meaningful tradeoff | Short visible Summary callout |
-| Other observations | Minor differences, variability, uncertain implications, or already-expected changes | Collapsed details with accessible evidence |
+| Needs your decision | A supported change with a meaningful tradeoff, including relevant expected tradeoffs | Picture-first numbered Summary section |
+| Supporting detail | Context, variability, and uncertain implications | Additive attention explanation inside Understand the change; raw comparisons under optional Check the evidence |
 
 Do not promote a minor observation merely because the main behavior was unchanged.
 Preserve relevant observations in the evidence even when they do not earn a callout.
@@ -130,9 +131,10 @@ than the supplied evidence, rather than newly discovered defects.
 **Decision-worthy consequence:** the edit may change the amount of work demanded from an
 author without changing the main defect found. A verdict-only comparison hides this.
 
-**Presentation:** other observations by default. Promote when evidence supports a specific
-unjustified blocking demand, not merely a stricter judgment. Distinguish a possible risk
-from a demonstrated failure and account for facts already disclosed in the scenario.
+**Presentation:** promote a supported change in the work demanded from the author
+when it creates a meaningful reader decision, even if stricter review is intended.
+Distinguish a possible risk from a demonstrated failure and account for facts
+already disclosed in the scenario.
 
 **Essential qualification:** stricter review can be intended. Escalation alone does not
 establish a false positive, owner dissatisfaction, or additional actual merge refusal.
@@ -141,11 +143,25 @@ establish a false positive, owner dissatisfaction, or additional actual merge re
 
 Keep a promoted finding short and decision-shaped:
 
-1. What else changed, stated concretely.
-2. The Before/After evidence, including variability and execution limits.
-3. Why that difference could matter in this workflow.
+1. Simple Before/After pictures with short labels and every observed branch/count.
+2. A plain consequence, without presenting plans as executed actions.
+3. When the consequence matters in this workflow.
 4. The decision or specific clarification available to the reader.
-5. A direct route to the supporting comparison and original evidence.
+5. One **See why this matters** link to an added section inside **Understand the change**.
+
+Preserve the original explanation steps. Put raw comparison links under optional
+**Check the evidence** there, not directly in the attention Summary.
+Do not add Other observations/Other findings or a Back to Summary button.
+Distinguish assessed-empty from unavailable attention. Optional **Not relevant here**
+and **Show again** controls affect only this open report and reset on reload;
+they do not persist acknowledgements or remove evidence.
+
+The detailed attention section must add understanding rather than repeat Summary
+cards: reasoning beyond the consequence, exact branch counts and supporting
+trial links, relevant unchanged or contrasting context with citations, and
+uncertainty. Keep pictures and short action guidance in Summary. Separate model
+interpretation from extracted branch evidence; do not invent missing attribution
+or additional explanation to fill space.
 
 Avoid generic warning language, speculative chains of consequences, and lists of every
 difference. Do not describe an already-visible report finding as something the report missed;

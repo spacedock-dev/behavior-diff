@@ -153,20 +153,27 @@ IDs when comparisons across runs must retain the same model version.
 ## Read the report
 
 A **run** compares the instruction versions. A **trial** is one agent execution on
-one side. Each run creates a local HTML report with five tabs:
+one side. Each run creates a local HTML report with six tabs:
 
-- **Summary** tells a numbered story: the intended change, what the evidence
-  shows, and what it means. Illustrated Before/After cards retain exact counts
-  and distinguish plans, answers, and recorded actions. When the cards focus on
-  an explanation or another secondary comparison, the primary result and its
-  full Before/After distribution remain visible beside them. Mixed results and
-  evidence gaps remain visible. One **View behavior comparisons** button opens
-  Behavior diff for both the featured comparison and the primary result.
-  **Full scenario and expected behavior** explains the simulated situation,
-  instruction versions, trial setup, and supplied expectation or its absence.
-  **View full scenario prompt** is nested inside that disclosure.
-  **Other findings** contains at most three additional comparisons; complete
-  evidence limits remain in their own disclosure.
+- **Summary** tells a four-part numbered story: the intended change, what the
+  evidence shows, what needs your attention, and what this means. Illustrated
+  Before/After cards retain every observed branch and its trial count, and
+  distinguish plans, answers, and recorded actions. The primary result stays
+  visible when a secondary comparison leads the story.
+  **What needs your attention** explains relevant tradeoffs with pictures,
+  consequences, applicability, and possible actions. An expected tradeoff can
+  matter too. An assessed-empty result is distinct from an unavailable
+  assessment; neither hides the underlying comparisons.
+  **See why this matters** opens the detailed attention explanation.
+  **Full scenario and expected behavior** contains the setup and nested full
+  prompt; complete evidence limits remain in their own disclosure.
+- **Understand the change** preserves the original explanation. Attention detail
+  adds reasoning, all branch counts with links to supporting trials, cited
+  context, and uncertainty instead of repeating the Summary pictures and actions.
+  Count-only saved evidence explicitly marks trial attribution unavailable.
+  Optional **Check the evidence** disclosures link to raw comparisons.
+  **Not relevant here** hides a Summary finding's body for this report session;
+  **Show again** or reloading restores it. This does not change the evidence.
 - **Instruction changes** shows the saved aim, filename, line counts, and
   complete instruction diff. **Likely aim** marks an inferred interpretation;
   **Supplied expectation** marks an explicit expectation. Missing explanations

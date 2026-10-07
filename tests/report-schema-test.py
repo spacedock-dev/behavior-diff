@@ -33,11 +33,12 @@ from reporting.trial_summary import (  # noqa: E402
 )
 from report_fixtures import SCENARIOS, build_reports  # noqa: E402
 from explanation_contract import assert_change_explanations  # noqa: E402
+from attention_contract import assert_attention_reports  # noqa: E402
 
 
 def synthetic_raw():
     raw = {
-        "schema_version": 9,
+        "schema_version": 11,
         "metadata": {
             "model": "synthetic/model",
             "mode": "review",
@@ -172,10 +173,16 @@ def synthetic_raw():
                     "note": "Synthetic divergence.",
                     "edit_hunks": [],
                     "before": [
-                        {"choice": "read only", "count": 1},
-                        {"choice": "search", "count": 1},
+                        {"choice": "read only", "count": 1, "trials": ["before-1"]},
+                        {"choice": "search", "count": 1, "trials": ["before-2"]},
                     ],
-                    "after": [{"choice": "read and test", "count": 2}],
+                    "after": [
+                        {
+                            "choice": "read and test",
+                            "count": 2,
+                            "trials": ["after-1", "after-2"],
+                        }
+                    ],
                 },
                 {
                     "decision": "State result",
@@ -184,8 +191,20 @@ def synthetic_raw():
                     "diverges": False,
                     "note": "",
                     "edit_hunks": [],
-                    "before": [{"choice": "explain", "count": 2}],
-                    "after": [{"choice": "explain", "count": 2}],
+                    "before": [
+                        {
+                            "choice": "explain",
+                            "count": 2,
+                            "trials": ["before-1", "before-2"],
+                        }
+                    ],
+                    "after": [
+                        {
+                            "choice": "explain",
+                            "count": 2,
+                            "trials": ["after-1", "after-2"],
+                        }
+                    ],
                 },
             ],
             "fork": 1,
@@ -201,6 +220,7 @@ def synthetic_raw():
             "narrative": None,
             "intent": None,
             "explanation": None,
+            "attention": None,
             "trial_summaries": [
                 {
                     "before_trial": "before-1",
@@ -224,13 +244,22 @@ def synthetic_raw():
     from reporting.schema import _decisions, _metadata, _variants
     from reporting.summary import build_intent, build_summary
 
+    decisions = _decisions(
+        raw["decisions"],
+        "decisions",
+        0,
+        final_answers={
+            side: {trial["name"]: trial["final"] for trial in variant["trials"]}
+            for side, variant in raw["variants"].items()
+        },
+    )
     raw["summary"] = json.loads(
         json.dumps(
             asdict(
                 build_summary(
                     _metadata(raw["metadata"], "metadata"),
                     _variants(raw["variants"], "variants"),
-                    _decisions(raw["decisions"], "decisions", 0),
+                    decisions,
                 )
             )
         )
@@ -240,7 +269,7 @@ def synthetic_raw():
             asdict(
                 build_intent(
                     raw["content"]["expected"],
-                    _decisions(raw["decisions"], "decisions", 0),
+                    decisions,
                 )
             )
         )
@@ -262,6 +291,67 @@ def assert_rejected(raw, message):
         assert str(error) == message
     else:
         raise AssertionError("invalid report data was accepted")
+
+
+def assert_branch_membership_validation(raw):
+    """Canonical branch attribution is exact or explicitly unavailable."""
+    for side in ("before", "after"):
+        malformed = (
+            None,
+            "not a list",
+            [False],
+            [""],
+            [f"{side}-unknown"],
+            [f"{'after' if side == 'before' else 'before'}-1"],
+            [f"{side}-1", f"{side}-1"],
+            [],
+        )
+        for members in malformed:
+            invalid = copy.deepcopy(raw)
+            invalid["decisions"]["rows"][0][side][0]["trials"] = members
+            # Emptying a unanimous side is a valid legacy aggregate, not partial attribution.
+            if members == [] and len(invalid["decisions"]["rows"][0][side]) == 1:
+                continue
+            try:
+                ReportData.from_dict(invalid)
+            except ValueError:
+                pass
+            else:
+                raise AssertionError(
+                    "Invalid canonical branch membership was accepted."
+                )
+    duplicate = copy.deepcopy(raw)
+    duplicate["decisions"]["rows"][0]["before"][1]["trials"] = ["before-1"]
+    try:
+        ReportData.from_dict(duplicate)
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("One trial was attributed to multiple choices.")
+    partial = copy.deepcopy(raw)
+    del partial["decisions"]["rows"][0]["before"][0]["trials"]
+    try:
+        ReportData.from_dict(partial)
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("Partial canonical branch attribution was accepted.")
+    for omit in (False, True):
+        legacy = copy.deepcopy(raw)
+        for row in legacy["decisions"]["rows"]:
+            for side in ("before", "after"):
+                for choice in row[side]:
+                    if omit:
+                        del choice["trials"]
+                    else:
+                        choice["trials"] = []
+        report = ReportData.from_dict(legacy)
+        assert all(
+            choice.trials == ()
+            for row in report.decisions.rows
+            for side in ("before", "after")
+            for choice in getattr(row, side)
+        )
 
 
 def assert_render_import_safe():
@@ -1338,23 +1428,6 @@ def assert_timing_rule_cards(report):
     assert "primary result varies across trials" in markdown
 
 
-def assert_additional_findings(reports):
-    flip = reports["intent-flip"]
-    findings = content.additional_findings(flip)
-    assert tuple(index for index, _ in findings) == (3, 1), (
-        "Mixed primary results must precede secondary changes without repeating the lead."
-    )
-    assert content.additional_findings(reports["unchanged"]) == ()
-    assert tuple(
-        index for index, _ in content.additional_findings(reports["intent-unchanged"])
-    ) == (2, 3), "Supported edit-related unchanged behavior must remain discoverable."
-    for report in reports.values():
-        indexes = tuple(index for index, _ in content.additional_findings(report))
-        assert len(indexes) <= 3 and len(indexes) == len(set(indexes))
-        assert report.summary.decision not in indexes
-        assert all(1 <= index <= len(report.decisions.rows) for index in indexes)
-
-
 def assert_instruction_intent(reports, root):
     """The edit's inferred aim is distinct from both supplied expectations and results."""
     from reporting.load import load_report
@@ -1488,6 +1561,12 @@ def assert_gallery_reports():
         "planned-actions": ("changed", "unavailable"),
         "timing-rule": ("varies", "unavailable"),
         "formula-writing": ("unchanged", "unchanged"),
+        "attention-mixed": ("unchanged", "changed"),
+        "attention-self-reported": ("unchanged", "changed"),
+        "attention-plans": ("unchanged", "changed"),
+        "attention-quiet": ("unchanged", "unchanged"),
+        "attention-unavailable": ("unchanged", "changed"),
+        "attention-multiple": ("unchanged", "changed"),
     }
     with tempfile.TemporaryDirectory() as directory:
         root = Path(directory)
@@ -1586,7 +1665,13 @@ def assert_gallery_reports():
             assert branch.prefix == branch.paths == ()
         assert_visual_summaries(reports)
         assert_instruction_intent(reports, root)
-        assert_additional_findings(reports)
+        assert_attention_reports(
+            reports,
+            root,
+            assert_round_trip,
+            assert_evidence_links,
+            assert_unchanged_scripts,
+        )
         assert_intent_reports(reports, root)
         assert_saved_scenario_task(root)
         assert_change_explanations(
@@ -2015,6 +2100,7 @@ def main():
     raw = synthetic_raw()
     report = assert_round_trip(raw)
     assert_trial_summary_validation(raw)
+    assert_branch_membership_validation(raw)
     assert_trial_summary_pipeline()
     assert_trial_summary_rendering(report)
     assert_summary_evidence(report)
@@ -2055,6 +2141,14 @@ def main():
     assert_rejected(
         dict(raw, schema_version=3),
         "unsupported report-data schema version: 3",
+    )
+    assert_rejected(
+        dict(raw, schema_version=9),
+        "unsupported report-data schema version: 9",
+    )
+    assert_rejected(
+        dict(raw, schema_version=10),
+        "unsupported report-data schema version: 10",
     )
     assert_rejected(
         dict(raw, schema_version=True),

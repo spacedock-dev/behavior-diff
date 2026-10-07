@@ -4,6 +4,7 @@ from collections import Counter
 from dataclasses import dataclass
 from typing import Optional, Tuple
 
+from reporting.attention import AttentionFindingData
 from reporting.instruction import parse_diff_hunks
 from reporting.schema import ContentData, ResultData
 
@@ -281,80 +282,64 @@ def primary_result_context(report):
     )
 
 
-NO_ADDITIONAL_FINDINGS = (
-    "No additional supported findings were selected for this summary."
+ATTENTION_UNAVAILABLE = "Attention assessment unavailable."
+ATTENTION_UNAVAILABLE_NOTE = (
+    "No valid attention assessment is saved for these trials. "
+    "This does not establish that there are no side effects. "
+    "The original explanation and trial evidence remain available."
+)
+ATTENTION_EMPTY_NOTE = (
+    "No finding was selected for your attention in these trials. "
+    "This is not a guarantee that the change has no side effects in real use."
+)
+ATTENTION_COUNT_NOTE = (
+    "All observed branches are shown. Before and After trials are independent; "
+    "model-extracted counts describe trials, not repeated actions or causal proof."
 )
 
 
-def additional_findings_note(report):
-    execution_note = (
-        "Self-reported actions and answers do not prove execution."
-        if report.metadata.trace_source == "self-reported"
-        else "Final answers do not prove execution."
-    )
-    note = (
-        "Model-extracted counts describe trials, not repeated actions. "
-        + execution_note
-        + " Edit links are interpretations, not causal proof."
-    )
-    if not complete_trial_evidence(report):
-        note += (
-            " Trial evidence is incomplete; these counts do not establish "
-            "a complete comparison."
-        )
-    return note
+def attention_labels(finding: AttentionFindingData, trace_source: str):
+    """Keep relationship and source wording identical across report formats."""
+    relationship = {
+        "expected": "Part of the intended change",
+        "additional": "Additional change",
+        "unclear": "Relationship to the intended change is unclear",
+    }[finding.relationship]
+    evidence = {
+        "plans": "Plans in the answers, not observed execution",
+        "answers": "Final answers, not proof of execution",
+        "actions": "Recorded actions, not proof of successful execution",
+    }[finding.evidence_kind]
+    if finding.evidence_kind == "actions" and trace_source == "self-reported":
+        evidence = "Self-reported actions, not independently captured command evidence"
+    return relationship, evidence
 
 
-def additional_findings(report):
-    """Select up to three evidence-qualified comparisons, excluding the lead."""
-    decisions = report.decisions
-    complete = complete_trial_evidence(report)
-    candidates = []
-    for index, row in enumerate(decisions.rows, 1):
-        if index == report.summary.decision:
-            continue
-        unanimous = unanimous_choices(row, decisions)
-        if index == decisions.outcome and (unanimous is None or not complete):
-            priority = 0
-        elif valid_decision_choices(row, decisions) and choices_changed(
-            row.before, row.after
-        ):
-            priority = 1
-        elif (
-            complete
-            and row.edit_hunks
-            and unanimous is not None
-            and unanimous[0] == unanimous[1]
-        ):
-            priority = 2
-        else:
-            continue
-        candidates.append((priority, index, row))
-    findings = []
-    for _, index, row in sorted(candidates, key=lambda item: item[:2])[:3]:
-        sides = []
-        for label, choices, total in (
-            ("Before", row.before, decisions.before_count),
-            ("After", row.after, decisions.after_count),
-        ):
-            branches = (
-                "; ".join(
-                    "{0} ({1})".format(choice.choice, trial_count(choice.count, total))
-                    for choice in choices
-                )
-                or NO_EXTRACTED_CHOICE
-            )
-            sides.append("{0}: {1}.".format(label, branches))
-        status = decision_evidence_status(row, decisions, report)
-        if not complete or not valid_decision_choices(row, decisions):
-            status = "Incomplete evidence"
-        elif unanimous_choices(row, decisions) is None:
-            status = "Behaviors varied across trials"
-        text = "{0} — {1}. {2}".format(
-            row.topic.strip() or row.decision, status, " ".join(sides)
-        )
-        findings.append((index, text))
-    return tuple(findings)
+def attention_branches(report, finding: AttentionFindingData, side: str):
+    """Bind stories to exact canonical branches; counts never come from prose."""
+    row = report.decisions.rows[finding.decision - 1]
+    stories = {story.choice: story.steps for story in getattr(finding, side)}
+    total = getattr(report.decisions, side + "_count")
+    return tuple(
+        (branch.choice, stories[branch.choice], branch.count, total)
+        for branch in getattr(row, side)
+    )
+
+
+ATTENTION_MEMBERSHIP_UNAVAILABLE = (
+    "Supporting trial membership unavailable — the saved comparison does not "
+    "attribute this branch to named trials."
+)
+
+
+def attention_branch_evidence(report, finding: AttentionFindingData, side: str):
+    """Use only saved canonical memberships, never infer attribution from counts."""
+    row = report.decisions.rows[finding.decision - 1]
+    total = getattr(report.decisions, side + "_count")
+    return tuple(
+        (branch.choice, branch.count, total, branch.trials)
+        for branch in getattr(row, side)
+    )
 
 
 def trial_noun(count):

@@ -220,16 +220,6 @@ class _ReportParser(HTMLParser):
         if len({name for name, _ in attrs}) != len(attrs):
             raise ValueError("Duplicate report HTML attributes.")
         node = _Node(tag, [(name, value or "") for name, value in attrs])
-        # The current saved renderer omits only this wrapper's closing div.
-        # Its explicit summary-boundary is the known end of the story; do not
-        # apply general browser-style error recovery to unknown structures.
-        if (
-            tag == "p"
-            and node.has_class("summary-boundary")
-            and self.stack[-1].has_class("short-story-summary")
-            and self.stack[-1].tag == "div"
-        ):
-            self.stack.pop()
         self.stack[-1].children.append(node)
         if tag not in VOID:
             self.stack.append(node)
@@ -291,6 +281,11 @@ def _shape(node, expected):
 SAFE_TAGS = {
     "section",
     "div",
+    "article",
+    "header",
+    "dl",
+    "dt",
+    "dd",
     "h2",
     "h3",
     "h4",
@@ -352,6 +347,9 @@ DROP_CLASSES = {
     "evidence-links",
     "summary-evidence-button",
     "summary-provenance-source",
+    "attention-dismiss",
+    # Source-intent relationships can reveal the edit even without its instruction text.
+    "attention-relationship",
 }
 
 
@@ -393,6 +391,88 @@ def _safe_fragment(node):
     return f"<{node.tag}{attrs}>" + ("" if node.tag in VOID else f"{body}</{node.tag}>")
 
 
+def _attention_shape(body):
+    children = _children(body)
+    if (
+        len(children) < 4
+        or children[0].tag != "h3"
+        or _plain(children[0]) != "What needs your attention"
+        or children[1].tag != "p"
+        or not children[1].has_class("attention-assessment")
+        or children[-1].tag != "nav"
+        or not children[-1].has_class("attention-nav")
+    ):
+        raise ValueError("Unknown attention section.")
+    findings = children[2:-1]
+    if len(findings) == 1 and findings[0].tag == "div":
+        if not any(
+            findings[0].has_class(name)
+            for name in ("attention-empty", "attention-unavailable")
+        ):
+            raise ValueError("Unknown attention assessment state.")
+        _shape(findings[0], [("p", None)])
+        return
+    for finding in findings:
+        if finding.tag != "article" or not finding.has_class("attention-finding"):
+            raise ValueError("Unknown attention finding.")
+        heading, content = _shape(
+            finding, [("header", "attention-heading"), ("div", "attention-body")]
+        )
+        _shape(heading, [("h4", None), ("button", "attention-dismiss")])
+        pair, _, metadata, _, guidance = _shape(
+            content,
+            [
+                ("div", "attention-pair"),
+                ("p", "attention-consequence"),
+                ("p", "attention-meta"),
+                ("p", "attention-limit"),
+                ("dl", "attention-guidance"),
+            ],
+        )
+        _shape(
+            metadata,
+            [
+                ("span", "attention-relationship"),
+                ("span", "attention-evidence-kind"),
+            ],
+        )
+        if any(isinstance(child, str) and child.strip() for child in metadata.children):
+            raise ValueError("Unwrapped source-intent relationship in attention.")
+        sides = _shape(
+            pair, [("section", "summary-before"), ("section", "summary-after")]
+        )
+        for side, label in zip(sides, ("Before", "After")):
+            if not side.has_class("attention-side"):
+                raise ValueError("Unknown attention comparison side.")
+            side_heading, branches = _shape(
+                side, [("h5", None), ("ul", "attention-branches")]
+            )
+            if _plain(side_heading) != label or not _children(branches):
+                raise ValueError("Missing attention comparison branches.")
+            for branch in _children(branches):
+                if branch.tag != "li" or not branch.has_class("attention-branch"):
+                    raise ValueError("Unknown attention branch.")
+                flow, _, _ = _shape(
+                    branch,
+                    [
+                        ("div", "attention-flow"),
+                        ("p", "attention-choice"),
+                        ("span", "summary-count"),
+                    ],
+                )
+                first, _, second = _shape(
+                    flow,
+                    [
+                        ("div", "attention-flow-step"),
+                        ("span", "attention-flow-arrow"),
+                        ("div", "attention-flow-step"),
+                    ],
+                )
+                for step in (first, second):
+                    _shape(step, [("svg", "summary-picture"), ("p", None)])
+        _shape(guidance, [("dt", None), ("dd", None), ("dt", None), ("dd", None)])
+
+
 def _blinded_report(source):
     root = _ReportParser().finish(source)
     nodes = list(_walk(root))
@@ -408,7 +488,7 @@ def _blinded_report(source):
         "summary story",
     )
     if (
-        len(direct) != 5
+        len(direct) != 4
         or direct[0] is not story
         or direct[1].tag != "p"
         or not direct[1].has_class("summary-boundary")
@@ -427,13 +507,9 @@ def _blinded_report(source):
         )
         for detail in details
     ]
-    if (
-        _plain(headings[0]).strip() != "Full scenario and expected behavior"
-        or _plain(headings[1]).strip() != "Other findings"
-    ):
+    if _plain(headings[0]).strip() != "Full scenario and expected behavior":
         raise ValueError("Unknown Summary disclosure order.")
-    if not any(node.has_class("evidence-limits") for node in _walk(details[2])):
-        raise ValueError("Missing evidence limits.")
+    _shape(details[1], [("summary", None), ("ul", "evidence-limits")])
     story_children = _children(story)
     if (
         len(story_children) != 2
@@ -444,7 +520,7 @@ def _blinded_report(source):
     ):
         raise ValueError("Unknown summary story structure.")
     steps = _children(story_children[1])
-    if len(steps) != 3 or any(
+    if len(steps) != 4 or any(
         node.tag != "li" or not node.has_class("story-step") for node in steps
     ):
         raise ValueError("Unknown story steps.")
@@ -495,30 +571,24 @@ def _blinded_report(source):
         )
     meaning_shape = [("h3", None)]
     for css_class in ("summary-why", "summary-caution"):
-        if any(node.has_class(css_class) for node in _children(bodies[2])):
+        if any(node.has_class(css_class) for node in _children(bodies[3])):
             meaning_shape.append(("div", css_class))
     meaning_shape.append(("ul", "summary-notices"))
-    meaning = _shape(bodies[2], meaning_shape)
+    meaning = _shape(bodies[3], meaning_shape)
     if _plain(meaning[0]) != "What this means":
         raise ValueError("Unknown meaning heading.")
     for claim in meaning[1:-1]:
         _shape(claim, [("strong", None), ("p", None), ("span", "evidence-links")])
-    findings_shape = [("summary", None)]
-    if any(node.has_class("other-findings") for node in _children(details[1])):
-        findings_shape.append(("ul", "other-findings"))
-    findings_shape.extend([("p", "note"), ("nav", "evidence-nav")])
-    _shape(details[1], findings_shape)
-    _shape(details[2], [("summary", None), ("ul", "evidence-limits")])
-    # Remove the entire intent step and full scenario disclosure. Retain the renderer's
-    # exact generated text for headline, evidence, cards, meaning, findings and limits.
+    _attention_shape(bodies[2])
+    # Remove intent, scenario and navigation, not attention findings or evidence limits.
+    # Keep the saved renderer's generated claims, pictorial labels and branch counts.
     trimmed_story = _Node(
         story.tag,
         story.attrs.items(),
         [story_children[0], _Node("ol", story_children[1].attrs.items(), steps[1:])],
     )
     fragment = "".join(
-        _safe_fragment(node)
-        for node in (trimmed_story, direct[1], details[1], details[2])
+        _safe_fragment(node) for node in (trimmed_story, direct[1], details[1])
     )
     styles = [node for node in nodes if node.tag == "style"]
     css = _plain(_single(styles, "inline report stylesheet"))

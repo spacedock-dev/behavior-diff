@@ -88,7 +88,7 @@ def write_index(root: Path) -> Path:
 <p class="eyebrow">Behavior Diff · Synthetic demo</p>
 <h1>Report gallery</h1>
 <p class="intro">Explore how reports show changed behavior, unchanged results,
-and limits in the available evidence.</p>
+reader decisions, mixed branches, proposed actions, and unavailable assessments.</p>
 </header>
 <aside class="notice" aria-label="Evidence limits">
 <p><strong>Synthetic inputs. No model calls. Reporting-only evidence.</strong></p>

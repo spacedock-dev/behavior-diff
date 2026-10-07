@@ -335,6 +335,37 @@ done
 [[ $(jq -r '.command_flow.enabled == false and (.command_flow.shared | length == 0) and (.command_flow.before.prefix | length == 0) and (.command_flow.before.paths | length == 0) and (.command_flow.after.prefix | length == 0) and (.command_flow.after.paths | length == 0)' "$self_run/report-data.json") == true ]] ||
   fail 'self-reported report data must disable and empty command flow'
 
+progress 'Distinguish assessed-empty attention from unavailable attention'
+
+for attention_state in missing empty malformed; do
+  attention_run=$tmp/attention-$attention_state
+  build_run "$attention_run" captured
+  case $attention_state in
+    missing) ;;
+    empty)
+      jq '.attention = {"assessment":"Synthetic assessment completed without an additional finding.","findings":[]}' \
+        "$attention_run/decisions.json" >"$attention_run/attention-decisions.json"
+      mv "$attention_run/attention-decisions.json" "$attention_run/decisions.json"
+      ;;
+    malformed)
+      jq '.attention = {"assessment":"Synthetic malformed assessment.","findings":[false]}' \
+        "$attention_run/decisions.json" >"$attention_run/attention-decisions.json"
+      mv "$attention_run/attention-decisions.json" "$attention_run/decisions.json"
+      ;;
+  esac
+  python3 "$renderer" "$attention_run" "$attention_run" contract \
+    "$attention_run/config.json" >/dev/null
+  [[ $(jq '.decisions.rows | length' "$attention_run/report-data.json") == 2 ]] ||
+    fail "attention availability discarded valid comparison rows: $attention_state"
+  if [[ $attention_state == empty ]]; then
+    [[ $(jq '.decisions.attention != null and (.decisions.attention.findings | length == 0)' "$attention_run/report-data.json") == true ]] ||
+      fail 'a completed empty attention assessment became unavailable'
+  else
+    [[ $(jq '.decisions.attention == null' "$attention_run/report-data.json") == true ]] ||
+      fail "missing or malformed attention became an assessed success: $attention_state"
+  fi
+done
+
 invalid_decisions_run=$tmp/invalid-decisions
 build_run "$invalid_decisions_run" captured
 printf '%s\n' '{"chain":[{"decision":"Synthetic decision","topic":"","anchor":"work","before":[{"choice":"before","n":1}],"after":[{"choice":"after","n":1}],"diverges":true}],"fork":2,"counts":{"before":1,"after":1}}' \

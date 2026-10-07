@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Optional
 
 from reporting import content
+from reporting.attention import parse_attention
 from reporting.explanation import parse_explanation
 from reporting.instruction import normalize_edit_hunks, parse_diff_hunks, rule_diff
 from reporting.schema import (
@@ -23,6 +24,7 @@ from reporting.schema import (
     TrialData,
     VariantData,
     VariantsData,
+    validate_branch_memberships,
 )
 from reporting.summary import build_intent, build_summary, parse_intent, parse_narrative
 from reporting.trial_summary import parse_trial_summaries, trial_group_names
@@ -427,6 +429,7 @@ def _convert_decisions(
         else 0
     )
     rows = tuple(_decision_row(row, hunk_count) for row in raw["chain"])
+    validate_branch_memberships(rows, final_answers)
     if raw_fork is not None and (
         not _is_int(raw_fork) or not 1 <= raw_fork <= len(rows)
     ):
@@ -461,6 +464,7 @@ def _convert_decisions(
         parse_intent(raw.get("intent"), hunk_count),
         parse_trial_summaries(raw.get("trial_summaries"), groups),
         parse_explanation(raw.get("explanation"), rows, final_answers),
+        parse_attention(raw.get("attention"), rows),
     )
 
 
@@ -507,7 +511,12 @@ def _decision_choices(raw):
             or choice["n"] <= 0
         ):
             raise ValueError("malformed decision choice")
-        choices.append(DecisionChoiceData(choice["choice"], choice["n"]))
+        members = choice.get("trials", [])
+        if type(members) is not list or any(type(name) is not str for name in members):
+            raise ValueError("malformed decision branch trial memberships")
+        choices.append(
+            DecisionChoiceData(choice["choice"], choice["n"], tuple(members))
+        )
     if len({choice.choice for choice in choices}) != len(choices):
         raise ValueError("duplicate decision choices")
     return tuple(choices)

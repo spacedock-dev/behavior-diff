@@ -253,6 +253,130 @@ class HostedTests(unittest.TestCase):
         self.assertNotIn(str(self.session).encode(), shipped)
         self.assertNotIn(b"Synthetic rationale", shipped)
 
+    def test_attention_package_retains_exact_blinded_pictures_and_all_states(self):
+        scenarios = (
+            "attention-mixed",
+            "attention-plans",
+            "attention-quiet",
+            "attention-unavailable",
+            "attention-multiple",
+        )
+        for number, scenario in enumerate(scenarios, 1):
+            run = self.session / f"case-{number}/state/runs/synthetic"
+            for name in (
+                "report.html",
+                "report.md",
+                "decisions.json",
+                "report-data.json",
+            ):
+                shutil.copyfile(self.gallery / scenario / name, run / name)
+        quiz.build_quiz(self.session, ROOT)
+        result = self.export()
+        self.assertFalse(result["publicationAuthorized"])
+        manifest = hosted.read_json(self.package / "manifest.json")
+        self.assertEqual(
+            set(manifest["files"]),
+            {"questions.json"}
+            | {f"summaries/case-{number}.html" for number in range(1, 6)},
+        )
+        for number, scenario in enumerate(scenarios, 1):
+            with self.subTest(scenario=scenario):
+                data = (self.package / f"summaries/case-{number}.html").read_bytes()
+                self.assertEqual(
+                    data, (self.session / f"public/summary-{number}.html").read_bytes()
+                )
+                self.assertLessEqual(len(data), hosted.SUMMARY_LIMIT)
+                original = quiz._ReportParser().finish(
+                    (self.gallery / scenario / "report.html").read_text()
+                )
+                exported = quiz._ReportParser().finish(data.decode("utf-8"))
+                attention = quiz._single(
+                    [
+                        node
+                        for node in quiz._walk(original)
+                        if node.has_class("story-attention")
+                    ],
+                    "original attention",
+                )
+                retained = quiz._single(
+                    [
+                        node
+                        for node in quiz._walk(exported)
+                        if node.has_class("story-attention")
+                    ],
+                    "exported attention",
+                )
+                self.assertEqual(
+                    quiz._safe_fragment(attention), quiz._safe_fragment(retained)
+                )
+                self.assertFalse(
+                    any(
+                        node.tag in ("a", "button", "script", "nav", "iframe", "img")
+                        or node.has_class("attention-relationship")
+                        or any(
+                            name in ("href", "src", "style", "id")
+                            or name.startswith(("on", "data-"))
+                            for name in node.attrs
+                        )
+                        for node in quiz._walk(retained)
+                    )
+                )
+        self.assertLessEqual(
+            sum(
+                path.stat().st_size
+                for path in self.package.rglob("*")
+                if path.is_file()
+            ),
+            hosted.PACKAGE_LIMIT,
+        )
+
+    def test_forged_attention_count_and_picture_receipts_rejected(self):
+        run = self.session / "case-1/state/runs/synthetic"
+        for name in ("report.html", "report.md", "decisions.json", "report-data.json"):
+            shutil.copyfile(self.gallery / "attention-mixed" / name, run / name)
+        quiz.build_quiz(self.session, ROOT)
+        summary = self.session / "public/summary-1.html"
+        receipt_path = self.session / "quiz-build.json"
+        original_summary = summary.read_bytes()
+        original_receipt = receipt_path.read_bytes()
+        prefix, attention = original_summary.split(
+            b'class="story-step story-attention"', 1
+        )
+        alterations = (
+            attention.replace(
+                b'<span class="summary-count">',
+                b'<span class="summary-count">Forged trial count ',
+                1,
+            ),
+            attention.replace(
+                b'class="attention-flow-step"',
+                b'class="forged-attention-picture"',
+                1,
+            ),
+        )
+        for altered_attention in alterations:
+            with self.subTest(alteration=altered_attention[:100]):
+                altered = (
+                    prefix + b'class="story-step story-attention"' + altered_attention
+                )
+                self.assertNotEqual(original_summary, altered)
+                summary.write_bytes(altered)
+                receipt = json.loads(original_receipt)
+                receipt["public"]["summary-1.html"] = hosted.digest(altered)
+                receipt_path.write_bytes(hosted.json_bytes(receipt))
+                with self.assertRaisesRegex(ValueError, "differs from original report"):
+                    hosted.export_package(
+                        self.session,
+                        quiz,
+                        ROOT,
+                        "synthetic-cohort",
+                        "Synthetic",
+                        self.package,
+                    )
+                self.assertFalse(self.package.exists())
+        summary.write_bytes(original_summary)
+        receipt_path.write_bytes(original_receipt)
+
     def test_immutable_destination_and_export_identity(self):
         self.export()
         before = (self.package / "manifest.json").read_bytes()
