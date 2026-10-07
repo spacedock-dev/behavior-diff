@@ -230,13 +230,16 @@ the sibling skill's bundled `scripts/` directory.
    instructions is not itself an approval requirement, and a model-added
    approval request is not new if Before already requested approval.
    - If decision extraction succeeded, use the flow-diff shape: steps both
-     took in order, the first divergence, each side's path, and both final
+     took in order, the first divergence if any, each side's path, and both final
      answers quoted.
    - If decision extraction was skipped because the host has no subagent
      dispatch, the extraction model is unavailable, or two attempts failed,
      do not invent a decision diff
      or flow. Instead, summarize each side's ordered self-reported actions,
      quote both final answers, and repeat the visible extractor-skip note.
+   - For identical action flows or unchanged behavior, follow the unchanged-result
+     guidance in step 4 of the [headless skill](../behavior-diff/SKILL.md#steps).
+     Keep self-reported actions distinct from captured execution evidence.
    - Label it "1 trial per side — single-sample evidence; actions
      self-reported".
 
