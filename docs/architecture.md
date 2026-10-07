@@ -224,6 +224,14 @@ The modules below live in the skill's [`scripts/`](../plugin/skills/behavior-dif
   The first usable UTF-8 skill document supplies guidance; unavailable or invalid
   files use the fallback. Discovery does not scan trial snapshots or load the
   instruction file under comparison as Humanizer guidance.
+  Discovery requires a nonblank `target_file`. Self-reported live runs also
+  record `compared_source_paths`: resolved absolute paths for the original
+  target, scratch instruction copies, and external baseline sources. The list
+  must include the resolved original target; `target_file` stays project-relative
+  for snapshot diff lookup. Live extraction runs from the original project root.
+  These sources are excluded even when display labels
+  are descriptive rather than paths. Missing, malformed, or unresolvable source
+  provenance selects plain-language fallback without reading installed skills.
 - **Deterministic assembly:** `reporting/load.py` reads saved evidence and
   compares recorded command sequences. `reporting/instruction.py` supplies the
   instruction diff. `reporting/content.py` derives shared wording and evidence

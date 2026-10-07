@@ -710,8 +710,29 @@ def humanizer_guidance(run, agent=None):
     excluded = set()
     sources = []
     target = config.get("target_file")
-    if isinstance(target, str) and target:
-        sources.extend(base / target for base in (cwd, repo))
+    if not isinstance(target, str) or not target.strip():
+        return PROSE_GUIDANCE.format(style=PLAIN_PROSE)
+    sources.extend(base / target for base in (cwd, repo))
+    compared = config.get("compared_source_paths")
+    if config.get("trace_source") == "self-reported" or compared is not None:
+        if (
+            not isinstance(compared, list)
+            or not compared
+            or any(
+                not isinstance(path, str)
+                or not path.strip()
+                or not Path(path).is_absolute()
+                for path in compared
+            )
+        ):
+            return PROSE_GUIDANCE.format(style=PLAIN_PROSE)
+        try:
+            resolved_sources = {Path(path).resolve() for path in compared}
+            if not any(source.resolve() in resolved_sources for source in sources):
+                return PROSE_GUIDANCE.format(style=PLAIN_PROSE)
+        except (OSError, RuntimeError, ValueError):
+            return PROSE_GUIDANCE.format(style=PLAIN_PROSE)
+        sources.extend(Path(path) for path in compared)
     # Captured runs retain source paths in labels; these can only exclude reads.
     for key in ("before_label", "after_label"):
         source = config.get(key)
@@ -721,7 +742,7 @@ def humanizer_guidance(run, agent=None):
         try:
             excluded.add(source.resolve())
         except (OSError, RuntimeError, ValueError):
-            continue
+            return PROSE_GUIDANCE.format(style=PLAIN_PROSE)
     run_root = run.resolve()
     for base in (repo, Path.home()):
         for root in roots:
@@ -1574,6 +1595,8 @@ def self_check():
         user_native = home / ".claude/skills/humanizer/SKILL.md"
         for path in (shared, native, user_shared, user_native):
             path.parent.mkdir(parents=True)
+        safe_config = {"target_file": str(repo / "candidate.md")}
+        (run / "config.json").write_text(json.dumps(safe_config))
         with (
             patch.object(Path, "cwd", return_value=cwd),
             patch.object(Path, "home", return_value=home),
@@ -1606,6 +1629,51 @@ def self_check():
             native.unlink()
             user_native.unlink()
             user_shared.unlink()
+            live_config = {
+                "mode": "review",
+                "vocab": "generic",
+                "trace_source": "self-reported",
+                "before_label": "current file",
+                "after_label": "your change applied",
+            }
+            shared.write_text("Synthetic compared Humanizer must stay evidence.")
+            for host, skill in (("codex", shared), ("claude", native)):
+                skill.write_text("Synthetic compared Humanizer must stay evidence.")
+                for provenance in (
+                    {},
+                    {"target_file": str(repo / "candidate.md")},
+                    {
+                        "target_file": str(repo / "candidate.md"),
+                        "compared_source_paths": [],
+                    },
+                    {
+                        "target_file": str(repo / "candidate.md"),
+                        "compared_source_paths": [
+                            "../.agents/skills/humanizer/SKILL.md"
+                        ],
+                    },
+                    {
+                        "target_file": str(repo / "candidate.md"),
+                        "compared_source_paths": [
+                            str(repo / "candidate.md"),
+                            str(shared),
+                            str(native),
+                        ],
+                    },
+                ):
+                    (run / "config.json").write_text(
+                        json.dumps({**live_config, **provenance})
+                    )
+                    assert PLAIN_PROSE in humanizer_guidance(run, host)
+                safe_live = {
+                    **live_config,
+                    "target_file": "candidate.md",
+                    "compared_source_paths": [str(repo / "candidate.md")],
+                }
+                (run / "config.json").write_text(json.dumps(safe_live))
+                assert json.dumps(skill.read_text()) in humanizer_guidance(run, host)
+            native.unlink()
+            (run / "config.json").write_text(json.dumps(safe_config))
             for malformed in (
                 b"",
                 b"  \n",
@@ -1640,9 +1708,9 @@ def self_check():
                     "before_label": "../.agents/skills/humanizer/SKILL.md",
                 },
             ):
-                (run / "config.json").write_text(json.dumps(config))
+                (run / "config.json").write_text(json.dumps({**safe_config, **config}))
                 assert PLAIN_PROSE in build_prompt(run)[0]
-            (run / "config.json").unlink()
+            (run / "config.json").write_text(json.dumps(safe_config))
             shared.unlink()
             snapshot_project = run / "fixture-snapshot/project"
             snapshot_skill = snapshot_project / ".agents/skills/humanizer/SKILL.md"
