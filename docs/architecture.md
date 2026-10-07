@@ -86,6 +86,10 @@ Both canonical skills orient the conversation summary around the task, the
 changed skill's role when relevant, and the tested decision point. They explain
 unfamiliar names by their evidenced function, without guessed expansions or
 author motives, and preserve shared behavior, mixed branches, and evidence limits.
+Matching action flows do not imply matching final answers or a missed decision
+point. The skills inspect answers separately and distinguish unchanged behavior
+with the target situation reached, not reached, or unknown from the evidence.
+Only an evidenced missed situation warrants that explanation and a sharper task.
 
 ## 3. The execution layer produces comparable trials
 

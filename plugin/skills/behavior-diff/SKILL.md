@@ -130,9 +130,18 @@ the single-role or two-agent path. Create the fixtures with
 4. **Present the result.** The runner already opened `report.html` itself — do NOT open it again (that produces a duplicate tab); just summarize.
    Summarize the flow diff honestly:
    - Flows diverge → describe where, in one or two sentences.
-   - Flows identical → say the task likely never reached the situation
-     the rule targets, and suggest a sharper task. Do NOT claim the rule
-     works or fails from identical flows.
+   - Flows identical → report that no difference was observed in the
+     recorded actions. Check final answers separately for differences
+     in decisions, explanations, or proposed next steps.
+   - When the relevant behavior is unchanged, check whether the task
+     reached the situation the rule targets:
+     - If it did, describe the behavior shared by both versions.
+     - If it did not, explain what situation was missing and suggest
+       a task that reaches it.
+     - If the evidence is insufficient, say you cannot determine
+       whether the situation was reached.
+     Do not infer a missed situation from identical behavior alone,
+     or claim that the rule generally works or fails.
    Orient the reader briefly: say what the agent was asked to do, the changed
    skill's role when relevant, and the decision point tested. Lead with the
    practical supported contrast, not an internal workflow label. At first use,
