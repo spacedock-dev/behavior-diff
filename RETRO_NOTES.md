@@ -121,3 +121,27 @@ Process lessons, both of which cost real runs here:
   Check DOM and interactions separately, then try another capture backend.
   Attaching to the terminal browser succeeded when headless capture timed out.
   Report capture limits; never label DOM inspection as visual verification.
+
+## 2026-10-07 — report clarity, dogfooding, and release process
+
+- Scope verification by the changed layer. A saved-report presentation trial
+  tests skill guidance, not a separate extractor-prompt edit. Deterministic
+  rendering, model adherence, and human comprehension need distinct evidence.
+- Audit the complete Before behavior and every question, including correct
+  responses. A source edit can clarify behavior already present on both sides.
+  Keep original scores separate from question validity; never rekey after runs.
+- Identical flows do not establish that a scenario missed its target. Check
+  whether the condition was reached and preserve unchanged behavior as a
+  result. Do not manufacture a cause or rerun merely to obtain a difference.
+- Use durable supervision and record interrupted attempts separately from
+  completed trials. Pin inputs before launch, bound concurrency, and make
+  replacement-attempt authorization explicit; preserve partial evidence.
+- Read-only tool lists and disabled skill discovery do not necessarily disable
+  MCP startup connections. Verify launch isolation independently of the tools
+  the agent eventually uses; distinguish startup warnings from proven causes.
+- After dogfooding, record the disposition of new findings before merge,
+  including pre-existing limitations and uncertain model errors. An earlier
+  review approval is not a verdict on evidence collected afterward.
+- Keep durable private handoff pointers with retention dates. For a dirty
+  release checkout, stop first and obtain approval for an isolated clean clone;
+  do not stash, switch, or absorb unrelated work to pass release preflight.
