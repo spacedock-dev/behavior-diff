@@ -121,7 +121,7 @@ git -C "$repo" diff --quiet HEAD -- "$target" ||
   die "$target already has uncommitted changes — commit or stash them first, so the diff measures only the rule"
 
 # Restore the target no matter how this exits, and prove the restore is exact.
-backup=$(mktemp -t behavior-diff-target)
+backup=$(mktemp "${TMPDIR:-/tmp}/behavior-diff-target.XXXXXX")
 cp -- "$repo/$target" "$backup"
 restore() {
   local code=$?

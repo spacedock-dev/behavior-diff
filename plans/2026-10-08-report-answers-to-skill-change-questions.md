@@ -625,6 +625,10 @@ symlinks instead of following them outside the copy. Dedicated regressions fail
 on the reviewed code and pass on the corrections. The wrapper tests also retain
 exclusions for compound commands, redirections, substitutions, and non-read commands.
 
+The new front-door regression also exposed a pre-existing macOS-only `mktemp`
+form in Linux CI. The backup now uses an explicit six-X temporary-file template,
+preserving the same restoration and cleanup path on both hosts.
+
 ### What this verification does not establish
 
 - These checks establish reporting behavior and evidence contracts. They do not
