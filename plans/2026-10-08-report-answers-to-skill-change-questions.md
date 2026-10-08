@@ -153,10 +153,10 @@ that normal run.
 | # | Gap | Current behavior | Required change |
 |---|---|---|---|
 | 1 | The edit's purpose does not reach the report. | Extraction infers intent from the changed lines alone. The skill runs in the session where the owner made the edit, but none of that session's context reaches the report. The renderer can already show a supplied `expected` value from `config.json` (`intent_context` in `reporting/content.py`), but `behavior-diff.sh` always writes `null` (line 225), and `build_prompt` in `decisions.py` never passes it to extraction. | The skill infers the purpose without asking the owner. For an uncommitted edit, it uses the diff and the current session history. When the edit has a commit message, it uses the commit history instead of session history, because the session that made a committed edit has usually ended and the current session log does not contain it. It passes the inferred purpose and its source to the runner, into `config.json`, and into the extraction prompt. The report labels it as inferred and names the source. |
-| 2 | The Summary does not answer the target question. | The headline selects the most prominent observed difference. When the target behavior is unchanged, a secondary difference leads. | Lead with whether each side made the mistake the owner wants to prevent: fixed, already avoided, still present, worse, or not assessable. |
+| 2 | The Summary does not answer the target question. | The headline selects the most prominent observed difference. When the target behavior is unchanged, a secondary difference leads. | Assess the observable target on each side when evidence permits; preserve mixed and unassessable outcomes. Support correcting, introducing, changing, and preserving behavior. |
 | 3 | Attention cannot report a mistake present on both sides. | Attention selects only rows whose choice distributions changed. | Allow attention for the targeted mistake when both sides still make it. |
-| 4 | Concern categories do not separate the kinds of concern. | Relationship is `expected`, `additional`, or `unclear`. | Distinguish a pre-existing gap, an observed post-change difference, a hypothetical risk, and a regression observed in the trials. |
-| 5 | The report cannot check output against what the agent read. | Extraction sees read paths, not returned content. | Provide bounded file content with provenance. When it is unavailable, say consistency cannot be checked. |
+| 4 | Concern categories do not separate the kinds of concern. | Relationship is `expected`, `additional`, or `unclear`. | Keep relationship-to-purpose separate from evidence status: pre-existing problem, observed difference, or hypothetical consequence. Do not imply causation from occurrence After. |
+| 5 | The report cannot check output against what the agent read. | Extraction sees read paths, not returned content. | Provide bounded recorded tool-returned content with provenance and omission status, not silent post-trial rereads. When evidence is insufficient, say what cannot be assessed. |
 
 Gaps 2 and 3 depend on gap 1: the report must know the target mistake before it can
 answer whether it happened. The "pre-existing gap" category in gap 4 also depends on
@@ -344,6 +344,93 @@ from the diff alone, and name each source. Keep observed output, agent
 explanation, assessor interpretation, and causal claims separate. A repeated pattern in a
 small sample does not establish causation or general effectiveness.
 
+### Agreed decision 1: assess only what the evidence supports
+
+Use the available evidence to answer as much of the owner's question as possible.
+Before assessing the outputs, identify the observable criterion and the evidence
+needed to judge it. An inferred purpose identifies the question; it does not prove
+the outcome.
+
+Distinguish an agent's claim that it checked a source, a recorded source read, and
+an output demonstrably consistent with the relevant source facts. Do not treat
+these as equivalent.
+
+When evidence is missing, contradictory, or insufficient, state what was observed,
+which part cannot be determined, and why. Do not guess a success or failure.
+Insufficient evidence is not a failed skill, and uncertainty about one claim must
+not erase other conclusions the evidence does support.
+
+### Agreed decision 2: preserve mixed outcomes
+
+Assess each trial against the same observable criterion and retain the Before and
+After distributions, including minority outcomes and trials with insufficient
+evidence. Do not force mixed results into one pass/fail verdict or call a problem
+fixed when it remains in an After trial.
+
+Describe the observed difference and any remaining problem directly. Apply the same
+rule to adding or changing a behavior and to preserving existing behavior, not
+only to correcting mistakes. Keep unavailable assessments distinct from observed
+failures. Small-sample counts describe these trials, not long-term reliability or
+proof that the edit caused the change.
+
+### Agreed decision 3: preserve the evidence the agent actually received
+
+Use recorded tool-returned content as trial evidence. Do not silently reread files
+afterward and present their current contents as information the agent saw.
+
+Retain the trial identity, source, returned portion or range, and any truncation
+or redaction applied before assessment. Include bounded excerpts with per-excerpt
+and total size limits, exclude sensitive content, and clearly mark omissions.
+Missing assessment content does not establish that the agent never received it.
+
+Any separately retrieved source content must be labeled as an additional source
+check, not original trial evidence. This decision does not authorize automatic
+additional retrieval. Exact size limits, excerpt-selection rules, and sensitive
+content handling remain implementation-design decisions to resolve before coding.
+
+### Agreed decision 4: separate relationship from evidence status
+
+Assess a finding's relationship to the instruction edit separately from what the
+evidence establishes. An explicitly requested behavior, an additional behavior,
+or a behavior with an unclear relationship can each have observed or hypothetical
+consequences.
+
+Distinguish pre-existing problems, observed differences, and possible consequences.
+Appearing After does not establish that the edit caused the behavior or that it is
+harmful. Explain these distinctions in plain language; do not require readers to
+understand a classification system. This clarifies gap 4: concern categories must
+not replace relationship-to-purpose labels as if they described the same dimension.
+
+### Agreed decision 5: capture purpose before observing results
+
+Before running the comparison, prepare a concise purpose statement from the current
+conversation and diff, or the relevant commit history for a historical comparison.
+Record its provenance and distinguish explicit owner intent from inference. When
+only the diff supports a purpose, label it as diff-inferred; do not invent missing
+motivation. Preserve distinct goals rather than merging them into one vague outcome.
+
+Pass purpose to assessment and report generation only, never as an added instruction
+in the task or other trial inputs. Do not revise the purpose after seeing results to
+fit a convenient difference. Exclude secrets and unrelated private details from the
+derived statement as well as keeping raw session history out of the handoff.
+
+### Agreed decision 6: review synthetic previews before production changes
+
+Prepare clearly labeled, authored synthetic previews using the existing report
+renderer, without model calls or private source material. Review the presentation
+before changing the production report pipeline.
+
+Cover an already-correct baseline, a targeted mistake that persists on both sides,
+mixed After outcomes, insufficient evidence, preservation after cleanup, and an
+important additional concern. Each preview must make clear what is changing, what
+the evidence shows, and what the team should consider before accepting the edit.
+
+The owner reviews whether the target answer is prominent and attention is
+decision-relevant rather than dominated by incidental differences. Preview approval
+validates presentation of authored evidence, not extraction quality or real-world
+effectiveness. Follow the existing synthetic summary preview workflow; do not
+create a second production renderer.
+
 ## Proposed presentation direction
 
 Retain the existing four-part Summary; change evidence selection and emphasis before adding
@@ -367,8 +454,9 @@ A reader should be able to answer, without reconstructing raw logs:
 1. What problem does this particular commit aim to address?
 2. Which task input and content the agent read set up that problem?
 3. What did the Before and After agents actually do and say?
-4. Was the targeted mistake fixed, already avoided, still present, worse, or not
-   assessable? For an edit that keeps behavior: preserved, lost, or not assessable.
+4. What happened to the targeted behavior in each trial, including mixed and
+   unassessable outcomes? Did a problem remain, a requested behavior appear, or a
+   behavior intended to survive remain present? Do not force a single pass/fail label.
 5. What matters before accepting the edit, and why?
 6. Which conclusions are observed, inferred (and from which source), or unavailable?
 
@@ -380,6 +468,58 @@ future synthetic coverage cases, not claims about outcomes observed in this hist
 
 Do not change the task or evaluation question after seeing results to manufacture a success.
 Do not require a visible difference when the question is whether useful behavior survives.
+
+## Implementation handoff
+
+The six agreed decisions are the implementation requirements. The historical replay
+is motivation and evidence of reporting weaknesses, not a fixture to tune against.
+Earlier implementation-location references are investigation pointers; verify them
+against the current code before editing.
+
+Proceed in this order:
+
+1. **Approve the presentation.** Use the `preview-behavior-diff-summary` workflow
+   to build the six cases in agreed decision 6 with the existing renderer. Keep
+   paired evidence constant, label authored content, and verify the actual browser
+   surface. Record approval before changing production presentation.
+2. **Freeze the data contracts.** Trace purpose from skill to runner/config to
+   extraction and report; trace recorded tool results through host normalization.
+   Specify purpose/provenance, observable criteria, per-trial assessment and evidence
+   references, omission status, and independent concern dimensions. Keep the same
+   criteria across Before and After. Specify handling for absent purpose, conflicting
+   evidence, incomplete trials, and unavailable extraction without manufacturing an
+   assessed-empty result.
+3. **Resolve bounded-evidence mechanics.** Document exact per-excerpt and total
+   limits, deterministic selection/truncation rules, and sensitive-content handling.
+   These details are not yet decided. Resolve them before implementing collection;
+   do not claim generic automatic redaction guarantees removal of every secret.
+   Preserve provenance for excluded content without reproducing sensitive values.
+4. **Implement the input handoff.** Capture purpose before trials, keep it out of
+   trial inputs, and supply only approved bounded evidence to assessment. Preserve
+   supported host behavior, including Claude Code, Codex, Pi, and OMP. No new
+   committed-edit invocation mode or additional model call is required by this plan.
+5. **Implement assessment and presentation together.** Update extraction guidance,
+   schema/validation, ingestion, and report selection so the target answer leads,
+   mixed results stay visible, and a persistent target problem can reach attention.
+   Apply relationship and evidence-status distinctions without presenting model
+   judgments as causal proof. Add detail in Understand the change rather than
+   duplicating Summary cards.
+6. **Verify the complete path deterministically.** Exercise synthetic inputs through
+   ingestion and rendering, including the six preview situations. Cover purpose
+   isolation, missing/partial evidence, range and omission provenance, mixed trial
+   membership, and unchanged target problems. Verify host normalization contracts.
+   Run the relevant repository checks and inspect the actual rendered report;
+   authored previews do not prove a live extractor follows the new guidance.
+7. **Finish the cutover.** Update affected callers, contract fixtures, and
+   `docs/architecture.md` in the same implementation change. Keep the canonical
+   renderer, remove temporary preview scaffolding after review, and document any
+   intentional handling of previously saved report data. Do not silently retain an
+   obsolete competing assessment path.
+
+Implementation is complete only when the owner's target question, actual trial
+evidence, assessment limits, and decision-relevant attention remain connected across
+the complete report. Passing schema checks or changing narrative wording alone is
+not sufficient. Live validation, if later requested, needs separate approval.
 
 ## Related plans and non-goals
 
