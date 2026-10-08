@@ -31,6 +31,20 @@ The two demos that carry the product story are `demo-invoice-review` and
 `demo-inbox-cleanup` is a simple output-diff smoke case. `capsule` is for
 testing the harness.
 
+For the historical Recce-team decision-routing case, use the
+[first-edit side-effect demo runbook](recce-team-first-edit-attention.md).
+It compares the initial edit with its parent and evaluates the generated
+**What needs your attention** section. The first replay did not reproduce the
+historical side effect. Two excluded candidates remain recorded for provenance.
+Later corrections are evaluator-only references; this is a manual
+report-evaluation journey, not a sixth nudge fixture.
+
+For new public-history leads, see the
+[public skill side-effect candidates](public-skill-side-effect-candidates.md).
+It records three candidates outside the earlier surveys, their historical
+evidence, proposed replay boundaries, and licensing limits. These are research
+leads, not validated demos or approval to run model-backed trials.
+
 ## What is actually being tested
 
 The nudge is two hooks. `PostToolUse` notices an edit to CLAUDE.md /
