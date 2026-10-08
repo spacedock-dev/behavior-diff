@@ -181,12 +181,24 @@ reject_output 'Confirm before running' "$headless_skill" \
   'headless skill still asks for run confirmation'
 reject_output 'plus the cost:' "$headless_skill" \
   'headless skill still advertises model-run cost'
-require_line '       behavior-diff.sh --agent <current-host> --file <file> --task "<task>"' \
+require_line '       behavior-diff.sh --agent <current-host> --file <file> --task "<task>" --purpose-file <private-purpose.json>' \
   "$headless_skill" \
   'default command does not preserve the current agent host'
-require_line '       behavior-diff.sh --agent <current-host> --file <file> --task "<task>" --fast' \
+require_line '       behavior-diff.sh --agent <current-host> --file <file> --task "<task>" --purpose-file <private-purpose.json> --fast' \
   "$headless_skill" \
   'explicit fast command does not preserve the current agent host'
+require_output 'Freeze the purpose before drafting or running trials.' "$headless_skill" \
+  'headless skill does not capture purpose before trial design'
+require_output 'current context, including supplied summaries; do not open host transcript' "$headless_skill" \
+  'purpose capture invents host transcript access'
+require_output 'source:"diff", basis:"inferred"' "$headless_skill" \
+  'headless skill has no labeled diff-only fallback'
+require_output 'never revise goals after seeing Before/After results' "$headless_skill" \
+  'headless skill does not freeze purpose independently of outcomes'
+require_output 'Conservative exclusions' "$headless_skill" \
+  'headless skill does not qualify privacy exclusions'
+require_output 'specific approval for that content or a safe fixture' "$headless_skill" \
+  'headless skill lacks the sensitive-content consent boundary'
 require_output 'Run behavior-diff with this exact task:' "$demo_skill" \
   'demo journey does not supply the exact fixture task with the nudge response'
 require_output 'the exact task step 1 printed' "$demo_skill" \

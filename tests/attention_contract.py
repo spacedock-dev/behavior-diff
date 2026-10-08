@@ -172,7 +172,7 @@ def _assert_rendered_attention(report):
         for class_name, heading in (
             (
                 "attention-interpretation",
-                "Why this difference matters (model interpretation)",
+                "Why this concern matters (model interpretation)",
             ),
             ("attention-observed-evidence", "Observed branch evidence"),
             ("attention-uncertainty", "Limits and uncertainty"),
@@ -342,6 +342,8 @@ def _assert_validation(report, assert_round_trip):
         ),
         ("evidence_kind", ("future", "plans")),
         ("relationship", ("future",)),
+        ("status", ("future", None)),
+        ("criterion", ("foreign-target", True)),
         ("explanation", ("x" * 601,)),
         ("matters_if", ("x" * 481,)),
         ("next_step", ("https://invalid.example/execute",)),

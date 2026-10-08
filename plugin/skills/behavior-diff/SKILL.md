@@ -12,8 +12,9 @@ no automatic verdict. The user judges the evidence.
 
 ## Ownership
 
-The skill owns judgment. It finds the change, drafts the decision-moment task,
-selects the current trial stack and model, and explains the evidence.
+The skill owns judgment. It finds the change, freezes its purpose, drafts the
+decision-moment task, selects the current trial stack and model, and explains
+the evidence.
 
 The scripts own repeatable mechanics. They build variants, run trials,
 normalize traces, grade completeness, extract decisions, and render the report.
@@ -93,8 +94,59 @@ the single-role or two-agent path. Create the fixtures with
    In these cases read the change with `diff <before> <file>` instead of
    `git diff`.
 
-2. **Draft the task.** `--task` must recreate the moment right before the
-   agent used to make the wrong choice:
+   **Freeze the purpose before drafting or running trials.** Derive concise,
+   distinct goals from the current conversation and the selected diff without
+   asking the owner to restate their reason. Use one or two sentences per goal;
+   keep separate goals separate, including behavior meant to survive a cleanup.
+   On both Claude Code and Codex, use the conversation already available in the
+   current context, including supplied summaries; do not open host transcript
+   stores, resume other sessions, or infer access to missing turns. The same
+   rule applies when orchestrating Pi or OMP.
+
+   For an already-supported historical comparison prepared with
+   `--before-file` or isolated replay fixtures, use the relevant selected commit
+   message and diff instead of the current session's motives. Do not use later
+   commits or trial results to invent the original reason. This does not add a
+   committed-edit invocation mode.
+
+   Write only the derived goals to a private scratch JSON file outside the
+   project. Create the scratch directory with mode `0700` and the JSON file
+   with mode `0600` before writing it; never use a shared or synced directory.
+   Use this contract:
+
+       {"goals":[{"text":"Prevent unsupported promises in the draft.","source":"session","basis":"explicit","reference":"Current conversation: owner-stated reason for the selected edit"}]}
+
+   `source` is `session`, `commit`, or `diff`; `basis` is `explicit` when the
+   available owner statement or commit message states the goal, otherwise
+   `inferred`. Use a neutral reference such as `Current conversation: selected
+   edit`, `Commit <sha>: message`, or `Diff: selected instruction change`;
+   never quote a conversation or commit message in the reference. If session
+   context or commit history supplies no usable reason, infer the observable
+   goal from the selected diff alone with `source:"diff", basis:"inferred"`.
+   Never invent incident history. A purpose file may be `null` if no safe,
+   meaningful goal can be derived. The runner accepts at most eight distinct
+   goals, 1,200 characters per goal and 240 per reference, with no control
+   characters. Do not merge extra goals just to fit a limit; narrow the selected
+   change before running when necessary.
+
+   **Privacy and consent come before the handoff.** A derived goal can still
+   expose secrets or private context. Include only the observable behavior of
+   this edit, not names, emails, credentials, identifiers, private URLs, source
+   excerpts, unrelated work, or raw session text. Generalize the behavior, not
+   sensitive values. If safe generalization loses the question, use a neutral
+   diff-inferred goal or `null`; never silently send sensitive context.
+   Explain before running that the derived purpose and bounded recorded
+   read/search tool returns go to the configured assessment provider and may
+   appear in local reports. A request to compare an edit permits this limited,
+   non-sensitive handoff, not transmission of additional private session data.
+   If the run requires sensitive purpose or source content, stop and obtain
+   specific approval for that content or a safe fixture; normal automatic
+   execution below does not override this boundary. Conservative exclusions
+   are not a guarantee that all secrets or private prose will be detected.
+   Freeze the file now; never revise goals after seeing Before/After results.
+
+2. **Draft the task.** `--task` must recreate the decision moment governed by
+   the changed rule, whether the goal is correction, addition, or preservation:
    - Ask the user for the real request from the incident that motivated
      the rule, and reuse it when they have one.
    - Never leak the expected behavior into the task. The changed rule must
@@ -107,25 +159,32 @@ the single-role or two-agent path. Create the fixtures with
 3. **Run it as soon as the task is known.** Do not ask the user to confirm
    the file, task, cost, or run mode. Do not mention trial counts, cost, or
    full versus fast modes during normal execution.
+   First satisfy the privacy and sensitive-content approval boundary above;
+   automatic execution never overrides it.
 
    Under Claude Code or Codex, preserve the current stack:
 
-       behavior-diff.sh --agent <current-host> --file <file> --task "<task>"
+       behavior-diff.sh --agent <current-host> --file <file> --task "<task>" --purpose-file <private-purpose.json>
 
    Under upstream Pi, preserve the exact current model:
 
-       behavior-diff.sh --agent pi --model <exact-current-pi-model> --file <file> --task "<task>"
+       behavior-diff.sh --agent pi --model <exact-current-pi-model> --file <file> --task "<task>" --purpose-file <private-purpose.json>
 
    Under OMP, preserve the exact current model:
 
-       behavior-diff.sh --agent omp --model <exact-current-omp-model> --file <file> --task "<task>"
+       behavior-diff.sh --agent omp --model <exact-current-omp-model> --file <file> --task "<task>" --purpose-file <private-purpose.json>
 
    Only add `--fast` when the user explicitly requested it in the current
    request with `fast`, `--fast`, `two runs`, or `one trial per side`:
 
-       behavior-diff.sh --agent <current-host> --file <file> --task "<task>" --fast
+       behavior-diff.sh --agent <current-host> --file <file> --task "<task>" --purpose-file <private-purpose.json> --fast
 
    For Pi or OMP, append `--fast` to its model-pinned command.
+   Pass the frozen JSON only through `--purpose-file`. The runner validates and
+   copies it to report configuration before trials. Never put it in `--task`,
+   a trial prompt, a sandbox file, or other trial inputs. If invoking the runner
+   without this skill and without purpose, assessment uses labeled diff-only
+   inference; there is no implied session context.
 
 4. **Present the result.** The runner already opened `report.html` itself — do NOT open it again (that produces a duplicate tab); just summarize.
    Summarize the flow diff honestly:

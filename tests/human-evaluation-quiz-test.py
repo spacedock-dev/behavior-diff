@@ -597,6 +597,35 @@ class ReportAndServerTests(unittest.TestCase):
             "unavailable", (self.session / "public/summary-1.html").read_text().lower()
         )
 
+    def test_blinding_preserves_assessment_counts_without_source_links(self):
+        source = (self.gallery / "target-mixed/report.html").read_text()
+        blinded = quiz._blinded_report(source)
+        parsed = quiz._ReportParser().finish(blinded)
+        table = quiz._single(
+            [node for node in quiz._walk(parsed) if node.has_class("target-checks")],
+            "blinded assessment",
+        )
+        self.assertIn("No (3/3) → Yes (2/3); No (1/3)", quiz._plain(table))
+        emphasis = quiz._single(
+            [
+                node
+                for node in quiz._walk(table)
+                if node.has_class("target-result-changed")
+            ],
+            "changed assessment",
+        )
+        self.assertEqual(emphasis.tag, "strong")
+        self.assertNotIn("Synthetic owner request before trials", blinded)
+        self.assertFalse(any(node.tag == "a" for node in quiz._walk(table)))
+        with self.assertRaises(ValueError):
+            quiz._blinded_report(
+                source.replace(
+                    "<td>",
+                    '<td><a href="#instruction-diff">Private source reference</a>',
+                    1,
+                )
+            )
+
     def test_scripts_links_attributes_and_unknown_shapes(self):
         source = (self.gallery / "changed-result/report.html").read_text()
         hostile = source.replace(

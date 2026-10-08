@@ -7,6 +7,12 @@ from itertools import zip_longest
 from reporting import content
 from reporting.attention import AttentionFindingData
 from reporting.schema import ReportData
+from reporting.summary import question_distribution, question_distribution_changed
+from reporting.target import (
+    UNAVAILABLE,
+    acceptance,
+    evidence_limit_text,
+)
 
 
 def _text(value: str) -> str:
@@ -155,7 +161,7 @@ def _attention_explanation_markdown(report):
             )
             markdown += [
                 f"#### {_text(finding.title)}\n",
-                "**Why this difference matters (model interpretation)**\n",
+                "**Why this concern matters (model interpretation)**\n",
                 f"**Relationship:** {_text(relationship)}<br>**Evidence:** {_text(evidence)}\n",
                 _text(finding.explanation) + "\n",
             ]
@@ -364,6 +370,102 @@ def _count_line(variant):
     return count + _text(variant.count_suffix)
 
 
+def _target_summary_markdown(report):
+    target = report.decisions.target_assessment
+    if target is None:
+        return [_text(UNAVAILABLE) + "\n"]
+    lines = [
+        "| What we checked | Before → After |",
+        "| --- | --- |",
+    ]
+    for criterion in target.criteria:
+        result = _text(
+            question_distribution(criterion, "before", report.variants.before.total)
+            + " → "
+            + question_distribution(criterion, "after", report.variants.after.total)
+        )
+        if question_distribution_changed(
+            criterion, report.variants.before.total, report.variants.after.total
+        ):
+            result = f"**{result}**"
+        lines.append(f"| {_text(criterion.text)} | {result} |")
+    return lines + [""]
+
+
+def _target_explanation_markdown(report):
+    target = report.decisions.target_assessment
+    lines = ["### What we checked\n"]
+    if target is None:
+        lines.append(_text(UNAVAILABLE) + "\n")
+    else:
+        sources = {entry.id: entry for entry in report.decisions.recorded_evidence}
+        for criterion in target.criteria:
+            lines += [
+                f"#### {_text(criterion.text)}\n",
+                "Before: "
+                + _text(
+                    question_distribution(
+                        criterion, "before", report.variants.before.total
+                    )
+                )
+                + " · After: "
+                + _text(
+                    question_distribution(
+                        criterion, "after", report.variants.after.total
+                    )
+                )
+                + "\n",
+                f"**Required evidence:** {_text(criterion.required_evidence)}\n",
+            ]
+            lines += [
+                "<details><summary>Trial-by-trial reasoning and sources</summary>\n",
+                f"Goal {criterion.goal} · {_text(criterion.mode)}\n",
+                _text(acceptance(criterion)) + "\n",
+            ]
+            for side in ("before", "after"):
+                for trial in getattr(criterion, side):
+                    anchor = content.trial_anchor(side, trial.trial)
+                    lines += [
+                        f"**{side.capitalize()} · [{_text(trial.trial)}](#{anchor}) · "
+                        f"{_text(trial.outcome.replace('_', ' '))}**\n",
+                        _text(trial.explanation) + "\n",
+                    ]
+                    lines.append("<details><summary>Recorded evidence</summary>\n")
+                    for ref in trial.refs:
+                        entry = sources.get(ref)
+                        if entry is None:
+                            text = trial.output_excerpt
+                            label = (
+                                "Exact final-answer excerpt"
+                                if text
+                                else "Final-answer reference; inspect the full trial evidence"
+                            )
+                        else:
+                            text = entry.text
+                            label = f"{entry.source} · returned characters {entry.range.start}–{entry.range.end} · {entry.status} · {entry.reason}"
+                        lines += [
+                            _text(ref + " · " + label) + "\n",
+                            "<pre>" + html.escape(text) + "</pre>\n",
+                        ]
+                    lines.append("</details>\n")
+            lines.append("</details>\n")
+    if report.decisions.recorded_evidence:
+        lines.append(
+            "<details><summary>Recorded source availability and limits</summary>\n"
+        )
+        lines.append(
+            _text(evidence_limit_text(report.decisions.evidence_limits)) + "\n"
+        )
+        for entry in report.decisions.recorded_evidence:
+            lines += [
+                _text(f"{entry.id} · {entry.source} · {entry.status} · {entry.reason}")
+                + "\n",
+                "<pre>" + html.escape(entry.text) + "</pre>\n",
+            ]
+        lines.append("</details>\n")
+    return lines
+
+
 def _summary_markdown(report):
     summary = report.summary
     intent = report.intent
@@ -376,6 +478,11 @@ def _summary_markdown(report):
         _text(intent.text) + "\n",
         _text(intent_note) + "\n",
     ]
+    for index, goal in enumerate(report.decisions.purpose, 1):
+        markdown.append(
+            _text(f"Goal {index}: {goal.source} · {goal.basis} · {goal.reference}")
+            + "\n"
+        )
     markdown += [
         "[View instruction changes](#instruction-diff)\n",
         "### 2. What the evidence shows\n",
@@ -383,7 +490,6 @@ def _summary_markdown(report):
     if summary.scenario:
         markdown.append(_text(summary.scenario) + "\n")
     markdown.append(_text(summary.evidence_label) + "\n")
-    markdown.append(f"Comparison: {_text(summary.status)}\n")
     for label, side in (("Before", summary.before), ("After", summary.after)):
         markdown.append(f"#### {label}\n")
         if not side.choices:
@@ -393,8 +499,9 @@ def _summary_markdown(report):
             if choice.detail:
                 markdown.append(_text(choice.detail) + "\n")
             markdown.append(_text(content.trial_count(choice.count, side.total)) + "\n")
+    markdown += _target_summary_markdown(report)
     context = content.primary_result_context(report)
-    if context is not None:
+    if context is not None and report.decisions.target_assessment is None:
         markdown.append(f"#### {_text(context.heading)} — {_text(context.status)}\n")
         for label, text in context.sides:
             markdown.append(f"**{label}:** {_text(text)}\n")
@@ -402,6 +509,11 @@ def _summary_markdown(report):
     markdown.append("[Understand the change](#panel-explanation)\n")
     markdown += _attention_summary_markdown(report)
     markdown.append("### 4. What this means\n")
+    if summary.why is None:
+        markdown.append(
+            "No supported interpretation was supplied; these observations alone "
+            "do not establish the edit's benefit.\n"
+        )
     for label, claim in (
         ("Why it matters", summary.why),
         ("Watch out", summary.caution),
@@ -433,6 +545,7 @@ def _explanation_markdown(report):
             _text(notice) + "\n",
         ]
         markdown += _attention_explanation_markdown(report)
+        markdown += _target_explanation_markdown(report)
     else:
         markdown += [
             f"### {_text(explanation.headline)}\n",
@@ -465,12 +578,13 @@ def _explanation_markdown(report):
                         f"- {_text(claim.text)} {_decision_links(claim.decisions)}"
                     )
                 markdown.append("")
+        markdown += _target_explanation_markdown(report)
         comparisons = content.explanation_comparisons(
             report, tuple(dict.fromkeys(references))
         )
         if comparisons:
             markdown += [
-                "### Consistency across trials\n",
+                "<details><summary>Consistency across trials</summary>\n",
                 "All extracted branches for the cited comparisons are shown, "
                 "including minority choices. Before and After trials are independent; "
                 "these counts are model extractions, not causal proof.\n",
@@ -479,8 +593,11 @@ def _explanation_markdown(report):
                 markdown.append(f"#### {_text(title)}\n")
                 markdown += [f"**{label}:** {_text(text)}\n" for label, text in sides]
                 markdown.append(_decision_links((index,)) + "\n")
+            markdown.append("</details>\n")
         if explanation.examples:
-            markdown.append("### From the final answers\n")
+            markdown.append(
+                "<details><summary>Exact excerpts from the final answers</summary>\n"
+            )
             for example in explanation.examples:
                 anchor = content.trial_anchor(example.side, example.trial)
                 markdown += [
@@ -488,6 +605,7 @@ def _explanation_markdown(report):
                     f"[View full trial evidence](#{anchor})\n",
                     "<pre>" + html.escape(example.text) + "</pre>\n",
                 ]
+            markdown.append("</details>\n")
     markdown += [
         "[View behavior comparisons](#panel-decision) · "
         "[View recorded command flow](#panel-flow) · "

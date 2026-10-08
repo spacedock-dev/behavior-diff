@@ -3,7 +3,7 @@
 #
 #   behavior-diff RULE.md --task "..." [--into FILE] [--fast | --trials N]
 #                                      [--agent claude|codex|pi|omp] [--model NAME]
-#                                      [--dry-run]
+#                                      [--purpose-file JSON] [--dry-run]
 #
 # The underlying runner compares the repo at HEAD against the repo plus one
 # uncommitted instruction-file edit. This front door makes that edit for you:
@@ -51,6 +51,18 @@ while [[ $# -gt 0 ]]; do
     --fast)
       passthru+=("$1")
       shift
+      ;;
+    --purpose-file)
+      [[ $# -ge 2 ]] || die "$1 needs a value"
+      # Anchor to the caller before changing directories; keep the leaf intact
+      # so the runner can still reject a supplied symlink.
+      purpose_path=$2
+      case $purpose_path in
+        /*) ;;
+        *) purpose_path=$PWD/$purpose_path ;;
+      esac
+      passthru+=("$1" "$purpose_path")
+      shift 2
       ;;
     --trials | --agent | --model | --extract-agent | --extract-model)
       [[ $# -ge 2 ]] || die "$1 needs a value"
@@ -109,7 +121,7 @@ git -C "$repo" diff --quiet HEAD -- "$target" ||
   die "$target already has uncommitted changes — commit or stash them first, so the diff measures only the rule"
 
 # Restore the target no matter how this exits, and prove the restore is exact.
-backup=$(mktemp -t behavior-diff-target)
+backup=$(mktemp "${TMPDIR:-/tmp}/behavior-diff-target.XXXXXX")
 cp -- "$repo/$target" "$backup"
 restore() {
   local code=$?

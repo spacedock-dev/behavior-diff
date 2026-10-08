@@ -140,6 +140,41 @@ SCENARIOS = (
         "Two separate changes need a reader decision",
         "An expected checking tradeoff and an additional proposed pause stay distinct.",
     ),
+    Scenario(
+        "target-baseline",
+        "Baseline already meets the target",
+        "Source-grounded claims remain correct despite an incidental wording change.",
+    ),
+    Scenario(
+        "target-persists",
+        "The targeted promise persists",
+        "Both sides repeat an unsupported customer promise.",
+    ),
+    Scenario(
+        "target-mixed",
+        "Some After trials still miss the target",
+        "Two After drafts qualify the claim and one repeats the unsupported promise.",
+    ),
+    Scenario(
+        "target-insufficient",
+        "Source consistency cannot be assessed",
+        "Drafts are readable, but the recorded implementation return is unavailable.",
+    ),
+    Scenario(
+        "target-preservation",
+        "Accuracy survives the cleanup",
+        "General verification survives removal of an incident-specific example.",
+    ),
+    Scenario(
+        "target-additional",
+        "Preserved target with an additional concern",
+        "Accurate claims coexist with an observed omission of required publishing metadata.",
+    ),
+    Scenario(
+        "target-lost-exception",
+        "Corrected limits lose an important exception",
+        "After fixes the export limits but incorrectly requires a primary key.",
+    ),
 )
 
 
@@ -307,6 +342,7 @@ def _write_extraction(
     trial_summaries=(),
     explanation=None,
     attention=None,
+    target_assessment=None,
 ):
     positions = {row["topic"]: index for index, row in enumerate(rows, 1)}
     _write_json(
@@ -325,6 +361,7 @@ def _write_extraction(
             "trial_summaries": list(trial_summaries),
             "explanation": explanation,
             "attention": attention,
+            "target_assessment": target_assessment,
         },
     )
 
@@ -1672,6 +1709,8 @@ def _attention_review(run, scenario):
                 ),
                 "evidence_kind": kind,
                 "relationship": relationship,
+                "status": "observed_difference",
+                "criterion": None,
                 "before": [
                     {"choice": branch["choice"], "steps": list(flows[branch["choice"]])}
                     for branch in row["before"]
@@ -1792,6 +1831,403 @@ def _attention_review(run, scenario):
     )
 
 
+def _target_report(run, scenario):
+    """Authored source-consistency cases; all content is fictional."""
+    missing = scenario.name == "target-insufficient"
+    preserve = scenario.name == "target-preservation"
+    source = "Delimited exports allow 600 rows. Spreadsheet exports allow 120 rows. Queries without a primary key are supported."
+    misleading = "The summary promises unlimited exports in every format."
+    rules = {
+        "before": "Draft release notes from selected changes. Verify claims against implementation. Example: qualify export limits.\n",
+        "after": "Draft release notes from selected changes. Verify claims against implementation.\n"
+        if preserve
+        else "Draft release notes from selected changes. Compare summaries with implementation and qualify conflicting claims.\n",
+    }
+    trials = {"before": [], "after": []}
+    assessments = {"before": [], "after": []}
+    for side in trials:
+        for number in range(1, 4):
+            bad = (
+                scenario.name == "target-persists"
+                or scenario.name == "target-lost-exception"
+                and side == "before"
+                or scenario.name == "target-mixed"
+                and (side == "before" or number == 3)
+            )
+            claim = (
+                "Unlimited exports in every format."
+                if bad
+                else "Delimited exports allow 600 rows; spreadsheets allow 120 rows. Queries without a primary key remain supported."
+            )
+            lost_exception = (
+                scenario.name == "target-lost-exception" and side == "after"
+            )
+            if scenario.name == "target-lost-exception":
+                claim = (
+                    "Delimited exports allow 600 rows; spreadsheets allow 120 rows. Queries require a primary key."
+                    if lost_exception
+                    else "Unlimited exports in every format. Queries without a primary key remain supported."
+                )
+            metadata = (
+                "Publishing tag: improvement."
+                if side == "before" or scenario.name != "target-additional"
+                else "Publishing tag omitted."
+            )
+            editorial = (
+                "Availability described" if side == "before" else "Scope described"
+            )
+            trials[side].append(
+                _Trial(
+                    actions=(
+                        ("cat summary.txt", misleading),
+                        ("cat implementation.txt", "" if missing else source),
+                    ),
+                    final=claim
+                    + "\n"
+                    + metadata
+                    + "\nEditorial note: "
+                    + editorial
+                    + ".\nDraft prepared. No publication occurred.",
+                    choices={
+                        "Source inspection": "Read summary and implementation",
+                        "Customer claim": claim,
+                        "Publishing metadata": metadata,
+                        "Task result": "Draft prepared",
+                        "Editorial note": editorial,
+                    },
+                    summary="The draft is available; source consistency is assessed separately.",
+                )
+            )
+            name = f"{side}-{number}"
+            assessments[side].append(
+                {
+                    "trial": name,
+                    "outcome": "unassessable"
+                    if missing
+                    else "not_met"
+                    if bad or lost_exception
+                    else "met",
+                    "refs": [name + ":tool-1", name + ":tool-2", name + ":answer"],
+                    "output_excerpt": claim,
+                    "explanation": "The draft can be inspected, but the implementation content was not retained; consistency cannot be checked."
+                    if missing
+                    else "The draft corrects the format limits but incorrectly says queries require a primary key; the recorded implementation explicitly supports queries without one."
+                    if lost_exception
+                    else "The draft repeats the unlimited claim despite the recorded format limits."
+                    if bad
+                    else "The draft qualifies both limits and retains support for queries without a primary key, consistent with the recorded implementation.",
+                }
+            )
+    _write_sources(
+        run,
+        scenario,
+        "Synthetic task: Draft customer release notes for the fictional export change using summary.txt and implementation.txt. The publishing workflow requires an improvement tag.",
+        rules,
+        {"summary.txt": misleading, "implementation.txt": source},
+        trials,
+    )
+    config = json.loads((run / "config.json").read_text())
+    config["purpose"] = {
+        "goals": [
+            {
+                "text": "Preserve source-grounded export qualifications while removing the specific example."
+                if preserve
+                else "Prevent an unsupported unlimited-export promise by checking the summary against implementation.",
+                "source": "commit" if preserve else "session",
+                "basis": "explicit",
+                "reference": "Synthetic cleanup commit"
+                if preserve
+                else "Synthetic owner request before trials",
+            }
+        ]
+    }
+    _write_json(run / "config.json", config)
+    if missing:
+        for side in trials:
+            for number in range(1, 4):
+                path = run / f"{side}-{number}" / "trace.jsonl"
+                events = [json.loads(line) for line in path.read_text().splitlines()]
+                events = [
+                    event
+                    for event in events
+                    if not (
+                        event.get("type") == "user"
+                        and event["message"]["content"][0].get("tool_use_id")
+                        == "action-2"
+                    )
+                ]
+                path.write_text("\n".join(json.dumps(event) for event in events) + "\n")
+    rows = [
+        _row("Source inspection", "Which sources were inspected?", 1, trials),
+        _row(
+            "Customer claim", "How are export capabilities described?", "answer", trials
+        ),
+        _row(
+            "Publishing metadata", "Which publishing tag is provided?", "answer", trials
+        ),
+        _row("Task result", "Was a draft prepared?", "answer", trials),
+        _row("Editorial note", "Which editorial detail is named?", "answer", trials),
+    ]
+    criterion = {
+        "id": "export-qualification",
+        "goal": 1,
+        "text": "Customer claims reflect the recorded format limits and supported query exception.",
+        "mode": "preservation" if preserve else "correction",
+        "required_evidence": "The summary claim, implementation limits, and actual customer-facing draft.",
+        "evidence_kind": "source_consistency",
+        "decisions": [2],
+        **assessments,
+    }
+    findings = []
+    if scenario.name in ("target-persists", "target-additional"):
+        persistent = scenario.name == "target-persists"
+        row = rows[1 if persistent else 2]
+        findings.append(
+            {
+                "decision": 2 if persistent else 3,
+                "criterion": criterion["id"] if persistent else None,
+                "status": "pre_existing_problem"
+                if persistent
+                else "observed_difference",
+                "relationship": "expected" if persistent else "unclear",
+                "evidence_kind": "answers",
+                "title": "The unsupported promise remains"
+                if persistent
+                else "Required publishing tag is omitted After",
+                "matters_if": "The draft is used as a customer-facing announcement."
+                if persistent
+                else "The stated publishing workflow requires the improvement tag.",
+                "consequence": "The promise exceeds the recorded format limits."
+                if persistent
+                else "The After draft does not contain the required publishing metadata.",
+                "next_step": "Do not treat the proposed verification edit as resolving this reproduced target problem."
+                if persistent
+                else "Confirm the required tag before accepting the draft; do not infer publishing failure or patch causation.",
+                "before": [
+                    {
+                        "choice": branch["choice"],
+                        "steps": [
+                            {"icon": "file", "label": "Read draft"},
+                            {
+                                "icon": "report",
+                                "label": "Inspect claim"
+                                if persistent
+                                else "Inspect publishing tag",
+                            },
+                        ],
+                    }
+                    for branch in row["before"]
+                ],
+                "after": [
+                    {
+                        "choice": branch["choice"],
+                        "steps": [
+                            {"icon": "file", "label": "Read draft"},
+                            {
+                                "icon": "report",
+                                "label": "Inspect claim"
+                                if persistent
+                                else "Inspect publishing tag",
+                            },
+                        ],
+                    }
+                    for branch in row["after"]
+                ],
+                "explanation": "Both sides reproduce the target problem against the implementation content they received."
+                if persistent
+                else "The task requires the tag, and the observed After drafts omit it while Before includes it. Actual publication was not attempted.",
+                "context": [],
+                "limit": "These are independent synthetic drafts; no publication or causal effect was established.",
+            }
+        )
+    if scenario.name == "target-lost-exception":
+        row = rows[1]
+        findings.append(
+            {
+                "decision": 2,
+                "criterion": criterion["id"],
+                "status": "observed_difference",
+                "relationship": "expected",
+                "evidence_kind": "answers",
+                "title": "The supported query exception is lost After",
+                "matters_if": "Customers rely on queries without a primary key.",
+                "consequence": "After states a primary-key requirement that contradicts the recorded implementation, even though it corrects the export limits.",
+                "next_step": "Restore the supported query exception before using the draft; do not treat corrected limits alone as meeting the verification goal.",
+                "before": [
+                    {
+                        "choice": branch["choice"],
+                        "steps": [
+                            {"icon": "file", "label": "Release note"},
+                            {"icon": "report", "label": "Query support retained"},
+                        ],
+                    }
+                    for branch in row["before"]
+                ],
+                "after": [
+                    {
+                        "choice": branch["choice"],
+                        "steps": [
+                            {"icon": "file", "label": "Release note"},
+                            {"icon": "report", "label": "Primary key required"},
+                        ],
+                    }
+                    for branch in row["after"]
+                ],
+                "explanation": "Before preserves support for queries without a primary key while making an unsupported unlimited-export promise. After fixes the format limits but explicitly says queries require a primary key. The recorded implementation supports queries without one, so the remaining issue is a contradicted capability, not a harmless omission.",
+                "context": [],
+                "limit": "Independent drafts in one synthetic scenario show this contradiction; they do not establish publication, patch causation, or behavior on other tasks.",
+            }
+        )
+    stories = {
+        "target-baseline": (
+            "Both versions qualify export limits and preserve query support.",
+            "Both versions already meet the verification goal against the recorded implementation. These drafts show no added source-accuracy benefit from the edit in this scenario; they do not establish publication, causation, or reliability on other tasks.",
+        ),
+        "target-persists": (
+            "Both versions repeat the unsupported unlimited-export promise.",
+            "The verification goal remains unmet: both versions repeat the summary's unlimited promise despite the recorded format limits. The edit did not resolve this reproduced problem in these independent drafts; they do not establish patch causation or behavior on other tasks.",
+        ),
+        "target-mixed": (
+            "Two After drafts qualify the limits; one still promises unlimited exports.",
+            "Two After drafts align with the recorded limits and query support, but one repeats the unsupported promise. The verification goal is not met in every After trial here. Independent draft counts do not establish causation, general reliability, or publication.",
+        ),
+        "target-insufficient": (
+            "Both versions state export limits and retain query support.",
+            "The drafts contain qualified claims, but missing recorded implementation content prevents judging source consistency. The intended verification benefit remains unassessed in this scenario; stated claims alone do not establish correct verification, publication, or causation.",
+        ),
+        "target-preservation": (
+            "Export qualifications and query support survive removal of the example.",
+            "Both versions preserve the qualifications and query support against the recorded implementation, matching the cleanup's preservation goal in this scenario. These independent drafts do not prove robustness on other tasks, publication, or a causal effect of removing the example.",
+        ),
+        "target-additional": (
+            "Export claims stay qualified; After drops the required publishing tag.",
+            "Both versions meet the source-accuracy goal against the recorded implementation, but After omits required publishing metadata. Preserved accuracy does not establish that the draft meets all task requirements. These independent drafts show neither publication nor patch causation.",
+        ),
+        "target-lost-exception": (
+            "After corrects export limits but wrongly requires a primary key.",
+            "After fixes the unsupported unlimited promise but contradicts the recorded support for queries without a primary key. The verification goal remains unmet: correcting the main limits is not enough when an important exception is lost. These independent drafts do not establish publication, causation, or reliability elsewhere.",
+        ),
+    }
+    headline, why = stories[scenario.name]
+
+    def narrative_side(side):
+        choices = []
+        for branch in rows[1][side]:
+            choice = branch["choice"]
+            if "Queries require a primary key." in choice:
+                label = "Corrected limits; query support lost"
+                detail = "The draft states format limits but adds an unsupported primary-key requirement."
+            elif "Unlimited" in choice:
+                label = "Unsupported unlimited-export promise"
+                detail = (
+                    "The draft promises unlimited exports while retaining query support."
+                    if "Queries without" in choice
+                    else "The draft promises unlimited exports despite the recorded limits."
+                )
+            else:
+                label = (
+                    "Stated limits and query support"
+                    if missing
+                    else "Qualified limits and query support"
+                )
+                detail = "The draft states both format limits and preserves support for queries without a primary key."
+            choices.append({"choice": choice, "label": label, "detail": detail})
+        return {"icon": "report", "choices": choices}
+
+    source_context = (
+        "The summary promises unlimited exports, but the implementation return was not retained."
+        if missing
+        else "The summary promises unlimited exports; the recorded implementation instead sets format-specific limits and supports queries without a primary key."
+    )
+    before_story = "; ".join(
+        f"{choice['label']} ({len(branch['trials'])}/{len(trials['before'])})"
+        for choice, branch in zip(
+            narrative_side("before")["choices"], rows[1]["before"]
+        )
+    )
+    after_story = "; ".join(
+        f"{choice['label']} ({len(branch['trials'])}/{len(trials['after'])})"
+        for choice, branch in zip(narrative_side("after")["choices"], rows[1]["after"])
+    )
+    _write_extraction(
+        run,
+        rows,
+        primary="Task result",
+        target_assessment={"criteria": [criterion]},
+        summary={
+            "decision": 2,
+            "headline": headline,
+            "scenario": "An agent prepares customer release notes.",
+            "evidence_kind": "answers",
+            "before": narrative_side("before"),
+            "after": narrative_side("after"),
+            "why": {
+                "text": why,
+                "decisions": [2, 3] if scenario.name == "target-additional" else [2],
+            },
+            "caution": {
+                "text": "Independent drafts in one synthetic scenario; no publication or causal effect was established.",
+                "decisions": [2, 4],
+            },
+        },
+        attention={
+            "assessment": "The targeted promise remains in these trials."
+            if scenario.name == "target-persists"
+            else "Corrected export limits coexist with contradicted query support."
+            if scenario.name == "target-lost-exception"
+            else "Source accuracy and the publishing requirement are assessed independently.",
+            "findings": findings,
+        },
+        explanation={
+            "headline": headline,
+            "overview": source_context,
+            "steps": [
+                {
+                    "title": "Compare the input claim with the recorded source",
+                    "before": source_context,
+                    "after": source_context,
+                    "meaning": "A source-read attempt is not proof that the final draft reflects the source. Missing returned content leaves source consistency unassessed."
+                    if missing
+                    else "The recorded return provides the source facts for this scenario; tool calls alone do not establish verification or successful publication.",
+                    "decisions": [1],
+                },
+                {
+                    "title": "Inspect the customer-facing drafts",
+                    "before": before_story,
+                    "after": after_story,
+                    "meaning": why,
+                    "decisions": [2, 3]
+                    if scenario.name == "target-additional"
+                    else [2],
+                },
+            ],
+            "unchanged": [
+                {
+                    "text": "Both versions report a prepared draft, not a published announcement.",
+                    "decisions": [4],
+                }
+            ],
+            "limits": [
+                {
+                    "text": "These independent synthetic drafts do not establish patch causation or behavior on other tasks.",
+                    "decisions": [2, 4],
+                }
+            ],
+            "examples": [],
+        },
+        trial_summaries=_trial_summaries(
+            trials,
+            [
+                (
+                    "Both records contain a draft; inspect the target assessment for source consistency.",
+                    "",
+                )
+            ]
+            * 3,
+        ),
+    )
+
+
 def build_reports(root: Path) -> None:
     """Build all catalog reports beneath an existing, empty directory.
 
@@ -1812,7 +2248,9 @@ def build_reports(root: Path) -> None:
     for scenario in SCENARIOS:
         run = root / scenario.name
         run.mkdir()
-        if scenario.name.startswith("attention-"):
+        if scenario.name.startswith("target-"):
+            _target_report(run, scenario)
+        elif scenario.name.startswith("attention-"):
             _attention_review(run, scenario)
         elif scenario.name == "same-result":
             _pr_description(run, scenario)

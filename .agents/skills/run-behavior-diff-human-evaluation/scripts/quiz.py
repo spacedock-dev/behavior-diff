@@ -303,6 +303,12 @@ SAFE_TAGS = {
     "summary",
     "br",
     "code",
+    "table",
+    "thead",
+    "tbody",
+    "tr",
+    "th",
+    "td",
     "pre",
     "svg",
     "path",
@@ -316,6 +322,7 @@ SAFE_TAGS = {
 SAFE_ATTRS = {
     "class",
     "role",
+    "scope",
     "aria-label",
     "aria-hidden",
     "viewbox",
@@ -533,43 +540,66 @@ def _blinded_report(source):
     evidence_shape = [("h3", None)]
     if any(node.has_class("summary-context") for node in _children(bodies[1])):
         evidence_shape.append(("p", "summary-context"))
-    evidence_shape.extend(
-        [
-            ("p", "summary-provenance"),
-            ("p", "summary-status"),
-            ("div", "summary-pair"),
-        ]
-    )
+    evidence_shape.extend([("p", "summary-provenance"), ("div", "summary-pair")])
     if any(node.has_class("primary-result-context") for node in _children(bodies[1])):
         evidence_shape.append(("section", "primary-result-context"))
+    checks = [node for node in _children(bodies[1]) if node.has_class("target-checks")]
+    if checks:
+        table = _shape(_single(checks, "target checks"), [("table", None)])[0]
+        header, rows = _shape(table, [("thead", None), ("tbody", None)])
+        heading = _shape(header, [("tr", None)])[0]
+        _shape(heading, [("th", None), ("th", None)])
+        if not _children(rows):
+            raise ValueError("Missing target assessment rows.")
+        for row in _children(rows):
+            if row.tag != "tr" or not row.has_class("target-criterion"):
+                raise ValueError("Unknown target assessment row.")
+            question, result = _shape(row, [("td", None), ("td", None)])
+            if _children(question):
+                raise ValueError("Target questions must be plain text.")
+            if _children(result):
+                emphasis = _shape(result, [("strong", "target-result-changed")])[0]
+                if _children(emphasis):
+                    raise ValueError("Target results must be plain text.")
+        evidence_shape.append(("div", "target-checks"))
+    else:
+        evidence_shape.append(("p", "target-unavailable"))
+    pairs = [
+        _single(
+            [node for node in _children(bodies[1]) if node.has_class("summary-pair")],
+            "summary pair",
+        )
+    ]
     evidence_shape.append(("nav", "evidence-nav"))
     evidence_body = _shape(bodies[1], evidence_shape)
     if _plain(evidence_body[0]) != "What the evidence shows":
         raise ValueError("Unknown evidence heading.")
-    pair = _single(
-        [node for node in evidence_body if node.has_class("summary-pair")],
-        "summary pair",
-    )
-    cards = _shape(
-        pair,
-        [
-            ("section", "summary-before"),
-            ("span", "summary-arrow"),
-            ("section", "summary-after"),
-        ],
-    )
-    for card in (cards[0], cards[2]):
-        children = _children(card)
-        empty = bool(children and children[-1].has_class("summary-empty"))
-        _shape(
-            card,
+    for pair in pairs:
+        cards = _shape(
+            pair,
             [
-                ("h4", "summary-side-label"),
-                ("svg", "summary-picture"),
-                ("p", "summary-empty") if empty else ("ul", "summary-choices"),
+                ("section", "summary-before"),
+                ("span", "summary-arrow"),
+                ("section", "summary-after"),
             ],
         )
+        for card in (cards[0], cards[2]):
+            children = _children(card)
+            empty = bool(children and children[-1].has_class("summary-empty"))
+            _shape(
+                card,
+                [
+                    ("h4", "summary-side-label"),
+                    ("svg", "summary-picture"),
+                    ("p", "summary-empty") if empty else ("ul", "summary-choices"),
+                ],
+            )
     meaning_shape = [("h3", None)]
+    if any(
+        node.has_class("summary-interpretation-unavailable")
+        for node in _children(bodies[3])
+    ):
+        meaning_shape.append(("p", "summary-interpretation-unavailable"))
     for css_class in ("summary-why", "summary-caution"):
         if any(node.has_class(css_class) for node in _children(bodies[3])):
             meaning_shape.append(("div", css_class))
@@ -578,7 +608,8 @@ def _blinded_report(source):
     if _plain(meaning[0]) != "What this means":
         raise ValueError("Unknown meaning heading.")
     for claim in meaning[1:-1]:
-        _shape(claim, [("strong", None), ("p", None), ("span", "evidence-links")])
+        if claim.tag == "div":
+            _shape(claim, [("strong", None), ("p", None), ("span", "evidence-links")])
     _attention_shape(bodies[2])
     # Remove intent, scenario and navigation, not attention findings or evidence limits.
     # Keep the saved renderer's generated claims, pictorial labels and branch counts.

@@ -66,6 +66,24 @@ pinned parent revision. Do not inspect unrelated private company material.
    decision or draft, and state that commands, external services, edits, and
    posting are unavailable. Do not state the expected answer. Trial tools
    are restricted to Read/Grep/Glob; skill auto-discovery is disabled.
+   Also write `purpose.json` beside `scenario.json`, never inside `fixture/`.
+   Derive concise distinct goals from the selected commit message and patch,
+   not this maintainer session or subsequent commits. Use the canonical
+   Behavior Diff contract:
+
+   ```json
+   {"goals":[{"text":"Preserve the required source check after removing an example.","source":"commit","basis":"explicit","reference":"Commit selected revision: message"}]}
+   ```
+
+   Use `basis:"inferred"` when the goal is an inference rather than an explicit
+   message statement. Without a usable commit reason, use `source:"diff"` and
+   `basis:"inferred"`; use `null` if no safe meaningful goal can be derived.
+   Keep separate goals separate (at most eight, text <=1,200 characters,
+   reference <=240), and use neutral references without private quoted text.
+   Exclude secrets, names, emails, private identifiers/URLs, raw messages, and
+   unrelated context. Review this derived content too: summarization is not
+   guaranteed sanitization. This file is frozen with the other case inputs,
+   passed only as `--purpose-file`, and never added to the task or trials.
 4. **Write `question.json` before seeing live results.** The shape is:
 
    ```json
@@ -132,9 +150,14 @@ scenario workers separate from the quiz options and final answer key.
 
 Request fresh approval for 30 Claude Code trial executions plus five extraction
 calls and any additional model-assisted preparation. Explain that private skill
-text goes to the configured provider. Record the approval in the tracking issue;
-never assume a previous session's approval applies. `--approve-live` is the
-operator's attestation of that approval, not a substitute for asking.
+text, reviewed derived purpose, and bounded recorded read/search tool returns
+go to the configured provider; purpose and evidence excerpts may appear in local
+reports. Conservative exclusions cannot detect all private prose or secrets.
+If safe generalization loses an essential purpose or source fact, obtain
+specific approval for that content or use a safe fixture before execution.
+Record the approval in the tracking issue; never assume a previous session's
+approval applies. `--approve-live` is the operator's attestation of that approval,
+not a substitute for asking.
 
 The helper launches the unchanged local `behavior-diff.sh`, selecting Claude
 `opus` for trials and Claude `sonnet` for extraction. A local wrapper disables

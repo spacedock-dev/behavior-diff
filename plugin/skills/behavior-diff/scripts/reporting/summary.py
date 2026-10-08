@@ -64,6 +64,15 @@ def parse_intent(raw, hunk_count):
 def build_intent(expected, decisions):
     from reporting.schema import InstructionIntentData
 
+    if decisions.purpose:
+        return InstructionIntentData(
+            " ".join(goal.text for goal in decisions.purpose), "purpose", ()
+        )
+    if decisions.target_assessment is not None and decisions.intent is not None:
+        return InstructionIntentData(
+            decisions.intent.text, "inferred", decisions.intent.edit_hunks
+        )
+
     if type(expected) is str and expected.strip():
         return InstructionIntentData(expected, "expected", ())
     if decisions.intent is not None:
@@ -159,7 +168,8 @@ def parse_narrative(raw, rows, positions=None):
                 raise ValueError("invalid narrative claim references")
             claims.append(
                 NarrativeClaimData(
-                    _text(claim["text"], 240), tuple(positions[ref] for ref in refs)
+                    _text(claim["text"], 480 if name == "why" else 240),
+                    tuple(positions[ref] for ref in refs),
                 )
             )
         return NarrativeData(
@@ -239,6 +249,37 @@ def content_changed(row):
     return choices_changed(row.before, row.after)
 
 
+def question_distribution(criterion, side, total):
+    """Keep unknown and unassessed trials distinct from supported Yes/No counts."""
+    trials = getattr(criterion, side)
+    labels = (
+        ("met", "Yes"),
+        ("not_met", "No"),
+        ("uncertain", "Unclear"),
+        ("unassessable", "Not enough evidence"),
+    )
+    values = [
+        f"{label} ({count}/{total})"
+        for outcome, label in labels
+        if (count := sum(trial.outcome == outcome for trial in trials))
+    ]
+    if total > len(trials):
+        values.append(f"Not assessed ({total - len(trials)}/{total})")
+    return "; ".join(values) or "No assessed trials"
+
+
+def question_distribution_changed(criterion, before_total, after_total):
+    """Emphasize only complete binary assessments whose proportions differ."""
+    before, after = criterion.before, criterion.after
+    return (
+        len(before) == before_total > 0
+        and len(after) == after_total > 0
+        and all(trial.outcome in ("met", "not_met") for trial in (*before, *after))
+        and sum(trial.outcome == "met" for trial in before) * after_total
+        != sum(trial.outcome == "met" for trial in after) * before_total
+    )
+
+
 def build_summary(metadata, variants, decisions):
     from reporting import content
     from reporting.schema import (
@@ -247,6 +288,11 @@ def build_summary(metadata, variants, decisions):
         SummarySideData,
         VisualSummaryData,
     )
+
+    from reporting.target import UNAVAILABLE
+
+    def claim(value):
+        return EvidenceClaimData(value.text, value.decisions) if value else None
 
     complete = content.complete_evidence(variants, decisions)
     candidates = _lead_candidates(decisions)
@@ -258,12 +304,6 @@ def build_summary(metadata, variants, decisions):
     narrative = decisions.narrative
     if not complete:
         narrative = None
-    elif (
-        narrative is not None
-        and narrative.decision not in candidates
-        and not content_changed(decisions.rows[narrative.decision - 1])
-    ):
-        narrative = None
     lead = narrative.decision if narrative else next(iter(candidates), None)
     row = decisions.rows[lead - 1] if lead else None
     status = _row_status(row, decisions) if row else "unavailable"
@@ -272,6 +312,8 @@ def build_summary(metadata, variants, decisions):
     notices = [
         "One scenario only; counts and narrative are model interpretations, not causal proof."
     ]
+    if decisions.target_assessment is None:
+        notices.append(UNAVAILABLE)
     if not complete:
         notices.append(
             "Trial evidence is incomplete, blocked, invalid, or dropped; inspect the trial records."
@@ -312,7 +354,7 @@ def build_summary(metadata, variants, decisions):
             "Plain-language narrative unavailable; original extracted comparisons are shown without added explanation."
         )
     if status == "unavailable":
-        headline = "Insufficient evidence for a Before/After conclusion."
+        headline = "Before and After behavior in this scenario."
     elif narrative:
         headline = narrative.headline
     elif different_process:
@@ -366,9 +408,6 @@ def build_summary(metadata, variants, decisions):
         evidence_label = "Based on self-reported actions. These are not independently captured tool evidence."
     else:
         evidence_label = "Based on recorded tool calls. Recorded calls do not establish successful completion."
-
-    def claim(value):
-        return EvidenceClaimData(value.text, value.decisions) if value else None
 
     return VisualSummaryData(
         headline,

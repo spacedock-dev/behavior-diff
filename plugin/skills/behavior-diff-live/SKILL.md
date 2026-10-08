@@ -53,6 +53,13 @@ the sibling skill's bundled `scripts/` directory.
    is no "before" to compare against, and stop. Read the change with
    `diff <before> <file>`.
 
+   Before preparing trials, follow the purpose/provenance and privacy rules in
+   step 1 of the [headless skill](../behavior-diff/SKILL.md#steps). Freeze the
+   private purpose JSON outside the original project and both scratch copies.
+   Validate it with `python3 <behavior-diff scripts>/purpose.py <purpose file>`.
+   Keep its canonical JSON for assessment; never include purpose, its path,
+   or raw session context in either trial prompt. Do not revise it after results.
+
 2. **Build the variants** in a scratch dir, never in the user's repo:
 
        for v in before after:
@@ -151,6 +158,13 @@ the sibling skill's bundled `scripts/` directory.
    by each agent, not captured traces, one trial per side. Save both raw
    trial reports under `runs/live-<stamp>/reports/`.
 
+   Set `config.json`'s `purpose` to the canonical JSON frozen before the trials
+   (`null` when no safe purpose was available), not a new inference from answers.
+   These synthesized traces contain self-reported actions, not captured source
+   returns. Do not invent tool-return content or reread current files to fill
+   that gap. Assess observable final-answer criteria where supported; source
+   consistency remains unassessable without recorded content.
+
    Record comparison provenance separately from these display labels:
    - Keep `target_file` relative to the original project and its Before/After
      copies, so instruction diffs still read each snapshot's file.
@@ -229,9 +243,10 @@ the sibling skill's bundled `scripts/` directory.
    source instruction mandates from what the trials show: disclosure of added
    instructions is not itself an approval requirement, and a model-added
    approval request is not new if Before already requested approval.
-   - If decision extraction succeeded, use the flow-diff shape: steps both
-     took in order, the first divergence if any, each side's path, and both final
-     answers quoted.
+   - If decision extraction succeeded, answer the recorded target question first.
+     Retain unchanged, mixed, and unassessable outcomes; do not call an unchanged
+     target mistake a successful fix. Then explain relevant observed paths and
+     quote the actual answers. Do not promote incidental differences over the goal.
    - If decision extraction was skipped because the host has no subagent
      dispatch, the extraction model is unavailable, or two attempts failed,
      do not invent a decision diff
@@ -249,5 +264,6 @@ the sibling skill's bundled `scripts/` directory.
   uncommitted edit, and it stays uncommitted.
 - Both variants must differ by exactly the target file — verify before
   launching.
-- No PASS/FAIL banner, no verdict language: one trial per side shows a
-  difference or it doesn't, nothing more.
+- No PASS/FAIL banner or automatic acceptance verdict. One sample per side can
+  support a scoped observation against available evidence, not reliability or
+  causation; source consistency cannot be inferred from self-reported reads.

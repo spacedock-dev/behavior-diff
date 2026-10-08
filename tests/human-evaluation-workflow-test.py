@@ -168,6 +168,21 @@ class WorkflowTests(unittest.TestCase):
                 },
             )
             workflow.save_json(
+                case / "purpose.json",
+                {
+                    "goals": [
+                        {
+                            "text": "Clarify the synthetic instruction-following rule.",
+                            "source": "commit",
+                            "basis": "inferred",
+                            "reference": "Commit {}: selected message".format(
+                                entry["sha"]
+                            ),
+                        }
+                    ]
+                },
+            )
+            workflow.save_json(
                 case / "question.json",
                 {
                     "stem": "Which statement is supported by this synthetic case?",
@@ -379,6 +394,22 @@ class WorkflowTests(unittest.TestCase):
         self.assertFalse((self.session / workflow.RECEIPT).exists())
         self.assertEqual(workflow.load_session(self.session), manifest)
 
+    def test_historical_purpose_is_required_and_never_session_derived(self):
+        manifest = self.prepare()
+        case = self.session / "case-1"
+        original = (case / "purpose.json").read_bytes()
+        (case / "purpose.json").unlink()
+        with self.assertRaisesRegex(workflow.EvaluationError, "case purpose"):
+            workflow.validate_case(self.session, manifest["cases"][0])
+        (case / "purpose.json").write_bytes(original)
+        purpose = workflow.read_json(case / "purpose.json")
+        purpose["goals"][0]["source"] = "session"
+        workflow.save_json(case / "purpose.json", purpose)
+        with self.assertRaisesRegex(
+            workflow.EvaluationError, "selected commit or diff"
+        ):
+            workflow.validate_case(self.session, manifest["cases"][0])
+
     def test_frozen_input_hashes_detect_contents_additions_modes_and_heads(self):
         self.freeze()
         workflow.verify_frozen(self.session)
@@ -390,6 +421,7 @@ class WorkflowTests(unittest.TestCase):
             "case-1/patch.diff",
             "case-1/scenario.json",
             "case-1/question.json",
+            "case-1/purpose.json",
             "case-1/fixture/input.txt",
             "answer-key.json",
             "public/questions.json",
@@ -518,6 +550,10 @@ class WorkflowTests(unittest.TestCase):
                 "--extract-model",
                 "sonnet",
             ],
+        )
+        self.assertEqual(
+            Path(arguments[arguments.index("--purpose-file") + 1]),
+            Path(kwargs["cwd"]).parent / "purpose.json",
         )
         case = Path(kwargs["cwd"]).parent
         run = Path(kwargs["env"]["BEHAVIOR_DIFF_HOME"]) / "runs/diff-synthetic"

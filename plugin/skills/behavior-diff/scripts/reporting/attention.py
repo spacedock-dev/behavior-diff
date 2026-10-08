@@ -57,6 +57,8 @@ class AttentionFindingData:
     explanation: str
     context: Tuple[NarrativeClaimData, ...]
     limit: str
+    status: str = "observed_difference"
+    criterion: Optional[str] = None
 
 
 @dataclass(frozen=True)
@@ -143,7 +145,7 @@ def _choices(raw, names):
     return tuple(choices)
 
 
-def parse_attention(raw, rows, positions=None) -> Optional[AttentionData]:
+def parse_attention(raw, rows, positions=None, target=None) -> Optional[AttentionData]:
     """Reject an invalid bundle, never reinterpret it as an assessed-empty result.
 
     References follow surviving sorted rows. Counts stay solely in those rows;
@@ -171,6 +173,8 @@ def parse_attention(raw, rows, positions=None) -> Optional[AttentionData]:
                     "next_step",
                     "evidence_kind",
                     "relationship",
+                    "status",
+                    "criterion",
                     "before",
                     "after",
                     "explanation",
@@ -186,12 +190,39 @@ def parse_attention(raw, rows, positions=None) -> Optional[AttentionData]:
             before = _distribution(row, "before")
             after = _distribution(row, "after")
             before_total, after_total = sum(before.values()), sum(after.values())
-            if not any(
+            changed = any(
                 before.get(choice, 0) * after_total
                 != after.get(choice, 0) * before_total
                 for choice in before.keys() | after.keys()
+            )
+            status = item["status"]
+            if status not in (
+                "pre_existing_problem",
+                "observed_difference",
+                "hypothetical_consequence",
             ):
-                raise ValueError("attention must select a changed distribution")
+                raise ValueError("invalid concern evidence status")
+            criterion = item["criterion"]
+            assessed = (
+                next(
+                    (value for value in target.criteria if value.id == criterion), None
+                )
+                if target is not None
+                else None
+            )
+            if criterion is not None and (
+                type(criterion) is not str or assessed is None
+            ):
+                raise ValueError("unknown attention target criterion")
+            if not changed and not (
+                assessed is not None
+                and decision in assessed.decisions
+                and status == "pre_existing_problem"
+                and item["relationship"] == "expected"
+                and any(value.outcome == "not_met" for value in assessed.before)
+                and any(value.outcome == "not_met" for value in assessed.after)
+            ):
+                raise ValueError("unchanged attention needs an assessed target problem")
             kind = item["evidence_kind"]
             anchor = _row_field(row, "anchor")
             if (
@@ -235,6 +266,8 @@ def parse_attention(raw, rows, positions=None) -> Optional[AttentionData]:
                     _text(item["explanation"], 600),
                     tuple(context),
                     _text(item["limit"], 480),
+                    status,
+                    criterion,
                 )
             )
         return AttentionData(assessment, tuple(findings))

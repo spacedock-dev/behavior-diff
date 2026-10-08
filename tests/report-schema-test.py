@@ -34,11 +34,12 @@ from reporting.trial_summary import (  # noqa: E402
 from report_fixtures import SCENARIOS, build_reports  # noqa: E402
 from explanation_contract import assert_change_explanations  # noqa: E402
 from attention_contract import assert_attention_reports  # noqa: E402
+from target_contract import assert_target_reports  # noqa: E402
 
 
 def synthetic_raw():
     raw = {
-        "schema_version": 11,
+        "schema_version": 12,
         "metadata": {
             "model": "synthetic/model",
             "mode": "review",
@@ -241,6 +242,9 @@ def synthetic_raw():
             ],
         },
     }
+    raw["decisions"].update(
+        purpose=[], recorded_evidence=[], target_assessment=None, evidence_limits=None
+    )
     from reporting.schema import _decisions, _metadata, _variants
     from reporting.summary import build_intent, build_summary
 
@@ -1045,6 +1049,8 @@ def assert_intent_reports(reports, root):
 
 def assert_visual_summaries(reports):
     """A visual lead must retain distributions, provenance, and evidence limits."""
+    from reporting.render_html import render_artifact
+    from reporting.render_markdown import render_markdown
     from reporting.summary import build_summary
 
     changed = reports["changed-result"]
@@ -1053,6 +1059,20 @@ def assert_visual_summaries(reports):
     assert planned.decisions.narrative.evidence_kind == "plans"
     assert "plan" in planned.summary.evidence_label.lower()
     assert "captured" not in reports["self-reported"].summary.evidence_label.lower()
+    target = reports["target-baseline"].decisions.target_assessment
+    for name in ("planned-actions", "self-reported", "same-result"):
+        report = reports[name]
+        decisions = replace(report.decisions, target_assessment=target)
+        assessed = replace(
+            report,
+            decisions=decisions,
+            summary=build_summary(report.metadata, report.variants, decisions),
+        )
+        for rendered in (render_artifact(assessed, ""), render_markdown(assessed)):
+            plain = html.unescape(rendered).replace("\\", "")
+            assert report.summary.evidence_label in plain
+            for side in (report.summary.before, report.summary.after):
+                assert all(choice.label in plain for choice in side.choices)
     for report in reports.values():
         summary = report.summary
         if summary.decision is not None:
@@ -1108,19 +1128,6 @@ def assert_visual_summaries(reports):
     assert mixed_lead.status == "mixed"
     assert [choice.count for choice in mixed_lead.before.choices] == [2, 1]
     assert [choice.count for choice in mixed_lead.after.choices] == [3]
-    for row, story in (
-        (selected, narrative),
-        (mixed_selected, mixed_narrative),
-    ):
-        matching = replace(
-            non_outcome.decisions,
-            rows=non_outcome.decisions.rows[:4] + (replace(row, after=row.before),),
-            narrative=replace(story, after=story.before),
-        )
-        fallback = build_summary(non_outcome.metadata, non_outcome.variants, matching)
-        assert fallback.decision == non_outcome.decisions.outcome
-        assert fallback.headline != narrative.headline
-        assert fallback.why is None
     for decisions, status in (
         (replace(non_outcome.decisions, narrative=None), "changed"),
         (replace(non_outcome.decisions, dropped=1), "unavailable"),
@@ -1150,29 +1157,15 @@ def assert_visual_summaries(reports):
         ("APPROVE", 3),
     ]
     primary_decisions = mixed_primary.decisions
-    matching_proportions = replace(
-        primary_decisions,
-        rows=tuple(
-            replace(row, after=row.before)
-            if index == primary_decisions.outcome
-            else row
-            for index, row in enumerate(primary_decisions.rows, 1)
-        ),
-        narrative=replace(
-            primary_decisions.narrative, after=primary_decisions.narrative.before
-        ),
-    )
-    for decisions in (
+    fallback = build_summary(
+        mixed_primary.metadata,
+        mixed_primary.variants,
         replace(primary_decisions, narrative=None),
-        matching_proportions,
-    ):
-        fallback = build_summary(
-            mixed_primary.metadata, mixed_primary.variants, decisions
-        )
-        assert fallback.decision == 2, (
-            "Without a supported changed primary narrative, retain the action fallback."
-        )
-        assert fallback.headline != primary_decisions.narrative.headline
+    )
+    assert fallback.decision == 2, (
+        "Without a supported changed primary narrative, retain the action fallback."
+    )
+    assert fallback.headline != primary_decisions.narrative.headline
     incomplete = build_summary(
         mixed_primary.metadata,
         mixed_primary.variants,
@@ -1248,8 +1241,6 @@ def assert_visual_summaries(reports):
             pass
         else:
             raise AssertionError("Visual summary accepted invented choice evidence.")
-    from reporting.render_html import render_artifact
-    from reporting.render_markdown import render_markdown
 
     payload = '<script>alert("x")</script>|[link](javascript:alert(1))'
     unsafe_decisions = replace(
@@ -1571,13 +1562,17 @@ def assert_gallery_reports():
     with tempfile.TemporaryDirectory() as directory:
         root = Path(directory)
         build_reports(root)
-        assert {scenario.name for scenario in SCENARIOS} == set(expected)
         reports = {}
-        for name, (result_state, action_state) in expected.items():
+        for scenario in SCENARIOS:
+            name = scenario.name
             report = assert_file_round_trip(root / name / "report-data.json")
             reports[name] = report
-            assert report.result.outcome_heading.endswith("— " + result_state), name
-            assert report.result.behavior_heading.endswith("— " + action_state), name
+            if name in expected:
+                result_state, action_state = expected[name]
+                assert report.result.outcome_heading.endswith("— " + result_state), name
+                assert report.result.behavior_heading.endswith("— " + action_state), (
+                    name
+                )
             assert report.result.kind == "neutral", (
                 "A demo inferred automatic correctness."
             )
@@ -1681,6 +1676,7 @@ def assert_gallery_reports():
             assert_evidence_links,
             assert_unchanged_scripts,
         )
+        assert_target_reports(reports, root, assert_round_trip)
 
     with tempfile.TemporaryDirectory() as directory:
         root = Path(directory)

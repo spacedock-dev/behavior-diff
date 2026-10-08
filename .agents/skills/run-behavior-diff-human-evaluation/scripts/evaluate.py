@@ -20,6 +20,9 @@ import tarfile
 import uuid
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
+sys.path.insert(0, str(REPO_ROOT / "plugin/skills/behavior-diff/scripts"))
+from purpose import read_purpose
+
 SOURCE_REPO = "DataRecce/recce-team"
 SOURCE_URL = "https://github.com/DataRecce/recce-team.git"
 CASE_COUNT = 5
@@ -759,6 +762,15 @@ def validate_case(session, entry):
         isinstance(scenario.get("task"), str) and scenario["task"].strip(),
         "Scenario task must be nonempty",
     )
+    try:
+        purpose = read_purpose(case / "purpose.json")
+    except (OSError, ValueError, TypeError) as exc:
+        raise EvaluationError("Missing or invalid reviewed case purpose") from exc
+    require(
+        purpose is None
+        or all(goal["source"] in ("commit", "diff") for goal in purpose["goals"]),
+        "Historical purpose must come from the selected commit or diff, not this session",
+    )
     fixture = case / "fixture"
     files(fixture)
     require(
@@ -851,6 +863,7 @@ def frozen_inputs(session, manifest):
                 "patch.diff",
                 "scenario.json",
                 "question.json",
+                "purpose.json",
             )
         )
         fixed.extend(files(case / "fixture"))
@@ -1319,6 +1332,8 @@ def run_session(session, approve_live=False, case_id=None):
             scenario["file"],
             "--task",
             scenario["task"],
+            "--purpose-file",
+            str(case / "purpose.json"),
         ]
         save_json(
             case / "attempt.json",

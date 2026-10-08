@@ -208,6 +208,31 @@ printf '#!/bin/sh\nexit 0\n' >"$stub/claude" && chmod +x "$stub/claude"
 plainrun=$real/plainrun && mkdir -p "$plainrun"
 printf 'x\n' >"$plainrun/CLAUDE.md"
 
+progress 'Purpose-file validation before trials'
+python3 "$here/purpose-handoff-test.py"
+for purpose_case in missing malformed empty; do
+  purpose_path=$tmp/$purpose_case-purpose.json
+  case "$purpose_case" in
+    malformed) printf '%s\n' 'invalid synthetic JSON' >"$purpose_path" ;;
+    empty) printf '%s\n' '{"goals":[]}' >"$purpose_path" ;;
+  esac
+  set +e
+  out=$(cd "$plainrun" && PATH="$stub:$PATH" "$runner" --file CLAUDE.md \
+    --task t --purpose-file "$purpose_path" 2>&1)
+  code=$?
+  set -e
+  [ "$code" -eq 2 ] || fail "$purpose_case purpose: exit $code, want 2"
+  printf '%s' "$out" | grep -qF -- '--purpose-file' ||
+    fail "$purpose_case purpose: missing option diagnostic"
+done
+set +e
+out=$(PATH="$stub:$PATH" "$runner" --file CLAUDE.md --task t --purpose-file 2>&1)
+code=$?
+set -e
+[ "$code" -eq 2 ] || fail "purpose missing value: exit $code, want 2"
+printf '%s' "$out" | grep -qF -- '--purpose-file needs a value' ||
+  fail "purpose missing value: missing diagnostic"
+
 progress 'Runner baseline resolution and early-stop errors'
 
 # 21. --before-file that does not exist is a plain exit 2
@@ -308,6 +333,7 @@ cat >/dev/null
 cat <<'JSON'
 {"type":"tool_execution_start","toolCallId":"call-1","toolName":"bash","args":{"command":"printf ok"}}
 {"type":"tool_execution_start","toolCallId":"call-2","toolName":"read","args":{"path":"AGENTS.md"}}
+{"type":"tool_execution_end","toolCallId":"call-2","result":{"content":[{"type":"text","text":"Synthetic recorded source: cap is 500."}]},"isError":false}
 JSON
 if [ "${NO_FINAL:-}" != 1 ]; then
   printf '%s\n' '{"type":"message_end","message":{"role":"assistant","content":[{"type":"text","text":"OMP done"}]}}'
@@ -323,6 +349,7 @@ cat >/dev/null
 cat <<'JSON'
 {"type":"tool_execution_start","toolCallId":"call-1","toolName":"bash","args":{"command":"printf ok"}}
 {"type":"tool_execution_start","toolCallId":"call-2","toolName":"read","args":{"path":"AGENTS.md"}}
+{"type":"tool_execution_end","toolCallId":"call-2","result":{"content":[{"type":"text","text":"Synthetic recorded source: cap is 500."}]},"isError":false}
 JSON
 if [ "${NO_FINAL:-}" != 1 ]; then
   printf '%s\n' '{"type":"message_end","message":{"role":"assistant","content":[{"type":"text","text":"Pi done"}]}}'
@@ -403,6 +430,12 @@ grep -qF '"file_path":"AGENTS.md"' "$pi_trace/trace.jsonl" ||
   fail "Pi path not normalized"
 grep -qF '"result":"Pi done"' "$pi_trace/trace.jsonl" ||
   fail "Pi final answer not normalized"
+for trace in "$omp_trace" "$pi_trace"; do
+  jq -e -s '[.[] | .message.content[]? | select(.type == "tool_result"
+    and .tool_use_id == "call-2" and .content[0].text == "Synthetic recorded source: cap is 500.")]
+    | length == 1' "$trace/trace.jsonl" >/dev/null ||
+    fail "recorded source return lost its call identity or content"
+done
 for arg in -p --mode json --no-session test/pi-model read,bash,grep,find,ls; do
   grep -qxF -- "$arg" "$tmp/pi-args" || fail "Pi argument missing: $arg"
 done
@@ -449,6 +482,9 @@ capture_bin=$tmp/capture-bin
 mkdir -p "$capture_bin"
 cat >"$capture_bin/python3" <<'SH'
 #!/bin/sh
+case "$1" in
+  */purpose.py) exec "$REAL_PYTHON" "$@" ;;
+esac
 {
   printf 'CALL'
   for arg in "$@"; do
@@ -476,6 +512,156 @@ for stack in pi omp; do
   expected=$(printf '%s\t%s\t%s\t%s' --agent "$stack" --model "$model")
   grep -qF -- "$expected" "$calls" ||
     fail "explicit $stack extractor did not inherit trial model"
+  jq -e '.purpose == null and (has("expected") | not)' \
+    "$tmp/extract-home-$stack"/runs/*/config.json >/dev/null ||
+    fail "absent purpose did not use the nullable purpose contract"
 done
+
+progress 'Purpose isolation from Git and copied trial projects'
+real_python=$(command -v python3)
+for world in git copy; do
+  purpose_project=$tmp/purpose-$world-project
+  mkdir -p "$purpose_project"
+  printf '%s\n' 'before' >"$purpose_project/AGENTS.md"
+  cat >"$purpose_project/purpose.json" <<'JSON'
+{"goals":[{"text":"Preserve the synthetic source check.","source":"session","basis":"explicit","reference":"Current conversation: selected edit"}]}
+JSON
+  if [ "$world" = git ]; then
+    git -C "$purpose_project" init -q
+    git -C "$purpose_project" -c user.email=synthetic@example.invalid \
+      -c user.name=synthetic add AGENTS.md purpose.json
+    git -C "$purpose_project" -c user.email=synthetic@example.invalid \
+      -c user.name=synthetic commit -qm baseline
+    before_args=()
+  else
+    cp "$purpose_project/AGENTS.md" "$tmp/purpose-before.md"
+    before_args=(--before-file "$tmp/purpose-before.md")
+  fi
+  printf '%s\n' 'after' >"$purpose_project/AGENTS.md"
+  home=$tmp/purpose-$world-home
+  (
+    cd "$purpose_project"
+    PATH="$capture_bin:$stub:$PATH" REAL_PYTHON="$real_python" \
+      BEHAVIOR_DIFF_HOME="$home" PYTHON_ARGS_FILE="$tmp/purpose-$world-calls" \
+      PI_ARGS_FILE="$tmp/purpose-$world-args" PI_ENV_FILE="$tmp/purpose-$world-env" \
+      "$runner" --agent pi --model test/pi-model --file AGENTS.md \
+      --task 'Inspect the synthetic project.' --purpose-file purpose.json \
+      --fast "${before_args[@]+"${before_args[@]}"}" >/dev/null
+  )
+  run=$(find "$home/runs" -mindepth 1 -maxdepth 1 -type d)
+  jq -e '.purpose.goals[0].text == "Preserve the synthetic source check."' \
+    "$run/config.json" >/dev/null || fail "$world purpose missing from config"
+  grep -qxF 'Inspect the synthetic project.' "$run/task.md" ||
+    fail "$world purpose contaminated task"
+  for side in before after; do
+    [ ! -e "$run/$side-1/project/purpose.json" ] ||
+      fail "$world purpose copied into $side project"
+  done
+  if grep -qF 'Preserve the synthetic source check' "$tmp/purpose-$world-args"; then
+    fail "$world purpose leaked into trial arguments"
+  fi
+done
+
+progress 'Front door preserves nested purpose paths and restores instructions'
+front_door=$here/../bin/behavior-diff
+nested_repo=$tmp/nested-purpose-project
+mkdir -p "$nested_repo/nested"
+git -C "$nested_repo" init -q
+git -C "$nested_repo" config user.email synthetic@example.invalid
+git -C "$nested_repo" config user.name synthetic
+printf '%s\n' 'before' >"$nested_repo/AGENTS.md"
+printf '%s\n' 'Synthetic rule.' >"$nested_repo/nested/rule.md"
+cat >"$nested_repo/purpose.json" <<'JSON'
+{"goals":[{"text":"Root goal must not be selected.","source":"session","basis":"explicit","reference":"Synthetic root context"}]}
+JSON
+cat >"$nested_repo/nested/purpose.json" <<'JSON'
+{"goals":[{"text":"Nested goal must be frozen.","source":"session","basis":"explicit","reference":"Synthetic nested context"}]}
+JSON
+git -C "$nested_repo" add AGENTS.md purpose.json nested
+git -C "$nested_repo" commit -qm baseline
+cp "$nested_repo/AGENTS.md" "$tmp/nested-original.md"
+home=$tmp/nested-purpose-home
+(
+  cd "$nested_repo/nested"
+  PATH="$capture_bin:$stub:$PATH" REAL_PYTHON="$real_python" \
+    BEHAVIOR_DIFF_HOME="$home" PYTHON_ARGS_FILE="$tmp/nested-purpose-calls" \
+    PI_ARGS_FILE="$tmp/nested-purpose-args" PI_ENV_FILE="$tmp/nested-purpose-env" \
+    "$front_door" rule.md --into AGENTS.md --agent pi --model test/pi-model \
+    --task 'Inspect the synthetic project.' --purpose-file ./purpose.json \
+    --fast >"$tmp/nested-purpose-output"
+)
+run=$(find "$home/runs" -mindepth 1 -maxdepth 1 -type d)
+jq -e '.purpose.goals[0].text == "Nested goal must be frozen."' \
+  "$run/config.json" >/dev/null || fail "front door froze root purpose instead of nested purpose"
+cmp -s "$tmp/nested-original.md" "$nested_repo/AGENTS.md" ||
+  fail "front door did not restore instructions"
+for side in before after; do
+  [ ! -e "$run/$side-1/project/nested/purpose.json" ] ||
+    fail "front door exposed supplied nested purpose in $side project"
+  [ -f "$run/$side-1/project/purpose.json" ] ||
+    fail "front door removed the unrelated root purpose"
+done
+
+# Anchoring must not resolve a supplied leaf symlink into an accepted file.
+ln -s purpose.json "$nested_repo/nested/purpose-link.json"
+if (
+  cd "$nested_repo/nested"
+  PATH="$capture_bin:$stub:$PATH" REAL_PYTHON="$real_python" \
+    BEHAVIOR_DIFF_HOME="$tmp/nested-link-home" \
+    "$front_door" rule.md --into AGENTS.md --agent pi --model test/pi-model \
+    --task t --purpose-file ./purpose-link.json --fast
+) >"$tmp/nested-link-output" 2>&1; then
+  fail "front door accepted a purpose leaf symlink"
+fi
+grep -qF 'not a symlink' "$tmp/nested-link-output" ||
+  fail "front door lost purpose leaf symlink rejection"
+cmp -s "$tmp/nested-original.md" "$nested_repo/AGENTS.md" ||
+  fail "front door did not restore instructions after purpose rejection"
+
+progress 'Snapshot purpose removal refuses external parent symlinks'
+escape_repo=$tmp/purpose-parent-project
+external=$tmp/purpose-external
+mkdir -p "$escape_repo" "$external"
+printf '%s\n' 'Synthetic external sentinel.' >"$external/purpose.json"
+cp "$external/purpose.json" "$tmp/external-original"
+git -C "$escape_repo" init -q
+git -C "$escape_repo" config user.email synthetic@example.invalid
+git -C "$escape_repo" config user.name synthetic
+printf '%s\n' 'before' >"$escape_repo/AGENTS.md"
+ln -s "$external" "$escape_repo/context"
+git -C "$escape_repo" add AGENTS.md context
+git -C "$escape_repo" commit -qm baseline
+rm "$escape_repo/context"
+mkdir "$escape_repo/context"
+cp "$nested_repo/nested/purpose.json" "$escape_repo/context/purpose.json"
+printf '%s\n' 'after' >"$escape_repo/AGENTS.md"
+home=$tmp/purpose-parent-home
+if (
+  cd "$escape_repo"
+  PATH="$capture_bin:$stub:$PATH" REAL_PYTHON="$real_python" \
+    BEHAVIOR_DIFF_HOME="$home" PYTHON_ARGS_FILE="$tmp/purpose-parent-calls" \
+    PI_ARGS_FILE="$tmp/purpose-parent-args" PI_ENV_FILE="$tmp/purpose-parent-env" \
+    "$runner" --agent pi --model test/pi-model --file AGENTS.md \
+    --task t --purpose-file context/purpose.json --fast
+) >"$tmp/purpose-parent-output" 2>&1; then
+  fail "snapshot parent symlink setup failure did not propagate"
+else
+  code=$?
+fi
+[ "$code" -eq 2 ] || fail "snapshot parent symlink: exit $code, want 2"
+grep -qF 'snapshot parent symlink' "$tmp/purpose-parent-output" ||
+  fail "snapshot parent symlink rejection missing"
+cmp -s "$tmp/external-original" "$external/purpose.json" ||
+  fail "purpose removal changed the external sentinel"
+[ ! -e "$tmp/purpose-parent-args" ] ||
+  fail "unsafe purpose project reached the trial model"
+[ ! -e "$tmp/purpose-parent-calls" ] ||
+  fail "unsafe purpose project reached assessment or reporting"
+if find "$home/runs" -name trace.jsonl | grep -q .; then
+  fail "unsafe purpose project produced a launched trial"
+fi
+
+progress 'Bounded recorded assessment evidence'
+python3 "$here/recorded-evidence-test.py"
 
 echo "ok — all hook self-checks passed"

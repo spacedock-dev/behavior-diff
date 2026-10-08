@@ -2,7 +2,8 @@
 
 **Recorded:** 2026-10-08
 
-**Status:** Findings and proposed report requirements; not an implemented design.
+**Status:** Implemented; canonical presentation, deterministic acceptance coverage,
+and remaining model-evidence limits are recorded below.
 
 **Scope:** Refine how Behavior Diff answers the owner's question about an instruction
 edit, especially when the relevant behavior is already correct Before. The first two
@@ -447,7 +448,7 @@ Use **Understand the change** for the fuller input/source/output explanation, pr
 restrictions, trial variation, and source-access limits. It should add reasoning and evidence,
 not repeat the Summary cards. Keep lower-priority differences available in detailed comparisons.
 
-## Acceptance criteria for a future refinement
+## Acceptance criteria
 
 A reader should be able to answer, without reconstructing raw logs:
 
@@ -528,6 +529,123 @@ This applies the consequence-first selection policy in
 and complements
 [Agent-assisted evidence investigation](2026-10-06-agent-assisted-evidence-investigation.md).
 
-Recording this plan does not authorize new model runs, retroactive report edits, automatic
-source collection, or production implementation. No runtime flow or report artifact contract
-changes in this documentation-only step; architecture documentation is intentionally unchanged.
+The documentation-only planning step did not authorize model runs or implementation.
+The owner subsequently requested implementation and approved the six synthetic
+target-first previews before production changes. Those previews used no model calls.
+Later, separately approved historical trials informed the presentation refinements
+below. Their private inputs, outputs, and reports remain outside this repository.
+
+## Implementation record
+
+Tracking: [DRC-4835](https://linear.app/recce/issue/DRC-4835/answer-the-skill-change-target-before-secondary-report-differences).
+
+- **Presentation approved:** Keep the four-part Summary. Its headline and one
+  illustrated Before/After pair explain observed behavior, including unchanged
+  behavior. Show assessment questions separately as compact, unlinked text rows.
+  Emphasize changed Yes/No proportions without hiding mixed or unassessable counts.
+  Use “Not enough evidence” only for the affected check, never as the main headline.
+  Understand the change starts with readable explanations; raw excerpts and
+  trial-level records are collapsed. Authored preview approval is not evidence
+  of live extractor quality.
+- **Purpose-linked conclusion:** “What this means” connects observations to the
+  reason for the edit. It distinguishes an already-correct baseline, a remaining
+  problem, preservation, mixed results, and a scenario that did not exercise the
+  intended problem. Additional detail in a draft is not proof of improved accuracy
+  or conflict resolution. Evidence limits must not erase supported observations.
+- **Purpose:** `--purpose-file` carries up to eight distinct concise goals with
+  session/commit/diff provenance and explicit/inferred basis. The runner validates
+  and freezes it before trials, excludes the file from trial copies, and supplies
+  purpose only to extraction/reporting. Historical evaluation preparation records
+  and freezes a reviewed commit/diff purpose file.
+- **Evidence:** Recorded returns only; 4,096 Unicode characters per excerpt,
+  16,384 per trial, 131,072 per run, and 128 tool records per trial. The saved trial
+  inventory determines membership. The remaining run budget is shared across
+  remaining trials in lexical order; within each trial, readable returns share
+  the character budget, redistributing unused shares from shorter returns.
+  Excerpts retain source descriptors, returned-character offsets, status, and
+  omission reasons. Known sensitive sources and credential/email patterns omit
+  whole returns; this cannot guarantee removal of arbitrary private prose.
+- **Assessment:** Each criterion identifies its purpose goal, mode, required
+  evidence, supporting comparisons, and complete trial membership. Outcomes
+  distinguish met, not met, uncertain, and unassessable. Source-consistency
+  judgments require recorded source content and an exact final-answer excerpt.
+  References are trial-local; omitted content cannot substantiate a judgment.
+- **Attention:** Relationship to purpose remains independent of evidence status.
+  Unchanged target mistakes can be promoted when the criterion records an unmet
+  outcome on both sides. Invalid assessment stays unavailable, not assessed-empty.
+- **Saved data:** Report schema 12 persists purpose, bounded evidence, limits,
+  and assessment. Schema 11 reports remain readable with explicitly unavailable
+  target assessment. Old decisions without the new attention contract show
+  unavailable attention. Historical evaluation sessions without a frozen purpose
+  file must be prepared again; purpose is never reconstructed after results.
+- **Synthetic coverage:** The canonical report gallery includes all six situations.
+  Deterministic contracts cover provenance, membership, evidence boundaries,
+  incomplete runs, legacy loading, and purpose isolation. Actual browser checks
+  cover target headlines/counts, persistent-problem attention, source/output
+  excerpts, minority-trial navigation, and desktop/narrow layouts.
+
+Architecture and exact component responsibilities are documented in
+[`docs/architecture.md`](../docs/architecture.md). Remaining evidence limit:
+authored fixtures establish the contract and presentation, not whether a live
+extractor will correctly interpret arbitrary source claims.
+
+## Acceptance recheck after presentation feedback
+
+The approved presentation now uses the canonical HTML and Markdown pipeline,
+not a separate preview renderer. The human-evaluation quiz accepts the new
+assessment table while retaining source-hiding and fail-closed HTML validation.
+
+| Reader requirement | Implemented response | Verification |
+|---|---|---|
+| Why this edit? | Frozen purpose, explicit/inferred basis, and provenance remain separate from observed outcomes. | Purpose validation and Git/copied-project trial-isolation contracts. |
+| What input and sources set up the problem? | Human explanation connects the input claim, recorded source facts, and actual deliverables; raw records remain expandable. | Authored source-conflict and missing-source cases; exact-excerpt and provenance contracts. |
+| What did Before and After do? | One behavioral comparison with real branch memberships and correct answer/plan/action provenance. Assessment status never substitutes for that illustration. | Canonical gallery and browser checks, including plans and incomplete evidence. |
+| What happened to the targeted behavior? | Separate question rows preserve all trial outcomes, including mixed, unknown, and unassessed records. Only supported Yes/No proportion changes receive emphasis. | Target assessment and HTML/Markdown consumer regressions. |
+| What matters before acceptance? | Purpose-linked conclusion and decision-relevant attention distinguish existing problems, observed differences, and hypothetical consequences. | Persistent-problem, additional-concern, and corrected-limit/lost-exception cases. |
+| What remains unknown? | Scoped source omissions and scenario limits coexist with supported observations; missing interpretation is explicit. | Missing-source, incomplete-trial, invalid-assessment, and legacy-data contracts. |
+
+All six agreed synthetic situations remain covered. A seventh case corrects the
+main limit while falsely restricting a supported query type, covering the lost
+exception required by the acceptance criteria. This is an explicit contradictory
+claim, not an assumption that an omitted detail is false.
+
+Verification passed: hooks, extraction self-checks, live-report contracts,
+release-workflow contracts, human-evaluation workflow/quiz/hosted checks, purpose
+validation, recorded-evidence checks, Bash formatting, and Python formatting.
+Browser checks exercised the canonical reports, collapsed/expanded evidence,
+changed-result emphasis, narrow layouts, and preserved evidence provenance.
+The quiz path was also exercised with a synthetic report, preserving mixed
+assessment counts while hiding original purpose provenance.
+
+Independent review identified five input-boundary defects, now corrected:
+recognized quoted credential keys and sensitive Git revision paths are excluded;
+supported Codex shell wrappers retain simple recorded reads; relative purpose
+paths stay relative to the caller; and purpose removal rejects snapshot parent
+symlinks instead of following them outside the copy. Dedicated regressions fail
+on the reviewed code and pass on the corrections. The wrapper tests also retain
+exclusions for compound commands, redirections, substitutions, and non-read commands.
+
+The new front-door regression also exposed a pre-existing macOS-only `mktemp`
+form in Linux CI. The backup now uses an explicit six-X temporary-file template,
+preserving the same restoration and cleanup path on both hosts.
+
+### What this verification does not establish
+
+- These checks establish reporting behavior and evidence contracts. They do not
+  prove that a model's judgment is semantically correct merely because its
+  references and quoted excerpts are valid.
+- Later presentation and conclusion examples use unchanged historical trial
+  evidence. Authored conclusion examples remain labeled; they are not evidence
+  that the revised extraction prompt generated those words.
+- An already-correct baseline cannot demonstrate correction of an unreproduced
+  historical mistake. A task without the relevant source conflict cannot
+  establish better conflict resolution. Preservation applies only to the
+  behavior and scenario actually checked.
+- Bounded excerpts can omit facts the trial agent received. The report must
+  distinguish that omission from evidence that the agent never saw a source.
+  Sensitive-content filtering also cannot guarantee removal of arbitrary
+  private prose.
+
+The implementation addresses the reporting gaps. Stronger claims about the
+skill's effectiveness require suitable scenarios and adequate evidence; the
+report must state the limit when those prerequisites are absent.

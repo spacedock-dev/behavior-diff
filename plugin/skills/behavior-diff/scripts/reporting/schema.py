@@ -27,8 +27,19 @@ from reporting.trial_summary import (
     parse_trial_summaries,
     trial_group_names,
 )
+from reporting.target import (
+    EvidenceLimitsData,
+    PurposeGoalData,
+    RecordedEvidenceData,
+    TargetAssessmentData,
+    effective_purpose,
+    parse_evidence_limits,
+    parse_purpose,
+    parse_target,
+    persisted_evidence,
+)
 
-SCHEMA_VERSION = 11
+SCHEMA_VERSION = 12
 RESULT_KINDS = ("good", "bad", "neutral")
 
 
@@ -126,6 +137,11 @@ class DecisionData:
     trial_summaries: Tuple[TrialSummaryData, ...] = ()
     explanation: Optional[ChangeExplanationData] = None
     attention: Optional[AttentionData] = None
+
+    purpose: Tuple[PurposeGoalData, ...] = ()
+    recorded_evidence: Tuple[RecordedEvidenceData, ...] = ()
+    target_assessment: Optional[TargetAssessmentData] = None
+    evidence_limits: Optional[EvidenceLimitsData] = None
 
 
 @dataclass(frozen=True)
@@ -229,15 +245,45 @@ class ReportData:
         version = _expect_int(
             _field(data, "schema_version", "report-data"), "schema_version"
         )
-        if version != SCHEMA_VERSION:
+        if version not in (11, SCHEMA_VERSION):
             raise ValueError(
                 "unsupported report-data schema version: {0}".format(version)
             )
 
+        raw_decisions = _expect_dict(
+            _field(data, "decisions", "report-data"), "decisions"
+        )
+        if version == SCHEMA_VERSION:
+            for name in (
+                "purpose",
+                "recorded_evidence",
+                "target_assessment",
+                "evidence_limits",
+            ):
+                _field(raw_decisions, name, "decisions")
+        elif raw_decisions.get("attention") is not None:
+            raw_decisions = dict(raw_decisions)
+            legacy_attention = _expect_dict(
+                raw_decisions["attention"], "decisions.attention"
+            )
+            raw_decisions["attention"] = dict(legacy_attention)
+            raw_decisions["attention"]["findings"] = [
+                {
+                    **item,
+                    "status": item.get("status", "observed_difference"),
+                    "criterion": item.get("criterion"),
+                }
+                if type(item) is dict
+                else item
+                for item in _expect_list(
+                    _field(legacy_attention, "findings", "decisions.attention"),
+                    "decisions.attention.findings",
+                )
+            ]
         rule_diff = _expect_str(_field(data, "rule_diff", "report-data"), "rule_diff")
         variants = _variants(_field(data, "variants", "report-data"), "variants")
         decisions = _decisions(
-            _field(data, "decisions", "report-data"),
+            raw_decisions,
             "decisions",
             len(parse_diff_hunks(rule_diff)),
             trial_group_names(
@@ -264,15 +310,19 @@ class ReportData:
             report_content.expected,
             decisions,
         )
-        summary = _summary(
-            _field(data, "summary", "report-data"),
-            "summary",
-            decisions,
-            metadata,
-            variants,
+        summary = (
+            build_summary(metadata, variants, decisions)
+            if version == 11
+            else _summary(
+                _field(data, "summary", "report-data"),
+                "summary",
+                decisions,
+                metadata,
+                variants,
+            )
         )
         return cls(
-            schema_version=version,
+            schema_version=SCHEMA_VERSION,
             metadata=metadata,
             content=report_content,
             rule_diff=rule_diff,
@@ -509,8 +559,27 @@ def _decisions(value, path, hunk_count, groups=None, final_answers=None):
         explanation is None or _json_value(asdict(explanation)) != raw_explanation
     ):
         _invalid(path + ".explanation", "valid canonical change explanation")
+    raw_purpose = value.get("purpose", [])
+    if type(raw_purpose) is not list:
+        _invalid(path + ".purpose", "canonical purpose goals")
+    purpose = parse_purpose({"goals": raw_purpose}) if raw_purpose else ()
+    if _json_value([asdict(goal) for goal in purpose]) != raw_purpose:
+        _invalid(path + ".purpose", "canonical purpose goals")
+    evidence = persisted_evidence(value.get("recorded_evidence", []))
+    raw_target = value.get("target_assessment")
+    target = parse_target(
+        raw_target,
+        effective_purpose(purpose, intent),
+        final_answers,
+        evidence,
+        parsed_rows,
+    )
+    if raw_target is not None and (
+        target is None or _json_value(asdict(target)) != raw_target
+    ):
+        _invalid(path + ".target_assessment", "valid canonical target assessment")
     raw_attention = _field(value, "attention", path)
-    attention = parse_attention(raw_attention, parsed_rows)
+    attention = parse_attention(raw_attention, parsed_rows, target=target)
     if raw_attention is not None and (
         attention is None or _json_value(asdict(attention)) != raw_attention
     ):
@@ -536,6 +605,10 @@ def _decisions(value, path, hunk_count, groups=None, final_answers=None):
         trial_summaries=trial_summaries,
         explanation=explanation,
         attention=attention,
+        purpose=purpose,
+        recorded_evidence=evidence,
+        target_assessment=target,
+        evidence_limits=parse_evidence_limits(value.get("evidence_limits")),
     )
     from reporting.content import valid_decision_choices
 
@@ -641,7 +714,7 @@ def _intent(value, path, hunk_count, expected, decisions):
             _field(value, "edit_hunks", path), path + ".edit_hunks", hunk_count
         ),
     )
-    if intent.source not in ("expected", "inferred", "unavailable"):
+    if intent.source not in ("expected", "inferred", "unavailable", "purpose"):
         _invalid(path + ".source", "supported instruction intent source")
     if intent != build_intent(expected, decisions):
         _invalid(
