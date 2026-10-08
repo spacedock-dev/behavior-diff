@@ -62,6 +62,8 @@ SCENARIO_PROMPT_UNAVAILABLE = (
 
 def instruction_edit_aim(intent):
     """Explain the saved aim without claiming to know the author's intent."""
+    if intent.source == "purpose":
+        return "Recorded purpose: " + intent.text
     if intent.source == "inferred":
         return "Likely aim: " + intent.text
     if intent.source == "expected":
@@ -199,6 +201,12 @@ def consistent_changes(decisions):
 
 def intent_context(intent):
     """Label the stored source without inferring intent during rendering."""
+    if intent.source == "purpose":
+        return (
+            "Purpose recorded before trials",
+            "Each goal retains its session, commit, or diff provenance and whether "
+            "it was explicit or inferred. Purpose identifies the question, not its answer.",
+        )
     if intent.source == "expected":
         return (
             "Supplied expected behavior",
@@ -285,12 +293,12 @@ def primary_result_context(report):
 ATTENTION_UNAVAILABLE = "Attention assessment unavailable."
 ATTENTION_UNAVAILABLE_NOTE = (
     "No valid attention assessment is saved for these trials. "
-    "This does not establish that there are no side effects. "
+    "This does not establish that there are no remaining or additional concerns. "
     "The original explanation and trial evidence remain available."
 )
 ATTENTION_EMPTY_NOTE = (
     "No finding was selected for your attention in these trials. "
-    "This is not a guarantee that the change has no side effects in real use."
+    "This is not a guarantee that the target is met or that real use has no additional concerns."
 )
 ATTENTION_COUNT_NOTE = (
     "All observed branches are shown. Before and After trials are independent; "
@@ -301,8 +309,8 @@ ATTENTION_COUNT_NOTE = (
 def attention_labels(finding: AttentionFindingData, trace_source: str):
     """Keep relationship and source wording identical across report formats."""
     relationship = {
-        "expected": "Part of the intended change",
-        "additional": "Additional change",
+        "expected": "Related to the intended change",
+        "additional": "Additional concern",
         "unclear": "Relationship to the intended change is unclear",
     }[finding.relationship]
     evidence = {
@@ -312,6 +320,7 @@ def attention_labels(finding: AttentionFindingData, trace_source: str):
     }[finding.evidence_kind]
     if finding.evidence_kind == "actions" and trace_source == "self-reported":
         evidence = "Self-reported actions, not independently captured command evidence"
+    evidence = finding.status.replace("_", " ").capitalize() + " · " + evidence
     return relationship, evidence
 
 

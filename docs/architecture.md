@@ -19,7 +19,7 @@ scripts handle execution, evidence, and reporting.
                              v
 +---------------------------------------------------------+
 | Skill orchestration                                     |
-| Select instruction change, scenario, agent, and model   |
+| Select edit, scenario/model; freeze purpose/provenance   |
 +----------------------------+----------------------------+
                              v
 +---------------------------------------------------------+
@@ -30,14 +30,14 @@ scripts handle execution, evidence, and reporting.
                              v
 +---------------------------------------------------------+
 | Saved evidence                                          |
-| Snapshots, traces, answers, and completion grades       |
+| Snapshots, calls + returned content, answers, grades     |
 +----------------------------+----------------------------+
                              v
 +---------------------------------------------------------+
 | Evidence analysis                                       |
-| decisions.py: trial assignments -> counts and summaries |
-| Same extraction: narrative with optional Humanizer      |
-| reporting/: deterministic comparison and report data    |
+| decisions.py: purpose + bounded returns + trial answers |
+| Same extraction: target criteria, outcomes, narrative   |
+| reporting/: validate evidence links; assemble reports   |
 +----------------------------+----------------------------+
                              v
 +---------------------------------------------------------+
@@ -49,6 +49,10 @@ scripts handle execution, evidence, and reporting.
 
 Trial execution and decision extraction call models through agent CLIs.
 Report assembly and rendering run locally without model calls.
+
+Purpose travels in run configuration directly to analysis, never in the trial
+task or project copies. Recorded tool returns travel from trials to analysis;
+the collector does not retrieve current source files.
 
 ## 1. Plugin entry points and hooks
 
@@ -78,6 +82,15 @@ The skill selects the trial host and model, calls the runner, and explains the
 result. It owns scenario quality and interpretation, not filesystem copying or
 report formatting.
 
+Before execution, the skill records distinct concise goals and their provenance
+(`session`, `commit`, or `diff`; `explicit` or `inferred`) in a reviewed purpose
+file. It uses available conversation context, not transcript-store searches.
+Historical comparisons use the relevant commit history; absent motivation falls
+back to a labeled diff inference. Raw conversation and unrelated private details
+are excluded. Purpose is the question, not evidence of success. The user-facing
+consent covers bounded source returns reaching assessment; filtering cannot
+certify arbitrary prose as free of private information.
+
 For its own user-facing result summary, the host invokes an installed Humanizer
 skill when available. Otherwise it writes concise, natural technical prose
 itself. This prose-only step preserves evidence qualifiers, counts, citations
@@ -101,6 +114,11 @@ installs the appropriate instruction version.
 For Git projects, copies start from `git archive HEAD`. Only the selected
 instruction change enters the After copies. Other uncommitted edits stay out.
 Without a usable Git HEAD, the runner copies the folder instead.
+The front door anchors relative purpose-file paths to the invocation directory
+before entering the repository. The runner freezes that file for assessment and
+removes its project-local copy from trial inputs. It rejects snapshot parent
+symlinks before removal or launching that trial, so exclusion cannot delete an
+external file through a baseline symlink.
 
 [`run-trial.sh`](../plugin/skills/behavior-diff/scripts/run-trial.sh) runs one
 fresh agent process inside one copy. The default comparison runs three trials
@@ -108,10 +126,11 @@ per side concurrently, with the same task and model. The adapter supports
 Claude, Codex, Pi, and OMP. It suppresses recursive plugin hooks and converts
 host events into a common `trace.jsonl` format.
 
-The trace contains tool actions and a final answer. Raw host logs and stderr
-remain available where captured. After all trials finish, the coordinator
-writes `grades.tsv`: `REVIEW` for a trace with a final answer, otherwise
-`BLOCKED`. This checks completeness, not correctness.
+The trace contains paired tool actions and recorded returns plus a final answer.
+Claude's stream is retained; Codex command output and Pi/OMP tool results keep
+their call identities during normalization. Raw host logs and stderr remain
+available where captured. After trials finish, `grades.tsv` records `REVIEW`
+for a final answer, otherwise `BLOCKED`: completeness, not correctness.
 
 Trial and extraction models have separate roles. Claude defaults to Opus for
 trials and Sonnet for extraction. Codex uses Sol and Luna, respectively.
@@ -172,7 +191,9 @@ For example, a tracked instruction edit produces this initial state:
 
 The run keeps `task.md` and `config.json` at its root. Each `before-N/` and
 `after-N/` directory contains `project/`, `trace.jsonl`, and `stderr.log`.
-The configuration records the target path, scenario, and Before/After labels.
+The configuration records the target path, scenario, Before/After labels, and
+validated `purpose`. `--purpose-file` is frozen before trials and excluded from
+trial copies, including when supplied from within the source project.
 Uncommitted setup files do not enter Git-based trials. Required task state must
 already exist in the base project or in a deliberately prepared fixture.
 
@@ -202,11 +223,12 @@ behavior-diff.sh        run-trial.sh          Agent CLI
 The modules below live in the skill's [`scripts/`](../plugin/skills/behavior-diff/scripts/) directory.
 
 - **Model-based interpretation:** `decisions.py` reads the task, trial actions,
-  final answers, and numbered instruction-diff hunks. A separate model extracts
-  choices with named trial assignments, a primary result, supported implications,
-  links to edits, plain-language Summary text, the edit's likely aim, short
-  per-group trial summaries, an optional change explanation, and an attention
-  assessment in the same call.
+  final answers, numbered instruction-diff hunks, frozen purpose, and bounded
+  recorded returns. The same extraction call defines observable target criteria,
+  required evidence, and per-trial outcomes (`met`, `not_met`, `uncertain`, or
+  `unassessable`), alongside choices, primary task result, narrative, and attention.
+  Criteria cover every purpose goal and use the same question on both sides.
+  Correction, new/changed behavior, and preservation are supported separately.
   New raw branches supply `trials`,
   not aggregate counts. The script requires each completed trial exactly once
   per side of every row, derives `n`, and retains both in `decisions.json`.
@@ -225,6 +247,13 @@ The modules below live in the skill's [`scripts/`](../plugin/skills/behavior-dif
   memberships, counts, citations, evidence qualifiers, exact quotes, code,
   and source excerpts. Deterministic assembly and rendering do not humanize
   saved output or post-edit HTML.
+  Before returning the extraction JSON, the extractor refines authored questions,
+  labels, explanations, and findings into concrete, case-specific language.
+  Questions name the actual action or claim and its relevant condition or limit;
+  conclusions state what each side did and what cannot be confirmed. This pass
+  is required with or without Humanizer, within the existing extraction call.
+  It preserves criterion scope and polarity, canonical label matches, evidence
+  qualifiers, and exact excerpts; it does not rewrite rendered artifacts.
   Discovery reads only `humanizer/SKILL.md` in the invoking repository's skill
   roots, then the user's. Claude checks `.claude/skills` before `.agents/skills`
   at each scope; other extraction hosts use `.agents/skills`. Emitted prompts
@@ -243,15 +272,15 @@ The modules below live in the skill's [`scripts/`](../plugin/skills/behavior-dif
 - **Deterministic assembly:** `reporting/load.py` reads saved evidence and
   compares recorded command sequences. `reporting/instruction.py` supplies the
   instruction diff. `reporting/content.py` derives shared wording and evidence
-  limits. `reporting/summary.py` validates narrative and selects the visual lead.
-  With complete evidence, a validated narrative may select any row with changed
-  choice proportions, including mixed or non-primary rows, without changing the
-  primary-result identity. Evidence ranking is a fallback, not a veto on these
-  narratives; unchanged or matching-proportion rows still need to qualify under
-  that ranking. Incomplete evidence suppresses narrative. Mixed-result and
-  single-trial cautions remain visible.
-  It also derives the story's aim from supplied expected behavior or a
-  validated inference whose stored diff matches the current instruction diff.
+  limits. `reporting/target.py` validates purpose, criteria, exact completed-trial
+  membership, trial-local source references, and contiguous final-answer excerpts.
+  A determinate source-consistency judgment requires both a readable recorded
+  return and an output excerpt; unavailable or omitted content cannot supply proof.
+  `reporting/summary.py` leads with valid target assessments, including unchanged
+  or mixed outcomes, instead of ranking incidental changes ahead of the target.
+  Without a valid target assessment, it explicitly says assessment is unavailable
+  and retains underlying comparisons. Task completion remains separate.
+  Incomplete records stay visible in the coverage denominator.
   `reporting/trial_summary.py` validates bounded plain-text trial summaries
   against exact positional record identities; duplicates and invalid entries
   are omitted without losing raw evidence. `reporting/explanation.py` validates
@@ -265,16 +294,18 @@ The modules below live in the skill's [`scripts/`](../plugin/skills/behavior-dif
   without discarding valid comparisons. Canonical report-data parsing rejects
   invalid persisted explanation data. Extraction and loading share
   `read_trial_trace` so they read the same source fields.
-  `reporting/attention.py` validates attention findings against changed choice
-  distributions: unique row references, every exact branch on both sides, two
-  fixed-icon steps per branch, bounded plain text, and compatible evidence kinds.
-  Counts come from canonical rows, not narrative output. References remap through
-  sorted or dropped rows; malformed bundles become unavailable without losing
-  comparisons. A valid assessment with no findings remains distinct from null.
-  Together these modules build schema-v11 `ReportData` in `reporting/schema.py`;
-  `decisions.explanation` and `decisions.attention` are null when unavailable.
-  Canonical parsing rejects malformed non-null attention and older schema versions.
-  Summary counts come from existing decision rows.
+  `reporting/attention.py` validates unique row references, exact branches,
+  evidence kinds, and independent relationship/evidence-status fields. A changed
+  distribution can support an observed or hypothetical consequence. An unchanged
+  row reaches attention only when linked to a target criterion with an observed
+  unmet outcome on both sides, labeled as a pre-existing target problem.
+  Counts come from canonical rows. Malformed bundles become unavailable, never
+  an assessed-empty result. No finding quota applies.
+  These modules build schema-v12 `ReportData`; saved schema-v11 reports migrate
+  explicitly with unavailable target assessment and readable legacy observations.
+  Older decisions lacking the new attention fields show unavailable attention.
+  Purpose, bounded evidence, limits, and assessments persist with decisions and
+  report data; rendering does not reread current source files or infer new claims.
   Decision branches also retain validated trial memberships: exact coverage of
   completed trials on each side, matching counts, and no duplicate or foreign
   identities. Legacy aggregate-only branches show unavailable attribution;
@@ -284,6 +315,42 @@ The modules below live in the skill's [`scripts/`](../plugin/skills/behavior-dif
 Command flow comes from recorded events. Decision comparisons come from model
 interpretation of those events and answers. The report keeps these sources
 distinct. Links between decisions and edits do not prove causality.
+
+### Recorded evidence bounds
+
+`reporting/evidence.py` selects only recorded read/search/list returns and
+conservatively recognized read-only shell commands. Stable IDs use the trial
+name and recorded tool-call ordinal. Source descriptors retain supplied ranges;
+excerpt ranges are character offsets in returned text, **not file line numbers**.
+Text blocks are joined with newlines; images are not sent as text evidence.
+
+Codex keeps the raw shell wrapper alongside its command-flow display text.
+The collector structurally decodes recognized shell command arguments without
+execution; wrapped simple reads remain eligible, while compound commands,
+redirections, substitutions, and non-read commands remain excluded.
+
+Limits are 4,096 Unicode characters per excerpt, 16,384 per trial, 131,072 per
+run, and 128 tool records per trial. Selection uses the saved `grades.tsv`
+inventory (directory fallback only without that inventory) and reserves a share
+of the remaining run budget for every remaining trial in lexical order. Within
+each trial, readable returns share the character budget, redistributing unused
+space from short returns; recorded order breaks one-character remainder ties.
+Each excerpt still takes leading characters. Earlier guide reads cannot exhaust
+the budget before every later source return. This is fair coverage, not a
+relevance ranking: needed facts can still fall outside retained prefixes.
+Overflow, missing returns, tool errors, non-text omissions, and truncation remain
+explicit. Missing assessment content does not prove the agent never received it.
+Questions about what a draft says use output evidence; checking those claims
+against implementation is a separate source-consistency criterion. An observable
+output result neither proves accuracy nor becomes unknown when sources are missing.
+
+Known sensitive paths and recognized quoted or unquoted credential assignments,
+including JSON keys, omit the entire return; email patterns also exclude returns.
+The path exclusion also recognizes Git revision/path delimiters, so reading a
+sensitive file through `git show REV:path` does not bypass that boundary.
+These filters are not a guarantee against arbitrary private prose. No automatic source
+retrieval is authorized. Deterministic checks enforce shape and references, not
+semantic truth, causal attribution, or live extractor adherence.
 
 ## 5. The presentation layer returns evidence to the user
 
@@ -308,17 +375,36 @@ comparison. Model output supplies text and selectors, never markup.
 The edit illustration uses an original solid open-end wrench with a compact head
 and slim handle, not third-party artwork. Check its silhouette in both card
 palettes when changing its geometry.
-Summary and trial-summary instructions require concrete, parallel descriptions
-of the same subject, with the decisive contrast and any unchanged decision
-explicitly stated. Summary selection prefers the observed changed operative rule
-(conditions, timing, scope, or prerequisites) over its downstream outcome, including
-mixed comparisons. Material intervals, deadlines, units, and gates belong in the
-main cards, not only supporting detail. Each card detail must hold for every named trial
-in its selected branch; counts or citations from other rows cannot supply membership.
-The existing scenario supplies task orientation and the skill's role when
-relevant; the headline and side details lead with the practical supported
-contrast. Explanation overview and steps supply context that cannot fit the
-cards. First-use meanings for roles, objects, acronyms, and tables come only
+The Summary headline describes supported observed behavior. A target-assessment
+status never replaces it; missing source evidence must not hide observations
+that final answers or recorded actions support. Without a usable narrative,
+the heading introduces the Before/After comparison without inventing a finding.
+One illustrated Before/After pair shows observed behavior, with the appropriate
+answer, plan, captured-action, or self-reported-action provenance. Extraction
+prefers observations relevant to the purpose, including an already-correct baseline,
+over incidental differences. Separate, unlinked assessment rows retain every
+question and its complete outcome distribution. Changed Yes/No proportions are
+bold; mixed results retain all counts, and unknown results are not treated as No.
+The rows label `unassessable` outcomes “Not enough evidence”, scoped to their
+question rather than promoted to the headline. Excluded recorded evidence is not
+the same as evidence never captured. The report does not automatically approve edits.
+The existing narrative `why` field supplies a short conclusion in “What this means”.
+When purpose is available, extraction connects the observed outcome to that purpose:
+an already-correct baseline, a remaining problem, preservation, or a mixed result.
+It also names when the scenario did not exercise the intended problem or source
+content is insufficient. Additional wording or source reads alone cannot establish
+that the intended fix worked. The conclusion allows up to 480 characters, with
+supporting comparison references; the separate caution remains capped at 240.
+HTML and Markdown retain this conclusion even for an unchanged target. An absent
+conclusion is explicitly unavailable; incomplete trial evidence suppresses it.
+These checks preserve structure and provenance, not interpretation correctness.
+Understand the change starts with readable explanations. For source-checking edits,
+extraction explains the input claim, relevant recorded source facts, and actual
+Before/After deliverables without inventing a conflict. Source reads, self-review
+claims, and output consistent with a source remain distinct observations.
+Criterion reasoning, exact excerpts, source availability, and trial consistency
+are available in closed disclosures in both formats.
+First-use meanings for roles, objects, acronyms, and tables come only
 from supplied evidence, not guessed expansions, authority, or unread contents.
 Narrative preserves overlap and separates source mandates from observed
 responses: an added-instruction disclosure mandate is not an approval mandate,
@@ -328,11 +414,15 @@ in Before. These are extraction policies, not deterministic semantic guarantees;
 the existing validator checks references, choice coverage, and evidence anchors.
 Explanation validation additionally checks bounded narrative, row citations,
 unchanged-row status, and exact example excerpts; it does not prove semantic
-interpretation truth. Summary fallback ranking is unchanged.
+interpretation truth. Legacy comparison ranking is only a fallback when no validated
+narrative selects an observed behavior.
+When target assessment is available, task-completion context stays in the detailed
+comparisons rather than adding another Summary block; mixed primary results still
+appear in the Summary's evidence-limit notices.
 Changed explanations, citations, or presentation must not be described as changed
-actions. When the selected lead is not the primary
-result, `content.primary_result_context` exposes the primary status and full
-distribution beside the cards in both formats. Missing or incomplete evidence
+actions. When a fallback comparison lead is not the primary task result,
+`content.primary_result_context` exposes the primary status and full
+distribution beside those cards in both formats. Missing or incomplete evidence
 cannot become an unchanged-result claim. The primary-result block remains
 derived presentation, not a separate serialized report field.
 The primary-result block is context, not a second navigation choice.
@@ -348,9 +438,9 @@ explanation and source links; only HTML adds the visual walkthrough.
 Behavior diff, Flow diff, Instruction changes, and Trial evidence remain
 separate top-level tabs. Unavailable explanations link to retained evidence
 instead of inferring a no-difference claim or making a new model call.
-Both explanation renderers reuse the Summary's completeness guard: blocked,
-missing, invalid, or dropped trial evidence withholds the saved interpretation
-and shows an explicit coverage notice while retaining evidence navigation.
+The general change explanation retains its completeness guard; incomplete
+records do not erase supported target assessments of other completed trials.
+Target coverage names unassessed records separately from observed failures.
 Plans are not presented as executions. The third Summary section shows relevant
 tradeoffs with Before/After pictures, every branch count, a consequence,
 applicability, an action, and explicit evidence limits. Expected tradeoffs can
@@ -505,6 +595,11 @@ allowlisted v1 package and private multi-response analysis, dispatched through
 copies exact blinded HTML, and retains provenance in a private session receipt;
 packages and response exports stay outside both working trees. The contract and
 commands live in the skill's [workflow reference](../.agents/skills/run-behavior-diff-human-evaluation/references/workflow.md#hosted-package-v1).
+Prepared historical cases also include reviewed `purpose.json` from commit or
+diff context, hashed with the frozen inputs. Existing evaluation sessions without
+that required file fail preparation/frozen-input validation rather than acquiring
+post-result purpose. Their previously saved reports remain readable under the
+report-format policy above.
 The separate site repository owns Firebase runtime/admin tooling; this repository
 has no deployment credentials or live Firebase path. Agent instructions own
 scenario design, question truth, and interpretation; structural validation is

@@ -53,6 +53,7 @@ def prepare_session(root, source, gallery):
                 "task": "Read the skill and explain the synthetic rule.",
             },
         )
+        workflow.save_json(case / "purpose.json", None)
         workflow.save_json(
             case / "question.json",
             {

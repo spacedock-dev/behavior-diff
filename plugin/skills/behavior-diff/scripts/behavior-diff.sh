@@ -6,6 +6,10 @@
 #
 #   behavior-diff.sh --file CLAUDE.md --task "one-line scenario" \
 #       [--trials 3 | --fast] [--model NAME] [--before-file ORIGINAL]
+#       [--purpose-file JSON]
+# Purpose is frozen report/assessment context, never an added trial instruction.
+# Purpose and bounded recorded read/search returns go to the assessment provider
+# and local reports. Supply reviewed safe context; exclusions are not privacy guarantees.
 #
 # Before = the repo at HEAD. After = the same snapshot plus only your
 # working-tree version of that one file — other uncommitted edits stay out.
@@ -21,8 +25,16 @@
 # ${BEHAVIOR_DIFF_HOME:-~/.behavior-diff}/runs.
 set -euo pipefail
 
-file="" task="" trials=3 agent=claude model="" vocab=generic extract_agent="" extract_model="" before_file=""
+file="" task="" trials=3 agent=claude model="" vocab=generic extract_agent="" extract_model="" before_file="" purpose_file=""
 while [ $# -gt 0 ]; do
+  case "$1" in
+    --file | --before-file | --purpose-file | --task | --trials | --model | --agent | --vocab | --extract-agent | --extract-model)
+      if [ $# -lt 2 ] || [ -z "$2" ]; then
+        echo "behavior-diff: $1 needs a value" >&2
+        exit 2
+      fi
+      ;;
+  esac
   case "$1" in
     --file)
       file=$2
@@ -30,6 +42,10 @@ while [ $# -gt 0 ]; do
       ;;
     --before-file)
       before_file=$2
+      shift 2
+      ;;
+    --purpose-file)
+      purpose_file=$2
       shift 2
       ;;
     --task)
@@ -65,7 +81,7 @@ while [ $# -gt 0 ]; do
       shift 2
       ;;
     -h | --help)
-      sed -n '2,21p' "$0"
+      sed -n '2,25p' "$0"
       exit 0
       ;;
     *)
@@ -116,6 +132,19 @@ command -v jq >/dev/null || {
   echo "behavior-diff: jq required" >&2
   exit 3
 }
+scripts=$(cd "$(dirname "$0")" && pwd)
+
+# Validate and freeze purpose before any model discovery or trial launch.
+# Never print rejected content: even a derived purpose can contain secrets.
+purpose=null
+if [ -n "$purpose_file" ]; then
+  [ -f "$purpose_file" ] && [ -r "$purpose_file" ] && [ ! -L "$purpose_file" ] || {
+    echo "behavior-diff: --purpose-file must name a readable regular JSON file, not a symlink" >&2
+    exit 2
+  }
+  purpose=$(python3 "$scripts/purpose.py" "$purpose_file") || exit 2
+  purpose_file=$(cd "$(dirname "$purpose_file")" && pwd -P)/$(basename "$purpose_file")
+fi
 command -v "$agent" >/dev/null || {
   echo "behavior-diff: $agent CLI required (--agent $agent)" >&2
   exit 3
@@ -164,6 +193,17 @@ case "$rel" in /*)
   exit 2
   ;;
 esac
+
+# A supplied context file is not part of either trial's project inputs.
+purpose_rel=""
+if [ -n "$purpose_file" ]; then
+  if [ "$purpose_file" -ef "$abs" ] ||
+    { [ -n "$before_file" ] && [ "$purpose_file" -ef "$before_file" ]; }; then
+    echo "behavior-diff: --purpose-file must not be a Before or After instruction file" >&2
+    exit 2
+  fi
+  case "$purpose_file" in "$repo"/*) purpose_rel=${purpose_file#"$repo"/} ;; esac
+fi
 if [ "$world" = git ] && [ -z "$before_file" ] &&
   git -C "$repo" cat-file -e "HEAD:$rel" 2>/dev/null; then
   if git -C "$repo" diff --quiet HEAD -- "$rel"; then
@@ -195,7 +235,6 @@ else
   fi
 fi
 
-scripts=$(cd "$(dirname "$0")" && pwd)
 if [ "$agent" = codex ]; then
   case "$model" in
     sol | luna) model=$(python3 "$scripts/codex_model.py" "$model") || exit 2 ;;
@@ -220,9 +259,9 @@ case "$before_mode" in
     ;;
 esac
 jq -n --arg f "$rel" --arg task "$task" --arg vocab "$vocab" \
-  --arg title "Behavior Diff — $rel" \
+  --arg title "Behavior Diff — $rel" --argjson purpose "$purpose" \
   --arg before_label "$before_label" --arg after_label "$after_label" \
-  '{title:$title, scenario:$task, expected:null,
+  '{title:$title, scenario:$task, purpose:$purpose,
     target_file:$f, mode:"review", vocab:$vocab,
     before_label:$before_label, after_label:$after_label}' >"$run/config.json"
 
@@ -240,6 +279,21 @@ launch() { # $1 variant, $2 trial index
     local excl="$runs_root"
     case "$runs_root" in "$repo"/*) excl=./${runs_root#"$repo"/} ;; esac
     tar -C "$repo" --exclude .git --exclude "$excl" -cf - . | tar -x -C "$dir/project"
+  fi
+  if [ -n "$purpose_rel" ]; then
+    # HEAD may contain a parent symlink where the working tree has a directory.
+    # Check each parent before removal rather than following it outside the copy.
+    local parent="$dir/project" remaining="$purpose_rel" component
+    while [[ "$remaining" == */* ]]; do
+      component=${remaining%%/*}
+      remaining=${remaining#*/}
+      parent=$parent/$component
+      if [ -L "$parent" ]; then
+        echo "behavior-diff: cannot isolate --purpose-file through a snapshot parent symlink" >&2
+        return 2
+      fi
+    done
+    rm -f -- "$dir/project/$purpose_rel"
   fi
   mkdir -p "$(dirname "$dir/project/$rel")"
   if [ "$1" = after ]; then

@@ -8,6 +8,12 @@ from reporting.attention import AttentionFindingData
 from reporting.illustrations import illustration
 from reporting.instruction import parse_diff_hunks
 from reporting.schema import ReportData
+from reporting.summary import question_distribution, question_distribution_changed
+from reporting.target import (
+    UNAVAILABLE,
+    acceptance,
+    evidence_limit_text,
+)
 
 
 def _diff_line_class(line: str) -> str:
@@ -611,7 +617,7 @@ def _attention_explanation(report: ReportData) -> str:
                     '<article class="attention-explanation-finding">',
                     f"<h4>{html.escape(finding.title)}</h4>",
                     '<section class="attention-interpretation">'
-                    "<h5>Why this difference matters (model interpretation)</h5>",
+                    "<h5>Why this concern matters (model interpretation)</h5>",
                     '<p class="attention-meta">'
                     f'<span class="attention-relationship">{html.escape(relationship)} · </span>'
                     f'<span class="attention-evidence-kind">{html.escape(evidence)}</span></p>',
@@ -674,7 +680,7 @@ def _summary_side(side, label: str) -> str:
 
 def _primary_result_context(report) -> str:
     context = content.primary_result_context(report)
-    if context is None:
+    if context is None or report.decisions.target_assessment is not None:
         return ""
     sides = "".join(
         f"<p><strong>{html.escape(label)}:</strong> {html.escape(text)}</p>"
@@ -685,6 +691,111 @@ def _primary_result_context(report) -> str:
         f"<h4>{html.escape(context.heading)} — {html.escape(context.status)}</h4>"
         f'{sides}<p class="note">{html.escape(context.note)}</p></section>'
     )
+
+
+def _purpose_provenance(report):
+    return "".join(
+        '<p class="note purpose-provenance">'
+        f"Goal {index}: {html.escape(goal.source)} · {html.escape(goal.basis)} · "
+        f"{html.escape(goal.reference)}</p>"
+        for index, goal in enumerate(report.decisions.purpose, 1)
+    )
+
+
+def _target_side(report, criterion, side):
+    return html.escape(
+        question_distribution(criterion, side, getattr(report.variants, side).total)
+    )
+
+
+def _target_summary(report):
+    target = report.decisions.target_assessment
+    if target is None:
+        return f'<p class="note target-unavailable">{html.escape(UNAVAILABLE)}</p>'
+    rows = []
+    for criterion in target.criteria:
+        result = (
+            f"{_target_side(report, criterion, 'before')} → "
+            f"{_target_side(report, criterion, 'after')}"
+        )
+        if question_distribution_changed(
+            criterion, report.variants.before.total, report.variants.after.total
+        ):
+            result = f'<strong class="target-result-changed">{result}</strong>'
+        rows.append(
+            '<tr class="target-criterion">'
+            f"<td>{html.escape(criterion.text)}</td><td>{result}</td></tr>"
+        )
+    return (
+        '<div class="target-checks"><table>'
+        '<thead><tr><th scope="col">What we checked</th>'
+        '<th scope="col">Before → After</th></tr></thead>'
+        f"<tbody>{''.join(rows)}</tbody></table></div>"
+    )
+
+
+def _target_explanation(report):
+    target = report.decisions.target_assessment
+    parts = ['<section class="target-evidence"><h3>What we checked</h3>']
+    if target is None:
+        parts.append(f"<p>{html.escape(UNAVAILABLE)}</p>")
+    else:
+        sources = {entry.id: entry for entry in report.decisions.recorded_evidence}
+        for criterion in target.criteria:
+            parts.append(
+                f"<h4>{html.escape(criterion.text)}</h4>"
+                f"<p>Before: {_target_side(report, criterion, 'before')} · "
+                f"After: {_target_side(report, criterion, 'after')}</p>"
+                f"<p>{html.escape(criterion.required_evidence)}</p>"
+                '<details class="criterion-trials"><summary>Trial-by-trial reasoning and sources</summary>'
+                f"<p>Goal {criterion.goal} · {html.escape(criterion.mode)}</p>"
+                f"<p>{html.escape(acceptance(criterion))}</p>"
+            )
+            for side in ("before", "after"):
+                for trial in getattr(criterion, side):
+                    anchor = html.escape(content.trial_anchor(side, trial.trial))
+                    parts.append(
+                        f'<h5>{side.capitalize()} · <a href="#{anchor}">{html.escape(trial.trial)}</a>'
+                        f" · {html.escape(trial.outcome.replace('_', ' '))}</h5>"
+                        f"<p>{html.escape(trial.explanation)}</p>"
+                    )
+                    parts.append(
+                        '<details class="raw-evidence"><summary>Recorded evidence</summary>'
+                    )
+                    for ref in trial.refs:
+                        entry = sources.get(ref)
+                        if entry is None:
+                            text = trial.output_excerpt
+                            label = (
+                                "Exact final-answer excerpt"
+                                if text
+                                else "Final-answer reference; inspect the full trial evidence"
+                            )
+                        else:
+                            text = entry.text
+                            label = f"{entry.source} · returned characters {entry.range.start}–{entry.range.end} · {entry.status} · {entry.reason}"
+                        parts.append(
+                            f"<figure><figcaption>{html.escape(ref)} · {html.escape(label)}</figcaption>"
+                            f"<pre>{html.escape(text)}</pre></figure>"
+                        )
+                    parts.append("</details>")
+            parts.append("</details>")
+    if report.decisions.recorded_evidence:
+        parts.append(
+            "<details><summary>Recorded source availability and limits</summary>"
+        )
+        parts.append(
+            f"<p>{html.escape(evidence_limit_text(report.decisions.evidence_limits))}</p>"
+        )
+        for entry in report.decisions.recorded_evidence:
+            parts.append(
+                f"<p>{html.escape(entry.id)} · {html.escape(entry.source)} · "
+                f"{html.escape(entry.status)} · {html.escape(entry.reason)}</p>"
+                f"<pre>{html.escape(entry.text)}</pre>"
+            )
+        parts.append("</details>")
+    parts.append("</section>")
+    return "".join(parts)
 
 
 def _change_explanation(report: ReportData) -> str:
@@ -708,6 +819,7 @@ def _change_explanation(report: ReportData) -> str:
             '<div class="empty-state"><h3>Change explanation unavailable</h3>'
             f"<p>{html.escape(notice)}</p></div>"
             + _attention_explanation(report)
+            + _target_explanation(report)
             + navigation
         )
     parts = [
@@ -745,12 +857,13 @@ def _change_explanation(report: ReportData) -> str:
                     f'<span class="evidence-links">{_decision_links(claim.decisions)}</span></li>'
                 )
             parts.append("</ul></section>")
+    parts.append(_target_explanation(report))
     comparisons = content.explanation_comparisons(
         report, tuple(dict.fromkeys(references))
     )
     if comparisons:
         parts.append(
-            '<section class="explanation-consistency"><h3>Consistency across trials</h3>'
+            '<details class="explanation-consistency"><summary>Consistency across trials</summary>'
             '<p class="note">All extracted branches for the cited comparisons are shown, '
             "including minority choices. Before and After trials are independent; "
             "these counts are model extractions, not causal proof.</p>"
@@ -764,10 +877,10 @@ def _change_explanation(report: ReportData) -> str:
             parts.append(
                 f'<span class="evidence-links">{_decision_links((index,))}</span>'
             )
-        parts.append("</section>")
+        parts.append("</details>")
     if explanation.examples:
         parts.append(
-            '<section class="explanation-examples"><h3>From the final answers</h3>'
+            '<details class="explanation-examples"><summary>Exact excerpts from the final answers</summary>'
         )
         for example in explanation.examples:
             anchor = html.escape(content.trial_anchor(example.side, example.trial))
@@ -777,7 +890,7 @@ def _change_explanation(report: ReportData) -> str:
                 f'<a href="#{anchor}">View full trial evidence</a></figcaption>'
                 f"<pre>{html.escape(example.text)}</pre></figure>"
             )
-        parts.append("</section>")
+        parts.append("</details>")
     parts.append(navigation + "</div>")
     return "".join(parts)
 
@@ -790,6 +903,7 @@ def _short_story_summary(report: ReportData) -> str:
         "expected": "Supplied expectation",
         "inferred": "Inferred",
         "unavailable": "Unavailable",
+        "purpose": "Recorded before trials",
     }[intent.source]
     intent_links = '<a href="#instruction-diff">View instruction changes</a>'
     claims = ""
@@ -804,6 +918,12 @@ def _short_story_summary(report: ReportData) -> str:
                 f'<span class="evidence-links">{_decision_links(claim.decisions)}</span>'
                 "</div>"
             )
+    if summary.why is None:
+        claims = (
+            '<p class="note summary-interpretation-unavailable">'
+            "No supported interpretation was supplied; these observations alone "
+            "do not establish the edit's benefit.</p>"
+        ) + claims
     lead_link = (
         '<a class="summary-evidence-button" href="#panel-explanation">'
         'Understand the change <span aria-hidden="true">→</span></a>'
@@ -825,18 +945,19 @@ def _short_story_summary(report: ReportData) -> str:
         f'<nav class="intent-evidence" aria-label="Instruction aim evidence">{intent_links}</nav>'
         "</div>"
         f'<p class="story-intent">{html.escape(intent.text)}</p>'
+        f"{_purpose_provenance(report)}"
         "</div></li>"
         '<li class="story-step"><span class="story-number" aria-hidden="true">2</span>'
         '<div class="story-body"><h3>What the evidence shows</h3>'
         f"{scenario}"
         f'<p class="summary-provenance">{html.escape(summary.evidence_label)}</p>'
-        f'<p class="summary-status">Comparison: {html.escape(summary.status)}</p>'
         '<div class="summary-pair">'
         f"{_summary_side(summary.before, 'Before')}"
         '<span class="summary-arrow" aria-hidden="true">→</span>'
         f"{_summary_side(summary.after, 'After')}</div>"
         f"{_primary_result_context(report)}"
-        '<nav class="evidence-nav" aria-label="Summary evidence">'
+        + _target_summary(report)
+        + '<nav class="evidence-nav" aria-label="Summary evidence">'
         f"{lead_link}</nav>"
         "</div></li>"
         '<li class="story-step story-attention"><span class="story-number" aria-hidden="true">3</span>'

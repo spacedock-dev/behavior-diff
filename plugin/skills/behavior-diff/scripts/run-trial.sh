@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # One behavior-diff trial: launch the chosen agent inside a variant copy and
 # write DIR/trace.jsonl in the claude stream-json shape every reader
-# (grader, render.py, decisions.py) consumes. Codex, Pi, and OMP events are
-# normalized into assistant tool_use lines plus one final result line.
+# (grader, render.py, decisions.py) consumes. Codex, Pi, and OMP events retain
+# paired tool calls/results plus one final result line.
 #
 # Usage: run-trial.sh --agent claude|codex|pi|omp --model M --dir DIR \
 #          --task-file FILE [--allowed CLAUDE_TOOL_LIST] [--trace-dir DIR]
@@ -70,9 +70,9 @@ export BEHAVIOR_DIFF_TRIAL=1
 normalize_pi_omp_json() { # $1 = raw Pi or OMP JSONL
   local raw=$1
   jq -c '
-    select(.type == "tool_execution_start")
-    | {type: "assistant", message: {content: [{
-        type: "tool_use",
+    if .type == "tool_execution_start" then
+      {type: "assistant", message: {content: [{
+        type: "tool_use", id: .toolCallId,
         name: .toolName,
         input: ((.args // {})
           | if (has("file_path") or has("command")) then .
@@ -80,6 +80,13 @@ normalize_pi_omp_json() { # $1 = raw Pi or OMP JSONL
             else .
             end)
       }]}}
+    elif .type == "tool_execution_end" then
+      {type: "user", message: {content: [{
+        type: "tool_result", tool_use_id: .toolCallId,
+        content: (.result.content // null), is_error: (.isError // false),
+        truncated: (.result.details.truncated // false)
+      }]}}
+    else empty end
   ' "$raw" >"$trace_dir/trace.jsonl"
 
   jq -s -c '
@@ -103,8 +110,12 @@ elif [ "$agent" = codex ]; then
   jq -c 'select(.type == "item.completed"
                 and (.item.item_type // .item.type) == "command_execution")
          | {type: "assistant", message: {content: [{type: "tool_use",
-            name: "Bash", input: {command:
-              (.item.command // "" | sub("^/bin/[a-zA-Z]+ -lc "; ""))}}]}}' \
+            id: .item.id, name: "Bash", input: {command:
+              (.item.command // "" | sub("^/bin/[a-zA-Z]+ -lc "; "")),
+              raw_command: (.item.command // "")}}]}},
+           {type: "user", message: {content: [{type: "tool_result",
+            tool_use_id: .item.id, content: (.item.aggregated_output // null),
+            is_error: ((.item.exit_code // 0) != 0)}]}}' \
     "$trace_dir/codex-raw.jsonl" >"$trace_dir/trace.jsonl"
   jq -s -c '[.[] | select(.type == "item.completed"
                           and (.item.item_type // .item.type) == "agent_message")

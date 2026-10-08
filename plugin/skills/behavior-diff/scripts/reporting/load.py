@@ -4,6 +4,7 @@ import json
 import re
 from collections import Counter
 from pathlib import Path
+from dataclasses import replace
 from typing import Optional
 
 from reporting import content
@@ -28,6 +29,13 @@ from reporting.schema import (
 )
 from reporting.summary import build_intent, build_summary, parse_intent, parse_narrative
 from reporting.trial_summary import parse_trial_summaries, trial_group_names
+from reporting.target import (
+    effective_purpose,
+    parse_evidence_limits,
+    parse_purpose,
+    parse_target,
+    persisted_evidence,
+)
 
 
 def load_report(
@@ -54,7 +62,10 @@ def load_report(
             side: {trial.name: trial.final for trial in variant.trials}
             for side, variant in (("before", before), ("after", after))
         },
+        purpose=config.get("purpose"),
     )
+    if not decisions.purpose:
+        decisions = replace(decisions, purpose=parse_purpose(config.get("purpose")))
     task = _task(run, capsule)
     report_content = content.build_content(
         config,
@@ -381,7 +392,14 @@ def _common_prefix(sequences):
 
 
 def _read_decisions(
-    run, before_default, after_default, instruction_diff, groups=(), final_answers=None
+    run,
+    before_default,
+    after_default,
+    instruction_diff,
+    groups=(),
+    final_answers=None,
+    *,
+    purpose=None,
 ):
     path = run / "decisions.json"
     if not path.exists():
@@ -389,14 +407,27 @@ def _read_decisions(
     try:
         raw = json.loads(path.read_text())
         return _convert_decisions(
-            raw, before_default, after_default, instruction_diff, groups, final_answers
+            raw,
+            before_default,
+            after_default,
+            instruction_diff,
+            groups,
+            final_answers,
+            purpose=purpose,
         )
     except (TypeError, ValueError, KeyError):
         return _empty_decisions(before_default, after_default)
 
 
 def _convert_decisions(
-    raw, before_default, after_default, instruction_diff, groups=(), final_answers=None
+    raw,
+    before_default,
+    after_default,
+    instruction_diff,
+    groups=(),
+    final_answers=None,
+    *,
+    purpose=None,
 ):
     if type(raw) is not dict or type(raw.get("chain")) is not list:
         raise ValueError("malformed decisions")
@@ -450,6 +481,20 @@ def _convert_decisions(
     if not _is_int(outcome) or not 1 <= outcome <= len(rows):
         outcome = None
     implications = _decision_implications(raw.get("implications"), len(rows))
+    goals = (
+        parse_purpose({"goals": raw["purpose"]})
+        if raw.get("purpose")
+        else parse_purpose(purpose)
+    )
+    evidence = persisted_evidence(raw.get("recorded_evidence", []))
+    intent = parse_intent(raw.get("intent"), hunk_count)
+    target = parse_target(
+        raw.get("target_assessment"),
+        effective_purpose(goals, intent),
+        final_answers,
+        evidence,
+        rows,
+    )
     return DecisionData(
         rows,
         fork,
@@ -461,10 +506,14 @@ def _convert_decisions(
         outcome,
         implications,
         parse_narrative(raw.get("summary"), rows),
-        parse_intent(raw.get("intent"), hunk_count),
+        intent,
         parse_trial_summaries(raw.get("trial_summaries"), groups),
         parse_explanation(raw.get("explanation"), rows, final_answers),
-        parse_attention(raw.get("attention"), rows),
+        parse_attention(raw.get("attention"), rows, target=target),
+        goals,
+        evidence,
+        target,
+        parse_evidence_limits(raw.get("evidence_limits")),
     )
 
 
