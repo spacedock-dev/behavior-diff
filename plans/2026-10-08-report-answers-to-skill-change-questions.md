@@ -147,8 +147,8 @@ whichever output difference happens to be most visible.
 The replay above had information a normal run does not have. Behavior Diff normally runs
 when the owner is about to commit an edit. At that moment the diff and the current session
 history usually show why the owner made the edit, but nobody knows what later commits
-will fix. Nobody has a ground-truth answer
-for the task either. The gaps below apply to that normal run.
+will fix. Nobody has a ground-truth answer for the task either. The gaps below apply to
+that normal run.
 
 | # | Gap | Current behavior | Required change |
 |---|---|---|---|
@@ -173,6 +173,16 @@ Constraints for gaps 1 and 5:
   the report. It must never enter `--task` or any trial input. Skill step 2 already forbids
   leaking expected behavior into the task; if trials see the purpose, both sides follow it
   and the comparison shows nothing.
+- **Pass a purpose, not the session.** The skill infers one or two sentences of purpose
+  from the session history. It does not pass session text to the runner or extraction,
+  and the report never quotes the session. Session history can contain secrets, customer
+  names, or unrelated work.
+- **Committed edits.** Skill step 1 finds only uncommitted edits. Today, a commit message
+  is available only in a `--before-file` run or a historical replay. Decide whether
+  Behavior Diff should also accept a committed edit directly; this plan does not add that
+  run mode.
+- **Both hosts.** Claude Code and Codex must infer the purpose the same way. Check how each
+  host exposes the current session history before implementation.
 - **Bound the file content in gap 5.** Decide before implementation which files qualify
   (for example, only files the trials actually read), a per-file and total size limit, and
   how to omit secrets or private data. The content is sent to the extraction model and
@@ -341,7 +351,7 @@ new report sections:
 
 - **The intended change:** the edit-specific question and its purpose, attributed appropriately.
 - **What the evidence shows:** the answer about the target behavior, including accurate shared
-  behavior when unchanged. Link the answer to input facts and actual output claims.
+  behavior when unchanged. Link the answer to input content and actual output claims.
 - **What needs your attention:** only decision-relevant consequences or uncertainties.
 - **What this means:** what the comparison supports about accepting the edit, and what remains
   unestablished. Do not turn this into automatic PR approval.
@@ -355,10 +365,10 @@ not repeat the Summary cards. Keep lower-priority differences available in detai
 A reader should be able to answer, without reconstructing raw logs:
 
 1. What problem does this particular commit aim to address?
-2. Which input claim and source content the agent read create that problem?
-3. What did the Before and After drafts actually tell customers?
-4. Did the relevant behavior improve, remain correct, remain incorrect, become worse, or
-   remain unassessable from the available evidence?
+2. Which task input and content the agent read set up that problem?
+3. What did the Before and After agents actually do and say?
+4. Was the targeted mistake fixed, already avoided, still present, worse, or not
+   assessable? For an edit that keeps behavior: preserved, lost, or not assessable.
 5. What matters before accepting the edit, and why?
 6. Which conclusions are observed, inferred (and from which source), or unavailable?
 
