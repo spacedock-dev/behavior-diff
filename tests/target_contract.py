@@ -8,6 +8,7 @@ from dataclasses import asdict, replace
 from html.parser import HTMLParser
 
 from attention_contract import _ReportMarkup, _plain
+from presentation_contract import visible_text
 
 from reporting import content
 from reporting.attention import parse_attention
@@ -51,7 +52,7 @@ def _assert_presentation(reports):
     ):
         report = reports[name]
         for rendered in (render_artifact(report, ""), render_markdown(report)):
-            plain = html.unescape(rendered).replace("\\", "")
+            plain = visible_text(rendered)
             assert report.decisions.narrative.headline in plain
             assert report.summary.why.text in plain
             for side in (report.summary.before, report.summary.after):
@@ -106,7 +107,7 @@ def _assert_presentation(reports):
 
     lost = reports["target-lost-exception"]
     for rendered in (render_artifact(lost, ""), render_markdown(lost)):
-        plain = html.unescape(rendered).replace("\\", "")
+        plain = visible_text(rendered)
         finding = lost.decisions.attention.findings[0]
         assert finding.title in plain
         assert finding.consequence in plain
@@ -397,7 +398,7 @@ def _assert_purpose_conclusion(report, assert_round_trip):
     )
     for specimen in (concluded, observed):
         for rendered in (render_artifact(specimen, ""), render_markdown(specimen)):
-            plain = html.unescape(rendered).replace("\\", "")
+            plain = visible_text(rendered)
             assert text in plain, (
                 "An unchanged observation must retain its supported conclusion."
             )
@@ -564,7 +565,7 @@ def _assert_goal_modes(report):
         assert "lost" not in gap.consequence
         assert "did not meet the preservation target" in gap.consequence
         for rendered in (render_artifact(assessed, ""), render_markdown(assessed)):
-            assert gap.consequence in html.unescape(rendered).replace("\\", "")
+            assert gap.consequence in visible_text(rendered)
 
     raw = json.loads(json.dumps(asdict(report.decisions.target_assessment)))
     for mode in ("correction", "new", "change", "preservation"):

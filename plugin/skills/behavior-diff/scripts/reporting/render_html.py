@@ -14,6 +14,18 @@ from reporting.target import (
     acceptance,
     evidence_limit_text,
 )
+from reporting.version_names import version_name_html
+
+_CONSISTENCY_NOTE = (
+    "All extracted branches for the cited comparisons are shown, including minority "
+    "choices. Before and After trials are independent; these counts are model "
+    "extractions, not causal proof."
+)
+_TRIAL_ALIGNMENT_NOTE = (
+    "Final answers are visible below. Each numbered comparison aligns Before on the "
+    "left and After on the right. Supporting-detail disclosures open both sides "
+    "together; matching numbers do not establish paired execution."
+)
 
 
 def _diff_line_class(line: str) -> str:
@@ -90,7 +102,7 @@ def _trial_group(index, before, after, self_reported: bool, mode: str, summary) 
         actions.append(_trial_cell(trial, side, action))
         commands.append(_trial_cell(trial, side, command_body))
     summary_intro = (
-        f'<p class="trial-change-takeaway">{escaped(summary.takeaway)}</p>'
+        f'<p class="trial-change-takeaway">{version_name_html(summary.takeaway)}</p>'
         if summary is not None
         else f'<p class="note trial-change-unavailable">{escaped(content.TRIAL_SUMMARY_UNAVAILABLE)}</p>'
     )
@@ -99,7 +111,7 @@ def _trial_group(index, before, after, self_reported: bool, mode: str, summary) 
             _trial_cell(
                 trial,
                 side,
-                f'<p class="trial-change-description">{escaped(sentence)}</p>',
+                f'<p class="trial-change-description">{version_name_html(sentence)}</p>',
             )
             for (side, trial), sentence in zip(trials, (summary.before, summary.after))
         )
@@ -107,7 +119,7 @@ def _trial_group(index, before, after, self_reported: bool, mode: str, summary) 
         else ""
     )
     caveat = (
-        f'<p class="note trial-change-caveat">{escaped(summary.caveat)}</p>'
+        f'<p class="note trial-change-caveat">{version_name_html(summary.caveat)}</p>'
         if summary is not None and summary.caveat
         else ""
     )
@@ -261,7 +273,7 @@ def _decision_progression(report) -> str:
             if row.decision and row.decision != title
             else ""
         )
-        note = f'<p class="dnote">{html.escape(row.note)}</p>' if row.note else ""
+        note = f'<p class="dnote">{version_name_html(row.note)}</p>' if row.note else ""
         nodes.append(
             f'<li class="decision-step"><details class="decision-row decision-{status.lower().replace(" ", "-")}{final_class}" '
             f'id="decision-{index}">'
@@ -292,7 +304,7 @@ def _decision_progression(report) -> str:
         '<button type="button" data-evidence-expand="true" aria-controls="decision-list">Expand all</button>'
         '<button type="button" data-evidence-expand="false" aria-controls="decision-list">Collapse all</button>'
         "</div></div>"
-        f'<p class="note" id="decision-progression-note">{html.escape(content.DECISION_PROGRESSION_NOTE)}</p>'
+        f'<p class="note" id="decision-progression-note">{version_name_html(content.DECISION_PROGRESSION_NOTE)}</p>'
         f'<p class="note">{html.escape(content.TRIAL_COUNT_NOTE)}</p>'
         '<ol class="decision-path" id="decision-list" role="list" aria-describedby="decision-progression-note">'
         f"{''.join(nodes)}</ol></section>"
@@ -502,8 +514,8 @@ def _attention_side(report, finding: AttentionFindingData, side: str) -> str:
 def _attention_guidance(finding: AttentionFindingData) -> str:
     return (
         '<dl class="attention-guidance"><dt>Matters if</dt>'
-        f"<dd>{html.escape(finding.matters_if)}</dd><dt>What you can do</dt>"
-        f"<dd>{html.escape(finding.next_step)}</dd></dl>"
+        f"<dd>{version_name_html(finding.matters_if)}</dd><dt>What you can do</dt>"
+        f"<dd>{version_name_html(finding.next_step)}</dd></dl>"
     )
 
 
@@ -514,7 +526,7 @@ def _attention_notice(attention) -> str:
             f'<div class="attention-unavailable"><p>{html.escape(content.ATTENTION_UNAVAILABLE_NOTE)}</p></div>'
         )
     assessment = (
-        f'<p class="attention-assessment">{html.escape(attention.assessment)}</p>'
+        f'<p class="attention-assessment">{version_name_html(attention.assessment)}</p>'
     )
     if not attention.findings:
         assessment += f'<div class="attention-empty"><p>{html.escape(content.ATTENTION_EMPTY_NOTE)}</p></div>'
@@ -526,7 +538,6 @@ def _attention_finding_summary(report, finding: AttentionFindingData) -> str:
         finding, report.metadata.trace_source
     )
     body_id = f"attention-body-{finding.decision}"
-    anchor = content.attention_finding_anchor(finding.decision)
     return (
         '<article class="attention-finding">'
         '<header class="attention-heading">'
@@ -534,32 +545,27 @@ def _attention_finding_summary(report, finding: AttentionFindingData) -> str:
         '<button class="attention-dismiss" type="button" data-attention-dismiss '
         f'aria-expanded="true" aria-controls="{body_id}" hidden>Not relevant here</button></header>'
         f'<div class="attention-body" id="{body_id}" data-attention-body>'
-        f'<p class="attention-consequence">{html.escape(finding.consequence)}</p>'
+        f'<p class="attention-consequence">{version_name_html(finding.consequence)}</p>'
         '<p class="attention-meta">'
         f'<span class="attention-relationship">{html.escape(relationship)} · </span>'
         f'<span class="attention-evidence-kind">{html.escape(evidence)}</span></p>'
-        f'<p class="attention-limit"><strong>Limit:</strong> {html.escape(finding.limit)}</p>'
-        f'<p class="attention-next"><strong>What you can do:</strong> {html.escape(finding.next_step)}</p>'
-        '<nav class="attention-finding-nav" aria-label="Concern evidence">'
-        f'<a href="#{anchor}">See the evidence for this concern <span aria-hidden="true">→</span></a>'
-        "</nav></div></article>"
+        f'<p class="attention-limit"><strong>Limit:</strong> {version_name_html(finding.limit)}</p>'
+        f'<p class="attention-next"><strong>What you can do:</strong> {version_name_html(finding.next_step)}</p>'
+        "</div></article>"
     )
 
 
 def _attention_target_gap(report, number: int) -> str:
     gap = content.target_gap(report, number)
-    anchor = content.target_criterion_anchor(number)
     return (
         '<article class="attention-finding attention-target-gap">'
         f'<header class="attention-heading"><h4>{html.escape(gap.title)}</h4></header>'
         '<div class="attention-body">'
-        f'<p class="attention-target-result">{html.escape(gap.result)}</p>'
-        f'<p class="attention-consequence">{html.escape(gap.consequence)}</p>'
+        f'<p class="attention-target-result">{version_name_html(gap.result)}</p>'
+        f'<p class="attention-consequence">{version_name_html(gap.consequence)}</p>'
         f'<p class="attention-meta">{html.escape(content.ATTENTION_TARGET_GAP_NOTE)}</p>'
-        f'<p class="attention-next"><strong>What you can do:</strong> {html.escape(gap.next_step)}</p>'
-        '<nav class="attention-finding-nav" aria-label="Target check evidence">'
-        f'<a href="#{anchor}">See the target check <span aria-hidden="true">→</span></a>'
-        "</nav></div></article>"
+        f'<p class="attention-next"><strong>What you can do:</strong> {version_name_html(gap.next_step)}</p>'
+        "</div></article>"
     )
 
 
@@ -616,7 +622,7 @@ def _attention_branch_evidence(report, finding: AttentionFindingData) -> str:
         )
     return (
         '<section class="attention-observed-evidence"><h5>Observed branch evidence</h5>'
-        f'<p class="note">{html.escape(content.ATTENTION_COUNT_NOTE)}</p>'
+        f'<p class="note">{version_name_html(content.ATTENTION_COUNT_NOTE)}</p>'
         + "".join(sides)
         + "</section>"
     )
@@ -647,13 +653,13 @@ def _attention_explanation(report: ReportData) -> str:
             [
                 f'<article class="attention-explanation-finding" id="{anchor}" tabindex="-1">',
                 f"<h4>{html.escape(finding.title)}</h4>",
-                f'<p class="attention-consequence">{html.escape(finding.consequence)}</p>',
+                f'<p class="attention-consequence">{version_name_html(finding.consequence)}</p>',
                 '<section class="attention-interpretation">'
                 "<h5>Why this concern matters (model interpretation)</h5>",
                 '<p class="attention-meta">'
                 f'<span class="attention-relationship">{html.escape(relationship)} · </span>'
                 f'<span class="attention-evidence-kind">{html.escape(evidence)}</span></p>',
-                f"<p>{html.escape(finding.explanation)}</p>"
+                f"<p>{version_name_html(finding.explanation)}</p>"
                 f"{_attention_guidance(finding)}</section>",
                 '<div class="attention-pair">'
                 f"{_attention_side(report, finding, 'before')}"
@@ -666,7 +672,7 @@ def _attention_explanation(report: ReportData) -> str:
                 '<section class="attention-context"><h5>Related context (model interpretation)</h5><ul>'
             )
             parts.extend(
-                f"<li>{html.escape(claim.text)} "
+                f"<li>{version_name_html(claim.text)} "
                 f'<span class="attention-context-citations">({_decision_links(claim.decisions)})</span></li>'
                 for claim in finding.context
             )
@@ -674,7 +680,7 @@ def _attention_explanation(report: ReportData) -> str:
         parts.extend(
             [
                 '<section class="attention-uncertainty"><h5>Limits and uncertainty</h5>'
-                f'<p class="attention-limit">{html.escape(finding.limit)}</p></section>',
+                f'<p class="attention-limit">{version_name_html(finding.limit)}</p></section>',
                 '<details class="attention-evidence"><summary>Check the evidence</summary>',
                 f'<nav class="evidence-nav" aria-label="Attention finding evidence">{_decision_links(references)}</nav>',
                 "</details></article>",
@@ -701,7 +707,7 @@ def _summary_start(report, side: str) -> str:
     )
     return (
         '<div class="summary-start">'
-        f'<p class="summary-start-text">{html.escape(start.text)}</p>'
+        f'<p class="summary-start-text">{version_name_html(start.text)}</p>'
         f'<p class="summary-start-source">{html.escape(start.source)}</p>'
         f"{arrow}</div>"
     )
@@ -712,7 +718,7 @@ def _summary_side(report, side: str) -> str:
     label = side.capitalize()
     choices = []
     for choice in data.choices:
-        detail = f"<p>{html.escape(choice.detail)}</p>" if choice.detail else ""
+        detail = f"<p>{version_name_html(choice.detail)}</p>" if choice.detail else ""
         choices.append(
             '<li class="summary-choice">'
             f"<h5>{html.escape(choice.label)}</h5>{detail}"
@@ -785,7 +791,7 @@ def _target_summary(report, target):
             result = f'<strong class="target-result-changed">{result}</strong>'
         rows.append(
             '<tr class="target-criterion">'
-            f"<td>{html.escape(criterion.text)}</td><td>{result}</td></tr>"
+            f"<td>{version_name_html(criterion.text)}</td><td>{result}</td></tr>"
         )
     return (
         '<div class="target-checks"><table>'
@@ -807,12 +813,12 @@ def _target_explanation(report):
             anchor = content.target_criterion_anchor(number)
             parts.append(
                 f'<h4 id="{anchor}" tabindex="-1">{html.escape(criterion.text)}</h4>'
-                f"<p>Before: {_target_side(report, criterion, 'before')} · "
-                f"After: {_target_side(report, criterion, 'after')}</p>"
-                f"<p>{html.escape(criterion.required_evidence)}</p>"
+                f"<p>{version_name_html('Before')}: {_target_side(report, criterion, 'before')} · "
+                f"{version_name_html('After')}: {_target_side(report, criterion, 'after')}</p>"
+                f"<p>{version_name_html(criterion.required_evidence)}</p>"
                 '<details class="criterion-trials"><summary>Trial-by-trial reasoning and sources</summary>'
                 f"<p>Goal {criterion.goal} · {html.escape(criterion.mode)}</p>"
-                f"<p>{html.escape(acceptance(criterion))}</p>"
+                f"<p>{version_name_html(acceptance(criterion))}</p>"
             )
             for side in ("before", "after"):
                 for trial in getattr(criterion, side):
@@ -820,7 +826,7 @@ def _target_explanation(report):
                     parts.append(
                         f'<h5>{side.capitalize()} · <a href="#{anchor}">{html.escape(trial.trial)}</a>'
                         f" · {html.escape(trial.outcome.replace('_', ' '))}</h5>"
-                        f"<p>{html.escape(trial.explanation)}</p>"
+                        f"<p>{version_name_html(trial.explanation)}</p>"
                     )
                     parts.append(
                         '<details class="raw-evidence"><summary>Recorded evidence</summary>'
@@ -888,7 +894,7 @@ def _change_explanation(report: ReportData) -> str:
     parts = [
         '<div class="change-explanation"><p class="explanation-kicker">Understand the change</p>',
         f'<h2 class="explanation-headline">{html.escape(explanation.headline)}</h2>',
-        f'<p class="explanation-overview">{html.escape(explanation.overview)}</p>',
+        f'<p class="explanation-overview">{version_name_html(explanation.overview)}</p>',
         f'<p class="note">{html.escape(content.INTERPRETATION_NOTE)}</p>',
         '<ol class="explanation-steps" role="list">',
     ]
@@ -899,10 +905,10 @@ def _change_explanation(report: ReportData) -> str:
             '<li class="explanation-step">'
             f'<h3><span class="explanation-number" aria-hidden="true">{number}</span>'
             f'{html.escape(step.title)}</h3><div class="explanation-pair">'
-            f'<section class="explanation-side before"><h4>Before</h4><p>{html.escape(step.before)}</p></section>'
-            f'<section class="explanation-side after"><h4>After</h4><p>{html.escape(step.after)}</p></section>'
+            f'<section class="explanation-side before"><h4>Before</h4><p>{version_name_html(step.before)}</p></section>'
+            f'<section class="explanation-side after"><h4>After</h4><p>{version_name_html(step.after)}</p></section>'
             '</div><div class="explanation-meaning"><h4>What this means</h4>'
-            f"<p>{html.escape(step.meaning)}</p>"
+            f"<p>{version_name_html(step.meaning)}</p>"
             f'<span class="evidence-links">{_decision_links(step.decisions)}</span></div></li>'
         )
     parts.append("</ol>")
@@ -916,7 +922,7 @@ def _change_explanation(report: ReportData) -> str:
             for claim in claims:
                 references.extend(claim.decisions)
                 parts.append(
-                    f"<li>{html.escape(claim.text)}"
+                    f"<li>{version_name_html(claim.text)}"
                     f'<span class="evidence-links">{_decision_links(claim.decisions)}</span></li>'
                 )
             parts.append("</ul></section>")
@@ -927,9 +933,7 @@ def _change_explanation(report: ReportData) -> str:
     if comparisons:
         parts.append(
             '<details class="explanation-consistency"><summary>Consistency across trials</summary>'
-            '<p class="note">All extracted branches for the cited comparisons are shown, '
-            "including minority choices. Before and After trials are independent; "
-            "these counts are model extractions, not causal proof.</p>"
+            f'<p class="note">{version_name_html(_CONSISTENCY_NOTE)}</p>'
         )
         for index, title, sides in comparisons:
             parts.append(f"<h4>{html.escape(title)}</h4>")
@@ -961,8 +965,7 @@ def _change_explanation(report: ReportData) -> str:
 def _summary_claim(label: str, claim, css_class: str) -> str:
     return (
         f'<div class="{css_class}"><strong>{label}</strong>'
-        f"<p>{html.escape(claim.text)}</p>"
-        f'<span class="evidence-links">{_decision_links(claim.decisions)}</span>'
+        f"<p>{version_name_html(claim.text)}</p>"
         "</div>"
     )
 
@@ -996,11 +999,18 @@ def _short_story_summary(report: ReportData) -> str:
         '<a class="summary-evidence-button" href="#panel-explanation">'
         'Understand the change <span aria-hidden="true">→</span></a>'
     )
-    notices = "".join(f"<li>{html.escape(note)}</li>" for note in summary.notices)
+    notices = "".join(f"<li>{version_name_html(note)}</li>" for note in summary.notices)
     scenario = (
-        f'<p class="summary-context">{html.escape(summary.scenario)}</p>'
+        f'<p class="summary-context">{version_name_html(summary.scenario)}</p>'
         if summary.scenario
         else ""
+    )
+    # Label only a model summary; recorded goals and supplied text stay exact.
+    intent_text = (
+        version_name_html(intent.text)
+        if report.intent.source == "purpose"
+        and report.decisions.purpose_summary is not None
+        else html.escape(intent.text)
     )
     return (
         '<div class="short-story-summary">'
@@ -1013,7 +1023,7 @@ def _short_story_summary(report: ReportData) -> str:
         f"{_info('intent-info', intent.label, f'<p>{html.escape(intent.note)}</p>')}"
         f'<nav class="intent-evidence" aria-label="Instruction aim evidence">{intent_links}</nav>'
         "</div>"
-        f'<p class="story-intent">{html.escape(intent.text)}</p>'
+        f'<p class="story-intent">{intent_text}</p>'
         f"{case_context}"
         "</div></li>"
         '<li class="story-step"><span class="story-number" aria-hidden="true">2</span>'
@@ -1153,10 +1163,8 @@ def render_artifact(report: ReportData, css: str) -> str:
     )
     trials_html = (
         f'<h2 class="section-label">{escaped(content.TRIAL_EVIDENCE_HEADING)}</h2>'
-        f'<p class="sub">{escaped(content.trial_evidence_note(self_reported))}</p>'
-        '<p class="note">Final answers are visible below. Each numbered comparison aligns '
-        "Before on the left and After on the right. Supporting-detail disclosures open both "
-        "sides together; matching numbers do not establish paired execution.</p>"
+        f'<p class="sub">{version_name_html(content.trial_evidence_note(self_reported))}</p>'
+        f'<p class="note">{version_name_html(_TRIAL_ALIGNMENT_NOTE)}</p>'
         f'<div class="trial-pair trial-overview">{trial_overview}</div>'
         f'<nav class="record-links" aria-label="Jump to trial">{_trial_group_links(report)}</nav>'
         f"{trial_groups}"
@@ -1185,14 +1193,14 @@ def render_artifact(report: ReportData, css: str) -> str:
                 f'<p class="interpretation-note">{escaped(content.INTERPRETATION_NOTE)}</p><ul>'
             )
             explanation += "".join(
-                f"<li>{escaped(claim.text)}"
+                f"<li>{version_name_html(claim.text)}"
                 f'<span class="evidence-links">{_decision_links(claim.decisions)}</span></li>'
                 for claim in decisions.implications
             )
             if decisions.fork_note:
                 fork_link = _decision_links((decisions.fork,)) if decisions.fork else ""
                 explanation += (
-                    f"<li>{escaped(decisions.fork_note)}"
+                    f"<li>{version_name_html(decisions.fork_note)}"
                     f'<span class="evidence-links">{fork_link}</span></li>'
                 )
             explanation += "</ul></div>"
@@ -1210,7 +1218,7 @@ def render_artifact(report: ReportData, css: str) -> str:
             '<div class="comparison-heading-with-info">'
             f'<h2 id="behavior-diff-heading">{escaped(report_content.decision_heading)}</h2>'
             f"{_info('pop-decision', 'Behavior comparison labels', _tag_legend(report_content.tag_legend))}</div>"
-            f'<p class="tab-overview">{escaped(content.decision_overview(report))}</p>'
+            f'<p class="tab-overview">{version_name_html(content.decision_overview(report))}</p>'
             f'<p class="sub">{escaped(report_content.decision_blurb)}</p>'
             f"{limitation}"
             f"{_decision_progression(report)}"
@@ -1271,7 +1279,7 @@ def render_artifact(report: ReportData, css: str) -> str:
             f"{_info('pop-flow', content.flow_kinds_heading(flow.kinds).rstrip(':'), kinds_html)}</div>"
             '<section class="progression" id="flow-progression" tabindex="-1" aria-labelledby="flow-progression-heading">'
             '<h2 class="comparison-heading" id="flow-progression-heading">Recorded command sequences</h2>'
-            f'<p class="note">{escaped(content.FLOW_PROGRESSION_NOTE)}</p>'
+            f'<p class="note">{version_name_html(content.FLOW_PROGRESSION_NOTE)}</p>'
             '<div class="flow-lanes">'
             f"{_flow_lane(before, 'before', 'Before')}"
             f"{_flow_lane(after, 'after', 'After')}</div></section>"
@@ -1306,7 +1314,11 @@ def render_artifact(report: ReportData, css: str) -> str:
         + "</p>"
     )
     result = report.result
-    limits_html = "".join(f"<li>{escaped(limit)}</li>" for limit in result.limits)
+    # A supplied expectation can contain its own quotes; do not infer spans inside it.
+    limits_html = "".join(
+        f"<li>{escaped(limit) if report_content.expected and report_content.expected in limit else version_name_html(limit)}</li>"
+        for limit in result.limits
+    )
     summary_html = f"""{_short_story_summary(report)}
 <p class="note summary-boundary">{escaped(report_content.boundary)}</p>
 <details class="summary-details"><summary>Full scenario and expected behavior</summary>

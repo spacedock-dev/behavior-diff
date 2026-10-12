@@ -35,6 +35,10 @@ from report_fixtures import SCENARIOS, build_reports  # noqa: E402
 from explanation_contract import assert_change_explanations  # noqa: E402
 from attention_contract import assert_attention_reports  # noqa: E402
 from target_contract import assert_target_reports  # noqa: E402
+from presentation_contract import (  # noqa: E402
+    assert_summary_detail_links,
+    assert_version_labels,
+)
 
 
 def synthetic_raw():
@@ -2171,6 +2175,8 @@ def assert_gallery_reports():
             assert_unchanged_scripts,
         )
         assert_target_reports(reports, root, assert_round_trip)
+        assert_summary_detail_links(reports)
+        assert_version_labels(reports)
 
     with tempfile.TemporaryDirectory() as directory:
         root = Path(directory)

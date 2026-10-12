@@ -434,7 +434,6 @@ def _attention_shape(body):
                     ("p", "attention-consequence"),
                     ("p", "attention-meta"),
                     ("p", "attention-next"),
-                    ("nav", "attention-finding-nav"),
                 ],
             )[2]
             if _children(note):
@@ -448,7 +447,6 @@ def _attention_shape(body):
                 ("p", "attention-meta"),
                 ("p", "attention-limit"),
                 ("p", "attention-next"),
-                ("nav", "attention-finding-nav"),
             ],
         )[1]
         _shape(
@@ -463,7 +461,7 @@ def _attention_shape(body):
 
 
 def _claim_shape(claim):
-    _shape(claim, [("strong", None), ("p", None), ("span", "evidence-links")])
+    _shape(claim, [("strong", None), ("p", None)])
 
 
 def _intent_case_context(body, source_intents):

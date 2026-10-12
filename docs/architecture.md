@@ -411,6 +411,17 @@ It also names when the scenario did not exercise the intended problem or source
 content is insufficient. Additional wording or source reads alone cannot establish
 that the intended fix worked. The conclusion allows up to 480 characters, with
 supporting comparison references; the separate caution remains capped at 240.
+The HTML Summary shows only one detail link per linked story section: Instruction
+changes for the aim, Understand the change for observed behavior, and the attention
+assessment for concerns. Inline comparison and per-finding links stay out of the
+Summary; detailed views retain evidence navigation and stored references.
+In HTML explanatory prose, `reporting/version_names.py` emphasizes clear **Before**
+and **After** version references without changing their text or surrounding font
+size. It leaves ordinary temporal openings and ambiguous references plain.
+Quoted/code spans, identifiers, URLs, recorded outputs, and frozen instruction
+text stay untouched. This is deterministic presentation, not a model judgment;
+Markdown and stored report data remain unchanged. Blinded HTML exports retain
+the safe emphasis while preserving their existing evidence and privacy boundaries.
 The final Summary section keeps that caution and one-scenario/noncausal notices
 visible. Uncertain or unassessable target checks add a notice even without an
 authored caution. Later revisions are mentioned only when supplied evidence
@@ -462,7 +473,7 @@ The general change explanation retains its completeness guard; incomplete
 records do not erase supported target assessments of other completed trials.
 Target coverage names unassessed records separately from observed failures.
 Plans are not presented as executions. The third Summary section gives concise
-consequences, actions, and essential evidence limits, each linked to its detail.
+consequences, actions, and essential evidence limits with one section-level detail link.
 Findings linked to unmet After criteria come first. If no finding covers an
 unmet criterion, a deterministic item retains its outcome distribution and
 acceptance question without inventing a cause or explanation. Other findings
@@ -471,7 +482,7 @@ neither suppresses an observed target failure.
 Attention action labels retain trace provenance: self-reported actions are
 explicitly not independently captured command evidence. HTML, Markdown, and
 blind Summary exports preserve this qualification.
-Section and finding links open supporting attention details inside Understand
+The section link opens supporting attention details inside Understand
 the change, preserving the original explanation steps. Details hold the full
 branch pictures, applicability, reasoning, counts, named trials, cited context,
 and uncertainty. Raw comparisons stay inside closed **Check the evidence**
