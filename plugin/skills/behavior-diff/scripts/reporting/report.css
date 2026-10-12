@@ -436,7 +436,7 @@ details { margin-bottom:.25rem; }
 .summary-start-arrow { display:block; font-size:28px; line-height:1.2; margin:4px 0 0; }
 .summary-case-context { border-left:3px solid #137780; background:#edf4f5;
   border-radius:0 6px 6px 0; padding:12px 18px; margin:16px 0 0; max-width:780px; }
-.summary-case-context strong { font-size:13px; }
+.summary-case-context > strong { font-size:13px; }
 .summary-case-context p { font-size:16px; line-height:1.6; margin:6px 0 0; }
 .target-checks { margin:18px 0; overflow-x:auto; }
 .target-checks table { width:100%; border-collapse:collapse; font-size:14px; }
@@ -446,6 +446,8 @@ details { margin-bottom:.25rem; }
 .target-checks td { font-weight:400; }
 .target-checks th:first-child { width:50%; }
 .target-result-changed { font-weight:750; color:var(--ink); }
+/* Version names in prose keep the surrounding size; only the weight changes. */
+.version-label { font-size:inherit; font-weight:700; }
 .target-evidence { margin:1.5rem 0; }
 .criterion-trials, .raw-evidence { margin:1rem 0; }
 .criterion-trials > summary, .raw-evidence > summary,
@@ -459,7 +461,7 @@ details { margin-bottom:.25rem; }
   font-size:13px; font-weight:700; }
 .summary-why, .summary-caution { display:grid; grid-template-columns:110px minmax(0, 1fr);
   align-items:baseline; gap:16px; margin:0 0 14px; }
-.summary-why strong, .summary-caution strong { font-size:13px; }
+.summary-why > strong, .summary-caution > strong { font-size:13px; }
 .summary-why p { font-size:18px; line-height:1.5; margin:0; }
 .summary-caution { font-size:14px; color:#685835; line-height:1.6; }
 .summary-caution p { margin:0; }
@@ -594,8 +596,6 @@ details { margin-bottom:.25rem; }
 .attention-next { font-size:14px; line-height:1.6; color:#142b35; margin:10px 0 0; }
 .attention-target-result { font-size:14px; font-weight:700; color:#142b35;
   font-variant-numeric:tabular-nums; margin:12px 0 0; }
-.attention-finding-nav a { display:inline-block; padding:10px 0 0; font-size:13px;
-  font-weight:700; }
 .story-attention .attention-finding + .attention-finding .attention-heading h4 {
   font-size:18px; }
 .attention-explanation-finding:target, .target-evidence h4:target {

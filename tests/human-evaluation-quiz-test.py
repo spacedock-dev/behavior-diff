@@ -484,6 +484,69 @@ class ReportAndServerTests(unittest.TestCase):
                 self.assertEqual(headings(blinded), original_headings[1:])
                 self.assertNotIn(original_headings[0], quiz._plain(blinded))
 
+    def test_version_labels_survive_blinding_with_unchanged_text(self):
+        def labelled(roots):
+            """Each element that emphasizes a version name, with its full text."""
+            return sorted(
+                (node.tag, node.attrs.get("class", ""), quiz._plain(node), names)
+                for root in roots
+                for node in quiz._walk(root)
+                for names in [
+                    tuple(
+                        quiz._plain(child)
+                        for child in quiz._children(node)
+                        if child.tag == "strong" and child.has_class("version-label")
+                    )
+                ]
+                if names
+            )
+
+        exported = 0
+        for report in sorted(self.gallery.glob("*/report.html")):
+            with self.subTest(scenario=report.parent.name):
+                source = report.read_text()
+                nodes = list(quiz._walk(quiz._ReportParser().finish(source)))
+                panel = quiz._single(
+                    [node for node in nodes if node.attrs.get("id") == "panel-summary"],
+                    "summary panel",
+                )
+                summary = list(quiz._walk(panel))
+                steps = [node for node in summary if node.has_class("story-step")]
+                # Blinding drops the intended-change step but keeps its case context.
+                kept = steps[1:] + [
+                    node
+                    for node in summary
+                    if any(
+                        node.has_class(name)
+                        for name in (
+                            "summary-case-context",
+                            "summary-boundary",
+                            "evidence-limits",
+                        )
+                    )
+                ]
+                blinded = quiz._ReportParser().finish(quiz._blinded_report(source))
+                expected = labelled(kept)
+                self.assertEqual(labelled([blinded]), expected)
+                for *_, names in expected:
+                    self.assertTrue(set(names) <= {"Before", "After"})
+                    exported += len(names)
+        self.assertTrue(exported, "No saved Summary exported a version label.")
+        label = 'The <strong class="version-label">After</strong> draft'
+        source = (self.gallery / "target-additional/report.html").read_text()
+        self.assertIn(label, quiz._blinded_report(source))
+        hostile = source.replace(
+            label,
+            'The <strong class="version-label" style="font-size:40px" '
+            'onclick="leaked()">After</strong> draft',
+            1,
+        )
+        self.assertNotEqual(source, hostile)
+        blinded = quiz._blinded_report(hostile)
+        self.assertIn(label, blinded)
+        self.assertNotIn("leaked", blinded)
+        self.assertNotIn("font-size:40px", blinded)
+
     def test_old_summary_shapes_and_wrapper_recovery_are_rejected(self):
         source = (self.gallery / "changed-result/report.html").read_text()
         # v1 trees: no limits step, a target table in evidence, or extra disclosures.
@@ -865,7 +928,6 @@ class ReportAndServerTests(unittest.TestCase):
             "attention-consequence",
             "attention-limit",
             "attention-next",
-            "attention-finding-nav",
             "attention-relationship",
             "attention-evidence-kind",
         ):
