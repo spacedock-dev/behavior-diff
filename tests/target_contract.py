@@ -6,6 +6,8 @@ import json
 from dataclasses import asdict, replace
 from html.parser import HTMLParser
 
+from attention_contract import _ReportMarkup, _plain
+
 from reporting.attention import parse_attention
 from reporting.explanation import parse_explanation
 from reporting.load import load_report
@@ -53,25 +55,30 @@ def _assert_presentation(reports):
             for side in (report.summary.before, report.summary.after):
                 assert all(choice.label in plain for choice in side.choices)
             assert "Based on final answers" in plain
-        artifact = render_artifact(report, "")
-        table = artifact.split('<div class="target-checks">', 1)[1].split(
-            "</table>", 1
-        )[0]
-        assert "<a " not in table and "<svg" not in table
-        assert artifact.count('class="summary-card ') == 2
-        assert ("target-result-changed" in table) == (name == "target-mixed")
-        markdown = render_markdown(report)
-        row = next(
-            line
-            for line in markdown.splitlines()
-            if line.startswith("| Customer claims")
-        )
-        assert ("**" in row) == (name == "target-mixed")
+        markup = _ReportMarkup(render_artifact(report, ""))
+        summary = markup.select(anchor="panel-summary")[0]
+        detail = markup.select(anchor="panel-explanation")[0]
+        assert not markup.select(summary, tag="table")
+        assert report.summary.context.text in _plain(summary)
+        assert report.summary.why.text in _plain(summary)
+        for side in ("before", "after"):
+            card = markup.select(summary, class_name=f"summary-{side}")[0]
+            value = getattr(report.summary, side)
+            assert value.start.text in _plain(card)
+            for choice in value.choices:
+                assert choice.label in _plain(card)
+                assert f"{choice.count} of {value.total} trials" in _plain(card)
+        for link in markup.select(summary, tag="a"):
+            href = link["attrs"].get("href", "")
+            assert href.startswith("#") and markup.select(anchor=href[1:])
         if name == "target-mixed":
-            assert "No (3/3) → Yes (2/3); No (1/3)" in html.unescape(table)
+            assert "No (3/3) → Yes (2/3); No (1/3)" in _plain(detail)
+            attention = markup.select(summary, class_name="story-attention")[0]
+            assert "No (1/3)" in _plain(attention)
         if name == "target-insufficient":
-            assert "Not enough evidence (3/3)" in html.unescape(table)
-            assert "Yes (" not in table and "No (" not in table
+            assert "Not enough evidence (3/3)" in _plain(detail)
+        for criterion in report.decisions.target_assessment.criteria:
+            assert criterion.text in _plain(detail)
 
     baseline = reports["target-baseline"]
     criterion = baseline.decisions.target_assessment.criteria[0]
@@ -91,9 +98,9 @@ def _assert_presentation(reports):
     for rendered in (render_artifact(report, ""), render_markdown(report)):
         plain = html.unescape(rendered).replace("\\", "")
         assert "Yes (2/3); Unclear (1/3)" in plain
-    table = render_artifact(report, "").split('<div class="target-checks">', 1)[1]
-    table = table.split("</table>", 1)[0]
-    assert "<strong" not in table
+    markup = _ReportMarkup(render_artifact(report, ""))
+    detail = markup.select(anchor="panel-explanation")[0]
+    assert "Yes (2/3); Unclear (1/3)" in _plain(detail)
 
     lost = reports["target-lost-exception"]
     for rendered in (render_artifact(lost, ""), render_markdown(lost)):
@@ -214,9 +221,8 @@ def assert_target_reports(reports, root, assert_round_trip):
     _assert_attention_gate(persistent)
     _assert_goal_modes(reports["target-baseline"])
     _assert_missing_records(reports["target-baseline"])
-    _assert_legacy(reports["target-baseline"])
+    _assert_old_versions_rejected(reports["target-baseline"])
     _assert_saved_provenance(reports["target-baseline"], root / "target-baseline")
-    _assert_legacy_attention(reports["attention-mixed"])
     _assert_normalization(persistent, root / "target-persists")
 
 
@@ -398,6 +404,31 @@ def _assert_attention_gate(report):
 
 
 def _assert_goal_modes(report):
+    from reporting.content import target_gap
+
+    original = report.decisions.target_assessment.criteria[0]
+    for baseline in ("not_met", "uncertain", "unassessable"):
+        criterion = replace(
+            original,
+            mode="preservation",
+            before=tuple(replace(t, outcome=baseline) for t in original.before),
+            after=tuple(replace(t, outcome="not_met") for t in original.after),
+        )
+        assessed = replace(
+            report,
+            decisions=replace(
+                report.decisions,
+                target_assessment=replace(
+                    report.decisions.target_assessment, criteria=(criterion,)
+                ),
+            ),
+        )
+        gap = target_gap(assessed, 1)
+        assert "lost" not in gap.consequence
+        assert "did not meet the preservation target" in gap.consequence
+        for rendered in (render_artifact(assessed, ""), render_markdown(assessed)):
+            assert gap.consequence in html.unescape(rendered).replace("\\", "")
+
     raw = json.loads(json.dumps(asdict(report.decisions.target_assessment)))
     for mode in ("correction", "new", "change", "preservation"):
         raw["criteria"][0]["mode"] = mode
@@ -496,27 +527,18 @@ def _assert_missing_records(report):
     assert summary.status == "unavailable"
 
 
-def _assert_legacy(report):
-    raw = report.to_dict()
-    raw["schema_version"] = 11
-    for name in (
-        "purpose",
-        "target_assessment",
-        "recorded_evidence",
-        "evidence_limits",
-    ):
-        raw["decisions"].pop(name)
-    raw["intent"] = asdict(
-        build_intent(
-            raw["content"]["expected"],
-            replace(report.decisions, purpose=(), target_assessment=None),
-        )
-    )
-    legacy = ReportData.from_dict(json.loads(json.dumps(raw)))
-    assert legacy.schema_version == 12
-    assert legacy.decisions.target_assessment is None
-    assert legacy.variants == report.variants
-    assert UNAVAILABLE in legacy.summary.notices
+def _assert_old_versions_rejected(report):
+    for version in (11, 12):
+        raw = report.to_dict()
+        raw["schema_version"] = version
+        try:
+            ReportData.from_dict(raw)
+        except ValueError as error:
+            assert "schema version" in str(error)
+        else:
+            raise AssertionError(
+                "Obsolete report schema was accepted without regeneration."
+            )
 
 
 def _assert_saved_provenance(report, run):
@@ -542,25 +564,6 @@ def _assert_saved_provenance(report, run):
     finally:
         config_path.write_text(config_text)
         source_path.write_text(source_text)
-
-
-def _assert_legacy_attention(report):
-    raw = report.to_dict()
-    raw["schema_version"] = 11
-    for name in (
-        "purpose",
-        "target_assessment",
-        "recorded_evidence",
-        "evidence_limits",
-    ):
-        raw["decisions"].pop(name)
-    for finding in raw["decisions"]["attention"]["findings"]:
-        finding.pop("status")
-        finding.pop("criterion")
-    legacy = ReportData.from_dict(raw)
-    assert legacy.decisions.attention == report.decisions.attention
-    assert legacy.decisions.target_assessment is None
-    assert UNAVAILABLE in legacy.summary.notices
 
 
 def _assert_normalization(report, run):

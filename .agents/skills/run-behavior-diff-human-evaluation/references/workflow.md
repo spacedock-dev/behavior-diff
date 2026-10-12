@@ -187,11 +187,17 @@ Do not represent an answer describing an action as evidence of execution.
 ## Quiz and scoring
 
 `build` creates blinded excerpts from the original saved report HTML. It retains
-the generated headline, evidence, Before/After cards, meaning, Other findings,
-and limits. It removes instruction intent/diff, full scenario/expected behavior,
-commit metadata, and links to unblinded evidence. It must not rewrite report
-prose or synthesize missing summaries. The projection fails if the report shape
-is no longer recognized; update it deliberately alongside a report redesign.
+the generated headline, case-evidence context, Before/After cards and supported
+starts, practical meaning, attention findings, target gaps, and visible limits.
+It removes instruction intent/diff, full scenario/expected behavior, commit
+metadata, source-intent relationship labels, and links to unblinded evidence.
+Case context is preserved separately from the removed purpose; extraction must
+not use it to restate the instruction. An exact repetition of intent is rejected,
+but this structural guard cannot detect semantic paraphrases.
+The projection never rewrites prose or synthesizes missing summaries. The v2
+projection accepts only the current Summary structure and fails closed on older
+layouts. Already-built sessions keep their frozen bytes; do not rebuild an
+active evaluation to adopt a new presentation.
 
 `serve SESSION --port 0` prints an available loopback URL. Only public quiz assets
 are served before submission. The answer key stays on the server. Check desktop

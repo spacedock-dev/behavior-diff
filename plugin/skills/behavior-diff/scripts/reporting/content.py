@@ -7,6 +7,8 @@ from typing import Optional, Tuple
 from reporting.attention import AttentionFindingData
 from reporting.instruction import parse_diff_hunks
 from reporting.schema import ContentData, ResultData
+from reporting.summary import question_distribution
+from reporting.target import acceptance, conclusion
 
 TRIAL_EVIDENCE_HEADING = "Trial evidence"
 FINAL_ANSWER_HEADING = "Final answer"
@@ -290,6 +292,17 @@ def primary_result_context(report):
     )
 
 
+SUMMARY_PURPOSE_HEADING = "What this edit was meant to change"
+SUMMARY_CONTEXT_LABEL = "Context for this comparison"
+SUMMARY_EVIDENCE_HEADING = "What the evidence shows"
+SUMMARY_MEANING_LABEL = "What this means"
+SUMMARY_ATTENTION_HEADING = "What needs your attention"
+SUMMARY_LIMITS_HEADING = "What we still cannot tell"
+SUMMARY_INTERPRETATION_UNAVAILABLE = (
+    "No supported interpretation was supplied; these observations alone "
+    "do not establish the edit's benefit."
+)
+
 ATTENTION_UNAVAILABLE = "Attention assessment unavailable."
 ATTENTION_UNAVAILABLE_NOTE = (
     "No valid attention assessment is saved for these trials. "
@@ -348,6 +361,123 @@ def attention_branch_evidence(report, finding: AttentionFindingData, side: str):
     return tuple(
         (branch.choice, branch.count, total, branch.trials)
         for branch in getattr(row, side)
+    )
+
+
+def attention_finding_anchor(decision):
+    return "attention-finding-{0}".format(decision)
+
+
+def target_criterion_anchor(number):
+    return "target-criterion-{0}".format(number)
+
+
+ATTENTION_TARGET_GAP_NOTE = (
+    "From the recorded target check. The attention assessment did not select "
+    "a finding for this result, so no interpretation is added."
+)
+
+
+@dataclass(frozen=True)
+class AttentionItem:
+    """One Summary attention entry: a saved finding or an uncovered target miss."""
+
+    finding: Optional[AttentionFindingData]
+    criterion_number: Optional[int] = None
+
+
+def attention_items(report):
+    """Put target misses first; a miss no finding covers is still shown.
+
+    Order follows target criteria with an After `not_met` trial, then the saved
+    finding order. Nothing is removed; this only ranks and fills gaps.
+    """
+    attention = report.decisions.attention
+    findings = attention.findings if attention is not None else ()
+    target = report.decisions.target_assessment
+    items = []
+    if target is not None:
+        for number, criterion in enumerate(target.criteria, 1):
+            if not any(trial.outcome == "not_met" for trial in criterion.after):
+                continue
+            linked = [f for f in findings if f.criterion == criterion.id]
+            items.extend(AttentionItem(finding) for finding in linked)
+            if not linked:
+                items.append(AttentionItem(None, number))
+    placed = {item.finding.decision for item in items if item.finding is not None}
+    items.extend(
+        AttentionItem(finding) for finding in findings if finding.decision not in placed
+    )
+    return tuple(items)
+
+
+@dataclass(frozen=True)
+class TargetGap:
+    title: str
+    result: str
+    consequence: str
+    next_step: str
+
+
+def target_gap(report, number):
+    """Describe an uncovered target miss using only recorded outcomes and fixed wording."""
+    criterion = report.decisions.target_assessment.criteria[number - 1]
+    return TargetGap(
+        criterion.text,
+        "Target check — Before: {0} · After: {1}".format(
+            question_distribution(criterion, "before", report.variants.before.total),
+            question_distribution(criterion, "after", report.variants.after.total),
+        ),
+        conclusion(criterion),
+        acceptance(criterion),
+    )
+
+
+@dataclass(frozen=True)
+class SummaryStart:
+    text: str
+    source: str
+    ordered: bool
+
+
+def summary_start(report, side):
+    """Qualify a validated start by its own row's source, not the lead row's.
+
+    Order is claimed only when a recorded command precedes the final answer
+    that the lead comparison reads; shared trial membership alone is not order.
+    """
+    summary = report.summary
+    start = getattr(summary, side).start
+    if start is None or summary.decision is None:
+        return None
+    anchor = report.decisions.rows[start.decisions[0] - 1].anchor
+    lead = report.decisions.rows[summary.decision - 1].anchor
+    if anchor == "answer":
+        return SummaryStart(
+            start.text,
+            "Stated in the final answer, not proof it happened. "
+            "Observed in the same trials as the result; order not established.",
+            False,
+        )
+    if report.metadata.trace_source == "self-reported":
+        return SummaryStart(
+            start.text,
+            "From a self-reported action, not independently captured. "
+            "Observed in the same trials as the result; order not independently recorded.",
+            False,
+        )
+    if lead == "answer":
+        return SummaryStart(
+            start.text,
+            "From a recorded command, before the final answer. "
+            "A recorded command does not establish successful completion or cause.",
+            True,
+        )
+    return SummaryStart(
+        start.text,
+        "From a recorded command. Observed in the same trials as the result; "
+        "order not established.",
+        False,
     )
 
 

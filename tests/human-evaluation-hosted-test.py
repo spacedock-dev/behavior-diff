@@ -254,10 +254,10 @@ class HostedTests(unittest.TestCase):
         self.assertNotIn(str(self.session).encode(), shipped)
         self.assertNotIn(b"Synthetic rationale", shipped)
 
-    def test_attention_package_retains_exact_blinded_pictures_and_all_states(self):
+    def test_package_retains_exact_blinded_attention_context_and_all_states(self):
         scenarios = (
             "attention-mixed",
-            "attention-plans",
+            "target-mixed",
             "attention-quiet",
             "attention-unavailable",
             "attention-multiple",
@@ -310,6 +310,20 @@ class HostedTests(unittest.TestCase):
                 self.assertEqual(
                     quiz._safe_fragment(attention), quiz._safe_fragment(retained)
                 )
+                for context in (
+                    node
+                    for node in quiz._walk(original)
+                    if node.has_class("summary-case-context")
+                ):
+                    # Observation context ships; its evidence links do not.
+                    paragraph = quiz._children(context)[1]
+                    self.assertIn(quiz._plain(paragraph), quiz._plain(exported))
+                for intent in (
+                    node
+                    for node in quiz._walk(original)
+                    if node.has_class("story-intent")
+                ):
+                    self.assertNotIn(quiz._plain(intent), quiz._plain(exported))
                 self.assertFalse(
                     any(
                         node.tag in ("a", "button", "script", "nav", "iframe", "img")
@@ -331,7 +345,7 @@ class HostedTests(unittest.TestCase):
             hosted.PACKAGE_LIMIT,
         )
 
-    def test_forged_attention_count_and_picture_receipts_rejected(self):
+    def test_forged_attention_receipts_rejected(self):
         run = self.session / "case-1/state/runs/synthetic"
         for name in ("report.html", "report.md", "decisions.json", "report-data.json"):
             shutil.copyfile(self.gallery / "attention-mixed" / name, run / name)
@@ -345,13 +359,13 @@ class HostedTests(unittest.TestCase):
         )
         alterations = (
             attention.replace(
-                b'<span class="summary-count">',
-                b'<span class="summary-count">Forged trial count ',
+                b'<p class="attention-consequence">',
+                b'<p class="attention-consequence">Forged consequence ',
                 1,
             ),
             attention.replace(
-                b'class="attention-flow-step"',
-                b'class="forged-attention-picture"',
+                b'class="attention-limit"',
+                b'class="forged-attention-limit"',
                 1,
             ),
         )

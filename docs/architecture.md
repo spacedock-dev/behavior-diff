@@ -36,8 +36,8 @@ scripts handle execution, evidence, and reporting.
 +---------------------------------------------------------+
 | Evidence analysis                                       |
 | decisions.py: purpose + bounded returns + trial answers |
-| Same extraction: target criteria, outcomes, narrative   |
-| reporting/: validate evidence links; assemble reports   |
+| Same extraction: context, flow starts, target checks     |
+| reporting/: validate memberships/links; assemble reports |
 +----------------------------+----------------------------+
                              v
 +---------------------------------------------------------+
@@ -301,9 +301,10 @@ The modules below live in the skill's [`scripts/`](../plugin/skills/behavior-dif
   unmet outcome on both sides, labeled as a pre-existing target problem.
   Counts come from canonical rows. Malformed bundles become unavailable, never
   an assessed-empty result. No finding quota applies.
-  These modules build schema-v12 `ReportData`; saved schema-v11 reports migrate
-  explicitly with unavailable target assessment and readable legacy observations.
-  Older decisions lacking the new attention fields show unavailable attention.
+  These modules build schema-v13 `ReportData`. Older report-data versions are
+  rejected; regenerate reports from their saved run evidence with `render.py`.
+  Saved decisions without optional context or flow starts still render, without
+  inventing those explanations.
   Purpose, bounded evidence, limits, and assessments persist with decisions and
   report data; rendering does not reread current source files or infer new claims.
   Decision branches also retain validated trial memberships: exact coverage of
@@ -364,12 +365,13 @@ semantic truth, causal attribution, or live extractor adherence.
 | `report-data.json` | Structured, versioned report data. |
 | `report-artifact.html` | Embeddable HTML body. |
 
-The default Summary tells a four-part numbered story: the edit's aim, the
-scenario's observations, what needs attention, and what this means.
-The goal is one sentence with a compact
-source label and edit link; an info popup holds the source caveat. Supplied
-expectations and inferred aims remain distinct; neither becomes proof of
-author intent or goal completion. Markdown retains the caveat as plain text.
+The default Summary tells a four-part story: what the edit was meant to change,
+what the evidence shows, what needs attention, and what remains unknown.
+The aim retains its provenance and **Instruction changes** link. Supplied
+expectations and inferred aims remain distinct; neither proves goal completion.
+An optional evidence-linked `summary.context` explains the concrete case near
+the aim, such as a description disagreeing with recorded implementation. It
+must describe task evidence, not restate the instruction or invent a conflict.
 `reporting/illustrations.py` supplies fixed SVG shapes for the Before/After
 comparison. Model output supplies text and selectors, never markup.
 The edit illustration uses an original solid open-end wrench with a compact head
@@ -379,22 +381,32 @@ The Summary headline describes supported observed behavior. A target-assessment
 status never replaces it; missing source evidence must not hide observations
 that final answers or recorded actions support. Without a usable narrative,
 the heading introduces the Before/After comparison without inventing a finding.
-One illustrated Before/After pair shows observed behavior, with the appropriate
-answer, plan, captured-action, or self-reported-action provenance. Extraction
-prefers observations relevant to the purpose, including an already-correct baseline,
-over incidental differences. Separate, unlinked assessment rows retain every
-question and its complete outcome distribution. Changed Yes/No proportions are
-bold; mixed results retain all counts, and unknown results are not treated as No.
+One illustrated Before/After pair shows observed behavior with the original
+blue/amber palettes and all branch counts. An optional `start` on each side
+cites one comparison whose single branch covers exactly that side's lead trials.
+Missing, partial, or aggregate-only membership cannot supply a start. Its own
+source qualifier distinguishes recorded commands from answer claims and
+self-reported actions. A downward arrow appears only for a recorded command
+before a final-answer comparison; shared membership does not prove other ordering.
+Invalid optional context or starts are omitted without losing valid comparisons.
+Extraction prefers purpose-relevant observations, including an already-correct
+baseline, over incidental differences. Longer assessment questions and their
+complete outcome distributions live in Understand the change. Changed Yes/No
+proportions are bold; mixed results retain all counts, and unknown is not No.
 The rows label `unassessable` outcomes “Not enough evidence”, scoped to their
 question rather than promoted to the headline. Excluded recorded evidence is not
 the same as evidence never captured. The report does not automatically approve edits.
-The existing narrative `why` field supplies a short conclusion in “What this means”.
+The narrative `why` supplies the practical conclusion below the main comparison.
 When purpose is available, extraction connects the observed outcome to that purpose:
 an already-correct baseline, a remaining problem, preservation, or a mixed result.
 It also names when the scenario did not exercise the intended problem or source
 content is insufficient. Additional wording or source reads alone cannot establish
 that the intended fix worked. The conclusion allows up to 480 characters, with
 supporting comparison references; the separate caution remains capped at 240.
+The final Summary section keeps that caution and one-scenario/noncausal notices
+visible. Uncertain or unassessable target checks add a notice even without an
+authored caution. Later revisions are mentioned only when supplied evidence
+supports their context, never as an assumed part of every skill change.
 HTML and Markdown retain this conclusion even for an unchanged target. An absent
 conclusion is explicitly unavailable; incomplete trial evidence suppresses it.
 These checks preserve structure and provenance, not interpretation correctness.
@@ -441,21 +453,23 @@ instead of inferring a no-difference claim or making a new model call.
 The general change explanation retains its completeness guard; incomplete
 records do not erase supported target assessments of other completed trials.
 Target coverage names unassessed records separately from observed failures.
-Plans are not presented as executions. The third Summary section shows relevant
-tradeoffs with Before/After pictures, every branch count, a consequence,
-applicability, an action, and explicit evidence limits. Expected tradeoffs can
-qualify; differences alone do not. There is no separate Other findings category
-or fixed finding cap. Assessed-empty and unavailable states use different wording.
+Plans are not presented as executions. The third Summary section gives concise
+consequences, actions, and essential evidence limits, each linked to its detail.
+Findings linked to unmet After criteria come first. If no finding covers an
+unmet criterion, a deterministic item retains its outcome distribution and
+acceptance question without inventing a cause or explanation. Other findings
+follow in saved order. Assessed-empty and unavailable assessments remain distinct;
+neither suppresses an observed target failure.
 Attention action labels retain trace provenance: self-reported actions are
 explicitly not independently captured command evidence. HTML, Markdown, and
 blind Summary exports preserve this qualification.
-One **See why this matters** link opens an additive attention section inside
-Understand the change, preserving the original explanation steps. Unlike the
-Summary cards, this section separates model reasoning, every branch's count and
-named supporting trials, cited context, and uncertainty. It does not repeat the
-pictures, consequence, or action guidance. Optional **Check the evidence**
-disclosures contain raw comparison links. The existing extraction prompt asks
-for supported reasoning beyond the Summary, not invented detail or paraphrase.
+Section and finding links open supporting attention details inside Understand
+the change, preserving the original explanation steps. Details hold the full
+branch pictures, applicability, reasoning, counts, named trials, cited context,
+and uncertainty. Raw comparisons stay inside closed **Check the evidence**
+disclosures. The extractor explains what the reviewer gains while distinguishing
+more informative review notes from more accurate deliverables. It never claims
+that a source check or a changed explanation proves the intended fix worked.
 HTML dismissal changes only DOM state: **Not relevant here** is reversible with
 **Show again**, resets on reload, and does not hide content in print.
 Markdown retains the same findings, branch labels, counts, and explanation

@@ -90,28 +90,36 @@ def _attention_branches_markdown(report, finding: AttentionFindingData):
     return markdown
 
 
-def _attention_details_markdown(finding: AttentionFindingData, trace_source: str):
-    relationship, evidence = content.attention_labels(finding, trace_source)
-    return [
-        _text(finding.consequence) + "\n",
-        f"**Relationship:** {_text(relationship)}<br>**Evidence:** {_text(evidence)}\n",
-        f"**Limit:** {_text(finding.limit)}\n",
-        f"**Matters if:** {_text(finding.matters_if)}\n",
-        f"**What you can do:** {_text(finding.next_step)}\n",
-    ]
-
-
 def _attention_summary_markdown(report):
     attention = report.decisions.attention
-    markdown = ["### 3. What needs your attention\n"]
+    markdown = [f"### 3. {content.SUMMARY_ATTENTION_HEADING}\n"]
     markdown += _attention_notice_markdown(attention)
-    if attention is not None:
-        for finding in attention.findings:
-            markdown.append(f"#### {_text(finding.title)}\n")
-            markdown += _attention_branches_markdown(report, finding)
-            markdown += _attention_details_markdown(
-                finding, report.metadata.trace_source
-            )
+    for item in content.attention_items(report):
+        finding = item.finding
+        if finding is None:
+            gap = content.target_gap(report, item.criterion_number)
+            anchor = content.target_criterion_anchor(item.criterion_number)
+            markdown += [
+                f"#### {_text(gap.title)}\n",
+                f"**{_text(gap.result)}**\n",
+                _text(gap.consequence) + "\n",
+                _text(content.ATTENTION_TARGET_GAP_NOTE) + "\n",
+                f"**What you can do:** {_text(gap.next_step)}\n",
+                f"[See the target check →](#{anchor})\n",
+            ]
+            continue
+        relationship, evidence = content.attention_labels(
+            finding, report.metadata.trace_source
+        )
+        anchor = content.attention_finding_anchor(finding.decision)
+        markdown += [
+            f"#### {_text(finding.title)}\n",
+            _text(finding.consequence) + "\n",
+            f"**Relationship:** {_text(relationship)}<br>**Evidence:** {_text(evidence)}\n",
+            f"**Limit:** {_text(finding.limit)}\n",
+            f"**What you can do:** {_text(finding.next_step)}\n",
+            f"[See the evidence for this concern →](#{anchor})\n",
+        ]
     label = (
         "See why this matters →"
         if attention is not None and attention.findings
@@ -154,42 +162,48 @@ def _attention_explanation_markdown(report):
         "### What needs your attention\n",
     ]
     markdown += _attention_notice_markdown(attention)
-    if attention is not None:
-        for finding in attention.findings:
-            relationship, evidence = content.attention_labels(
-                finding, report.metadata.trace_source
+    for item in content.attention_items(report):
+        finding = item.finding
+        if finding is None:
+            continue
+        relationship, evidence = content.attention_labels(
+            finding, report.metadata.trace_source
+        )
+        markdown += [
+            f'<a id="{content.attention_finding_anchor(finding.decision)}"></a>\n',
+            f"#### {_text(finding.title)}\n",
+            _text(finding.consequence) + "\n",
+            "**Why this concern matters (model interpretation)**\n",
+            f"**Relationship:** {_text(relationship)}<br>**Evidence:** {_text(evidence)}\n",
+            _text(finding.explanation) + "\n",
+            f"**Matters if:** {_text(finding.matters_if)}\n",
+            f"**What you can do:** {_text(finding.next_step)}\n",
+        ]
+        markdown.append("**What each branch did**\n")
+        markdown += _attention_branches_markdown(report, finding)
+        markdown += _attention_branch_evidence_markdown(report, finding)
+        if finding.context:
+            markdown.append("**Related context (model interpretation)**\n")
+            markdown += [
+                f"- {_text(claim.text)} ({_decision_links(claim.decisions)})"
+                for claim in finding.context
+            ]
+            markdown.append("")
+        references = tuple(
+            dict.fromkeys(
+                (finding.decision,)
+                + tuple(index for claim in finding.context for index in claim.decisions)
             )
-            markdown += [
-                f"#### {_text(finding.title)}\n",
-                "**Why this concern matters (model interpretation)**\n",
-                f"**Relationship:** {_text(relationship)}<br>**Evidence:** {_text(evidence)}\n",
-                _text(finding.explanation) + "\n",
-            ]
-            markdown += _attention_branch_evidence_markdown(report, finding)
-            if finding.context:
-                markdown.append("**Related context (model interpretation)**\n")
-                markdown += [
-                    f"- {_text(claim.text)} ({_decision_links(claim.decisions)})"
-                    for claim in finding.context
-                ]
-                markdown.append("")
-            references = tuple(
-                dict.fromkeys(
-                    (finding.decision,)
-                    + tuple(
-                        index for claim in finding.context for index in claim.decisions
-                    )
-                )
-            )
-            markdown += [
-                "**Limits and uncertainty**\n",
-                _text(finding.limit) + "\n",
-            ]
-            markdown += [
-                "<details><summary>Check the evidence</summary>\n",
-                _decision_links(references) + "\n",
-                "</details>\n",
-            ]
+        )
+        markdown += [
+            "**Limits and uncertainty**\n",
+            _text(finding.limit) + "\n",
+        ]
+        markdown += [
+            "<details><summary>Check the evidence</summary>\n",
+            _decision_links(references) + "\n",
+            "</details>\n",
+        ]
     return markdown
 
 
@@ -370,10 +384,7 @@ def _count_line(variant):
     return count + _text(variant.count_suffix)
 
 
-def _target_summary_markdown(report):
-    target = report.decisions.target_assessment
-    if target is None:
-        return [_text(UNAVAILABLE) + "\n"]
+def _target_summary_markdown(report, target):
     lines = [
         "| What we checked | Before → After |",
         "| --- | --- |",
@@ -398,9 +409,11 @@ def _target_explanation_markdown(report):
     if target is None:
         lines.append(_text(UNAVAILABLE) + "\n")
     else:
+        lines += _target_summary_markdown(report, target)
         sources = {entry.id: entry for entry in report.decisions.recorded_evidence}
-        for criterion in target.criteria:
+        for number, criterion in enumerate(target.criteria, 1):
             lines += [
+                f'<a id="{content.target_criterion_anchor(number)}"></a>\n',
                 f"#### {_text(criterion.text)}\n",
                 "Before: "
                 + _text(
@@ -473,7 +486,7 @@ def _summary_markdown(report):
     markdown = [
         "## Summary\n",
         f"**{_text(summary.headline)}**\n",
-        "### 1. The intended change\n",
+        f"### 1. {content.SUMMARY_PURPOSE_HEADING}\n",
         f"**{_text(intent_label)}**\n",
         _text(intent.text) + "\n",
         _text(intent_note) + "\n",
@@ -483,15 +496,29 @@ def _summary_markdown(report):
             _text(f"Goal {index}: {goal.source} · {goal.basis} · {goal.reference}")
             + "\n"
         )
+    if summary.context:
+        markdown.append(
+            f"**{content.SUMMARY_CONTEXT_LABEL}:** {_text(summary.context.text)} "
+            f"{_decision_links(summary.context.decisions)}\n"
+        )
     markdown += [
-        "[View instruction changes](#instruction-diff)\n",
-        "### 2. What the evidence shows\n",
+        "[Instruction changes →](#instruction-diff)\n",
+        f"### 2. {content.SUMMARY_EVIDENCE_HEADING}\n",
     ]
     if summary.scenario:
         markdown.append(_text(summary.scenario) + "\n")
     markdown.append(_text(summary.evidence_label) + "\n")
-    for label, side in (("Before", summary.before), ("After", summary.after)):
-        markdown.append(f"#### {label}\n")
+    for side_name in ("before", "after"):
+        side = getattr(summary, side_name)
+        markdown.append(f"#### {side_name.capitalize()}\n")
+        start = content.summary_start(report, side_name)
+        if start is not None:
+            markdown += [
+                f"**Observed start:** {_text(start.text)}\n",
+                _text(start.source) + "\n",
+            ]
+            if start.ordered:
+                markdown.append("↓\n")
         if not side.choices:
             markdown.append("No supported comparison is available.\n")
         for choice in side.choices:
@@ -499,29 +526,27 @@ def _summary_markdown(report):
             if choice.detail:
                 markdown.append(_text(choice.detail) + "\n")
             markdown.append(_text(content.trial_count(choice.count, side.total)) + "\n")
-    markdown += _target_summary_markdown(report)
     context = content.primary_result_context(report)
     if context is not None and report.decisions.target_assessment is None:
         markdown.append(f"#### {_text(context.heading)} — {_text(context.status)}\n")
         for label, text in context.sides:
             markdown.append(f"**{label}:** {_text(text)}\n")
         markdown.append(_text(context.note) + "\n")
-    markdown.append("[Understand the change](#panel-explanation)\n")
-    markdown += _attention_summary_markdown(report)
-    markdown.append("### 4. What this means\n")
     if summary.why is None:
+        markdown.append(content.SUMMARY_INTERPRETATION_UNAVAILABLE + "\n")
+    else:
         markdown.append(
-            "No supported interpretation was supplied; these observations alone "
-            "do not establish the edit's benefit.\n"
+            f"**{content.SUMMARY_MEANING_LABEL}:** {_text(summary.why.text)} "
+            f"{_decision_links(summary.why.decisions)}\n"
         )
-    for label, claim in (
-        ("Why it matters", summary.why),
-        ("Watch out", summary.caution),
-    ):
-        if claim:
-            markdown.append(
-                f"**{label}:** {_text(claim.text)} {_decision_links(claim.decisions)}\n"
-            )
+    markdown.append("[Understand the change →](#panel-explanation)\n")
+    markdown += _attention_summary_markdown(report)
+    markdown.append(f"### 4. {content.SUMMARY_LIMITS_HEADING}\n")
+    if summary.caution:
+        markdown.append(
+            f"**Watch out:** {_text(summary.caution.text)} "
+            f"{_decision_links(summary.caution.decisions)}\n"
+        )
     markdown += [f"- {_text(notice)}" for notice in summary.notices]
     markdown.append("")
     return markdown

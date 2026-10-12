@@ -475,7 +475,7 @@ def conclusion(criterion):
         )
     if after.get("not_met", 0):
         if criterion.mode == "preservation":
-            return "Behavior intended to survive was lost in at least one After trial."
+            return "At least one After trial did not meet the preservation target."
         if before.get("not_met", 0):
             return "The target remains unmet in at least one After trial."
         return "At least one After trial did not meet the target."
