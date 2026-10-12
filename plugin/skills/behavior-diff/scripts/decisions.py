@@ -35,6 +35,8 @@ and final answers without inventing a flow.
 The same pass receives the instruction diff as untrusted evidence. It recovers
 choices from trials, relates them to numbered hunks, and separately interprets
 the edit's aim. Neither interpretation proves causality or the author's intent.
+With frozen purpose, the same call also paraphrases those goals in plain words;
+the paraphrase never replaces the frozen goals.
 
 Installed Humanizer guidance, when readable, is applied as prose-only guidance
 inside that same extraction invocation. No skill code or extra model call runs.
@@ -56,7 +58,7 @@ from reporting.explanation import parse_explanation
 from reporting.evidence import collect_run_evidence
 from reporting.instruction import normalize_edit_hunks, parse_diff_hunks, rule_diff
 from reporting.load import read_trial_trace
-from reporting.summary import parse_intent, parse_narrative
+from reporting.summary import parse_intent, parse_narrative, parse_purpose_summary
 from reporting.trial_summary import parse_trial_summaries, trial_group_names
 from reporting.target import (
     effective_purpose,
@@ -96,6 +98,7 @@ SCHEMA = """{{
     "text": "<behavior encouraged by the edit, plain text, at most 240 characters>",
     "edit_hunks": [<1-based numbers of the supporting instruction diff hunks>]
   }}|null,
+  "purpose_summary": "<1-2 short plain sentences restating the supplied purpose goals, at most 320 characters>"|null,
   "target_assessment": {{
     "criteria": [
       {{"id": "<stable criterion id>", "goal": <1-based purpose goal>,
@@ -252,6 +255,13 @@ Identify observable target criteria and required evidence before judging outcome
 Preserve every supplied purpose goal without revising it to fit the results. If
 purpose is null, infer a fallback goal ONLY from the instruction diff and label it
 in intent; never derive purpose from a convenient observed difference.
+When purpose is supplied, set "purpose_summary" to a paraphrase of those goals for
+a reader who has not seen the edit: one or two short, simple sentences (aim for
+45 words or fewer, at most 320 characters). State the main intended behavior and
+any crucial behavior that must be preserved. Omit detailed mechanics, file paths,
+and goal provenance. Restate only the supplied goals: add no goal, criterion,
+outcome, evidence or hindsight from the trials. Plain text, no markup. Use null
+when purpose is null; an inferred fallback goal is not summarized.
 Assess each completed trial against the SAME criteria. Use met, not_met, uncertain
 (available evidence is ambiguous or conflicting), or unassessable (needed evidence
 is absent). Keep each exact trial identity and minority outcome. Criterion mode
@@ -835,6 +845,7 @@ def normalize(
         ),
         "attention": json.loads(json.dumps(asdict(attention))) if attention else None,
         "purpose": [asdict(goal) for goal in goals],
+        "purpose_summary": parse_purpose_summary(data.get("purpose_summary"), goals),
         "recorded_evidence": [asdict(entry) for entry in evidence],
         "target_assessment": json.loads(json.dumps(asdict(target))) if target else None,
         "evidence_limits": asdict(limits) if limits else None,
@@ -1433,6 +1444,71 @@ def self_check():
     for invalid_intent in invalid_intents:
         normalized = normalize({**good, "intent": invalid_intent}, counts, 2)
         assert normalized["intent"] is None, normalized
+        assert normalized["chain"] == out["chain"]
+        assert normalized["outcome"] == out["outcome"]
+        assert normalized["implications"] == out["implications"]
+        assert normalized["dropped"] == out["dropped"]
+
+    # A purpose summary only paraphrases frozen goals; invalid copy keeps evidence.
+    purpose = {
+        "goals": [
+            {
+                "text": "Report flagged findings while keeping prose explanations.",
+                "source": "session",
+                "basis": "explicit",
+                "reference": "Synthetic request before trials",
+            }
+        ]
+    }
+    paraphrase = "Report flagged findings and keep prose explanations."
+    summarized = normalize(
+        {**good, "purpose_summary": "  " + paraphrase + "  "},
+        counts,
+        2,
+        purpose=purpose,
+    )
+    assert summarized["purpose_summary"] == paraphrase
+    assert summarized["purpose"] == purpose["goals"]
+    assert summarized["chain"] == out["chain"]
+    assert out["purpose_summary"] is None
+    assert normalize(good, counts, 2, purpose=purpose)["purpose_summary"] is None
+    # Without frozen goals, even an inferred aim cannot acquire a purpose summary.
+    unfrozen = normalize(
+        {**good, "intent": intent, "purpose_summary": paraphrase}, counts, 2
+    )
+    assert unfrozen["purpose_summary"] is None
+    assert unfrozen["purpose"] == []
+    assert unfrozen["intent"] == intent
+    bounded = normalize(
+        {**good, "purpose_summary": "x" * 320}, counts, 2, purpose=purpose
+    )
+    assert bounded["purpose_summary"] == "x" * 320
+    for invalid_summary in (
+        False,
+        1,
+        [],
+        {"text": paraphrase},
+        "",
+        "   ",
+        "x" * 321,
+        "Report findings.\nKeep prose.",
+        "Report\tfindings.",
+        "Report findings.\x85",
+        "<b>Report</b> findings.",
+        "**Report** findings.",
+        "Report `findings`.",
+        "[Report findings](https://example.com)",
+        "# Report findings",
+    ):
+        normalized = normalize(
+            {**good, "intent": intent, "purpose_summary": invalid_summary},
+            counts,
+            2,
+            purpose=purpose,
+        )
+        assert normalized["purpose_summary"] is None, invalid_summary
+        assert normalized["purpose"] == purpose["goals"]
+        assert normalized["intent"] == intent
         assert normalized["chain"] == out["chain"]
         assert normalized["outcome"] == out["outcome"]
         assert normalized["implications"] == out["implications"]

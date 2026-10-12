@@ -343,6 +343,7 @@ def _write_extraction(
     explanation=None,
     attention=None,
     target_assessment=None,
+    purpose_summary=None,
 ):
     positions = {row["topic"]: index for index, row in enumerate(rows, 1)}
     _write_json(
@@ -362,6 +363,7 @@ def _write_extraction(
             "explanation": explanation,
             "attention": attention,
             "target_assessment": target_assessment,
+            "purpose_summary": purpose_summary,
         },
     )
 
@@ -2163,6 +2165,11 @@ def _target_report(run, scenario):
         rows,
         primary="Task result",
         target_assessment={"criteria": [criterion]},
+        # A short model paraphrase of the frozen goal; the goal itself stays unchanged.
+        purpose_summary="Check release-note claims against the implementation so "
+        "they do not promise unlimited exports."
+        if scenario.name == "target-mixed"
+        else None,
         summary={
             "decision": 2,
             "headline": headline,

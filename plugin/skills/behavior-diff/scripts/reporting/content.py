@@ -7,7 +7,7 @@ from typing import Optional, Tuple
 from reporting.attention import AttentionFindingData
 from reporting.instruction import parse_diff_hunks
 from reporting.schema import ContentData, ResultData
-from reporting.summary import question_distribution
+from reporting.summary import PURPOSE_SUMMARY_LIMIT, question_distribution
 from reporting.target import acceptance, conclusion
 
 TRIAL_EVIDENCE_HEADING = "Trial evidence"
@@ -60,17 +60,28 @@ SCENARIO_PROMPT_UNAVAILABLE = (
     "The original scenario prompt is unavailable. The description above is not "
     "a verified copy of the prompt."
 )
+PURPOSE_BOUNDARY = "Purpose identifies the question, not its answer."
+RECORDED_PURPOSE_HEADING = "Recorded purpose"
+RECORDED_PURPOSE_NOTE = (
+    "Each goal was recorded before trials. Its source shows where the goal came "
+    "from and whether it was stated explicitly or inferred. " + PURPOSE_BOUNDARY
+)
 
 
 def instruction_edit_aim(intent):
-    """Explain the saved aim without claiming to know the author's intent."""
-    if intent.source == "purpose":
-        return "Recorded purpose: " + intent.text
+    """Explain a non-purpose aim without claiming to know the author's intent.
+
+    Recorded purpose goals are listed individually with their sources instead.
+    """
     if intent.source == "inferred":
         return "Likely aim: " + intent.text
     if intent.source == "expected":
         return "Supplied expectation: " + intent.text
     return "No plain-language aim is saved for this edit."
+
+
+def purpose_goal_source(goal):
+    return f"Source: {goal.source} ({goal.basis}) · {goal.reference}"
 
 
 def instruction_edit_counts(diff):
@@ -201,27 +212,75 @@ def consistent_changes(decisions):
     )
 
 
-def intent_context(intent):
-    """Label the stored source without inferring intent during rendering."""
+@dataclass(frozen=True)
+class SummaryIntent:
+    text: str
+    badge: str
+    label: str
+    note: str
+
+
+def summary_intent(report):
+    """Choose short Summary wording; the full stored aim stays in Instruction changes.
+
+    Recorded goals are never truncated or selected: a long or multi-goal purpose
+    without a validated model summary is shown as a goal count.
+    """
+    intent = report.intent
+    goals = report.decisions.purpose
     if intent.source == "purpose":
-        return (
-            "Purpose recorded before trials",
-            "Each goal retains its session, commit, or diff provenance and whether "
-            "it was explicit or inferred. Purpose identifies the question, not its answer.",
+        if report.decisions.purpose_summary is not None:
+            return SummaryIntent(
+                report.decisions.purpose_summary,
+                "Summary of recorded goals",
+                "Model summary of the recorded goals",
+                "A model wrote this short wording from the goals recorded before "
+                "trials. Only the full goals were recorded before trials; Instruction "
+                "changes lists each one with its source. " + PURPOSE_BOUNDARY,
+            )
+        if len(goals) == 1 and len(goals[0].text) <= PURPOSE_SUMMARY_LIMIT:
+            return SummaryIntent(
+                goals[0].text,
+                "Recorded before trials",
+                "Goal recorded before trials",
+                "This is the exact goal recorded before trials. Instruction changes "
+                "lists its source. " + PURPOSE_BOUNDARY,
+            )
+        noun = "goal" if len(goals) == 1 else "goals"
+        return SummaryIntent(
+            f"This edit has {len(goals)} recorded {noun}. "
+            "See Instruction changes for the full intent.",
+            "Recorded before trials",
+            f"{noun.capitalize()} recorded before trials",
+            "Only the goal count is shown here, so no recorded wording is "
+            "shortened or left out. Instruction changes lists each full goal with "
+            "its source. " + PURPOSE_BOUNDARY,
         )
     if intent.source == "expected":
-        return (
+        text = (
+            intent.text
+            if len(intent.text) <= PURPOSE_SUMMARY_LIMIT
+            else "The supplied expected behavior is too long to repeat here. "
+            "See Instruction changes for the full text."
+        )
+        return SummaryIntent(
+            text,
+            "Supplied expectation",
             "Supplied expected behavior",
             "This was supplied as expected behavior, not confirmed author intent. "
             "The observations below do not establish that it was achieved.",
         )
     if intent.source == "inferred":
-        return (
+        return SummaryIntent(
+            intent.text,
+            "Inferred",
             "Model interpretation of the instruction edit",
             "This interpretation is based on the linked edit, not confirmed author "
             "intent or evidence that the aim was achieved.",
         )
-    return (
+    return SummaryIntent(
+        intent.text,
+        "Unavailable",
         "Aim unavailable",
         "Inspect the instruction edit for the recorded changes. "
         "The observed outcomes alone do not establish the edit's aim.",

@@ -3,11 +3,13 @@
 import copy
 import html
 import json
+import re
 from dataclasses import asdict, replace
 from html.parser import HTMLParser
 
 from attention_contract import _ReportMarkup, _plain
 
+from reporting import content
 from reporting.attention import parse_attention
 from reporting.explanation import parse_explanation
 from reporting.load import load_report
@@ -110,6 +112,140 @@ def _assert_presentation(reports):
         assert finding.consequence in plain
         assert finding.next_step in plain
         assert "No (3/3) → No (3/3)" in plain
+
+
+def _markdown_section(markdown, heading):
+    plain = html.unescape(markdown).replace("\\", "")
+    start = re.search(rf"^## {re.escape(heading)}$", plain, re.M).end()
+    end = re.search(r"^## ", plain[start:], re.M)
+    return plain[start : start + end.start()] if end else plain[start:]
+
+
+def _intent_surfaces(report):
+    """Summary intent and Instruction changes text from both rendered formats."""
+    markup = _ReportMarkup(render_artifact(report, ""))
+    summary = markup.select(anchor="panel-summary")[0]
+    markdown = render_markdown(report)
+    return {
+        "summary": (_plain(summary), _markdown_section(markdown, "Summary")),
+        "intent": [
+            _plain(node) for node in markup.select(summary, class_name="story-intent")
+        ],
+        "instruction": (
+            _plain(markup.select(anchor="instruction-diff")[0]),
+            _markdown_section(markdown, "Instruction changes"),
+        ),
+        "linked": bool(
+            any(
+                link["attrs"].get("href") == "#instruction-diff"
+                for link in markup.select(summary, tag="a")
+            )
+            and "(#instruction-diff)" in _markdown_section(markdown, "Summary")
+        ),
+        "recorded_list": bool(markup.select(class_name="purpose-goals")),
+    }
+
+
+def _assert_purpose_presentation(reports):
+    """Summary shows a short honest aim; Instruction changes keeps full goals."""
+    mixed = reports["target-mixed"]
+    baseline = reports["target-baseline"]
+    paraphrase = mixed.decisions.purpose_summary
+    assert paraphrase is not None and mixed.intent.source == "purpose"
+    assert baseline.decisions.purpose_summary is None
+    goal = baseline.decisions.purpose[0]
+    second = replace(
+        goal,
+        text="Keep the supported query exception in customer-facing drafts.",
+        source="diff",
+        basis="inferred",
+        reference="Synthetic instruction diff hunk 1",
+    )
+    long_goal = replace(
+        goal,
+        text=" ".join(
+            f"Check customer claim {number} against the implementation limits."
+            for number in range(1, 9)
+        ),
+    )
+    assert len(long_goal.text) > 320
+
+    def variant(report, purpose, purpose_summary):
+        decisions = replace(
+            report.decisions, purpose=purpose, purpose_summary=purpose_summary
+        )
+        return replace(
+            report,
+            decisions=decisions,
+            intent=build_intent(report.content.expected, decisions),
+        )
+
+    specimens = {
+        "paraphrase": (mixed, [paraphrase]),
+        "paraphrase of several goals": (
+            variant(mixed, (mixed.decisions.purpose[0], second), paraphrase),
+            [paraphrase],
+        ),
+        "exact single goal": (baseline, [goal.text]),
+        "several goals": (variant(baseline, (goal, second), None), None),
+        "long single goal": (variant(baseline, (long_goal,), None), None),
+    }
+    labels = {}
+    for name, (specimen, shown) in specimens.items():
+        labels[name] = content.summary_intent(specimen).label
+        unassessed = replace(
+            specimen,
+            decisions=replace(specimen.decisions, target_assessment=None),
+        )
+        for report in (specimen, unassessed):
+            surfaces = _intent_surfaces(report)
+            assert surfaces["linked"], f"{name}: Summary must link the full intent."
+            assert len(surfaces["intent"]) == 1 and len(surfaces["intent"][0]) <= 320
+            if shown is not None:
+                assert surfaces["intent"] == shown, name
+            assert report.summary.context.text in surfaces["summary"][0]
+            # The frozen purpose and full intent stay unchanged beside the short text.
+            assert report.intent.text == " ".join(
+                item.text for item in report.decisions.purpose
+            )
+            for item in report.decisions.purpose:
+                for summary_text in surfaces["summary"]:
+                    assert item.reference not in summary_text, (
+                        f"{name}: Summary repeats detailed goal provenance."
+                    )
+                    if shown != [item.text]:
+                        # No truncation, selection, or full repetition of a goal.
+                        assert item.text[:60] not in summary_text, name
+                for instruction_text in surfaces["instruction"]:
+                    assert item.text in instruction_text, (
+                        f"{name}: Instruction changes lost a full recorded goal."
+                    )
+                    assert content.purpose_goal_source(item) in instruction_text
+            label = labels[name]
+            assert all(label in text for text in surfaces["summary"])
+    # A later paraphrase is never labeled like a goal recorded before trials.
+    assert labels["paraphrase"] != labels["exact single goal"]
+    assert labels["several goals"] != labels["paraphrase"]
+
+    planned = reports["planned-actions"]
+    assert planned.intent.source == "inferred" and not planned.decisions.purpose
+    surfaces = _intent_surfaces(planned)
+    assert surfaces["intent"] == [planned.intent.text] and surfaces["linked"]
+    assert not surfaces["recorded_list"]
+    assert all(planned.intent.text in text for text in surfaces["instruction"])
+    unframed = replace(planned.decisions, intent=None)
+    for expected, fits in (
+        ("Return a repair plan; do not execute it.", True),
+        (" ".join(["Return a repair plan; do not execute it."] * 9), False),
+    ):
+        supplied = replace(
+            planned, decisions=unframed, intent=build_intent(expected, unframed)
+        )
+        assert supplied.intent.source == "expected"
+        surfaces = _intent_surfaces(supplied)
+        assert surfaces["linked"] and len(surfaces["intent"][0]) <= 320
+        assert (surfaces["intent"] == [expected]) is fits
+        assert all(expected in text for text in surfaces["instruction"])
 
 
 def _assert_human_first_explanation(report):
@@ -216,6 +352,7 @@ def assert_target_reports(reports, root, assert_round_trip):
     assert parsed is not None and parsed.findings[0].relationship == "unclear"
     _assert_purpose_conclusion(reports["target-baseline"], assert_round_trip)
     _assert_presentation(reports)
+    _assert_purpose_presentation(reports)
     _assert_human_first_explanation(reports["target-baseline"])
     _assert_invalid_assessments(reports["target-baseline"])
     _assert_attention_gate(persistent)
@@ -528,7 +665,7 @@ def _assert_missing_records(report):
 
 
 def _assert_old_versions_rejected(report):
-    for version in (11, 12):
+    for version in (11, 12, 13):
         raw = report.to_dict()
         raw["schema_version"] = version
         try:

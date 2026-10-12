@@ -205,6 +205,11 @@ def _instruction_edit(report) -> str:
         else ""
     )
     aim_links = _edit_links(report.intent, report) if report.intent.edit_hunks else ""
+    aim = (
+        _recorded_purpose(report)
+        if report.decisions.purpose
+        else f'<p class="edit-aim">{html.escape(content.instruction_edit_aim(report.intent))}</p>'
+    )
     return (
         '<section class="instruction-edit" id="instruction-diff" tabindex="-1" '
         'aria-labelledby="instruction-edit-heading">'
@@ -212,7 +217,7 @@ def _instruction_edit(report) -> str:
         f'<h2 id="instruction-edit-heading">{html.escape(report.content.diff_heading)}</h2>'
         f"{_info('edit-info', 'About these instruction changes', f'<p>{html.escape(content.EDIT_LINK_NOTE)}</p>')}"
         "</div>"
-        f'<p class="edit-aim">{html.escape(content.instruction_edit_aim(report.intent))}</p>'
+        f"{aim}"
         f"{aim_links}"
         f'<p class="edit-summary">{html.escape(content.instruction_edit_counts(report.rule_diff))}</p>'
         f"{controls}<pre>{''.join(lines)}</pre>"
@@ -743,12 +748,21 @@ def _primary_result_context(report) -> str:
     )
 
 
-def _purpose_provenance(report):
-    return "".join(
+def _recorded_purpose(report):
+    """List every frozen goal in full with its provenance, independent of assessment."""
+    goals = "".join(
+        '<li class="purpose-goal">'
+        f"<h4>Goal {index}</h4>"
+        f'<p class="purpose-goal-text">{html.escape(goal.text)}</p>'
         '<p class="note purpose-provenance">'
-        f"Goal {index}: {html.escape(goal.source)} · {html.escape(goal.basis)} · "
-        f"{html.escape(goal.reference)}</p>"
+        f"{html.escape(content.purpose_goal_source(goal))}</p></li>"
         for index, goal in enumerate(report.decisions.purpose, 1)
+    )
+    return (
+        '<section class="recorded-purpose" aria-labelledby="recorded-purpose-heading">'
+        f'<h3 id="recorded-purpose-heading">{html.escape(content.RECORDED_PURPOSE_HEADING)}</h3>'
+        f'<p class="note">{html.escape(content.RECORDED_PURPOSE_NOTE)}</p>'
+        f'<ul class="purpose-goals" role="list">{goals}</ul></section>'
     )
 
 
@@ -955,14 +969,7 @@ def _summary_claim(label: str, claim, css_class: str) -> str:
 
 def _short_story_summary(report: ReportData) -> str:
     summary = report.summary
-    intent = report.intent
-    intent_label, intent_note = content.intent_context(intent)
-    intent_badge = {
-        "expected": "Supplied expectation",
-        "inferred": "Inferred",
-        "unavailable": "Unavailable",
-        "purpose": "Recorded before trials",
-    }[intent.source]
+    intent = content.summary_intent(report)
     intent_links = (
         '<a href="#instruction-diff">Instruction changes '
         '<span aria-hidden="true">→</span></a>'
@@ -1002,12 +1009,12 @@ def _short_story_summary(report: ReportData) -> str:
         '<li class="story-step"><span class="story-number" aria-hidden="true">1</span>'
         '<div class="story-body"><div class="intent-heading">'
         f"<h3>{html.escape(content.SUMMARY_PURPOSE_HEADING)}</h3>"
-        f'<span class="intent-source">{intent_badge}</span>'
-        f"{_info('intent-info', intent_label, f'<p>{html.escape(intent_note)}</p>')}"
+        f'<span class="intent-source">{html.escape(intent.badge)}</span>'
+        f"{_info('intent-info', intent.label, f'<p>{html.escape(intent.note)}</p>')}"
         f'<nav class="intent-evidence" aria-label="Instruction aim evidence">{intent_links}</nav>'
         "</div>"
         f'<p class="story-intent">{html.escape(intent.text)}</p>'
-        f"{_purpose_provenance(report)}{case_context}"
+        f"{case_context}"
         "</div></li>"
         '<li class="story-step"><span class="story-number" aria-hidden="true">2</span>'
         f'<div class="story-body"><h3>{html.escape(content.SUMMARY_EVIDENCE_HEADING)}</h3>'

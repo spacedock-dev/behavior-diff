@@ -466,31 +466,33 @@ def _claim_shape(claim):
     _shape(claim, [("strong", None), ("p", None), ("span", "evidence-links")])
 
 
-def _intent_case_context(body):
-    """Validate the stripped intent step and return its case context, if any."""
+def _intent_case_context(body, source_intents):
+    """Reject case context that repeats displayed or full-detail source intent."""
     children = _children(body)
     if (
-        len(children) < 2
+        len(children) not in (2, 3)
         or children[0].tag != "div"
         or not children[0].has_class("intent-heading")
         or children[1].tag != "p"
         or not children[1].has_class("story-intent")
     ):
         raise ValueError("Unknown intended-change step.")
-    context = None
-    if children[-1].has_class("summary-case-context"):
-        context = children.pop()
-        if context.tag != "div":
-            raise ValueError("Unknown case context.")
-        _claim_shape(context)
-        intent = " ".join(_plain(children[1]).split())
-        if intent and intent in " ".join(_plain(context).split()):
-            raise ValueError("Case context repeats the intended change.")
-    if any(
-        node.tag != "p" or not node.has_class("purpose-provenance")
-        for node in children[2:]
-    ):
+    if len(children) == 2:
+        return None
+    context = children[2]
+    if context.tag != "div" or not context.has_class("summary-case-context"):
         raise ValueError("Unknown intended-change step.")
+    _claim_shape(context)
+    shown = " ".join(_plain(context).split())
+    for intent in (children[1], *source_intents):
+        text = " ".join(_plain(intent).split())
+        if intent.has_class("edit-aim"):
+            for prefix in ("Supplied expectation: ", "Likely aim: "):
+                if text.startswith(prefix):
+                    text = text[len(prefix) :]
+                    break
+        if text and text in shown:
+            raise ValueError("Case context repeats the intended change.")
     return context
 
 
@@ -552,7 +554,12 @@ def _blinded_report(source):
         _shape(step, [("span", "story-number"), ("div", "story-body")])[1]
         for step in steps
     ]
-    case_context = _intent_case_context(bodies[0])
+    source_intents = [
+        node
+        for node in nodes
+        if node.has_class("purpose-goal-text") or node.has_class("edit-aim")
+    ]
+    case_context = _intent_case_context(bodies[0], source_intents)
     evidence_shape = [("h3", None)]
     if any(node.has_class("summary-context") for node in _children(bodies[1])):
         evidence_shape.append(("p", "summary-context"))
@@ -611,7 +618,7 @@ def _blinded_report(source):
     limits = _shape(bodies[3], limits_shape)
     if len(limits) == 3:
         _claim_shape(limits[1])
-    # Remove the intended change, its purpose sources and every navigation link.
+    # Remove the intended change, its source label and every navigation link.
     # Case context is observation context; the reader sees it beside the evidence.
     if case_context is not None:
         evidence = bodies[1].children
@@ -769,7 +776,7 @@ def build_quiz(session: Path, repo_root: Path) -> None:
         "reports": reports,
         "answer_key_sha256": _hash((session / "answer-key.json").read_bytes()),
         "session_sha256": _hash((session / "session.json").read_bytes()),
-        "summary_method": "saved-html-summary-panel-v2",
+        "summary_method": "saved-html-summary-panel-v3",
     }
     _atomic_file(session / "quiz-build.json", _bytes(receipt))
 

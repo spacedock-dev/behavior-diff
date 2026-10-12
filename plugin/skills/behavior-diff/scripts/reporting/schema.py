@@ -21,6 +21,7 @@ from reporting.summary import (
     build_summary,
     parse_intent,
     parse_narrative,
+    parse_purpose_summary,
 )
 from reporting.trial_summary import (
     TrialSummaryData,
@@ -39,7 +40,7 @@ from reporting.target import (
     persisted_evidence,
 )
 
-SCHEMA_VERSION = 13
+SCHEMA_VERSION = 14
 RESULT_KINDS = ("good", "bad", "neutral")
 
 
@@ -142,6 +143,7 @@ class DecisionData:
     recorded_evidence: Tuple[RecordedEvidenceData, ...] = ()
     target_assessment: Optional[TargetAssessmentData] = None
     evidence_limits: Optional[EvidenceLimitsData] = None
+    purpose_summary: Optional[str] = None
 
 
 @dataclass(frozen=True)
@@ -260,6 +262,7 @@ class ReportData:
             "recorded_evidence",
             "target_assessment",
             "evidence_limits",
+            "purpose_summary",
         ):
             _field(raw_decisions, name, "decisions")
         rule_diff = _expect_str(_field(data, "rule_diff", "report-data"), "rule_diff")
@@ -543,6 +546,10 @@ def _decisions(value, path, hunk_count, groups=None, final_answers=None):
     purpose = parse_purpose({"goals": raw_purpose}) if raw_purpose else ()
     if _json_value([asdict(goal) for goal in purpose]) != raw_purpose:
         _invalid(path + ".purpose", "canonical purpose goals")
+    raw_purpose_summary = value.get("purpose_summary")
+    purpose_summary = parse_purpose_summary(raw_purpose_summary, purpose)
+    if purpose_summary != raw_purpose_summary:
+        _invalid(path + ".purpose_summary", "plain summary of recorded purpose goals")
     evidence = persisted_evidence(value.get("recorded_evidence", []))
     raw_target = value.get("target_assessment")
     target = parse_target(
@@ -587,6 +594,7 @@ def _decisions(value, path, hunk_count, groups=None, final_answers=None):
         recorded_evidence=evidence,
         target_assessment=target,
         evidence_limits=parse_evidence_limits(value.get("evidence_limits")),
+        purpose_summary=purpose_summary,
     )
     from reporting.content import valid_decision_choices
 

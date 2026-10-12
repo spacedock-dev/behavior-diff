@@ -39,7 +39,7 @@ from target_contract import assert_target_reports  # noqa: E402
 
 def synthetic_raw():
     raw = {
-        "schema_version": 13,
+        "schema_version": 14,
         "metadata": {
             "model": "synthetic/model",
             "mode": "review",
@@ -243,7 +243,11 @@ def synthetic_raw():
         },
     }
     raw["decisions"].update(
-        purpose=[], recorded_evidence=[], target_assessment=None, evidence_limits=None
+        purpose=[],
+        purpose_summary=None,
+        recorded_evidence=[],
+        target_assessment=None,
+        evidence_limits=None,
     )
     from reporting.schema import _decisions, _metadata, _variants
     from reporting.summary import build_intent, build_summary
@@ -651,6 +655,129 @@ def assert_summary_context_and_starts(raw):
                 (loaded.summary.after.start, expected.after.start),
             ):
                 assert (value and asdict(value)) == (source and asdict(source))
+            assert_round_trip(loaded.to_dict())
+
+
+def assert_purpose_summary_contract(raw):
+    """A plain summary of frozen goals never replaces purpose, intent, or evidence."""
+    import decisions as extractor
+    from reporting.load import load_report
+
+    goals = [
+        {
+            "text": "Report every difference between the synthetic files.",
+            "source": "session",
+            "basis": "explicit",
+            "reference": "Synthetic request before trials",
+        },
+        {
+            "text": "Keep the review read-only.",
+            "source": "diff",
+            "basis": "inferred",
+            "reference": "Synthetic instruction diff",
+        },
+    ]
+    paraphrase = "Report every file difference and keep the review read-only."
+    recorded_intent = {
+        "text": " ".join(goal["text"] for goal in goals),
+        "source": "purpose",
+        "edit_hunks": [],
+    }
+    purposed = copy.deepcopy(raw)
+    purposed["decisions"].update(purpose=goals, purpose_summary=paraphrase)
+    purposed["intent"] = recorded_intent
+    report = assert_round_trip(purposed)
+    assert report.decisions.purpose_summary == paraphrase
+    # The full recorded intent and each goal's provenance stay unchanged.
+    assert asdict(report.intent) == {**recorded_intent, "edit_hunks": ()}
+    assert [asdict(goal) for goal in report.decisions.purpose] == goals
+    absent = copy.deepcopy(purposed)
+    absent["decisions"]["purpose_summary"] = None
+    assert assert_round_trip(absent).intent == report.intent
+
+    invalid = (
+        "invalid report-data field decisions.purpose_summary: "
+        "expected plain summary of recorded purpose goals"
+    )
+    for value in (
+        " " + paraphrase,
+        "x" * 321,
+        "Report differences.\nKeep it read-only.",
+        "**Report** every difference.",
+        "<b>Report</b> every difference.",
+        "",
+        1,
+        False,
+        [paraphrase],
+    ):
+        changed = copy.deepcopy(purposed)
+        changed["decisions"]["purpose_summary"] = value
+        assert_rejected(changed, invalid)
+    # Without frozen goals a summary cannot appear, even as a paraphrase.
+    unfrozen = copy.deepcopy(raw)
+    unfrozen["decisions"]["purpose_summary"] = paraphrase
+    assert_rejected(unfrozen, invalid)
+    missing = copy.deepcopy(purposed)
+    del missing["decisions"]["purpose_summary"]
+    assert_rejected(
+        missing,
+        "invalid report-data field decisions.purpose_summary: expected present field",
+    )
+
+    # Saved decisions keep observations whether the summary is valid, absent, or not.
+    completed = {"before": ["before-1", "before-2"], "after": ["after-1", "after-2"]}
+    reply = {
+        "chain": [
+            {
+                "decision": "State result",
+                "topic": "Delivery",
+                "anchor": "answer",
+                "before": [{"choice": "explain", "trials": completed["before"]}],
+                "after": [{"choice": "explain", "trials": completed["after"]}],
+            }
+        ],
+        "outcome": 1,
+        "purpose_summary": paraphrase,
+    }
+    saved = extractor.normalize(reply, completed, purpose={"goals": goals})
+    assert saved["purpose_summary"] == paraphrase
+    assert saved["purpose"] == goals
+    legacy = dict(saved)
+    del legacy["purpose_summary"]
+    with tempfile.TemporaryDirectory() as directory:
+        run = Path(directory)
+        names = [*completed["before"], *completed["after"]]
+        (run / "task.md").write_text("Review a synthetic file without changing it.")
+        (run / "config.json").write_text(
+            json.dumps(
+                {"mode": "review", "vocab": "generic", "purpose": {"goals": goals}}
+            )
+        )
+        (run / "grades.tsv").write_text(
+            "".join(f"{name}\tREVIEW\t-\n" for name in names)
+        )
+        for name in names:
+            (run / name).mkdir()
+            (run / name / "trace.jsonl").write_text(
+                json.dumps({"type": "result", "result": f"Synthetic answer {name}."})
+            )
+        rows = None
+        for saved_decisions, expected in (
+            (saved, paraphrase),
+            (legacy, None),
+            (dict(saved, purpose_summary="<b>Report</b> differences."), None),
+            (dict(saved, purpose_summary="x" * 321), None),
+            # Configuration goals cannot adopt a summary saved without its goals.
+            (dict(saved, purpose=[]), None),
+        ):
+            (run / "decisions.json").write_text(json.dumps(saved_decisions))
+            loaded = load_report(run, run, "synthetic/model", run / "config.json")
+            assert loaded.decisions.purpose_summary == expected
+            assert [asdict(goal) for goal in loaded.decisions.purpose] == goals
+            assert loaded.intent == report.intent
+            rows = rows or loaded.decisions.rows
+            assert rows and loaded.decisions.rows == rows
+            assert loaded.decisions.outcome == 1
             assert_round_trip(loaded.to_dict())
 
 
@@ -2465,6 +2592,7 @@ def main():
     assert_trial_summary_validation(raw)
     assert_branch_membership_validation(raw)
     assert_summary_context_and_starts(raw)
+    assert_purpose_summary_contract(raw)
     assert_trial_summary_pipeline()
     assert_trial_summary_rendering(report)
     assert_summary_evidence(report)
@@ -2515,7 +2643,7 @@ def main():
         "unsupported report-data schema version: 10",
     )
     # Earlier report-data shapes are rejected; saved runs regenerate from decisions.
-    for version in (11, 12):
+    for version in (11, 12, 13):
         assert_rejected(
             dict(raw, schema_version=version),
             f"unsupported report-data schema version: {version}",

@@ -339,6 +339,7 @@ class ReportAndServerTests(unittest.TestCase):
                     self.assertIn(visible(node), text)
         for name in (
             "story-intent",
+            "purpose-goal-text",
             "purpose-provenance",
             "intent-heading",
             "scenario-context",
@@ -351,7 +352,12 @@ class ReportAndServerTests(unittest.TestCase):
             any(
                 node.has_class(name)
                 for node in quiz._walk(blind_root)
-                for name in ("intent-heading", "story-intent", "purpose-provenance")
+                for name in (
+                    "intent-heading",
+                    "story-intent",
+                    "purpose-goal-text",
+                    "purpose-provenance",
+                )
             )
         )
         self.assertNotIn('id="panel-instruction"', blinded)
@@ -674,8 +680,14 @@ class ReportAndServerTests(unittest.TestCase):
                             for node in quiz._walk(blinded)
                         )
                     )
-                for name in ("story-intent", "purpose-provenance", "intent-heading"):
-                    for node in quiz._walk(panel):
+                # Neither the Summary intent nor any full goal or source survives.
+                for name in (
+                    "story-intent",
+                    "purpose-goal-text",
+                    "purpose-provenance",
+                    "intent-heading",
+                ):
+                    for node in quiz._walk(original):
                         if node.has_class(name):
                             self.assertNotIn(visible(node), text)
                 self.assertNotIn("Synthetic owner request before trials", blinded_html)
@@ -685,6 +697,61 @@ class ReportAndServerTests(unittest.TestCase):
                         for node in quiz._walk(blinded)
                     )
                 )
+
+    def test_case_context_repeating_long_expected_behavior_fails_closed(self):
+        source = (self.gallery / "target-mixed/report.html").read_text()
+        root = quiz._ReportParser().finish(source)
+        expected = (
+            "Preserve the source restrictions when writing the release note. "
+            "Explain supported formats and row limits without promising unlimited "
+            "results, keep the supported-query exception visible, and distinguish "
+            "what the implementation allows from what the pull request claims. "
+            "Do not turn a limited export feature into a promise that every query "
+            "can export all of its rows."
+        )
+        self.assertGreater(len(expected), 320)
+        self.assertLessEqual(len(expected), 480)
+        nodes = list(quiz._walk(root))
+        for node in nodes:
+            node.children = [
+                child
+                for child in node.children
+                if not (
+                    isinstance(child, quiz._Node)
+                    and child.has_class("recorded-purpose")
+                )
+            ]
+        self.assertFalse(
+            any(node.has_class("purpose-goal-text") for node in quiz._walk(root))
+        )
+        intent = quiz._single(
+            [node for node in nodes if node.has_class("story-intent")], "intent"
+        )
+        intent.children = [
+            "The supplied expected behavior is too long to repeat here. "
+            "See Instruction changes for the full text."
+        ]
+        instruction = quiz._single(
+            [node for node in nodes if node.attrs.get("id") == "instruction-diff"],
+            "instruction details",
+        )
+        instruction.children.append(
+            quiz._Node(
+                "p",
+                [("class", "edit-aim")],
+                ["Supplied expectation: " + expected],
+            )
+        )
+        context = quiz._single(
+            [node for node in nodes if node.has_class("summary-case-context")],
+            "case context",
+        )
+        quiz._children(context)[1].children = [expected]
+        with (
+            patch.object(quiz._ReportParser, "finish", return_value=root),
+            self.assertRaisesRegex(ValueError, "repeats the intended change"),
+        ):
+            quiz._blinded_report(source)
 
     def test_case_context_repeating_intent_and_target_links_fail_closed(self):
         source = (self.gallery / "target-mixed/report.html").read_text()
@@ -708,6 +775,43 @@ class ReportAndServerTests(unittest.TestCase):
             self.assertRaisesRegex(ValueError, "repeats the intended change"),
         ):
             quiz._blinded_report(source)
+        # A short Summary paraphrase must not let case context repeat a full goal.
+        root = quiz._ReportParser().finish(source)
+        intent = quiz._single(
+            [node for node in quiz._walk(root) if node.has_class("story-intent")],
+            "intent",
+        )
+        goals = [
+            node for node in quiz._walk(root) if node.has_class("purpose-goal-text")
+        ]
+        self.assertTrue(goals)
+        self.assertTrue(
+            all(quiz._plain(goal) != quiz._plain(intent) for goal in goals),
+            "The fixture must show a paraphrase, not the recorded goal.",
+        )
+        context = quiz._single(
+            [
+                node
+                for node in quiz._walk(root)
+                if node.has_class("summary-case-context")
+            ],
+            "case context",
+        )
+        quiz._children(context)[1].children.insert(0, quiz._plain(goals[0]) + " ")
+        with (
+            patch.object(quiz._ReportParser, "finish", return_value=root),
+            self.assertRaisesRegex(ValueError, "repeats the intended change"),
+        ):
+            quiz._blinded_report(source)
+        provenance = source.replace(
+            '<div class="summary-case-context">',
+            '<p class="note purpose-provenance">Private goal source</p>'
+            '<div class="summary-case-context">',
+            1,
+        )
+        self.assertNotEqual(source, provenance)
+        with self.assertRaisesRegex(ValueError, "Unknown intended-change step"):
+            quiz._blinded_report(provenance)
         linked = source.replace(
             '<p class="attention-target-result">',
             '<p class="attention-target-result">'
