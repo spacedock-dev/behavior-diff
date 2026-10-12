@@ -516,32 +516,57 @@ def _attention_notice(attention) -> str:
     return assessment
 
 
+def _attention_finding_summary(report, finding: AttentionFindingData) -> str:
+    relationship, evidence = content.attention_labels(
+        finding, report.metadata.trace_source
+    )
+    body_id = f"attention-body-{finding.decision}"
+    anchor = content.attention_finding_anchor(finding.decision)
+    return (
+        '<article class="attention-finding">'
+        '<header class="attention-heading">'
+        f"<h4>{html.escape(finding.title)}</h4>"
+        '<button class="attention-dismiss" type="button" data-attention-dismiss '
+        f'aria-expanded="true" aria-controls="{body_id}" hidden>Not relevant here</button></header>'
+        f'<div class="attention-body" id="{body_id}" data-attention-body>'
+        f'<p class="attention-consequence">{html.escape(finding.consequence)}</p>'
+        '<p class="attention-meta">'
+        f'<span class="attention-relationship">{html.escape(relationship)} · </span>'
+        f'<span class="attention-evidence-kind">{html.escape(evidence)}</span></p>'
+        f'<p class="attention-limit"><strong>Limit:</strong> {html.escape(finding.limit)}</p>'
+        f'<p class="attention-next"><strong>What you can do:</strong> {html.escape(finding.next_step)}</p>'
+        '<nav class="attention-finding-nav" aria-label="Concern evidence">'
+        f'<a href="#{anchor}">See the evidence for this concern <span aria-hidden="true">→</span></a>'
+        "</nav></div></article>"
+    )
+
+
+def _attention_target_gap(report, number: int) -> str:
+    gap = content.target_gap(report, number)
+    anchor = content.target_criterion_anchor(number)
+    return (
+        '<article class="attention-finding attention-target-gap">'
+        f'<header class="attention-heading"><h4>{html.escape(gap.title)}</h4></header>'
+        '<div class="attention-body">'
+        f'<p class="attention-target-result">{html.escape(gap.result)}</p>'
+        f'<p class="attention-consequence">{html.escape(gap.consequence)}</p>'
+        f'<p class="attention-meta">{html.escape(content.ATTENTION_TARGET_GAP_NOTE)}</p>'
+        f'<p class="attention-next"><strong>What you can do:</strong> {html.escape(gap.next_step)}</p>'
+        '<nav class="attention-finding-nav" aria-label="Target check evidence">'
+        f'<a href="#{anchor}">See the target check <span aria-hidden="true">→</span></a>'
+        "</nav></div></article>"
+    )
+
+
 def _attention_summary(report: ReportData) -> str:
     attention = report.decisions.attention
     parts = [_attention_notice(attention)]
-    if attention is not None:
-        for finding in attention.findings:
-            relationship, evidence = content.attention_labels(
-                finding, report.metadata.trace_source
-            )
-            body_id = f"attention-body-{finding.decision}"
-            parts.append(
-                '<article class="attention-finding">'
-                '<header class="attention-heading">'
-                f"<h4>{html.escape(finding.title)}</h4>"
-                '<button class="attention-dismiss" type="button" data-attention-dismiss '
-                f'aria-expanded="true" aria-controls="{body_id}" hidden>Not relevant here</button></header>'
-                f'<div class="attention-body" id="{body_id}" data-attention-body>'
-                '<div class="attention-pair">'
-                f"{_attention_side(report, finding, 'before')}"
-                f"{_attention_side(report, finding, 'after')}</div>"
-                f'<p class="attention-consequence">{html.escape(finding.consequence)}</p>'
-                '<p class="attention-meta">'
-                f'<span class="attention-relationship">{html.escape(relationship)} · </span>'
-                f'<span class="attention-evidence-kind">{html.escape(evidence)}</span></p>'
-                f'<p class="attention-limit"><strong>Limit:</strong> {html.escape(finding.limit)}</p>'
-                f"{_attention_guidance(finding)}</div></article>"
-            )
+    for item in content.attention_items(report):
+        parts.append(
+            _attention_target_gap(report, item.criterion_number)
+            if item.finding is None
+            else _attention_finding_summary(report, item.finding)
+        )
     label = (
         'See why this matters <span aria-hidden="true">→</span>'
         if attention is not None and attention.findings
@@ -599,51 +624,57 @@ def _attention_explanation(report: ReportData) -> str:
         "<h3>What needs your attention</h3>",
         _attention_notice(attention),
     ]
-    if attention is not None:
-        for finding in attention.findings:
-            relationship, evidence = content.attention_labels(
-                finding, report.metadata.trace_source
+    for item in content.attention_items(report):
+        finding = item.finding
+        if finding is None:
+            continue
+        relationship, evidence = content.attention_labels(
+            finding, report.metadata.trace_source
+        )
+        references = tuple(
+            dict.fromkeys(
+                (finding.decision,)
+                + tuple(index for claim in finding.context for index in claim.decisions)
             )
-            references = tuple(
-                dict.fromkeys(
-                    (finding.decision,)
-                    + tuple(
-                        index for claim in finding.context for index in claim.decisions
-                    )
-                )
+        )
+        anchor = content.attention_finding_anchor(finding.decision)
+        parts.extend(
+            [
+                f'<article class="attention-explanation-finding" id="{anchor}" tabindex="-1">',
+                f"<h4>{html.escape(finding.title)}</h4>",
+                f'<p class="attention-consequence">{html.escape(finding.consequence)}</p>',
+                '<section class="attention-interpretation">'
+                "<h5>Why this concern matters (model interpretation)</h5>",
+                '<p class="attention-meta">'
+                f'<span class="attention-relationship">{html.escape(relationship)} · </span>'
+                f'<span class="attention-evidence-kind">{html.escape(evidence)}</span></p>',
+                f"<p>{html.escape(finding.explanation)}</p>"
+                f"{_attention_guidance(finding)}</section>",
+                '<div class="attention-pair">'
+                f"{_attention_side(report, finding, 'before')}"
+                f"{_attention_side(report, finding, 'after')}</div>",
+                _attention_branch_evidence(report, finding),
+            ]
+        )
+        if finding.context:
+            parts.append(
+                '<section class="attention-context"><h5>Related context (model interpretation)</h5><ul>'
             )
             parts.extend(
-                [
-                    '<article class="attention-explanation-finding">',
-                    f"<h4>{html.escape(finding.title)}</h4>",
-                    '<section class="attention-interpretation">'
-                    "<h5>Why this concern matters (model interpretation)</h5>",
-                    '<p class="attention-meta">'
-                    f'<span class="attention-relationship">{html.escape(relationship)} · </span>'
-                    f'<span class="attention-evidence-kind">{html.escape(evidence)}</span></p>',
-                    f"<p>{html.escape(finding.explanation)}</p></section>",
-                    _attention_branch_evidence(report, finding),
-                ]
+                f"<li>{html.escape(claim.text)} "
+                f'<span class="attention-context-citations">({_decision_links(claim.decisions)})</span></li>'
+                for claim in finding.context
             )
-            if finding.context:
-                parts.append(
-                    '<section class="attention-context"><h5>Related context (model interpretation)</h5><ul>'
-                )
-                parts.extend(
-                    f"<li>{html.escape(claim.text)} "
-                    f'<span class="attention-context-citations">({_decision_links(claim.decisions)})</span></li>'
-                    for claim in finding.context
-                )
-                parts.append("</ul></section>")
-            parts.extend(
-                [
-                    '<section class="attention-uncertainty"><h5>Limits and uncertainty</h5>'
-                    f'<p class="attention-limit">{html.escape(finding.limit)}</p></section>',
-                    '<details class="attention-evidence"><summary>Check the evidence</summary>',
-                    f'<nav class="evidence-nav" aria-label="Attention finding evidence">{_decision_links(references)}</nav>',
-                    "</details></article>",
-                ]
-            )
+            parts.append("</ul></section>")
+        parts.extend(
+            [
+                '<section class="attention-uncertainty"><h5>Limits and uncertainty</h5>'
+                f'<p class="attention-limit">{html.escape(finding.limit)}</p></section>',
+                '<details class="attention-evidence"><summary>Check the evidence</summary>',
+                f'<nav class="evidence-nav" aria-label="Attention finding evidence">{_decision_links(references)}</nav>',
+                "</details></article>",
+            ]
+        )
     parts.append("</section>")
     return "".join(parts)
 
@@ -654,15 +685,34 @@ def _decision_links(indexes) -> str:
     )
 
 
-def _summary_side(side, label: str) -> str:
+def _summary_start(report, side: str) -> str:
+    start = content.summary_start(report, side)
+    if start is None:
+        return ""
+    arrow = (
+        '<span class="summary-start-arrow" aria-hidden="true">↓</span>'
+        if start.ordered
+        else ""
+    )
+    return (
+        '<div class="summary-start">'
+        f'<p class="summary-start-text">{html.escape(start.text)}</p>'
+        f'<p class="summary-start-source">{html.escape(start.source)}</p>'
+        f"{arrow}</div>"
+    )
+
+
+def _summary_side(report, side: str) -> str:
+    data = getattr(report.summary, side)
+    label = side.capitalize()
     choices = []
-    for choice in side.choices:
+    for choice in data.choices:
         detail = f"<p>{html.escape(choice.detail)}</p>" if choice.detail else ""
         choices.append(
             '<li class="summary-choice">'
             f"<h5>{html.escape(choice.label)}</h5>{detail}"
             '<span class="summary-count">'
-            f"{html.escape(content.trial_count(choice.count, side.total))}"
+            f"{html.escape(content.trial_count(choice.count, data.total))}"
             "</span></li>"
         )
     body = (
@@ -671,10 +721,10 @@ def _summary_side(side, label: str) -> str:
         else '<p class="summary-empty">No supported comparison is available.</p>'
     )
     return (
-        f'<section class="summary-card summary-{label.lower()}" '
+        f'<section class="summary-card summary-{side}" '
         f'aria-label="{label} observed behavior">'
         f'<h4 class="summary-side-label">{label}</h4>'
-        f"{illustration(side.icon)}{body}</section>"
+        f"{_summary_start(report, side)}{illustration(data.icon)}{body}</section>"
     )
 
 
@@ -708,10 +758,7 @@ def _target_side(report, criterion, side):
     )
 
 
-def _target_summary(report):
-    target = report.decisions.target_assessment
-    if target is None:
-        return f'<p class="note target-unavailable">{html.escape(UNAVAILABLE)}</p>'
+def _target_summary(report, target):
     rows = []
     for criterion in target.criteria:
         result = (
@@ -740,10 +787,12 @@ def _target_explanation(report):
     if target is None:
         parts.append(f"<p>{html.escape(UNAVAILABLE)}</p>")
     else:
+        parts.append(_target_summary(report, target))
         sources = {entry.id: entry for entry in report.decisions.recorded_evidence}
-        for criterion in target.criteria:
+        for number, criterion in enumerate(target.criteria, 1):
+            anchor = content.target_criterion_anchor(number)
             parts.append(
-                f"<h4>{html.escape(criterion.text)}</h4>"
+                f'<h4 id="{anchor}" tabindex="-1">{html.escape(criterion.text)}</h4>'
                 f"<p>Before: {_target_side(report, criterion, 'before')} · "
                 f"After: {_target_side(report, criterion, 'after')}</p>"
                 f"<p>{html.escape(criterion.required_evidence)}</p>"
@@ -895,6 +944,15 @@ def _change_explanation(report: ReportData) -> str:
     return "".join(parts)
 
 
+def _summary_claim(label: str, claim, css_class: str) -> str:
+    return (
+        f'<div class="{css_class}"><strong>{label}</strong>'
+        f"<p>{html.escape(claim.text)}</p>"
+        f'<span class="evidence-links">{_decision_links(claim.decisions)}</span>'
+        "</div>"
+    )
+
+
 def _short_story_summary(report: ReportData) -> str:
     summary = report.summary
     intent = report.intent
@@ -905,25 +963,28 @@ def _short_story_summary(report: ReportData) -> str:
         "unavailable": "Unavailable",
         "purpose": "Recorded before trials",
     }[intent.source]
-    intent_links = '<a href="#instruction-diff">View instruction changes</a>'
-    claims = ""
-    for label, claim, css_class in (
-        ("Why it matters", summary.why, "summary-why"),
-        ("Watch out", summary.caution, "summary-caution"),
-    ):
-        if claim:
-            claims += (
-                f'<div class="{css_class}"><strong>{label}</strong>'
-                f"<p>{html.escape(claim.text)}</p>"
-                f'<span class="evidence-links">{_decision_links(claim.decisions)}</span>'
-                "</div>"
-            )
-    if summary.why is None:
-        claims = (
-            '<p class="note summary-interpretation-unavailable">'
-            "No supported interpretation was supplied; these observations alone "
-            "do not establish the edit's benefit.</p>"
-        ) + claims
+    intent_links = (
+        '<a href="#instruction-diff">Instruction changes '
+        '<span aria-hidden="true">→</span></a>'
+    )
+    case_context = (
+        _summary_claim(
+            content.SUMMARY_CONTEXT_LABEL, summary.context, "summary-case-context"
+        )
+        if summary.context
+        else ""
+    )
+    meaning = (
+        _summary_claim(content.SUMMARY_MEANING_LABEL, summary.why, "summary-why")
+        if summary.why
+        else '<p class="note summary-interpretation-unavailable">'
+        f"{html.escape(content.SUMMARY_INTERPRETATION_UNAVAILABLE)}</p>"
+    )
+    caution = (
+        _summary_claim("Watch out", summary.caution, "summary-caution")
+        if summary.caution
+        else ""
+    )
     lead_link = (
         '<a class="summary-evidence-button" href="#panel-explanation">'
         'Understand the change <span aria-hidden="true">→</span></a>'
@@ -939,34 +1000,34 @@ def _short_story_summary(report: ReportData) -> str:
         f'<h2 class="summary-headline">{html.escape(summary.headline)}</h2>'
         '<ol class="story-steps" role="list">'
         '<li class="story-step"><span class="story-number" aria-hidden="true">1</span>'
-        '<div class="story-body"><div class="intent-heading"><h3>The intended change</h3>'
+        '<div class="story-body"><div class="intent-heading">'
+        f"<h3>{html.escape(content.SUMMARY_PURPOSE_HEADING)}</h3>"
         f'<span class="intent-source">{intent_badge}</span>'
         f"{_info('intent-info', intent_label, f'<p>{html.escape(intent_note)}</p>')}"
         f'<nav class="intent-evidence" aria-label="Instruction aim evidence">{intent_links}</nav>'
         "</div>"
         f'<p class="story-intent">{html.escape(intent.text)}</p>'
-        f"{_purpose_provenance(report)}"
+        f"{_purpose_provenance(report)}{case_context}"
         "</div></li>"
         '<li class="story-step"><span class="story-number" aria-hidden="true">2</span>'
-        '<div class="story-body"><h3>What the evidence shows</h3>'
+        f'<div class="story-body"><h3>{html.escape(content.SUMMARY_EVIDENCE_HEADING)}</h3>'
         f"{scenario}"
         f'<p class="summary-provenance">{html.escape(summary.evidence_label)}</p>'
         '<div class="summary-pair">'
-        f"{_summary_side(summary.before, 'Before')}"
+        f"{_summary_side(report, 'before')}"
         '<span class="summary-arrow" aria-hidden="true">→</span>'
-        f"{_summary_side(summary.after, 'After')}</div>"
-        f"{_primary_result_context(report)}"
-        + _target_summary(report)
-        + '<nav class="evidence-nav" aria-label="Summary evidence">'
+        f"{_summary_side(report, 'after')}</div>"
+        f"{_primary_result_context(report)}{meaning}"
+        '<nav class="evidence-nav" aria-label="Summary evidence">'
         f"{lead_link}</nav>"
         "</div></li>"
         '<li class="story-step story-attention"><span class="story-number" aria-hidden="true">3</span>'
-        '<div class="story-body"><h3>What needs your attention</h3>'
+        f'<div class="story-body"><h3>{html.escape(content.SUMMARY_ATTENTION_HEADING)}</h3>'
         f"{_attention_summary(report)}"
         "</div></li>"
-        '<li class="story-step"><span class="story-number" aria-hidden="true">4</span>'
-        '<div class="story-body"><h3>What this means</h3>'
-        f'{claims}<ul class="summary-notices">{notices}</ul>'
+        '<li class="story-step story-limits"><span class="story-number" aria-hidden="true">4</span>'
+        f'<div class="story-body"><h3>{html.escape(content.SUMMARY_LIMITS_HEADING)}</h3>'
+        f'{caution}<ul class="summary-notices">{notices}</ul>'
         "</div></li></ol></div>"
     )
 

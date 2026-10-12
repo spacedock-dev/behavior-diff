@@ -8,6 +8,10 @@ from reporting.instruction import normalize_edit_hunks
 ICONS = ("neutral", "continue", "stop", "report", "edit", "inspect", "test", "delegate")
 EVIDENCE_KINDS = ("plans", "answers", "actions")
 SUMMARY_STATUSES = ("changed", "unchanged", "mixed", "unavailable")
+TARGET_UNCERTAIN = (
+    "Some target checks remain uncertain or lack enough evidence; "
+    "inspect the detailed assessment before drawing a conclusion."
+)
 
 
 @dataclass(frozen=True)
@@ -18,15 +22,16 @@ class NarrativeChoiceData:
 
 
 @dataclass(frozen=True)
-class NarrativeSideData:
-    icon: str
-    choices: Tuple[NarrativeChoiceData, ...]
-
-
-@dataclass(frozen=True)
 class NarrativeClaimData:
     text: str
     decisions: Tuple[int, ...]
+
+
+@dataclass(frozen=True)
+class NarrativeSideData:
+    icon: str
+    choices: Tuple[NarrativeChoiceData, ...]
+    start: Optional[NarrativeClaimData] = None
 
 
 @dataclass(frozen=True)
@@ -39,6 +44,7 @@ class NarrativeData:
     after: NarrativeSideData
     why: Optional[NarrativeClaimData]
     caution: Optional[NarrativeClaimData]
+    context: Optional[NarrativeClaimData] = None
 
 
 @dataclass(frozen=True)
@@ -96,6 +102,68 @@ def _row_field(row, name):
     return row[name] if type(row) is dict else getattr(row, name)
 
 
+def _claim(raw, limit, positions):
+    if type(raw) is not dict or type(raw.get("decisions")) is not list:
+        raise ValueError("invalid narrative claim")
+    refs = raw["decisions"]
+    if (
+        not refs
+        or any(type(ref) is not int or ref not in positions for ref in refs)
+        or len(set(refs)) != len(refs)
+    ):
+        raise ValueError("invalid narrative claim references")
+    return NarrativeClaimData(
+        _text(raw.get("text"), limit), tuple(positions[ref] for ref in refs)
+    )
+
+
+def _optional_claim(raw, limit, positions):
+    """Omit an unsupported optional claim without discarding validated comparisons."""
+    if raw is None:
+        return None
+    try:
+        return _claim(raw, limit, positions)
+    except ValueError:
+        return None
+
+
+def _side_members(branches):
+    """Return exact trial names for a side, or None when attribution is incomplete."""
+    if type(branches) not in (list, tuple) or not branches:
+        return None
+    names = []
+    for branch in branches:
+        if type(branch) is dict:
+            trials, count = branch.get("trials"), branch.get("n", branch.get("count"))
+        else:
+            trials, count = branch.trials, branch.count
+        if (
+            type(trials) not in (list, tuple)
+            or not trials
+            or len(trials) != count
+            or any(type(name) is not str or not name.strip() for name in trials)
+        ):
+            return None
+        names.extend(trials)
+    return set(names) if len(set(names)) == len(names) else None
+
+
+def _start(raw, side, lead, rows, positions):
+    """Keep a start only when one cited branch holds exactly every lead trial.
+
+    A start is an observed state or step shared by the side's lead trials. It
+    never joins differing row memberships into a counted path or proves a cause.
+    """
+    claim = _optional_claim(raw, 80, positions)
+    if claim is None or len(claim.decisions) != 1:
+        return None
+    lead_members = _side_members(_row_field(lead, side))
+    cited = _row_field(rows[claim.decisions[0] - 1], side)
+    if lead_members is None or len(cited) != 1 or _side_members(cited) != lead_members:
+        return None
+    return claim
+
+
 def parse_narrative(raw, rows, positions=None):
     """Discard only unsupported narrative; retain existing decision observations."""
     if raw is None:
@@ -148,30 +216,17 @@ def parse_narrative(raw, rows, positions=None):
             icon = source.get("icon")
             sides.append(
                 NarrativeSideData(
-                    icon if type(icon) is str and icon in ICONS else "neutral", choices
+                    icon if type(icon) is str and icon in ICONS else "neutral",
+                    choices,
+                    _start(source.get("start"), side, row, rows, positions),
                 )
             )
-        claims = []
-        for name in ("why", "caution"):
-            claim = raw.get(name)
-            if claim is None:
-                claims.append(None)
-                continue
-            if type(claim) is not dict or type(claim.get("decisions")) is not list:
-                raise ValueError("invalid narrative claim")
-            refs = claim["decisions"]
-            if (
-                not refs
-                or any(type(ref) is not int or ref not in positions for ref in refs)
-                or len(set(refs)) != len(refs)
-            ):
-                raise ValueError("invalid narrative claim references")
-            claims.append(
-                NarrativeClaimData(
-                    _text(claim["text"], 480 if name == "why" else 240),
-                    tuple(positions[ref] for ref in refs),
-                )
-            )
+        # Why/caution stay mandatory-valid when present; newer optional claims
+        # (context, starts) degrade alone so the validated comparison survives.
+        why, caution = (
+            None if raw.get(name) is None else _claim(raw[name], limit, positions)
+            for name, limit in (("why", 480), ("caution", 240))
+        )
         return NarrativeData(
             decision,
             _text(raw["headline"], 120),
@@ -179,8 +234,9 @@ def parse_narrative(raw, rows, positions=None):
             kind,
             sides[0],
             sides[1],
-            claims[0],
-            claims[1],
+            why,
+            caution,
+            _optional_claim(raw.get("context"), 480, positions),
         )
     except (KeyError, TypeError, ValueError, IndexError):
         return None
@@ -312,8 +368,16 @@ def build_summary(metadata, variants, decisions):
     notices = [
         "One scenario only; counts and narrative are model interpretations, not causal proof."
     ]
-    if decisions.target_assessment is None:
+    target = decisions.target_assessment
+    if target is None:
         notices.append(UNAVAILABLE)
+    elif any(
+        trial.outcome in ("uncertain", "unassessable")
+        for criterion in target.criteria
+        for trial in criterion.before + criterion.after
+    ):
+        # The target table lives in details; keep unknown outcomes visible here.
+        notices.append(TARGET_UNCERTAIN)
     if not complete:
         notices.append(
             "Trial evidence is incomplete, blocked, invalid, or dropped; inspect the trial records."
@@ -391,7 +455,10 @@ def build_summary(metadata, variants, decisions):
         )
         sides.append(
             SummarySideData(
-                source.icon if source else "neutral", choices, variant.total
+                source.icon if source else "neutral",
+                choices,
+                variant.total,
+                claim(source.start) if source else None,
             )
         )
     if row is None:
@@ -420,4 +487,5 @@ def build_summary(metadata, variants, decisions):
         claim(narrative.why) if narrative else None,
         claim(narrative.caution) if narrative else None,
         tuple(notices),
+        claim(narrative.context) if narrative else None,
     )

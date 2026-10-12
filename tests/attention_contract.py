@@ -3,7 +3,6 @@
 import copy
 import html
 import json
-import re
 from dataclasses import replace
 from html.parser import HTMLParser
 
@@ -79,40 +78,22 @@ def _assert_rendered_attention(report):
 
     markup = _ReportMarkup(render_artifact(report, ""))
     summary = markup.select(anchor="panel-summary")[0]
-    steps = markup.select(summary, class_name="story-step")
-    assert len(steps) == 4, "Summary must retain all four numbered reader questions."
-    attention = markup.select(summary, class_name="story-attention")
-    assert len(attention) == 1 and attention[0] is steps[2]
-    attention = attention[0]
-    links = markup.select(attention, tag="a")
-    assert [node["attrs"].get("href") for node in links] == ["#attention-explanation"]
-    assert not markup.select(attention, tag="details"), (
-        "Raw evidence does not belong in the picture-first attention section."
-    )
-    assert len(markup.select(summary, class_name="summary-details", tag="details")) == 2
-    detail = markup.select(anchor="attention-explanation")
-    assert len(detail) == 1
+    attention = markup.select(summary, class_name="story-attention")[0]
     explanation = markup.select(anchor="panel-explanation")[0]
-    assert detail[0] in markup.select(explanation, anchor="attention-explanation")
-    for class_name in (
-        "attention-finding",
-        "attention-pair",
-        "attention-flow",
-        "attention-consequence",
-        "attention-guidance",
-    ):
-        assert not markup.select(detail[0], class_name=class_name), (
-            "Understand the change must not duplicate the Summary attention cards."
-        )
-    assert not markup.select(detail[0], tag="svg")
+    detail = markup.select(explanation, anchor="attention-explanation")[0]
+    assert not markup.select(attention, tag="pre")
+    for link in markup.select(attention, tag="a"):
+        href = link["attrs"].get("href", "")
+        assert href.startswith("#") and markup.select(anchor=href[1:])
+    md_plain = html.unescape(render_markdown(report)).replace("\\", "")
+    summary_text, detail_text = _plain(attention), _plain(detail)
+    data = report.decisions.attention
+    findings = () if data is None else data.findings
+    assert bool(markup.select(attention, class_name="attention-unavailable")) == (
+        data is None
+    )
     original = report.decisions.explanation
     if original is not None:
-        original_steps = markup.select(explanation, class_name="explanation-steps")
-        assert len(original_steps) == 1
-        children = list(markup.nodes(explanation))
-        assert children.index(original_steps[0]) < children.index(detail[0]), (
-            "Attention detail must add to, not replace, the original explanation."
-        )
         for text in (
             original.headline,
             original.overview,
@@ -124,79 +105,18 @@ def _assert_rendered_attention(report):
             *(claim.text for claim in (*original.unchanged, *original.limits)),
         ):
             assert text in _plain(explanation)
-    cards = markup.select(attention, class_name="attention-finding")
-    data = report.decisions.attention
-    findings = () if data is None else data.findings
-    assert len(cards) == len(findings)
-    assert bool(markup.select(attention, class_name="attention-unavailable")) == (
-        data is None
-    )
-    assert bool(markup.select(attention, class_name="attention-empty")) == (
-        data is not None and not findings
-    )
-    md = render_markdown(report)
-    md_plain = html.unescape(md).replace("\\", "")
-    summary_md = md.split("## Summary\n", 1)[1].split("\n## ", 1)[0]
-    assert re.findall(r"^### ([1-4])\. ", summary_md, re.MULTILINE) == [
-        "1",
-        "2",
-        "3",
-        "4",
-    ]
-    assert 'id="attention-explanation"' in md
-    assert "](#attention-explanation)" in md
-    detail_md = md_plain.split('id="attention-explanation"', 1)[1].split("\n## ", 1)[0]
-    detail_findings = markup.select(
-        detail[0], class_name="attention-explanation-finding"
-    )
-    assert len(detail_findings) == len(findings)
-    for card, finding, deeper in zip(cards, findings, detail_findings):
-        summary_text = _plain(card)
-        detail_text = _plain(deeper)
+    for finding in findings:
         for text in (
             finding.title,
-            finding.matters_if,
             finding.consequence,
             finding.next_step,
             finding.limit,
         ):
             assert text in summary_text and text in md_plain
+        assert finding.matters_if in summary_text + detail_text
         assert finding.explanation in detail_text and finding.explanation in md_plain
-        assert finding.explanation not in summary_text, (
-            "Independent interpretation belongs in detail, not concise Summary."
-        )
-        for text in (finding.consequence, finding.matters_if, finding.next_step):
-            assert text not in detail_text and text not in detail_md, (
-                "Detail must explain the tradeoff rather than repeat Summary guidance."
-            )
-        for class_name, heading in (
-            (
-                "attention-interpretation",
-                "Why this concern matters (model interpretation)",
-            ),
-            ("attention-observed-evidence", "Observed branch evidence"),
-            ("attention-uncertainty", "Limits and uncertainty"),
-        ):
-            sections = markup.select(deeper, class_name=class_name)
-            assert len(sections) == 1 and heading in _plain(sections[0])
-            assert heading in detail_md
-        assert finding.limit in detail_text and finding.limit in detail_md
         for claim in finding.context:
             assert claim.text in detail_text and claim.text in md_plain
-            assert claim.text not in summary_text
-        if finding.context:
-            context = markup.select(deeper, class_name="attention-context")
-            assert len(context) == 1
-            assert "Related context (model interpretation)" in _plain(context[0])
-            claims = markup.select(context[0], tag="li")
-            assert len(claims) == len(finding.context)
-            for node, claim in zip(claims, finding.context):
-                assert claim.text in _plain(node)
-                assert {
-                    link["attrs"].get("href") for link in markup.select(node, tag="a")
-                } == {f"#decision-{index}" for index in claim.decisions}
-        metadata = markup.select(card, class_name="attention-meta")
-        assert len(metadata) == 1
         if finding.evidence_kind == "actions":
             evidence = (
                 "Self-reported actions, not independently captured command evidence"
@@ -207,86 +127,49 @@ def _assert_rendered_attention(report):
             evidence = "Plans in the answers, not observed execution"
         else:
             evidence = "Final answers, not proof of execution"
-        assert evidence in _plain(metadata[0])
-        assert markup.select(card, class_name="attention-limit")
+        assert evidence in summary_text
         row = report.decisions.rows[finding.decision - 1]
+        deeper = next(
+            node
+            for node in markup.select(
+                detail, class_name="attention-explanation-finding"
+            )
+            if finding.title in _plain(node)
+        )
         for side in ("before", "after"):
-            sections = markup.select(card, class_name=f"summary-{side}")
-            assert len(sections) == 1
-            branches = markup.select(sections[0], class_name="attention-branch")
-            observed = {choice.choice: choice.count for choice in getattr(row, side)}
-            assert len(branches) == len(observed)
-            seen = []
-            for branch in branches:
-                labels = markup.select(branch, class_name="attention-choice")
-                assert len(labels) == 1
-                choice = _plain(labels[0])
-                seen.append(choice)
-                assert choice in observed
-                counts = markup.select(branch, class_name="summary-count")
-                total = getattr(report.decisions, f"{side}_count")
-                assert len(counts) == 1
-                assert _plain(counts[0]) == content.trial_count(observed[choice], total)
-                assert content.trial_count(observed[choice], total) in md_plain
-                icons = markup.select(branch, tag="svg")
-                assert len(icons) == 2, (
-                    "Each exact branch needs two bundled pictorial steps."
-                )
-                assert all(icon["attrs"].get("aria-hidden") == "true" for icon in icons)
-            assert set(seen) == set(observed) and len(set(seen)) == len(seen)
             evidence_side = markup.select(
                 deeper, class_name=f"attention-evidence-{side}"
-            )
-            assert len(evidence_side) == 1
-            support = markup.select(
-                evidence_side[0], class_name="attention-evidence-branch"
+            )[0]
+            branches = markup.select(
+                evidence_side, class_name="attention-evidence-branch"
             )
             choices = getattr(row, side)
-            assert len(support) == len(choices), (
-                "Detail must retain every branch, including minority choices."
-            )
-            for branch, choice in zip(support, choices):
+            assert len(branches) == len(choices)
+            total = getattr(report.decisions, f"{side}_count")
+            for branch, choice in zip(branches, choices):
                 assert choice.choice in _plain(branch)
                 count_text = content.trial_count(choice.count, total)
-                assert count_text in _plain(branch) and count_text in detail_md
+                assert count_text in _plain(branch) and count_text in md_plain
                 links = markup.select(branch, tag="a")
-                members = choice.trials
-                if members:
-                    assert [_plain(link) for link in links] == list(members)
-                    assert [link["attrs"].get("href") for link in links] == [
-                        f"#{content.trial_anchor(side, name)}" for name in members
-                    ]
-                    for name in members:
-                        assert f"](#{content.trial_anchor(side, name)})" in detail_md
-                    assert not markup.select(
-                        branch, class_name="attention-membership-unavailable"
-                    )
+                if choice.trials:
+                    assert [_plain(link) for link in links] == list(choice.trials)
+                    for name in choice.trials:
+                        target = content.trial_anchor(side, name)
+                        assert any(
+                            link["attrs"].get("href") == f"#{target}" for link in links
+                        )
+                        assert markup.select(anchor=target)
                 else:
                     assert not links
-                    unavailable = markup.select(
-                        branch, class_name="attention-membership-unavailable"
-                    )
-                    assert len(unavailable) == 1
-                    assert content.ATTENTION_MEMBERSHIP_UNAVAILABLE in _plain(
-                        unavailable[0]
-                    )
-                    assert content.ATTENTION_MEMBERSHIP_UNAVAILABLE in detail_md
+                    assert content.ATTENTION_MEMBERSHIP_UNAVAILABLE in _plain(branch)
         for side in (finding.before, finding.after):
             for choice in side:
                 for step in choice.steps:
-                    assert step.label in summary_text and step.label in md_plain
-        refs = {
-            finding.decision,
-            *(ref for claim in finding.context for ref in claim.decisions),
-        }
-        detail_links = {
-            node["attrs"].get("href") for node in markup.select(deeper, tag="a")
-        }
-        assert {f"#decision-{index}" for index in refs} <= detail_links
-        evidence = markup.select(deeper, class_name="attention-evidence", tag="details")
-        assert len(evidence) == 1
-        assert "Check the evidence" in _plain(evidence[0])
-    return _plain(attention), _plain(detail[0])
+                    assert step.label in summary_text + detail_text
+                    assert step.label in md_plain
+        for disclosure in markup.select(deeper, tag="details"):
+            assert "open" not in disclosure["attrs"]
+    return summary_text, detail_text
 
 
 def _assert_validation(report, assert_round_trip):

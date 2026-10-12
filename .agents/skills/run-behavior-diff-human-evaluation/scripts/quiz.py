@@ -353,7 +353,6 @@ SAFE_ATTRS = {
 DROP_CLASSES = {
     "evidence-links",
     "summary-evidence-button",
-    "summary-provenance-source",
     "attention-dismiss",
     # Source-intent relationships can reveal the edit even without its instruction text.
     "attention-relationship",
@@ -401,7 +400,7 @@ def _safe_fragment(node):
 def _attention_shape(body):
     children = _children(body)
     if (
-        len(children) < 4
+        len(children) < 3
         or children[0].tag != "h3"
         or _plain(children[0]) != "What needs your attention"
         or children[1].tag != "p"
@@ -411,31 +410,47 @@ def _attention_shape(body):
     ):
         raise ValueError("Unknown attention section.")
     findings = children[2:-1]
-    if len(findings) == 1 and findings[0].tag == "div":
+    if findings and findings[0].tag == "div":
         if not any(
             findings[0].has_class(name)
             for name in ("attention-empty", "attention-unavailable")
         ):
             raise ValueError("Unknown attention assessment state.")
         _shape(findings[0], [("p", None)])
-        return
+        findings = findings[1:]
     for finding in findings:
         if finding.tag != "article" or not finding.has_class("attention-finding"):
             raise ValueError("Unknown attention finding.")
         heading, content = _shape(
             finding, [("header", "attention-heading"), ("div", "attention-body")]
         )
+        if finding.has_class("attention-target-gap"):
+            # A deterministic target failure: keep its result, never a source link.
+            _shape(heading, [("h4", None)])
+            note = _shape(
+                content,
+                [
+                    ("p", "attention-target-result"),
+                    ("p", "attention-consequence"),
+                    ("p", "attention-meta"),
+                    ("p", "attention-next"),
+                    ("nav", "attention-finding-nav"),
+                ],
+            )[2]
+            if _children(note):
+                raise ValueError("Unknown target attention note.")
+            continue
         _shape(heading, [("h4", None), ("button", "attention-dismiss")])
-        pair, _, metadata, _, guidance = _shape(
+        metadata = _shape(
             content,
             [
-                ("div", "attention-pair"),
                 ("p", "attention-consequence"),
                 ("p", "attention-meta"),
                 ("p", "attention-limit"),
-                ("dl", "attention-guidance"),
+                ("p", "attention-next"),
+                ("nav", "attention-finding-nav"),
             ],
-        )
+        )[1]
         _shape(
             metadata,
             [
@@ -445,39 +460,38 @@ def _attention_shape(body):
         )
         if any(isinstance(child, str) and child.strip() for child in metadata.children):
             raise ValueError("Unwrapped source-intent relationship in attention.")
-        sides = _shape(
-            pair, [("section", "summary-before"), ("section", "summary-after")]
-        )
-        for side, label in zip(sides, ("Before", "After")):
-            if not side.has_class("attention-side"):
-                raise ValueError("Unknown attention comparison side.")
-            side_heading, branches = _shape(
-                side, [("h5", None), ("ul", "attention-branches")]
-            )
-            if _plain(side_heading) != label or not _children(branches):
-                raise ValueError("Missing attention comparison branches.")
-            for branch in _children(branches):
-                if branch.tag != "li" or not branch.has_class("attention-branch"):
-                    raise ValueError("Unknown attention branch.")
-                flow, _, _ = _shape(
-                    branch,
-                    [
-                        ("div", "attention-flow"),
-                        ("p", "attention-choice"),
-                        ("span", "summary-count"),
-                    ],
-                )
-                first, _, second = _shape(
-                    flow,
-                    [
-                        ("div", "attention-flow-step"),
-                        ("span", "attention-flow-arrow"),
-                        ("div", "attention-flow-step"),
-                    ],
-                )
-                for step in (first, second):
-                    _shape(step, [("svg", "summary-picture"), ("p", None)])
-        _shape(guidance, [("dt", None), ("dd", None), ("dt", None), ("dd", None)])
+
+
+def _claim_shape(claim):
+    _shape(claim, [("strong", None), ("p", None), ("span", "evidence-links")])
+
+
+def _intent_case_context(body):
+    """Validate the stripped intent step and return its case context, if any."""
+    children = _children(body)
+    if (
+        len(children) < 2
+        or children[0].tag != "div"
+        or not children[0].has_class("intent-heading")
+        or children[1].tag != "p"
+        or not children[1].has_class("story-intent")
+    ):
+        raise ValueError("Unknown intended-change step.")
+    context = None
+    if children[-1].has_class("summary-case-context"):
+        context = children.pop()
+        if context.tag != "div":
+            raise ValueError("Unknown case context.")
+        _claim_shape(context)
+        intent = " ".join(_plain(children[1]).split())
+        if intent and intent in " ".join(_plain(context).split()):
+            raise ValueError("Case context repeats the intended change.")
+    if any(
+        node.tag != "p" or not node.has_class("purpose-provenance")
+        for node in children[2:]
+    ):
+        raise ValueError("Unknown intended-change step.")
+    return context
 
 
 def _blinded_report(source):
@@ -527,92 +541,81 @@ def _blinded_report(source):
     ):
         raise ValueError("Unknown summary story structure.")
     steps = _children(story_children[1])
-    if len(steps) != 4 or any(
-        node.tag != "li" or not node.has_class("story-step") for node in steps
+    if (
+        len(steps) != 4
+        or any(node.tag != "li" or not node.has_class("story-step") for node in steps)
+        or not steps[2].has_class("story-attention")
+        or not steps[3].has_class("story-limits")
     ):
         raise ValueError("Unknown story steps.")
-    if not any(node.has_class("intent-heading") for node in _walk(steps[0])):
-        raise ValueError("Unknown intended-change step.")
     bodies = [
         _shape(step, [("span", "story-number"), ("div", "story-body")])[1]
         for step in steps
     ]
+    case_context = _intent_case_context(bodies[0])
     evidence_shape = [("h3", None)]
     if any(node.has_class("summary-context") for node in _children(bodies[1])):
         evidence_shape.append(("p", "summary-context"))
     evidence_shape.extend([("p", "summary-provenance"), ("div", "summary-pair")])
     if any(node.has_class("primary-result-context") for node in _children(bodies[1])):
         evidence_shape.append(("section", "primary-result-context"))
-    checks = [node for node in _children(bodies[1]) if node.has_class("target-checks")]
-    if checks:
-        table = _shape(_single(checks, "target checks"), [("table", None)])[0]
-        header, rows = _shape(table, [("thead", None), ("tbody", None)])
-        heading = _shape(header, [("tr", None)])[0]
-        _shape(heading, [("th", None), ("th", None)])
-        if not _children(rows):
-            raise ValueError("Missing target assessment rows.")
-        for row in _children(rows):
-            if row.tag != "tr" or not row.has_class("target-criterion"):
-                raise ValueError("Unknown target assessment row.")
-            question, result = _shape(row, [("td", None), ("td", None)])
-            if _children(question):
-                raise ValueError("Target questions must be plain text.")
-            if _children(result):
-                emphasis = _shape(result, [("strong", "target-result-changed")])[0]
-                if _children(emphasis):
-                    raise ValueError("Target results must be plain text.")
-        evidence_shape.append(("div", "target-checks"))
+    if any(
+        node.has_class("summary-interpretation-unavailable")
+        for node in _children(bodies[1])
+    ):
+        evidence_shape.append(("p", "summary-interpretation-unavailable"))
     else:
-        evidence_shape.append(("p", "target-unavailable"))
-    pairs = [
-        _single(
-            [node for node in _children(bodies[1]) if node.has_class("summary-pair")],
-            "summary pair",
-        )
-    ]
+        evidence_shape.append(("div", "summary-why"))
     evidence_shape.append(("nav", "evidence-nav"))
     evidence_body = _shape(bodies[1], evidence_shape)
     if _plain(evidence_body[0]) != "What the evidence shows":
         raise ValueError("Unknown evidence heading.")
-    for pair in pairs:
-        cards = _shape(
-            pair,
+    pair = _single(
+        [node for node in evidence_body if node.has_class("summary-pair")],
+        "summary pair",
+    )
+    cards = _shape(
+        pair,
+        [
+            ("section", "summary-before"),
+            ("span", "summary-arrow"),
+            ("section", "summary-after"),
+        ],
+    )
+    for card in (cards[0], cards[2]):
+        children = _children(card)
+        start = bool(len(children) > 1 and children[1].has_class("summary-start"))
+        empty = bool(children and children[-1].has_class("summary-empty"))
+        card_shape = [("h4", "summary-side-label")]
+        if start:
+            card_shape.append(("div", "summary-start"))
+        card_shape.extend(
             [
-                ("section", "summary-before"),
-                ("span", "summary-arrow"),
-                ("section", "summary-after"),
-            ],
+                ("svg", "summary-picture"),
+                ("p", "summary-empty") if empty else ("ul", "summary-choices"),
+            ]
         )
-        for card in (cards[0], cards[2]):
-            children = _children(card)
-            empty = bool(children and children[-1].has_class("summary-empty"))
-            _shape(
-                card,
-                [
-                    ("h4", "summary-side-label"),
-                    ("svg", "summary-picture"),
-                    ("p", "summary-empty") if empty else ("ul", "summary-choices"),
-                ],
-            )
-    meaning_shape = [("h3", None)]
-    if any(
-        node.has_class("summary-interpretation-unavailable")
-        for node in _children(bodies[3])
-    ):
-        meaning_shape.append(("p", "summary-interpretation-unavailable"))
-    for css_class in ("summary-why", "summary-caution"):
-        if any(node.has_class(css_class) for node in _children(bodies[3])):
-            meaning_shape.append(("div", css_class))
-    meaning_shape.append(("ul", "summary-notices"))
-    meaning = _shape(bodies[3], meaning_shape)
-    if _plain(meaning[0]) != "What this means":
-        raise ValueError("Unknown meaning heading.")
-    for claim in meaning[1:-1]:
-        if claim.tag == "div":
-            _shape(claim, [("strong", None), ("p", None), ("span", "evidence-links")])
+        _shape(card, card_shape)
+        if start:
+            start_shape = [("p", "summary-start-text"), ("p", "summary-start-source")]
+            if len(_children(children[1])) == 3:
+                start_shape.append(("span", "summary-start-arrow"))
+            _shape(children[1], start_shape)
+    if evidence_body[-2].tag == "div":
+        _claim_shape(evidence_body[-2])
     _attention_shape(bodies[2])
-    # Remove intent, scenario and navigation, not attention findings or evidence limits.
-    # Keep the saved renderer's generated claims, pictorial labels and branch counts.
+    limits_shape = [("h3", None)]
+    if any(node.has_class("summary-caution") for node in _children(bodies[3])):
+        limits_shape.append(("div", "summary-caution"))
+    limits_shape.append(("ul", "summary-notices"))
+    limits = _shape(bodies[3], limits_shape)
+    if len(limits) == 3:
+        _claim_shape(limits[1])
+    # Remove the intended change, its purpose sources and every navigation link.
+    # Case context is observation context; the reader sees it beside the evidence.
+    if case_context is not None:
+        evidence = bodies[1].children
+        evidence.insert(evidence.index(evidence_body[0]) + 1, case_context)
     trimmed_story = _Node(
         story.tag,
         story.attrs.items(),
@@ -766,7 +769,7 @@ def build_quiz(session: Path, repo_root: Path) -> None:
         "reports": reports,
         "answer_key_sha256": _hash((session / "answer-key.json").read_bytes()),
         "session_sha256": _hash((session / "session.json").read_bytes()),
-        "summary_method": "saved-html-summary-panel-v1",
+        "summary_method": "saved-html-summary-panel-v2",
     }
     _atomic_file(session / "quiz-build.json", _bytes(receipt))
 

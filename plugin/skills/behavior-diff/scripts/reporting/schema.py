@@ -39,7 +39,7 @@ from reporting.target import (
     persisted_evidence,
 )
 
-SCHEMA_VERSION = 12
+SCHEMA_VERSION = 13
 RESULT_KINDS = ("good", "bad", "neutral")
 
 
@@ -157,6 +157,7 @@ class SummarySideData:
     icon: str
     choices: Tuple[SummaryChoiceData, ...]
     total: int
+    start: Optional[EvidenceClaimData] = None
 
 
 @dataclass(frozen=True)
@@ -171,6 +172,7 @@ class VisualSummaryData:
     why: Optional[EvidenceClaimData]
     caution: Optional[EvidenceClaimData]
     notices: Tuple[str, ...]
+    context: Optional[EvidenceClaimData] = None
 
 
 @dataclass(frozen=True)
@@ -245,7 +247,7 @@ class ReportData:
         version = _expect_int(
             _field(data, "schema_version", "report-data"), "schema_version"
         )
-        if version not in (11, SCHEMA_VERSION):
+        if version != SCHEMA_VERSION:
             raise ValueError(
                 "unsupported report-data schema version: {0}".format(version)
             )
@@ -253,33 +255,13 @@ class ReportData:
         raw_decisions = _expect_dict(
             _field(data, "decisions", "report-data"), "decisions"
         )
-        if version == SCHEMA_VERSION:
-            for name in (
-                "purpose",
-                "recorded_evidence",
-                "target_assessment",
-                "evidence_limits",
-            ):
-                _field(raw_decisions, name, "decisions")
-        elif raw_decisions.get("attention") is not None:
-            raw_decisions = dict(raw_decisions)
-            legacy_attention = _expect_dict(
-                raw_decisions["attention"], "decisions.attention"
-            )
-            raw_decisions["attention"] = dict(legacy_attention)
-            raw_decisions["attention"]["findings"] = [
-                {
-                    **item,
-                    "status": item.get("status", "observed_difference"),
-                    "criterion": item.get("criterion"),
-                }
-                if type(item) is dict
-                else item
-                for item in _expect_list(
-                    _field(legacy_attention, "findings", "decisions.attention"),
-                    "decisions.attention.findings",
-                )
-            ]
+        for name in (
+            "purpose",
+            "recorded_evidence",
+            "target_assessment",
+            "evidence_limits",
+        ):
+            _field(raw_decisions, name, "decisions")
         rule_diff = _expect_str(_field(data, "rule_diff", "report-data"), "rule_diff")
         variants = _variants(_field(data, "variants", "report-data"), "variants")
         decisions = _decisions(
@@ -310,16 +292,12 @@ class ReportData:
             report_content.expected,
             decisions,
         )
-        summary = (
-            build_summary(metadata, variants, decisions)
-            if version == 11
-            else _summary(
-                _field(data, "summary", "report-data"),
-                "summary",
-                decisions,
-                metadata,
-                variants,
-            )
+        summary = _summary(
+            _field(data, "summary", "report-data"),
+            "summary",
+            decisions,
+            metadata,
+            variants,
         )
         return cls(
             schema_version=SCHEMA_VERSION,
@@ -677,7 +655,7 @@ def _decision_choice(value, path):
     return DecisionChoiceData(choice, count, trials)
 
 
-def _summary_side(value, path):
+def _summary_side(value, path, row_count):
     value = _expect_dict(value, path)
     icon = _expect_str(_field(value, "icon", path), path + ".icon")
     if icon not in ICONS:
@@ -702,7 +680,10 @@ def _summary_side(value, path):
                 count,
             )
         )
-    return SummarySideData(icon, tuple(choices), total)
+    start = _optional_claim(_field(value, "start", path), path + ".start", row_count)
+    if start is not None and len(start.decisions) != 1:
+        _invalid(path + ".start.decisions", "exactly one decision row index")
+    return SummarySideData(icon, tuple(choices), total, start)
 
 
 def _intent(value, path, hunk_count, expected, decisions):
@@ -728,27 +709,21 @@ def _summary(value, path, decisions, metadata, variants):
     status = _expect_str(_field(value, "status", path), path + ".status")
     if status not in SUMMARY_STATUSES:
         _invalid(path + ".status", "supported comparison status")
-    claims = []
-    for name in ("why", "caution"):
-        raw_claim = _field(value, name, path)
-        claims.append(
-            None
-            if raw_claim is None
-            else _claims([raw_claim], path + "." + name, len(decisions.rows))[0]
-        )
+    row_count = len(decisions.rows)
     summary = VisualSummaryData(
         _expect_str(_field(value, "headline", path), path + ".headline"),
         _expect_str(_field(value, "scenario", path), path + ".scenario"),
         _expect_str(_field(value, "evidence_label", path), path + ".evidence_label"),
         status,
         _optional_reference(
-            _field(value, "decision", path), path + ".decision", len(decisions.rows)
+            _field(value, "decision", path), path + ".decision", row_count
         ),
-        _summary_side(_field(value, "before", path), path + ".before"),
-        _summary_side(_field(value, "after", path), path + ".after"),
-        claims[0],
-        claims[1],
+        _summary_side(_field(value, "before", path), path + ".before", row_count),
+        _summary_side(_field(value, "after", path), path + ".after", row_count),
+        _optional_claim(_field(value, "why", path), path + ".why", row_count),
+        _optional_claim(_field(value, "caution", path), path + ".caution", row_count),
         _string_tuple(_field(value, "notices", path), path + ".notices"),
+        _optional_claim(_field(value, "context", path), path + ".context", row_count),
     )
     if summary != build_summary(metadata, variants, decisions):
         _invalid(path, "summary derived from the validated decision and trial evidence")
@@ -759,6 +734,12 @@ def _optional_reference(value, path, row_count):
     if value is None:
         return None
     return _reference(value, path, row_count)
+
+
+def _optional_claim(value, path, row_count):
+    if value is None:
+        return None
+    return _claims([value], path, row_count)[0]
 
 
 def _reference(value, path, row_count):

@@ -39,7 +39,7 @@ from target_contract import assert_target_reports  # noqa: E402
 
 def synthetic_raw():
     raw = {
-        "schema_version": 12,
+        "schema_version": 13,
         "metadata": {
             "model": "synthetic/model",
             "mode": "review",
@@ -356,6 +356,367 @@ def assert_branch_membership_validation(raw):
             for side in ("before", "after")
             for choice in getattr(row, side)
         )
+
+
+def summary_narrative(context=None, before_start=None, after_start=None):
+    """Synthetic Summary copy for the action row of synthetic_raw()."""
+    return {
+        "decision": 1,
+        "headline": "After reads and tests the file in both trials.",
+        "scenario": "Review a synthetic file without changing it.",
+        "context": context,
+        "evidence_kind": "actions",
+        "before": {
+            "icon": "inspect",
+            "start": before_start,
+            "choices": [
+                {
+                    "choice": "read only",
+                    "label": "Reads only",
+                    "detail": "The record reads the file.",
+                },
+                {
+                    "choice": "search",
+                    "label": "Searches",
+                    "detail": "The record searches the file.",
+                },
+            ],
+        },
+        "after": {
+            "icon": "test",
+            "start": after_start,
+            "choices": [
+                {
+                    "choice": "read and test",
+                    "label": "Reads and tests",
+                    "detail": "The records read the file and run tests.",
+                }
+            ],
+        },
+        "why": {
+            "text": "A reviewer sees recorded tests, not only a file read.",
+            "decisions": [1],
+        },
+        "caution": None,
+    }
+
+
+def assert_summary_context_and_starts(raw):
+    """Optional Summary context and starts stay cited, exact, and dispensable."""
+    import decisions as extractor
+    from reporting.load import load_report
+    from reporting.schema import EvidenceClaimData
+    from reporting.summary import build_summary, parse_narrative
+
+    report = ReportData.from_dict(raw)
+    rows = report.decisions.rows
+    context = {
+        "text": "The task calls the file unchanged; every answer explains the review.",
+        "decisions": [2],
+    }
+    shared = {"text": "Answers explain the review result", "decisions": [2]}
+    supported = summary_narrative(context, shared, shared)
+    narrative = parse_narrative(supported, rows)
+    assert narrative.context.text == context["text"]
+    assert narrative.context.decisions == (2,)
+    for side in (narrative.before, narrative.after):
+        assert side.start.text == shared["text"] and side.start.decisions == (2,)
+    without_starts = replace(
+        narrative,
+        before=replace(narrative.before, start=None),
+        after=replace(narrative.after, start=None),
+    )
+    plain = parse_narrative(summary_narrative(), rows)
+    assert plain == replace(without_starts, context=None)
+
+    # Unsupported optional claims are omitted; validated comparisons remain.
+    for unsupported in (
+        dict(context, decisions=[3]),
+        dict(context, decisions=[]),
+        dict(context, decisions=[True]),
+        dict(context, decisions=[2, 2]),
+        dict(context, decisions="2"),
+        dict(context, text="x" * 481),
+        dict(context, text="<b>Conflict</b>"),
+        {"decisions": [2]},
+        "The task conflicts with the records.",
+    ):
+        omitted = parse_narrative(summary_narrative(unsupported, shared, shared), rows)
+        assert omitted == replace(narrative, context=None), unsupported
+    # Row 1 splits Before across branches, so it cannot start every Before trial.
+    split = {"text": "Reads the file", "decisions": [1]}
+    partial = parse_narrative(summary_narrative(context, split, shared), rows)
+    assert partial == replace(narrative, before=replace(narrative.before, start=None))
+    # Coverage is checked per side: the same row is one full After branch.
+    lead_after = parse_narrative(summary_narrative(context, shared, split), rows)
+    assert lead_after.after.start.decisions == (1,)
+    for unsupported in (
+        dict(shared, decisions=[1, 2]),
+        dict(shared, decisions=[]),
+        dict(shared, decisions=[3]),
+        dict(shared, decisions=[False]),
+        dict(shared, text="x" * 81),
+        "Answers explain the review result",
+    ):
+        omitted = parse_narrative(
+            summary_narrative(context, unsupported, unsupported), rows
+        )
+        assert omitted == without_starts, unsupported
+    # A cited branch must name exactly the attributed lead trials on that side.
+    action, answer = rows
+    subset = replace(answer.before[0], count=1, trials=("before-1",))
+    renamed = replace(answer.before[0], trials=("before-1", "before-3"))
+    unattributed = replace(action.before[0], trials=())
+    for variant in (
+        (action, replace(answer, before=(subset,))),
+        (action, replace(answer, before=(renamed,))),
+        (replace(action, before=(unattributed, action.before[1])), answer),
+    ):
+        changed = parse_narrative(supported, variant)
+        assert changed.before.start is None
+        assert changed.after.start == narrative.after.start
+    aggregate = tuple(
+        replace(
+            row,
+            before=tuple(replace(choice, trials=()) for choice in row.before),
+            after=tuple(replace(choice, trials=()) for choice in row.after),
+        )
+        for row in rows
+    )
+    assert parse_narrative(supported, aggregate) == without_starts
+
+    def narrated(value, **changes):
+        decisions = replace(report.decisions, narrative=value, **changes)
+        summary = build_summary(report.metadata, report.variants, decisions)
+        return replace(report, decisions=decisions, summary=summary)
+
+    full = narrated(narrative)
+    assert full.summary.context == EvidenceClaimData(context["text"], (2,))
+    for side in (full.summary.before, full.summary.after):
+        assert side.start == EvidenceClaimData(shared["text"], (2,))
+    full_raw = full.to_dict()
+    assert_round_trip(full_raw)
+    absent = narrated(plain)
+    assert absent.summary.headline == narrative.headline
+    absent_raw = absent.to_dict()
+    assert_round_trip(absent_raw)
+    # Missing claims serialize as explicit nulls rather than disappearing.
+    for value in (absent_raw["decisions"]["narrative"], absent_raw["summary"]):
+        assert value["context"] is None
+        assert value["before"]["start"] is None and value["after"]["start"] is None
+    incomplete = narrated(narrative, dropped=1).summary
+    assert incomplete.context is None
+    assert incomplete.before.start is None and incomplete.after.start is None
+
+    canonical = (
+        "invalid report-data field decisions.narrative: "
+        "expected valid canonical narrative"
+    )
+    derived = (
+        "invalid report-data field summary: "
+        "expected summary derived from the validated decision and trial evidence"
+    )
+    missing = object()
+    for path, value, message in (
+        ("decisions.narrative.before.start.decisions", [1], canonical),
+        ("decisions.narrative.context.decisions", [3], canonical),
+        ("decisions.narrative.context", missing, canonical),
+        ("decisions.narrative.after.start", missing, canonical),
+        ("summary.context", None, derived),
+        ("summary.context.text", "An invented conflict.", derived),
+        ("summary.before.start", None, derived),
+        ("summary.after.start.decisions", [1], derived),
+        (
+            "summary.after.start.decisions",
+            [1, 2],
+            "invalid report-data field summary.after.start.decisions: "
+            "expected exactly one decision row index",
+        ),
+        (
+            "summary.context.decisions",
+            [9],
+            "invalid report-data field summary.context[0].decisions[0]: "
+            "expected 1-based decision row index",
+        ),
+        (
+            "summary.context",
+            missing,
+            "invalid report-data field summary.context: expected present field",
+        ),
+        (
+            "summary.before.start",
+            missing,
+            "invalid report-data field summary.before.start: expected present field",
+        ),
+    ):
+        changed = copy.deepcopy(full_raw)
+        *parents, name = path.split(".")
+        target = changed
+        for key in parents:
+            target = target[key]
+        if value is missing:
+            del target[name]
+        else:
+            target[name] = value
+        assert_rejected(changed, message)
+    # A Summary claim cannot appear without a validated narrative claim.
+    for parents in ((), ("after",)):
+        invented = copy.deepcopy(raw)
+        target = invented["summary"]
+        for key in parents:
+            target = target[key]
+        target["start" if parents else "context"] = dict(shared)
+        assert_rejected(invented, derived)
+
+    # Extraction remaps sorted references and keeps the same canonical narrative.
+    completed = {"before": ["before-1", "before-2"], "after": ["after-1", "after-2"]}
+    chain = [
+        {
+            "decision": "State result",
+            "topic": "Delivery",
+            "anchor": "answer",
+            "before": [{"choice": "explain", "trials": completed["before"]}],
+            "after": [{"choice": "explain", "trials": completed["after"]}],
+        },
+        {
+            "decision": "Use evidence",
+            "topic": "Evidence",
+            "anchor": 2,
+            "before": [
+                {"choice": "read only", "trials": ["before-1"]},
+                {"choice": "search", "trials": ["before-2"]},
+            ],
+            "after": [{"choice": "read and test", "trials": completed["after"]}],
+        },
+    ]
+    reply_summary = dict(
+        summary_narrative(
+            dict(context, decisions=[1]),
+            dict(shared, decisions=[1]),
+            dict(shared, decisions=[1]),
+        ),
+        decision=2,
+        why=dict(summary_narrative()["why"], decisions=[2]),
+    )
+    reply = {"chain": chain, "outcome": 1, "summary": reply_summary}
+    normalized = extractor.normalize(reply, completed)
+    saved = normalized["summary"]
+    assert saved == json.loads(json.dumps(asdict(narrative)))
+    unattributed_row = {
+        "decision": "Unattributed row",
+        "anchor": 1,
+        "before": [{"choice": "partial", "trials": ["before-1"]}],
+        "after": [{"choice": "partial", "trials": completed["after"]}],
+    }
+    degraded_summary = dict(
+        reply_summary,
+        context=dict(context, decisions=[3]),
+        before=dict(reply_summary["before"], start=dict(shared, decisions=[2])),
+    )
+    degraded = extractor.normalize(
+        dict(reply, chain=[*chain, unattributed_row], summary=degraded_summary),
+        completed,
+    )
+    assert degraded["dropped"] == 1
+    assert degraded["chain"] == normalized["chain"]
+    expected = dict(saved, context=None, before=dict(saved["before"], start=None))
+    assert degraded["summary"] == expected
+
+    # Saved decisions without the newer optional keys still load their comparison.
+    legacy = copy.deepcopy(normalized)
+    del legacy["summary"]["context"]
+    for side in ("before", "after"):
+        del legacy["summary"][side]["start"]
+    with tempfile.TemporaryDirectory() as directory:
+        run = Path(directory)
+        names = [*completed["before"], *completed["after"]]
+        (run / "task.md").write_text("Review a synthetic file without changing it.")
+        (run / "config.json").write_text('{"mode":"review","vocab":"generic"}')
+        (run / "grades.tsv").write_text(
+            "".join(f"{name}\tREVIEW\t-\n" for name in names)
+        )
+        for name in names:
+            (run / name).mkdir()
+            (run / name / "trace.jsonl").write_text(
+                json.dumps({"type": "result", "result": f"Synthetic answer {name}."})
+            )
+        for saved_decisions, expected in ((legacy, plain), (normalized, narrative)):
+            (run / "decisions.json").write_text(json.dumps(saved_decisions))
+            loaded = load_report(run, run, "synthetic/model", run / "config.json")
+            assert loaded.decisions.narrative == expected
+            assert loaded.summary.headline == expected.headline
+            for value, source in (
+                (loaded.summary.context, expected.context),
+                (loaded.summary.before.start, expected.before.start),
+                (loaded.summary.after.start, expected.after.start),
+            ):
+                assert (value and asdict(value)) == (source and asdict(source))
+            assert_round_trip(loaded.to_dict())
+
+
+def assert_derived_summary_claims(reports):
+    """Starts cite one full lead branch; unknown target outcomes stay visible."""
+    from reporting.render_html import render_artifact
+    from reporting.render_markdown import render_markdown
+    from reporting.summary import TARGET_UNCERTAIN, build_summary
+
+    for name, report in reports.items():
+        summary = report.summary
+        for side in ("before", "after"):
+            start = getattr(summary, side).start
+            if start is None:
+                continue
+            lead = getattr(report.decisions.rows[summary.decision - 1], side)
+            cited = getattr(report.decisions.rows[start.decisions[0] - 1], side)
+            members = {trial for branch in lead for trial in branch.trials}
+            assert len(start.decisions) == len(cited) == 1, name
+            assert members and set(cited[0].trials) == members, name
+        target = report.decisions.target_assessment
+        unknown = target is not None and any(
+            trial.outcome in ("uncertain", "unassessable")
+            for criterion in target.criteria
+            for trial in criterion.before + criterion.after
+        )
+        assert (TARGET_UNCERTAIN in summary.notices) == unknown, name
+
+    report = reports["target-baseline"]
+    target = report.decisions.target_assessment
+    narrative = report.decisions.narrative
+    quiet = narrative and replace(narrative, caution=None)
+
+    def assessed(unknown=None):
+        """Mark every outcome met, except one optional (side, outcome) override."""
+        criteria = []
+        for number, criterion in enumerate(target.criteria):
+            sides = {}
+            for side in ("before", "after"):
+                outcomes = ["met"] * len(getattr(criterion, side))
+                if unknown and number == 0 and side == unknown[0]:
+                    outcomes[0] = unknown[1]
+                sides[side] = tuple(
+                    replace(trial, outcome=outcome)
+                    for trial, outcome in zip(getattr(criterion, side), outcomes)
+                )
+            criteria.append(replace(criterion, **sides))
+        decisions = replace(
+            report.decisions,
+            narrative=quiet,
+            target_assessment=replace(target, criteria=tuple(criteria)),
+        )
+        summary = build_summary(report.metadata, report.variants, decisions)
+        return replace(report, decisions=decisions, summary=summary)
+
+    met = assessed().summary
+    assert TARGET_UNCERTAIN not in met.notices
+    assert TARGET_UNCERTAIN not in assessed(("after", "not_met")).summary.notices
+    for unknown in (("after", "unassessable"), ("before", "uncertain")):
+        visible = assessed(unknown)
+        assert visible.summary.caution is None
+        assert TARGET_UNCERTAIN in visible.summary.notices
+        # The notice is additive: headline, cards, and claims stay behavioral.
+        assert replace(visible.summary, notices=met.notices) == met
+        for rendered in (render_artifact(visible, ""), render_markdown(visible)):
+            assert TARGET_UNCERTAIN in html.unescape(rendered).replace("\\", "")
 
 
 def assert_render_import_safe():
@@ -1397,11 +1758,16 @@ def assert_timing_rule_cards(report):
         assert cards[side] == html.unescape(
             changed_html.split(marker, 1)[1].split("</section>", 1)[0]
         ), "Primary-result counts must not rewrite operative-rule cards."
-        md_cards[side] = (
-            markdown.split(f"#### {side.capitalize()}\n", 1)[1]
-            .split("#### ", 1)[0]
-            .replace(r"\-", "-")
-        )
+        md_card = markdown.split(f"#### {side.capitalize()}\n", 1)[1]
+        # The card ends before the next Summary section or its meaning claim.
+        for boundary in (
+            "#### ",
+            "### ",
+            f"**{content.SUMMARY_MEANING_LABEL}",
+            content.SUMMARY_INTERPRETATION_UNAVAILABLE,
+        ):
+            md_card = md_card.split(boundary, 1)[0]
+        md_cards[side] = md_card.replace(r"\-", "-")
         for text in ("wait for signoff", *timing):
             assert text in cards[side] and text in md_cards[side]
         assert "Recommend" not in cards[side] and "Recommend" not in md_cards[side]
@@ -1659,6 +2025,7 @@ def assert_gallery_reports():
         ):
             assert branch.prefix == branch.paths == ()
         assert_visual_summaries(reports)
+        assert_derived_summary_claims(reports)
         assert_instruction_intent(reports, root)
         assert_attention_reports(
             reports,
@@ -2097,6 +2464,7 @@ def main():
     report = assert_round_trip(raw)
     assert_trial_summary_validation(raw)
     assert_branch_membership_validation(raw)
+    assert_summary_context_and_starts(raw)
     assert_trial_summary_pipeline()
     assert_trial_summary_rendering(report)
     assert_summary_evidence(report)
@@ -2146,6 +2514,12 @@ def main():
         dict(raw, schema_version=10),
         "unsupported report-data schema version: 10",
     )
+    # Earlier report-data shapes are rejected; saved runs regenerate from decisions.
+    for version in (11, 12):
+        assert_rejected(
+            dict(raw, schema_version=version),
+            f"unsupported report-data schema version: {version}",
+        )
     assert_rejected(
         dict(raw, schema_version=True),
         "invalid report-data field schema_version: expected integer",

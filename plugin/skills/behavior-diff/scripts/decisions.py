@@ -201,21 +201,26 @@ SCHEMA = """{{
   }}|null,
   "summary": {{
     "decision": <1-based selected lead row index>,
-    "headline": "<plain-language takeaway, at most 12 words>",
+    "headline": "<observed result and its consistency, at most 12 words>",
     "scenario": "<short task context, at most 25 words>",
+    "context": {{"text": "<task input claim versus what recorded evidence shows, at most 480 characters>", "decisions": [<supporting row indexes>]}}|null,
     "evidence_kind": "plans"|"answers"|"actions",
-    "before": {{"icon": "<allowed icon>", "choices": [
+    "before": {{"icon": "<allowed icon>",
+      "start": {{"text": "<state or step shared by every before trial, at most 80 characters>", "decisions": [<ONE row index>]}}|null,
+      "choices": [
       {{"choice": "<EXACT canonical choice from this side of the lead row>",
         "label": "<short title, at most 6 words>",
         "detail": "<supported description, at most 20 words>"}}
     ]}},
-    "after": {{"icon": "<allowed icon>", "choices": [
+    "after": {{"icon": "<allowed icon>",
+      "start": {{"text": "<state or step shared by every after trial, at most 80 characters>", "decisions": [<ONE row index>]}}|null,
+      "choices": [
       {{"choice": "<EXACT canonical choice from this side of the lead row>",
         "label": "<short title, at most 6 words>",
         "detail": "<supported description, at most 20 words>"}}
     ]}},
-    "why": {{"text": "<supported practical implication>", "decisions": [<supporting row indexes>]}}|null,
-    "caution": {{"text": "<supported risk>", "decisions": [<supporting row indexes>]}}|null
+    "why": {{"text": "<what this means: practical gain and already-correct baseline>", "decisions": [<supporting row indexes>]}}|null,
+    "caution": {{"text": "<supported limit or risk for reading this result>", "decisions": [<supporting row indexes>]}}|null
   }}|null
 }}"""
 
@@ -335,8 +340,15 @@ Rules:
   decision observations, or presumed author motivation. Do not claim the aim was met.
   This edit-only model interpretation is independent of "summary" and chain indexes.
 - In the SAME reply, optionally give a concise plain-language "summary" for an
-  observed behavior comparison, or null. Its headline helps the reader understand
-  what Before and After did; it must not be a generic assessment status.
+  observed behavior comparison, or null. The Summary must stand alone: a reader
+  learns the case conflict, what Before and After did and how consistently, the
+  practical gain, any already-correct baseline, and what still needs attention
+  without opening details. Its headline leads with the observed result and its
+  consistency; it must not be a generic assessment status. For a mixed lead
+  outcome, say the behavior appears in some attempts, never reliable improvement.
+  Only the headline MAY state a count, as "N of M" attempts on one side, where N
+  is exactly the number of trials you assigned to that branch of the lead row and
+  M is that side's completed-trial count; if unsure, say "some" instead.
   Keep supported observations even when a separate accuracy check lacks evidence.
   The application shows target_assessment with its specific question and limits;
   it does not use that status to replace the behavioral headline. Do not imply
@@ -348,7 +360,7 @@ Rules:
   comparison addresses the purpose, keep the supported observation and say in why
   that this scenario does not answer the intended question.
 - Include EVERY choice on both sides of that row, copying its canonical "choice"
-  exactly. Do not provide summary counts: the application uses validated row counts.
+  exactly. Do not provide count fields: the application uses validated row counts.
   Mixed primary results must not be described as unanimous even when the lead is
   another action. Same-result/different-process is a valid finding.
 - Ground each side's label and detail in the records of EVERY named trial assigned
@@ -362,7 +374,26 @@ Rules:
   For a skill change, explain the skill's role in that task, not just its name.
   Use the headline and Before/After details for the practical supported contrast;
   use explanation.overview and steps for context that will not fit the cards.
-  Do not add fields or replace the task with an inferred reason for the edit.
+  Do not add fields outside this schema or replace the task with an inferred
+  reason for the edit. Context and starts are optional; use null rather than a
+  weak claim, because the observed comparison remains usable without them.
+- Optionally use "context" for the concrete case conflict: what the task input
+  claims (such as a description or summary the agent was given) and what the
+  supplied recorded evidence shows instead, including an important restriction
+  or exception. Cite the rows whose named trial records show that evidence.
+  Relate only the scenario input and recorded evidence. Do not restate the
+  instruction edit or its purpose; the application shows the purpose separately.
+  Never treat the instruction diff, its examples, or the input claim as
+  independent truth. Use null when the task exposes no such conflict or the
+  recorded evidence does not establish it; do not invent a conflict.
+- Optionally give each side a "start": one short observed state or step shared by
+  EVERY completed trial on that side, shown above that side's choice cards. Cite
+  exactly ONE chain row whose same side has a single branch naming exactly all of
+  that side's completed trials. Use null when those trials differ, when only a
+  row combination or counted path would support it, or when it repeats a card.
+  Match the cited row's evidence kind: an action-anchored row for recorded or
+  reported actions; an answer-anchored row only for what answers state or plan,
+  never as tool execution. A start is an observation, not a cause of the choice.
 - At first use, explain unfamiliar objects, roles, acronyms, and table names by
   their concrete function in the supplied evidence: who decides, what is checked,
   or what a record contains. Do not guess acronym expansions, role authority,
@@ -385,8 +416,8 @@ Rules:
   a vague "waits longer" or "uses a stricter gate" is not enough. Describe the observed
   gate separately from what the instruction requires: a newly written gate may
   already appear in Before, and a rule in the diff is not evidence that After used it.
-  Avoid abstract correlation or the author's stance. Do not duplicate count claims
-  in prose: the application derives counts.
+  Avoid abstract correlation or the author's stance. Apart from the headline count
+  above, do not duplicate count claims in prose: the application derives counts.
 - Use "plans" only for plans stated in final answers, "answers" for other final
   answer choices, and "actions" only for a numbered action/command anchor. Plans
   are not executed actions. Final answers do not prove tool execution. Self-reported
@@ -394,21 +425,30 @@ Rules:
 - Narrative copy must be plain text, never HTML, SVG, JavaScript, or Markdown markup.
   Allowed icons: neutral, continue, stop, report, edit, inspect, test, delegate.
   Headline <=120 characters, scenario <=220, choice label <=80, detail <=200.
-  Keep why <=480 characters and caution <=240; cite every supporting row, otherwise null.
+  Keep why and context <=480 characters, caution <=240, and each start <=80; cite
+  every supporting row, otherwise null.
   When a purpose is supplied, use why for the short conclusion in "What this means":
   answer what these observations establish about that purpose, not just why the
-  selected difference is useful. Say when Before already met the checked behavior
+  selected difference is useful. Name the practical gain concretely, such as a
+  reviewer receiving a specific disagreement to inspect instead of only a statement
+  that sources were checked. Say when Before already met the checked behavior
   and no improvement was demonstrated, when the target problem persists, or when
-  behavior was preserved in this scenario. Preserve mixed outcomes.
+  behavior was preserved in this scenario. Name the concrete claim or behavior
+  both versions already handled, not abstract wording such as "existing safeguards".
+  Preserve mixed outcomes.
   If the task did not expose the problem the edit was meant to address, name that
   limit; better wording or more source reads do not prove better conflict resolution.
   Separate a supported additional benefit from the answer about the intended fix.
-  Distinguish a claim appearing in the deliverable from one appearing only in review.
+  Distinguish a claim appearing in the deliverable from one appearing only in review;
+  more informative review notes do not establish more accurate deliverables.
+  Use caution for the most important supported limit or risk in reading this
+  result; it does not replace attention findings.
   Explain specific missing evidence without erasing what can be observed. Do not
   claim causation, general reliability, or automatic acceptance. Use plain sentences
   about the actual behavior, not generic phrases such as "the target was met".
   These are model interpretations, not causal proof. Do not invent action claims,
-  success, risk, or intent. If evidence is incomplete or blocked, lead with that limit.
+  success, risk, intent, later revisions, or follow-up history absent from the
+  supplied evidence. If evidence is incomplete or blocked, lead with that limit.
 - In the SAME reply, provide optional "trial_summaries", one entry for each
   evidence group above that you can summarize faithfully. Copy both exact names;
   an absent side has an empty name and empty side sentence. These groups are
@@ -507,6 +547,16 @@ Rules:
   behavior. Relationship is "expected" for a supported intended tradeoff,
   "additional" for a supported additional effect, or "unclear" when the link to
   intent cannot be established; none of these labels proves causality.
+- Order findings by relevance and consequence. When the purpose or edit requires
+  a behavior and some completed After trials still omit or fail it (a target
+  not_met or uncertain outcome, or an After minority branch without it), make
+  that inconsistency the FIRST finding with its criterion when the selection rule
+  below permits its row, even when it reuses the Summary row; the Summary showing
+  counts does not replace it. A statement that sources were checked does not
+  establish that a disagreement was reported. Describe the observed omission
+  without claiming the agent never noticed the issue internally. Keep other
+  warranted findings, such as an additional qualification, after it as secondary
+  concerns; incidental differences must not displace the targeted behavior.
 - Select changed distributions, or an unchanged targeted problem ONLY when the
   referenced criterion links that row and has not_met outcomes on BOTH sides.
   Use status pre_existing_problem for that unchanged target problem. Otherwise

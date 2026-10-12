@@ -28,6 +28,16 @@ def write_json(path, value):
     path.write_text(json.dumps(value) + "\n", encoding="utf-8")
 
 
+def visible(node):
+    """Plain report text a quiz reader sees, without evidence navigation links."""
+    return "".join(
+        child
+        if not isinstance(child, quiz._Node)
+        else ("" if child.has_class("evidence-links") else visible(child))
+        for child in node.children
+    )
+
+
 def question():
     return {
         "stem": "Which statement describes the bounded synthetic comparison?",
@@ -305,6 +315,10 @@ class ReportAndServerTests(unittest.TestCase):
         original = (self.gallery / "changed-result/report.html").read_text()
         root = quiz._ReportParser().finish(original)
         nodes = list(quiz._walk(root))
+        panel = quiz._single(
+            [node for node in nodes if node.attrs.get("id") == "panel-summary"],
+            "summary panel",
+        )
         blinded = (self.session / "public/summary-1.html").read_text()
         blind_root = quiz._ReportParser().finish(blinded)
         text = quiz._plain(blind_root)
@@ -312,7 +326,6 @@ class ReportAndServerTests(unittest.TestCase):
             "summary-headline",
             "summary-context",
             "summary-provenance",
-            "summary-status",
             "summary-before",
             "summary-after",
             "summary-why",
@@ -320,31 +333,33 @@ class ReportAndServerTests(unittest.TestCase):
             "summary-notices",
             "evidence-limits",
         ):
-            for node in nodes:
+            for node in quiz._walk(panel):
                 if node.has_class(name):
-                    expected = quiz._plain(node)
                     # Navigation is excluded; generated supported-claim text remains unchanged.
-                    if name in ("summary-why", "summary-caution"):
-                        expected = "".join(
-                            quiz._plain(child)
-                            if isinstance(child, quiz._Node)
-                            else child
-                            for child in node.children
-                            if not isinstance(child, quiz._Node)
-                            or not child.has_class("evidence-links")
-                        )
-                    self.assertIn(expected, text)
-        for name in ("story-intent", "scenario-context", "scenario-prompt"):
+                    self.assertIn(visible(node), text)
+        for name in (
+            "story-intent",
+            "purpose-provenance",
+            "intent-heading",
+            "scenario-context",
+            "scenario-prompt",
+        ):
             for node in nodes:
                 if node.has_class(name) and quiz._plain(node).strip():
                     self.assertNotIn(quiz._plain(node), text)
-        self.assertNotIn("Full scenario and expected behavior", blinded)
+        self.assertFalse(
+            any(
+                node.has_class(name)
+                for node in quiz._walk(blind_root)
+                for name in ("intent-heading", "story-intent", "purpose-provenance")
+            )
+        )
         self.assertNotIn('id="panel-instruction"', blinded)
         self.assertNotIn("<script", blinded)
         self.assertNotIn("<nav", blinded)
         self.assertNotIn("<a ", blinded)
+        self.assertFalse(any("href" in node.attrs for node in quiz._walk(blind_root)))
         self.assertNotIn("https://", blinded)
-        self.assertNotIn("Other findings", blinded)
         self.assertNotIn("<button", blinded)
         self.assertNotIn("data-attention-", blinded)
         self.assertNotIn("<link", blinded)
@@ -358,14 +373,15 @@ class ReportAndServerTests(unittest.TestCase):
             quiz._hash(original.encode()),
         )
 
-    def test_attention_pictures_counts_and_states_survive_blinding(self):
-        for scenario in (
-            "attention-mixed",
-            "attention-self-reported",
-            "attention-plans",
-            "attention-quiet",
-            "attention-unavailable",
-            "attention-multiple",
+    def test_attention_findings_states_and_steps_survive_blinding(self):
+        for scenario, state in (
+            ("attention-mixed", "attention-finding"),
+            ("attention-self-reported", "attention-finding"),
+            ("attention-plans", "attention-finding"),
+            ("attention-quiet", "attention-empty"),
+            ("attention-unavailable", "attention-unavailable"),
+            ("attention-multiple", "attention-finding"),
+            ("target-mixed", "attention-target-gap"),
         ):
             with self.subTest(scenario=scenario):
                 source = (self.gallery / scenario / "report.html").read_text()
@@ -393,19 +409,14 @@ class ReportAndServerTests(unittest.TestCase):
                 )
                 original_nodes = list(quiz._walk(attention))
                 retained_nodes = list(quiz._walk(retained))
-                if scenario == "attention-self-reported":
-                    self.assertIn(
-                        "Self-reported actions, not independently captured command evidence",
-                        quiz._plain(retained),
-                    )
-                    self.assertNotIn("Recorded actions", quiz._plain(retained))
+                self.assertTrue(any(node.has_class(state) for node in retained_nodes))
                 for name in (
                     "attention-assessment",
-                    "attention-branch",
                     "attention-consequence",
                     "attention-evidence-kind",
                     "attention-limit",
-                    "attention-guidance",
+                    "attention-next",
+                    "attention-target-result",
                     "attention-empty",
                     "attention-unavailable",
                 ):
@@ -437,62 +448,40 @@ class ReportAndServerTests(unittest.TestCase):
                         for node in retained_nodes
                     )
                 )
-                self.assertEqual(
-                    [
-                        quiz._plain(
-                            quiz._ReportParser().finish(quiz._safe_fragment(node))
-                        )
-                        for node in original_nodes
-                        if node.has_class("attention-meta")
-                    ],
-                    [
-                        quiz._plain(node)
-                        for node in retained_nodes
-                        if node.has_class("attention-meta")
-                    ],
-                )
-                branches = [
-                    node
-                    for node in retained_nodes
-                    if node.has_class("attention-branch")
-                ]
-                self.assertEqual(
-                    len(branches) * 2,
-                    sum(node.tag == "svg" for node in retained_nodes),
-                )
-                for svg in (node for node in retained_nodes if node.tag == "svg"):
+                for svg in (node for node in quiz._walk(blinded) if node.tag == "svg"):
                     self.assertEqual(svg.attrs["aria-hidden"], "true")
                     self.assertEqual(svg.attrs["focusable"], "false")
                     self.assertIn("viewbox", svg.attrs)
                     self.assertTrue(quiz._children(svg))
-                for forbidden in (
-                    "<button",
-                    "<nav",
-                    "<a ",
-                    "data-attention-",
-                    "Not relevant here",
-                    "Show again",
-                ):
-                    self.assertNotIn(forbidden, blinded_html)
-                steps = [
-                    node for node in quiz._walk(blinded) if node.has_class("story-step")
-                ]
-                self.assertEqual(len(steps), 3)
-                self.assertEqual(
-                    [
-                        quiz._plain(quiz._children(quiz._children(step)[1])[0])
-                        for step in steps
-                    ],
-                    [
-                        "What the evidence shows",
-                        "What needs your attention",
-                        "What this means",
-                    ],
+                self.assertFalse(
+                    any(
+                        node.tag in ("a", "nav", "button")
+                        or any(
+                            name == "href" or name.startswith("data-")
+                            for name in node.attrs
+                        )
+                        for node in quiz._walk(blinded)
+                    )
                 )
+
+                def headings(root):
+                    return [
+                        quiz._plain(
+                            next(node for node in quiz._walk(step) if node.tag == "h3")
+                        )
+                        for step in quiz._walk(root)
+                        if step.has_class("story-step")
+                    ]
+
+                # Evidence, attention and limits keep their order; the intent step is gone.
+                original_headings = headings(original)
+                self.assertEqual(headings(blinded), original_headings[1:])
+                self.assertNotIn(original_headings[0], quiz._plain(blinded))
 
     def test_old_summary_shapes_and_wrapper_recovery_are_rejected(self):
         source = (self.gallery / "changed-result/report.html").read_text()
-        for legacy in ("three-steps", "other-findings"):
+        # v1 trees: no limits step, a target table in evidence, or extra disclosures.
+        for legacy in ("three-steps", "meaning-step", "target-table", "other-findings"):
             with self.subTest(legacy=legacy):
                 root = quiz._ReportParser().finish(source)
                 panel = quiz._single(
@@ -503,21 +492,29 @@ class ReportAndServerTests(unittest.TestCase):
                     ],
                     "summary panel",
                 )
+                steps = quiz._single(
+                    [
+                        node
+                        for node in quiz._walk(panel)
+                        if node.has_class("story-steps")
+                    ],
+                    "story steps",
+                )
                 if legacy == "three-steps":
-                    steps = quiz._single(
-                        [
-                            node
-                            for node in quiz._walk(panel)
-                            if node.has_class("story-steps")
-                        ],
-                        "story steps",
-                    )
                     steps.children = [
                         child
                         for child in steps.children
                         if not isinstance(child, quiz._Node)
                         or not child.has_class("story-attention")
                     ]
+                elif legacy == "meaning-step":
+                    quiz._children(steps)[3].attrs["class"] = "story-step"
+                elif legacy == "target-table":
+                    evidence = quiz._children(quiz._children(steps)[1])[1]
+                    evidence.children.insert(
+                        len(evidence.children) - 1,
+                        quiz._Node("div", [("class", "target-checks")]),
+                    )
                 else:
                     panel.children.append(
                         quiz._Node(
@@ -597,34 +594,141 @@ class ReportAndServerTests(unittest.TestCase):
             "unavailable", (self.session / "public/summary-1.html").read_text().lower()
         )
 
-    def test_blinding_preserves_assessment_counts_without_source_links(self):
+    def test_case_context_start_result_and_limits_survive_without_intent(self):
+        for scenario in (
+            "target-mixed",
+            "target-insufficient",
+            "target-lost-exception",
+            "target-baseline",
+        ):
+            with self.subTest(scenario=scenario):
+                source = (self.gallery / scenario / "report.html").read_text()
+                original = quiz._ReportParser().finish(source)
+                panel = quiz._single(
+                    [
+                        node
+                        for node in quiz._walk(original)
+                        if node.attrs.get("id") == "panel-summary"
+                    ],
+                    "summary panel",
+                )
+                blinded_html = quiz._blinded_report(source)
+                blinded = quiz._ReportParser().finish(blinded_html)
+                text = quiz._plain(blinded)
+                evidence = quiz._single(
+                    [
+                        node
+                        for node in quiz._walk(blinded)
+                        if node.has_class("story-step")
+                        and any(
+                            child.has_class("summary-pair")
+                            for child in quiz._walk(node)
+                        )
+                    ],
+                    "blinded evidence step",
+                )
+                context = quiz._single(
+                    [
+                        node
+                        for node in quiz._walk(panel)
+                        if node.has_class("summary-case-context")
+                    ],
+                    "case context",
+                )
+                # Case observation context moves beside the evidence, without links.
+                self.assertIn(visible(context), quiz._plain(evidence))
+                for name in ("summary-start-text", "summary-start-source"):
+                    kept = [
+                        quiz._plain(node)
+                        for node in quiz._walk(panel)
+                        if node.has_class(name)
+                    ]
+                    self.assertTrue(kept)
+                    self.assertEqual(
+                        kept,
+                        [
+                            quiz._plain(node)
+                            for node in quiz._walk(blinded)
+                            if node.has_class(name)
+                        ],
+                    )
+                for name in (
+                    "summary-headline",
+                    "summary-before",
+                    "summary-after",
+                    "summary-why",
+                    "summary-interpretation-unavailable",
+                    "summary-caution",
+                    "summary-notices",
+                    "evidence-limits",
+                    "attention-target-result",
+                ):
+                    for node in quiz._walk(panel):
+                        if node.has_class(name):
+                            self.assertIn(visible(node), text)
+                if scenario == "target-mixed":
+                    # The unmet target in an After trial remains a visible finding.
+                    self.assertTrue(
+                        any(
+                            node.has_class("attention-target-gap")
+                            for node in quiz._walk(blinded)
+                        )
+                    )
+                for name in ("story-intent", "purpose-provenance", "intent-heading"):
+                    for node in quiz._walk(panel):
+                        if node.has_class(name):
+                            self.assertNotIn(visible(node), text)
+                self.assertNotIn("Synthetic owner request before trials", blinded_html)
+                self.assertFalse(
+                    any(
+                        node.tag in ("a", "nav", "button") or "href" in node.attrs
+                        for node in quiz._walk(blinded)
+                    )
+                )
+
+    def test_case_context_repeating_intent_and_target_links_fail_closed(self):
         source = (self.gallery / "target-mixed/report.html").read_text()
-        blinded = quiz._blinded_report(source)
-        parsed = quiz._ReportParser().finish(blinded)
-        table = quiz._single(
-            [node for node in quiz._walk(parsed) if node.has_class("target-checks")],
-            "blinded assessment",
+        root = quiz._ReportParser().finish(source)
+        intent = quiz._single(
+            [node for node in quiz._walk(root) if node.has_class("story-intent")],
+            "intent",
         )
-        self.assertIn("No (3/3) → Yes (2/3); No (1/3)", quiz._plain(table))
-        emphasis = quiz._single(
+        context = quiz._single(
             [
                 node
-                for node in quiz._walk(table)
-                if node.has_class("target-result-changed")
+                for node in quiz._walk(root)
+                if node.has_class("summary-case-context")
             ],
-            "changed assessment",
+            "case context",
         )
-        self.assertEqual(emphasis.tag, "strong")
-        self.assertNotIn("Synthetic owner request before trials", blinded)
-        self.assertFalse(any(node.tag == "a" for node in quiz._walk(table)))
-        with self.assertRaises(ValueError):
-            quiz._blinded_report(
-                source.replace(
-                    "<td>",
-                    '<td><a href="#instruction-diff">Private source reference</a>',
-                    1,
-                )
-            )
+        claim = quiz._children(context)[1]
+        claim.children.insert(0, quiz._plain(intent) + " ")
+        with (
+            patch.object(quiz._ReportParser, "finish", return_value=root),
+            self.assertRaisesRegex(ValueError, "repeats the intended change"),
+        ):
+            quiz._blinded_report(source)
+        linked = source.replace(
+            '<p class="attention-target-result">',
+            '<p class="attention-target-result">'
+            '<a href="#instruction-diff">Private source reference</a>',
+            1,
+        )
+        self.assertNotEqual(source, linked)
+        blinded = quiz._blinded_report(linked)
+        self.assertNotIn("Private source reference", blinded)
+        self.assertNotIn("instruction-diff", blinded)
+        for name in (
+            "summary-start-text",
+            "summary-start-source",
+            "summary-case-context",
+            "attention-target-result",
+        ):
+            with self.subTest(element=name):
+                altered = source.replace(f'class="{name}"', 'class="unknown-element"')
+                self.assertNotEqual(source, altered)
+                with self.assertRaises(ValueError):
+                    quiz._blinded_report(altered)
 
     def test_scripts_links_attributes_and_unknown_shapes(self):
         source = (self.gallery / "changed-result/report.html").read_text()
@@ -654,12 +758,12 @@ class ReportAndServerTests(unittest.TestCase):
         source = (self.gallery / "attention-mixed/report.html").read_text()
         for name in (
             "attention-assessment",
+            "attention-consequence",
             "attention-limit",
-            "attention-flow-step",
-            "attention-guidance",
+            "attention-next",
+            "attention-finding-nav",
             "attention-relationship",
             "attention-evidence-kind",
-            "summary-count",
         ):
             with self.subTest(element=name):
                 altered = source.replace(f'class="{name}"', 'class="unknown-element"')
@@ -674,9 +778,7 @@ class ReportAndServerTests(unittest.TestCase):
                     1,
                 )
             )
-        attention_svg_end = source.index(
-            "</svg>", source.index('class="attention-flow-step"')
-        )
+        picture_end = source.index("</svg>", source.index('class="summary-pair"'))
         for markup in (
             "<foreignObject><p>Arbitrary markup</p></foreignObject>",
             '<image href="https://hostile.invalid/picture.svg"></image>',
@@ -684,7 +786,7 @@ class ReportAndServerTests(unittest.TestCase):
         ):
             with self.subTest(markup=markup), self.assertRaises(ValueError):
                 quiz._blinded_report(
-                    source[:attention_svg_end] + markup + source[attention_svg_end:]
+                    source[:picture_end] + markup + source[picture_end:]
                 )
         for value in (
             "url(https://hostile.invalid/resource)",

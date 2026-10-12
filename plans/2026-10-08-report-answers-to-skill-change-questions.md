@@ -649,3 +649,133 @@ preserving the same restoration and cleanup path on both hosts.
 The implementation addresses the reporting gaps. Stronger claims about the
 skill's effectiveness require suitable scenarios and adequate evidence; the
 report must state the limit when those prerequisites are absent.
+
+## Follow-up: make the Summary sufficient on its own
+
+**Recorded:** 2026-10-12
+**Status:** Approved through a local preview and implemented on 2026-10-12.
+The original proposal and the implementation boundary are recorded below.
+
+### Missing reader outcome
+
+The Summary already has a conclusion section, but readers may still need the
+detail tab to connect the source conflict, observed behavior, and conclusion.
+Having a conclusion field is not enough if the reader must assemble its meaning.
+
+The Summary must tell the reader, in simple language:
+
+- What the edit was meant to achieve.
+- What Before and After actually did, including an already-correct baseline or
+  inconsistent results.
+- What that means for the intended change and what needs attention before acceptance.
+- What cannot be concluded from the available evidence.
+
+Include the minimum context needed to understand the conclusion. For example,
+when a description makes a broad claim but implementation imposes a restriction,
+state that conflict briefly alongside how the drafts handled it. Do not require
+opening another tab to discover why the result matters.
+
+The detail pages support the conclusion with readable explanations, trial
+breakdowns, source comparisons, and inspectable evidence. Keep raw evidence
+collapsed by default. Essential conclusions must not appear only in detail pages.
+This direction did not prescribe a layout before the owner reviewed the preview.
+
+### Story and evidence boundary
+
+Tell the related edits as one development sequence. At each edit, explain what
+the report could tell the owner before they make the next change. Separate that
+observed result from a proposed next step and the historical reason for a follow-up.
+
+Do not turn a source disagreement that both versions handled correctly into
+evidence that the first edit failed or that the next edit was necessary. Do not
+claim an example-removal edit preserves discrepancy reporting unless that behavior
+was tested across the removal. Different scenarios cannot establish that comparison.
+
+### Acceptance question for a future preview
+
+Can a reader explain what this edit achieved, what still needs attention, and
+what remains unknown using only the Summary? Opening details should help them
+verify the conclusion, not discover the conclusion for the first time.
+
+### Second-edit Summary refinement
+
+**Recorded:** 2026-10-12
+
+The second edit makes comparison of the PR summary and implementation explicit.
+Its report is useful for explaining that edit, but currently needs a presenter
+to connect the observed review behavior to the owner's purpose. The following
+requirements generalize that discussion; private source quotes and actual trial
+results remain outside this repository.
+
+#### Add or clarify
+
+- State the concrete source disagreement near the top. Briefly explain what the
+  description claims and what the recorded implementation shows, rather than
+  making the reader decode an abstract phrase such as "PR mismatch."
+- Lead with the observed result and its consistency. For a mixed outcome, the
+  headline should say that the revised skill flags a mismatch in some attempts,
+  with the actual count, rather than imply reliable improvement.
+- Explain the practical benefit: a reviewer receives a specific disagreement
+  to inspect instead of only a statement that sources were checked.
+- Distinguish more informative review notes from more accurate customer-facing
+  drafts. Do not claim the latter merely because discrepancy reporting increased.
+- Preserve an already-correct baseline. Replace abstract wording about existing
+  safeguards with a short description of the claim both versions already avoided.
+
+#### Prioritize attention
+
+When the edit explicitly requires reporting disagreements and some After answers
+still omit a supported mismatch, make that inconsistency the main attention item.
+A statement that sources were checked does not establish that disagreements were
+reported. Identify the observed omission without claiming the agent never noticed
+the disagreement internally.
+
+Keep other useful findings, such as an additional implementation qualification,
+as secondary concerns when warranted. Their priority should reflect relevance
+and consequence; do not let incidental differences displace the targeted behavior.
+
+#### Shorten or move into details
+
+- Move long implementation/API questions and full trial reasoning into
+  Understand the change unless they are essential to the acceptance decision.
+- Keep source excerpts behind evidence controls.
+- Retain the compact Before/After result, including unsuccessful After attempts,
+  and any evidence limit that changes how the reader should interpret it.
+
+#### Proposed Summary sequence
+
+1. Conclusion: what changed in review behavior, with the observed consistency.
+2. Context: what this instruction edit asks for and the concrete source conflict.
+3. Result: what Before and After reported, preserving minority outcomes.
+4. Meaning: what information the reviewer gains and what was already correct.
+5. Attention: what remains inconsistent or unverified before accepting the edit.
+
+The owner approved this direction after comparing a private authored preview with
+the saved report and receiving two independent AI content reviews. Those reviews
+support the presentation decision, not measured human comprehension.
+
+### Implemented Summary contract
+
+- Keep a behavioral headline, followed by the intended change and concise
+  evidence-backed case context. Link the first section to Instruction changes.
+- Retain the original Before/After illustrations and blue/amber palettes. Add
+  a flow start only when its cited comparison covers every trial on that side;
+  distinguish recorded actions from plans and answer claims. Preserve minorities.
+- Put practical meaning below the comparison, with the Understand the change
+  link. Move the long criterion table into the detail tab.
+- Prioritize findings about unmet intended behavior. If an assessment records a
+  target failure but attention omits it, retain the recorded result and its detail
+  link without inventing an explanation. Keep other supported concerns.
+- Keep evidence limits visible, including one-scenario/noncausal qualifications
+  and uncertain checks. Do not assume every case has a later cleanup revision.
+- Preserve the same content boundaries in Markdown and blinded quiz exports.
+  Raw evidence remains closed by default.
+
+Extraction supplies optional evidence-linked case context and flow starts within
+the existing model call. Rendering cannot manufacture missing narrative for an
+older run. Report-data schema 13 requires regeneration from saved run evidence;
+the production implementation does not ship the authored preview or private data.
+
+Deterministic synthetic fixtures exercise presentation and validation. Browser
+inspection confirms the rendered layout and links. These checks do not establish
+live extractor adherence, causal effects, or improved human comprehension.
