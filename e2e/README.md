@@ -1,5 +1,37 @@
 # e2e — fixtures and how to run them
 
+## Default manual verification examples
+
+Use all three Recce-Team historical skill cases when manually verifying Behavior
+Diff modifications:
+
+| Skill | Verification focus |
+|---|---|
+| `claude-code-review` | Review/fix workflow, final review state, and the distinction between planned and executed actions. |
+| `tdd-from-spec` | Implementation notes, file-state evidence, and unsupported claims about ignore or staging safety. |
+| `decision-debate` | Direction generation versus interviewing, shared behavior, and sequencing differences. |
+
+Use the pinned revisions, companion-file requirements, and retained evidence
+records in the [Recce-Team runbook](recce-team-first-edit-attention.md).
+Their previous exclusion or inconclusive status concerns **side-effect detection
+demos**, not their use as real-world verification examples. Do not relabel any
+case as a successfully detected regression.
+
+For renderer changes, reuse saved extraction inputs unchanged and compare the
+old and new renderer on all three cases. For extractor changes, reuse frozen
+trial evidence and obtain approval for new extraction calls. For changes to
+scenario drafting or trial execution, saved reports alone are insufficient:
+obtain fresh approval for the affected live steps. Record each case's result or
+the exact missing evidence; do not silently substitute a synthetic scenario.
+Inspect the changed surface and its supporting evidence, preserving unchanged,
+minority, and inconclusive outcomes.
+
+Keep private sources, trials, reports, and temporary comparisons outside this
+checkout. No model-backed verification runs in CI. Synthetic fixtures remain
+the deterministic test set and supplemental edge-case examples.
+
+## Synthetic nudge fixtures
+
 Five fixtures. Each is a synthetic project, a task that stops on a decision,
 and the rule block to add:
 
@@ -15,8 +47,8 @@ Pick with `NUDGE_E2E_FIXTURE=capsule|demo|demo-invoice-review|`
 `demo-inbox-cleanup|demo-ascii-response`. See each demo's README for its full
 story.
 
-The two demos that carry the product story are `demo-invoice-review` and
-`demo-ascii-response`, and they show different things:
+Two synthetic examples illustrate different product stories; they supplement,
+not replace, the real-world manual verification set:
 
 - **`demo-invoice-review`** — a *workflow* rule change. The new rule routes
   around a safeguard, so the agent checks different records and reaches a

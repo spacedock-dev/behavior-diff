@@ -25,14 +25,22 @@ Engram-only Reflection and Tricorder rules are not part of this repository.
 ## Report presentation changes
 
 Before implementing changes to report hierarchy, navigation, or the main
-comparison, show a representative synthetic preview and agree on the reader's
-question and information hierarchy. Small copy corrections do not require a
-prototype. Use the local `preview-behavior-diff-summary` skill for the workflow.
+comparison, preview the three saved Recce-Team cases described in
+[the verification examples](e2e/README.md#default-manual-verification-examples)
+and agree on the reader's question and information hierarchy. Small copy
+corrections do not require a prototype. Use the local
+`preview-behavior-diff-summary` skill for the workflow.
 
 Reuse the shipped renderer and hold trial evidence constant across presentation
 variants. Label authored previews separately from model-generated results.
 Keep prototypes temporary; retain only the accepted decision and appropriate
 synthetic regression coverage, not a second rendering system.
+
+Use these real-world cases as the default manual verification examples for
+Behavior Diff modifications. Keep synthetic fixtures for deterministic CI,
+isolated edge cases, and supplemental illustrations, not as a replacement for
+the real-world verification set. Missing private evidence is a reported gap,
+not permission to invent an equivalent result.
 
 ## Agent-skill Markdown
 

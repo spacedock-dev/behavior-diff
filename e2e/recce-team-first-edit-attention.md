@@ -23,6 +23,14 @@ instruction can interfere with the newly added direction-generation mode.
 Its first replay did **not** reproduce that interaction, so it remains
 `inconclusive`, not a demonstrated detection or report failure.
 
+For general verification of Behavior Diff modifications, all three cases are
+now the default real-world example set; see
+[manual verification examples](README.md#default-manual-verification-examples).
+Reuse their saved evidence without changing the historical assessments below.
+The exclusions and no-rerun rule in this side-effect investigation do not exclude
+saved-evidence presentation checks. New model-backed verification of any case
+still needs fresh approval and an explicit scope separate from this investigation.
+
 Reuse the isolation and evidence separation principles in the
 [historical replay workflow](../docs/skill-history-replay/README.md). This is a
 bounded manual demo, not a new Spacedock workflow or an invocation of that
