@@ -55,11 +55,29 @@ def _instruction_edit(report):
         lines.append(text)
     return [
         f"### {_text(report.content.diff_heading)}\n",
-        _text(content.instruction_edit_aim(report.intent)) + "\n",
+        *(
+            _recorded_purpose(report)
+            if report.decisions.purpose
+            else [_text(content.instruction_edit_aim(report.intent)) + "\n"]
+        ),
         _text(content.instruction_edit_counts(report.rule_diff)) + "\n",
         "<pre><code>" + "\n".join(lines) + "</code></pre>\n",
         _text(content.EDIT_LINK_NOTE) + "\n",
     ]
+
+
+def _recorded_purpose(report):
+    """List every frozen goal in full with its provenance, independent of assessment."""
+    markdown = [
+        f"#### {content.RECORDED_PURPOSE_HEADING}\n",
+        _text(content.RECORDED_PURPOSE_NOTE) + "\n",
+    ]
+    for index, goal in enumerate(report.decisions.purpose, 1):
+        markdown += [
+            f"**Goal {index}:** {_text(goal.text)}\n",
+            _text(content.purpose_goal_source(goal)) + "\n",
+        ]
+    return markdown
 
 
 def _attention_notice_markdown(attention):
@@ -481,21 +499,15 @@ def _target_explanation_markdown(report):
 
 def _summary_markdown(report):
     summary = report.summary
-    intent = report.intent
-    intent_label, intent_note = content.intent_context(intent)
+    intent = content.summary_intent(report)
     markdown = [
         "## Summary\n",
         f"**{_text(summary.headline)}**\n",
         f"### 1. {content.SUMMARY_PURPOSE_HEADING}\n",
-        f"**{_text(intent_label)}**\n",
+        f"**{_text(intent.label)}**\n",
         _text(intent.text) + "\n",
-        _text(intent_note) + "\n",
+        _text(intent.note) + "\n",
     ]
-    for index, goal in enumerate(report.decisions.purpose, 1):
-        markdown.append(
-            _text(f"Goal {index}: {goal.source} · {goal.basis} · {goal.reference}")
-            + "\n"
-        )
     if summary.context:
         markdown.append(
             f"**{content.SUMMARY_CONTEXT_LABEL}:** {_text(summary.context.text)} "

@@ -322,6 +322,8 @@ class HostedTests(unittest.TestCase):
                     node
                     for node in quiz._walk(original)
                     if node.has_class("story-intent")
+                    or node.has_class("purpose-goal-text")
+                    or node.has_class("purpose-provenance")
                 ):
                     self.assertNotIn(quiz._plain(intent), quiz._plain(exported))
                 self.assertFalse(

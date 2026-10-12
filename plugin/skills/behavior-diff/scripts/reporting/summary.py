@@ -3,6 +3,7 @@
 from dataclasses import dataclass
 from typing import Optional, Tuple
 
+from reporting.explanation import _text as _plain_text
 from reporting.instruction import normalize_edit_hunks
 
 ICONS = ("neutral", "continue", "stop", "report", "edit", "inspect", "test", "delegate")
@@ -12,6 +13,7 @@ TARGET_UNCERTAIN = (
     "Some target checks remain uncertain or lack enough evidence; "
     "inspect the detailed assessment before drawing a conclusion."
 )
+PURPOSE_SUMMARY_LIMIT = 320
 
 
 @dataclass(frozen=True)
@@ -63,6 +65,16 @@ def parse_intent(raw, hunk_count):
         if not edit_hunks:
             return None
         return EditIntentData(text, edit_hunks)
+    except ValueError:
+        return None
+
+
+def parse_purpose_summary(raw, purpose):
+    """Keep a plain paraphrase of frozen goals; it never creates or replaces purpose."""
+    if raw is None or not purpose:
+        return None
+    try:
+        return _plain_text(raw, PURPOSE_SUMMARY_LIMIT)
     except ValueError:
         return None
 

@@ -192,9 +192,10 @@ starts, practical meaning, attention findings, target gaps, and visible limits.
 It removes instruction intent/diff, full scenario/expected behavior, commit
 metadata, source-intent relationship labels, and links to unblinded evidence.
 Case context is preserved separately from the removed purpose; extraction must
-not use it to restate the instruction. An exact repetition of intent is rejected,
-but this structural guard cannot detect semantic paraphrases.
-The projection never rewrites prose or synthesizes missing summaries. The v2
+not use it to restate the instruction. An exact repetition of the Summary intent,
+any full recorded goal, or the full supplied expectation or inferred aim from
+Instruction changes is rejected. This guard cannot detect semantic paraphrases.
+The projection never rewrites prose or synthesizes missing summaries. The v3
 projection accepts only the current Summary structure and fails closed on older
 layouts. Already-built sessions keep their frozen bytes; do not rebuild an
 active evaluation to adopt a new presentation.

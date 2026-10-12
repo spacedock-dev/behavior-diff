@@ -229,6 +229,10 @@ The modules below live in the skill's [`scripts/`](../plugin/skills/behavior-dif
   `unassessable`), alongside choices, primary task result, narrative, and attention.
   Criteria cover every purpose goal and use the same question on both sides.
   Correction, new/changed behavior, and preservation are supported separately.
+  With frozen purpose, the same call also returns `purpose_summary`: one or two
+  short plain sentences restating the goals. It is optional copy, accepted only
+  beside frozen goals and dropped alone when malformed. It never replaces those
+  goals or adds criteria, outcomes, or evidence.
   New raw branches supply `trials`,
   not aggregate counts. The script requires each completed trial exactly once
   per side of every row, derives `n`, and retains both in `decisions.json`.
@@ -301,10 +305,10 @@ The modules below live in the skill's [`scripts/`](../plugin/skills/behavior-dif
   unmet outcome on both sides, labeled as a pre-existing target problem.
   Counts come from canonical rows. Malformed bundles become unavailable, never
   an assessed-empty result. No finding quota applies.
-  These modules build schema-v13 `ReportData`. Older report-data versions are
+  These modules build schema-v14 `ReportData`. Older report-data versions are
   rejected; regenerate reports from their saved run evidence with `render.py`.
-  Saved decisions without optional context or flow starts still render, without
-  inventing those explanations.
+  Saved decisions without optional context, flow starts, or a purpose summary
+  still render, without inventing those explanations.
   Purpose, bounded evidence, limits, and assessments persist with decisions and
   report data; rendering does not reread current source files or infer new claims.
   Decision branches also retain validated trial memberships: exact coverage of
@@ -367,8 +371,12 @@ semantic truth, causal attribution, or live extractor adherence.
 
 The default Summary tells a four-part story: what the edit was meant to change,
 what the evidence shows, what needs attention, and what remains unknown.
-The aim retains its provenance and **Instruction changes** link. Supplied
-expectations and inferred aims remain distinct; neither proves goal completion.
+With frozen purpose, the aim shows the `purpose_summary` paraphrase, labeled as a
+summary of the recorded goals rather than wording frozen before trials. Without
+one, a single short goal appears exactly; otherwise the aim states the goal count.
+Full goal texts with their source, basis, and reference stay in **Instruction
+changes**, which the aim links to. Supplied expectations and inferred aims
+remain distinct; neither proves goal completion.
 An optional evidence-linked `summary.context` explains the concrete case near
 the aim, such as a description disagreeing with recorded implementation. It
 must describe task evidence, not restate the instruction or invent a conflict.
@@ -487,7 +495,8 @@ unavailable rather than treating a description as the prompt. Shared
 no inferred setup details.
 
 Instruction changes has its own tab, linked from the Summary's goal. It begins
-with the saved `intent`, labeled as a likely aim or supplied expectation.
+with the complete recorded goals and their provenance when available, otherwise
+the saved `intent`, labeled as a likely aim or supplied expectation.
 Rendering does not infer missing explanations or claim confirmed author intent.
 Both output formats retain one complete diff. `content.instruction_edit_counts`
 counts changed lines across validated hunks; `content.instruction_hunk_label`

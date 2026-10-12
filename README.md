@@ -306,9 +306,11 @@ Expected behavior is labeled as supplied, or explicitly unavailable. The evidenc
 limits state trial counts, provenance, and grading limits. Self-reported actions
 remain distinct from captured tool calls.
 
-The structured `report-data.json` uses schema version 8, including per-group
+The structured `report-data.json` uses schema version 14, including per-group
 `decisions.trial_summaries`, visual `summary`, sourced instruction `intent`,
-saved `content.task`, optional narrative, and `edit_hunks`.
+saved `content.task`, optional narrative, and `edit_hunks`. The optional
+`decisions.purpose_summary` gives the Summary a short, labeled paraphrase of
+the frozen goals; Instruction changes retains their complete text and provenance.
 The task comes from the run's `task.md`, or the capsule's copy
 when absent from the run. A scenario description never replaces missing task text.
 Regenerate reports from their original run artifacts;
@@ -323,6 +325,9 @@ remain unavailable. Trial summaries are produced in the existing extraction
 call; rendering never substitutes an overall conclusion for a trial's summary.
 To obtain them, explicitly rerun extraction on saved evidence after approving
 its model cost; no new trials are needed. Rendering never triggers extraction.
+Without a valid purpose summary, a single short recorded goal can appear verbatim.
+Long or multiple goals get a brief pointer to Instruction changes instead;
+rendering does not truncate or invent a summary.
 The extractor stores the exact `instruction_diff` with its mappings. External
 `--emit-prompt` also saves `decisions.prompt.json` so `--ingest` retains the emitted
 diff's provenance. Invalid or stale mappings and inferred aims are omitted

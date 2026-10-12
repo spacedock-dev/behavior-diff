@@ -27,7 +27,13 @@ from reporting.schema import (
     VariantsData,
     validate_branch_memberships,
 )
-from reporting.summary import build_intent, build_summary, parse_intent, parse_narrative
+from reporting.summary import (
+    build_intent,
+    build_summary,
+    parse_intent,
+    parse_narrative,
+    parse_purpose_summary,
+)
 from reporting.trial_summary import parse_trial_summaries, trial_group_names
 from reporting.target import (
     effective_purpose,
@@ -481,11 +487,10 @@ def _convert_decisions(
     if not _is_int(outcome) or not 1 <= outcome <= len(rows):
         outcome = None
     implications = _decision_implications(raw.get("implications"), len(rows))
-    goals = (
-        parse_purpose({"goals": raw["purpose"]})
-        if raw.get("purpose")
-        else parse_purpose(purpose)
+    persisted_goals = (
+        parse_purpose({"goals": raw["purpose"]}) if raw.get("purpose") else ()
     )
+    goals = persisted_goals or parse_purpose(purpose)
     evidence = persisted_evidence(raw.get("recorded_evidence", []))
     intent = parse_intent(raw.get("intent"), hunk_count)
     target = parse_target(
@@ -514,6 +519,8 @@ def _convert_decisions(
         evidence,
         target,
         parse_evidence_limits(raw.get("evidence_limits")),
+        # A summary paraphrases only the goals persisted with that extraction.
+        parse_purpose_summary(raw.get("purpose_summary"), persisted_goals),
     )
 
 
