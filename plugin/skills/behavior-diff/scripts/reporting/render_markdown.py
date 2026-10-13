@@ -6,7 +6,7 @@ from itertools import zip_longest
 
 from reporting import content
 from reporting.attention import AttentionFindingData
-from reporting.provenance import commit_links, header_links
+from reporting.provenance import ci_header_links, commit_links, header_links
 from reporting.schema import ReportData
 from reporting.summary import question_distribution, question_distribution_changed
 from reporting.target import (
@@ -657,17 +657,19 @@ def _source_link(link):
     return f"[{_text(link.text)}](<{link.url}>)"
 
 
-def _source_markdown(source):
-    """Caller-supplied Git history links; absent for local-edit reports."""
+def _link_row(links):
+    return " · ".join(f"{_text(link.label)}: {_source_link(link)}" for link in links)
+
+
+def _source_markdown(source, ci_context):
+    """Caller-supplied Git history links, else CI run context; absent locally."""
     if source is None:
-        return []
+        if ci_context is None:
+            return []
+        return [_link_row(ci_header_links(ci_context)) + "\n"]
     before, after = commit_links(source)
     return [
-        " · ".join(
-            f"{_text(link.label)}: {_source_link(link)}"
-            for link in header_links(source)
-        )
-        + "\n",
+        _link_row(header_links(source)) + "\n",
         f"{before.label}: {_source_link(before)} → {after.label}: {_source_link(after)}\n",
     ]
 
@@ -678,7 +680,7 @@ def render_markdown(report: ReportData) -> str:
     content_data = report.content
     result = report.result
     markdown = [f"# {_text(content_data.title)}\n"]
-    markdown += _source_markdown(metadata.source)
+    markdown += _source_markdown(metadata.source, metadata.ci_context)
     markdown.append(_text(content_data.subtitle) + "\n")
     if content_data.note:
         markdown.append(_text(content_data.note) + "\n")

@@ -92,6 +92,8 @@ python3 plugin/skills/behavior-diff/scripts/decisions.py --check
 bash tests/live-report-contract.sh
 python3 tests/source-provenance-test.py
 python3 tests/report-source-test.py
+python3 tests/ci-context-test.py
+python3 tests/report-ci-context-test.py
 bash tests/release-workflow-test.sh
 python3 tests/human-evaluation-workflow-test.py
 python3 tests/human-evaluation-quiz-test.py
