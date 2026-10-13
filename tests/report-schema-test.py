@@ -43,7 +43,7 @@ from presentation_contract import (  # noqa: E402
 
 def synthetic_raw():
     raw = {
-        "schema_version": 14,
+        "schema_version": 15,
         "metadata": {
             "model": "synthetic/model",
             "mode": "review",
@@ -52,6 +52,7 @@ def synthetic_raw():
             "target_file": "AGENTS.md",
             "before_label": "current file",
             "after_label": "your change applied",
+            "source": None,
         },
         "content": {
             "title": "Synthetic report",
@@ -2649,7 +2650,7 @@ def main():
         "unsupported report-data schema version: 10",
     )
     # Earlier report-data shapes are rejected; saved runs regenerate from decisions.
-    for version in (11, 12, 13):
+    for version in (11, 12, 13, 14):
         assert_rejected(
             dict(raw, schema_version=version),
             f"unsupported report-data schema version: {version}",

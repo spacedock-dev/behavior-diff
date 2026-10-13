@@ -6,6 +6,7 @@ from itertools import zip_longest
 
 from reporting import content
 from reporting.attention import AttentionFindingData
+from reporting.provenance import commit_links, header_links
 from reporting.schema import ReportData
 from reporting.summary import question_distribution, question_distribution_changed
 from reporting.target import (
@@ -652,12 +653,33 @@ def _explanation_markdown(report):
     return markdown
 
 
+def _source_link(link):
+    return f"[{_text(link.text)}](<{link.url}>)"
+
+
+def _source_markdown(source):
+    """Caller-supplied Git history links; absent for local-edit reports."""
+    if source is None:
+        return []
+    before, after = commit_links(source)
+    return [
+        " · ".join(
+            f"{_text(link.label)}: {_source_link(link)}"
+            for link in header_links(source)
+        )
+        + "\n",
+        f"{before.label}: {_source_link(before)} → {after.label}: {_source_link(after)}\n",
+    ]
+
+
 def render_markdown(report: ReportData) -> str:
     """Return the complete Markdown report without accessing external state."""
     metadata = report.metadata
     content_data = report.content
     result = report.result
-    markdown = [f"# {_text(content_data.title)}\n", _text(content_data.subtitle) + "\n"]
+    markdown = [f"# {_text(content_data.title)}\n"]
+    markdown += _source_markdown(metadata.source)
+    markdown.append(_text(content_data.subtitle) + "\n")
     if content_data.note:
         markdown.append(_text(content_data.note) + "\n")
     markdown.append('<a id="panel-summary"></a>\n')

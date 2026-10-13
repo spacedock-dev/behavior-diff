@@ -145,6 +145,44 @@ the single-role or two-agent path. Create the fixtures with
    are not a guarantee that all secrets or private prose will be detected.
    Freeze the file now; never revise goals after seeing Before/After results.
 
+   **Capture source provenance only for a historical comparison.** It applies
+   when each instruction version comes from a verified commit of one original
+   repository. Exact files and content-preserving assembly of selected source
+   fragments are eligible; for assembly, retain the source-path mapping and
+   explain the tested scope in the report context. The links identify source
+   revisions, not a claim that the whole PR was exercised. Read provenance from
+   the original repository, never a sandbox or fixture repository or its
+   `origin` remote:
+   - `repository_url`: the canonical HTTPS web URL of that repository, such as
+     `gh repo view <owner>/<repo> --json url` or `glab repo view <path>`. Never
+     include credentials, a port, a query, or a fragment.
+   - `before_commit` and `after_commit`: full 40- or 64-hex IDs from
+     `git rev-parse --verify <rev>^{commit}` in the original checkout. Confirm
+     each one is in the named repository with available host tooling, such as
+     `gh api repos/<owner>/<repo>/commits/<sha>` or
+     `glab api projects/<url-encoded-path>/repository/commits/<sha>`, or with
+     `git branch -r --contains <sha>` on a fetched remote of that repository.
+   - `pull_requests` (optional): only GitHub PRs or GitLab MRs that the host
+     associates with an exact commit, such as
+     `gh api repos/<owner>/<repo>/commits/<sha>/pulls` or
+     `glab api projects/<url-encoded-path>/repository/commits/<sha>/merge_requests`.
+     Set `applies_to` to `before`, `after`, or `both`. Copy the host's number,
+     title, and URL.
+   - `forge`: `github` or `gitlab`. It is required for a self-hosted host;
+     the runner infers it only for `github.com` and `gitlab.com`.
+
+   Do not install host tooling. If no tool verifies an association, omit that
+   PR or MR; never infer one from a branch name or commit message. If the
+   repository or either commit cannot be verified, or the instructions include
+   changes not present in that side's source revision (such as uncommitted local
+   edits), omit the whole source file; never fabricate a commit. Write the JSON
+   to the same private scratch directory as the purpose, with mode `0600`:
+
+       {"repository_url":"https://github.com/owner/repo","before_commit":"<40-hex>","after_commit":"<40-hex>","pull_requests":[{"number":123,"title":"Title","url":"https://github.com/owner/repo/pull/123","applies_to":"after"}]}
+
+   A local-edit comparison has no source file. The source is report metadata
+   only; it never enters trials or the extraction prompt.
+
 2. **Draft the task.** `--task` must recreate the decision moment governed by
    the changed rule, whether the goal is correction, addition, or preservation:
    - Ask the user for the real request from the incident that motivated
@@ -185,6 +223,17 @@ the single-role or two-agent path. Create the fixtures with
    a trial prompt, a sandbox file, or other trial inputs. If invoking the runner
    without this skill and without purpose, assessment uses labeled diff-only
    inference; there is no implied session context.
+
+   For a historical comparison with verified provenance from step 1, append
+   `--source-file <private-source.json>` to the command prepared for that
+   comparison, including any `--before-file` or `--fast` it already uses:
+
+       behavior-diff.sh --agent <current-host> --file <file> --task "<task>" --purpose-file <private-purpose.json> --source-file <private-source.json>
+
+   The runner validates the source before trials, excludes the file from trial
+   copies, and freezes it in report configuration for the report header. It
+   does not look anything up. Never put source details in `--task`, a trial
+   prompt, or a sandbox file.
 
    **Keep the run handle.** Use the host's background-execution facility when
    available so other work can continue. Retain the exact run directory printed

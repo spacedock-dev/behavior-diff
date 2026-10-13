@@ -6,10 +6,13 @@
 #
 #   behavior-diff.sh --file CLAUDE.md --task "one-line scenario" \
 #       [--trials 3 | --fast] [--model NAME] [--before-file ORIGINAL]
-#       [--purpose-file JSON]
+#       [--purpose-file JSON] [--source-file JSON]
 # Purpose is frozen report/assessment context, never an added trial instruction.
 # Purpose and bounded recorded read/search returns go to the assessment provider
 # and local reports. Supply reviewed safe context; exclusions are not privacy guarantees.
+# --source-file is caller-verified historical provenance (original repository
+# web URL, exact Before/After commits, optional PR/MR links) for a replayed
+# Git history comparison. It is report-only, never inferred or a trial input.
 #
 # Before = the repo at HEAD. After = the same snapshot plus only your
 # working-tree version of that one file — other uncommitted edits stay out.
@@ -25,10 +28,10 @@
 # ${BEHAVIOR_DIFF_HOME:-~/.behavior-diff}/runs.
 set -euo pipefail
 
-file="" task="" trials=3 agent=claude model="" vocab=generic extract_agent="" extract_model="" before_file="" purpose_file=""
+file="" task="" trials=3 agent=claude model="" vocab=generic extract_agent="" extract_model="" before_file="" purpose_file="" source_file=""
 while [ $# -gt 0 ]; do
   case "$1" in
-    --file | --before-file | --purpose-file | --task | --trials | --model | --agent | --vocab | --extract-agent | --extract-model)
+    --file | --before-file | --purpose-file | --source-file | --task | --trials | --model | --agent | --vocab | --extract-agent | --extract-model)
       if [ $# -lt 2 ] || [ -z "$2" ]; then
         echo "behavior-diff: $1 needs a value" >&2
         exit 2
@@ -46,6 +49,10 @@ while [ $# -gt 0 ]; do
       ;;
     --purpose-file)
       purpose_file=$2
+      shift 2
+      ;;
+    --source-file)
+      source_file=$2
       shift 2
       ;;
     --task)
@@ -81,7 +88,7 @@ while [ $# -gt 0 ]; do
       shift 2
       ;;
     -h | --help)
-      sed -n '2,25p' "$0"
+      sed -n '2,28p' "$0"
       exit 0
       ;;
     *)
@@ -145,6 +152,17 @@ if [ -n "$purpose_file" ]; then
   purpose=$(python3 "$scripts/purpose.py" "$purpose_file") || exit 2
   purpose_file=$(cd "$(dirname "$purpose_file")" && pwd -P)/$(basename "$purpose_file")
 fi
+# Source provenance is caller-authoritative: validate its shape and URLs only.
+# Never derive it from the sandbox repository or its remotes.
+source_json=null
+if [ -n "$source_file" ]; then
+  [ -f "$source_file" ] && [ -r "$source_file" ] && [ ! -L "$source_file" ] || {
+    echo "behavior-diff: --source-file must name a readable regular JSON file, not a symlink" >&2
+    exit 2
+  }
+  source_json=$(python3 "$scripts/source.py" "$source_file") || exit 2
+  source_file=$(cd "$(dirname "$source_file")" && pwd -P)/$(basename "$source_file")
+fi
 command -v "$agent" >/dev/null || {
   echo "behavior-diff: $agent CLI required (--agent $agent)" >&2
   exit 3
@@ -194,15 +212,21 @@ case "$rel" in /*)
   ;;
 esac
 
-# A supplied context file is not part of either trial's project inputs.
-purpose_rel=""
-if [ -n "$purpose_file" ]; then
-  if [ "$purpose_file" -ef "$abs" ] ||
-    { [ -n "$before_file" ] && [ "$purpose_file" -ef "$before_file" ]; }; then
-    echo "behavior-diff: --purpose-file must not be a Before or After instruction file" >&2
+# Supplied context files are not part of either trial's project inputs.
+context_rel() { # $1 option name, $2 absolute context path -> repo-relative path
+  if [ "$2" -ef "$abs" ] ||
+    { [ -n "$before_file" ] && [ "$2" -ef "$before_file" ]; }; then
+    echo "behavior-diff: $1 must not be a Before or After instruction file" >&2
     exit 2
   fi
-  case "$purpose_file" in "$repo"/*) purpose_rel=${purpose_file#"$repo"/} ;; esac
+  case "$2" in "$repo"/*) printf '%s\n' "${2#"$repo"/}" ;; esac
+}
+purpose_rel="" source_rel=""
+if [ -n "$purpose_file" ]; then
+  purpose_rel=$(context_rel --purpose-file "$purpose_file") || exit 2
+fi
+if [ -n "$source_file" ]; then
+  source_rel=$(context_rel --source-file "$source_file") || exit 2
 fi
 if [ "$world" = git ] && [ -z "$before_file" ] &&
   git -C "$repo" cat-file -e "HEAD:$rel" 2>/dev/null; then
@@ -367,10 +391,12 @@ case "$before_mode" in
 esac
 jq -n --arg f "$rel" --arg task "$task" --arg vocab "$vocab" \
   --arg title "Behavior Diff — $rel" --argjson purpose "$purpose" \
+  --argjson source "$source_json" \
   --arg before_label "$before_label" --arg after_label "$after_label" \
   '{title:$title, scenario:$task, purpose:$purpose,
     target_file:$f, mode:"review", vocab:$vocab,
-    before_label:$before_label, after_label:$after_label}' >"$run/config.json"
+    before_label:$before_label, after_label:$after_label}
+    + (if $source == null then {} else {source:$source} end)' >"$run/config.json"
 
 # Conservative read/run allowlist; no Write/Edit, no network tools.
 ALLOWED='Bash(pytest:*),Bash(python3:*),Bash(python:*),Bash(bash:*),Bash(sh:*),Bash(node:*),Bash(npm:*),Bash(make:*),Bash(go:*),Bash(cargo:*),Bash(printf:*),Bash(echo:*),Bash(ls:*),Bash(cat:*),Bash(head:*),Bash(sed:*),Bash(git:*),Bash(find:*),Bash(grep:*),Bash(rg:*),Read,Grep,Glob'
@@ -431,6 +457,22 @@ run_trial_worker() { # $1 trial directory; runs as a background job
   return "$code"
 }
 
+remove_context_file() { # $1 project copy, $2 repo-relative path, $3 option name
+  # HEAD may contain a parent symlink where the working tree has a directory.
+  # Check each parent before removal rather than following it outside the copy.
+  local parent="$1" remaining="$2" component
+  while [[ "$remaining" == */* ]]; do
+    component=${remaining%%/*}
+    remaining=${remaining#*/}
+    parent=$parent/$component
+    if [ -L "$parent" ]; then
+      echo "behavior-diff: cannot isolate $3 through a snapshot parent symlink" >&2
+      return 2
+    fi
+  done
+  rm -f -- "$1/$2"
+}
+
 prepare_snapshot() { # $1 variant, $2 trial index; retain errexit in foreground
   local dir=$run/$1-$2
   if [ "$world" = git ]; then
@@ -443,19 +485,10 @@ prepare_snapshot() { # $1 variant, $2 trial index; retain errexit in foreground
     tar -C "$repo" --exclude .git --exclude "$excl" -cf - . | tar -x -C "$dir/project"
   fi
   if [ -n "$purpose_rel" ]; then
-    # HEAD may contain a parent symlink where the working tree has a directory.
-    # Check each parent before removal rather than following it outside the copy.
-    local parent="$dir/project" remaining="$purpose_rel" component
-    while [[ "$remaining" == */* ]]; do
-      component=${remaining%%/*}
-      remaining=${remaining#*/}
-      parent=$parent/$component
-      if [ -L "$parent" ]; then
-        echo "behavior-diff: cannot isolate --purpose-file through a snapshot parent symlink" >&2
-        return 2
-      fi
-    done
-    rm -f -- "$dir/project/$purpose_rel"
+    remove_context_file "$dir/project" "$purpose_rel" --purpose-file || return
+  fi
+  if [ -n "$source_rel" ]; then
+    remove_context_file "$dir/project" "$source_rel" --source-file || return
   fi
   mkdir -p "$(dirname "$dir/project/$rel")"
   if [ "$1" = after ]; then

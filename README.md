@@ -191,6 +191,51 @@ The host skill also invokes Humanizer when available for its own result summary,
 with the same plain-language fallback. It does not post-edit the HTML or other
 saved report artifacts.
 
+### Historical Git comparisons
+
+When the skill replays a past change in an isolated fixture, the Before and
+After files come from two commits of an original repository. The skill can then
+pass caller-verified provenance to the runner with `--source-file`:
+
+```bash
+behavior-diff.sh --agent claude --file SKILL.md --task "<task>" \
+  --purpose-file <private-purpose.json> --source-file <private-source.json>
+```
+
+```json
+{
+  "repository_url": "https://github.com/owner/repo",
+  "before_commit": "<full 40- or 64-hex commit>",
+  "after_commit": "<full 40- or 64-hex commit>",
+  "pull_requests": [
+    {
+      "number": 123,
+      "title": "Title",
+      "url": "https://github.com/owner/repo/pull/123",
+      "applies_to": "after"
+    }
+  ]
+}
+```
+
+The report header then shows the repository, related PR or MR, and linked short
+Before/After hashes. `repository_url` is the HTTPS web URL of a GitHub or
+GitLab repository, including nested GitLab groups, with no credentials, port,
+query, or fragment. `forge` (`github` or `gitlab`) is optional for `github.com`
+and `gitlab.com` and required for a self-hosted host. `pull_requests` is
+optional; each `applies_to` is `before`, `after`, or `both`, and each URL must
+be the repository's `/pull/<number>` or `/-/merge_requests/<number>` page.
+Unknown fields are rejected.
+
+The caller is responsible for this provenance. The runner validates its shape
+and URLs before any trial starts, then freezes the normalized value in the run's
+`config.json`. It does not infer a repository from the sandbox remote, look up
+commits or PRs, or accept abbreviated commits. The skill includes a PR or MR only
+when host tooling such as `gh` or `glab` associates it with an exact commit, and
+omits the whole file for an uncommitted local edit. The source file never enters
+trial copies, the task, or the extraction prompt. Runs without `--source-file`
+keep the local-edit report header.
+
 ## Read the report
 
 A **run** compares the instruction versions. A **trial** is one agent execution on
@@ -333,9 +378,10 @@ Expected behavior is labeled as supplied, or explicitly unavailable. The evidenc
 limits state trial counts, provenance, and grading limits. Self-reported actions
 remain distinct from captured tool calls.
 
-The structured `report-data.json` uses schema version 14, including per-group
+The structured `report-data.json` uses schema version 15, including per-group
 `decisions.trial_summaries`, visual `summary`, sourced instruction `intent`,
-saved `content.task`, optional narrative, and `edit_hunks`. The optional
+saved `content.task`, optional narrative, optional `metadata.source`, and
+`edit_hunks`. The optional
 `decisions.purpose_summary` gives the Summary a short, labeled paraphrase of
 the frozen goals; Instruction changes retains their complete text and provenance.
 The task comes from the run's `task.md`, or the capsule's copy

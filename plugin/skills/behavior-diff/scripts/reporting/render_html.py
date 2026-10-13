@@ -15,6 +15,53 @@ from reporting.target import (
     evidence_limit_text,
 )
 from reporting.version_names import version_name_html
+from reporting.provenance import commit_links, header_links
+
+
+def _source_link(link, css_class: str = "") -> str:
+    class_attr = f' class="{css_class}"' if css_class else ""
+    title = f' title="{html.escape(link.title)}"' if link.title else ""
+    return (
+        f'<a{class_attr} href="{html.escape(link.url)}"{title}>'
+        f"{html.escape(link.text)}</a>"
+    )
+
+
+def _header_meta(report) -> str:
+    """Run facts, preceded by linked Git history when the caller supplied it."""
+    source = report.metadata.source
+    facts = report.content.meta
+    if source is not None:
+        facts = tuple(fact for fact in facts if fact[0] not in ("before", "after"))
+    meta_html = (
+        '<p class="meta">'
+        + "".join(
+            f"<span><b>{html.escape(label)}</b>{html.escape(value)}</span>"
+            for label, value in facts
+        )
+        + "</p>"
+    )
+    if source is None:
+        return meta_html
+    rows = "".join(
+        f'<span class="source-row"><span class="field-label">{html.escape(link.label)}</span>'
+        f"{_source_link(link)}</span>"
+        for link in header_links(source)
+    )
+    before, after = commit_links(source)
+    metadata = report.metadata
+    return (
+        f'<div class="source-line">{rows}</div>'
+        '<p class="revision-pair">'
+        f"<span><b>{before.label}</b> {_source_link(before, 'commit')}</span>"
+        '<span class="revision-arrow" aria-hidden="true">→</span>'
+        f"<span><b>{after.label}</b> {_source_link(after, 'commit')}</span></p>"
+        f"{meta_html}"
+        '<details class="local-paths"><summary>Local comparison files</summary><dl>'
+        f"<dt>Before</dt><dd>{html.escape(metadata.before_label)}</dd>"
+        f"<dt>After</dt><dd>{html.escape(metadata.after_label)}</dd></dl></details>"
+    )
+
 
 _CONSISTENCY_NOTE = (
     "All extracted branches for the cited comparisons are shown, including minority "
@@ -1305,14 +1352,7 @@ def render_artifact(report: ReportData, css: str) -> str:
         if report_content.note
         else ""
     )
-    meta_html = (
-        '<p class="meta">'
-        + "".join(
-            f"<span><b>{escaped(label)}</b>{escaped(value)}</span>"
-            for label, value in report_content.meta
-        )
-        + "</p>"
-    )
+    meta_html = _header_meta(report)
     result = report.result
     # A supplied expectation can contain its own quotes; do not infer spans inside it.
     limits_html = "".join(
