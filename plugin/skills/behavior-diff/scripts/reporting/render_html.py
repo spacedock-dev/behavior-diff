@@ -15,7 +15,7 @@ from reporting.target import (
     evidence_limit_text,
 )
 from reporting.version_names import version_name_html
-from reporting.provenance import commit_links, header_links
+from reporting.provenance import ci_header_links, commit_links, header_links
 
 
 def _source_link(link, css_class: str = "") -> str:
@@ -24,6 +24,14 @@ def _source_link(link, css_class: str = "") -> str:
     return (
         f'<a{class_attr} href="{html.escape(link.url)}"{title}>'
         f"{html.escape(link.text)}</a>"
+    )
+
+
+def _source_rows(links) -> str:
+    return "".join(
+        f'<span class="source-row"><span class="field-label">{html.escape(link.label)}</span>'
+        f"{_source_link(link)}</span>"
+        for link in links
     )
 
 
@@ -42,12 +50,12 @@ def _header_meta(report) -> str:
         + "</p>"
     )
     if source is None:
-        return meta_html
-    rows = "".join(
-        f'<span class="source-row"><span class="field-label">{html.escape(link.label)}</span>'
-        f"{_source_link(link)}</span>"
-        for link in header_links(source)
-    )
+        ci_context = report.metadata.ci_context
+        if ci_context is None:
+            return meta_html
+        # CI run context has no commit pair; keep the ordinary Before/After labels.
+        return f'<div class="source-line">{_source_rows(ci_header_links(ci_context))}</div>{meta_html}'
+    rows = _source_rows(header_links(source))
     before, after = commit_links(source)
     metadata = report.metadata
     return (

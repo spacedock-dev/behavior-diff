@@ -183,6 +183,14 @@ the single-role or two-agent path. Create the fixtures with
    A local-edit comparison has no source file. The source is report metadata
    only; it never enters trials or the extraction prompt.
 
+   In GitHub Actions or GitLab CI, the runner automatically captures repository
+   and workflow PR/MR links from predefined variables and the GitHub event file.
+   Do not prepare a source file merely to add these links. Explicit historical
+   source metadata overrides CI context entirely. Workflow context does not
+   establish the compared revisions: never substitute `GITHUB_SHA`,
+   `CI_COMMIT_SHA`, or `CI_COMMIT_BEFORE_SHA` for the actual comparison inputs.
+   Missing PR/MR metadata is omitted; no API lookup or environment dump is needed.
+
 2. **Draft the task.** `--task` must recreate the decision moment governed by
    the changed rule, whether the goal is correction, addition, or preservation:
    - Ask the user for the real request from the incident that motivated

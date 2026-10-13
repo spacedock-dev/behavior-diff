@@ -71,6 +71,20 @@ the runner freezes normalized metadata in `config.json`. It is report context,
 not trial or assessment instructions. Neither validation nor rendering queries
 the forge or infers provenance from a temporary fixture repository.
 
+```text
+Explicit source file -----+
+                          +--> frozen config --> report header
+Otherwise CI context -----+
+```
+
+Without explicit source provenance, `ci_context.py` projects whitelisted
+GitHub Actions environment/event fields or GitLab CI variables into validated
+repository and workflow PR/MR links. The runner freezes `ci_context` in run
+configuration; the renderer never reads live CI state. Source provenance takes
+precedence. CI context supplies no Before/After commit IDs and is not added to
+trial or assessment prompts. Malformed optional context degrades to a
+repository-only header or no context, without blocking the comparison.
+
 ## 1. Plugin entry points and hooks
 
 The user can request the skill directly. The plugin can also suggest it after
@@ -356,8 +370,8 @@ The modules below live in the skill's [`scripts/`](../plugin/skills/behavior-dif
   unmet outcome on both sides, labeled as a pre-existing target problem.
   Counts come from canonical rows. Malformed bundles become unavailable, never
   an assessed-empty result. No finding quota applies.
-  These modules build schema-v15 `ReportData`, including nullable
-  `metadata.source` for validated historical provenance. Older versions are
+  These modules build schema-v16 `ReportData`, including nullable
+  `metadata.source` and `metadata.ci_context`. Older versions are
   rejected; regenerate reports from their saved run evidence with `render.py`.
   Saved decisions without optional context, flow starts, or a purpose summary
   still render, without inventing those explanations.

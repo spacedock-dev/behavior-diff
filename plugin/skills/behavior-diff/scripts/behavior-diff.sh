@@ -13,6 +13,8 @@
 # --source-file is caller-verified historical provenance (original repository
 # web URL, exact Before/After commits, optional PR/MR links) for a replayed
 # Git history comparison. It is report-only, never inferred or a trial input.
+# Without --source-file, GitHub Actions or GitLab CI repository and PR/MR links
+# are detected once and frozen as report-only CI context with no commits.
 #
 # Before = the repo at HEAD. After = the same snapshot plus only your
 # working-tree version of that one file — other uncommitted edits stay out.
@@ -162,6 +164,12 @@ if [ -n "$source_file" ]; then
   }
   source_json=$(python3 "$scripts/source.py" "$source_file") || exit 2
   source_file=$(cd "$(dirname "$source_file")" && pwd -P)/$(basename "$source_file")
+fi
+# CI context names where this run executes, not what Before or After contain.
+# Explicit source provenance wins entirely; the two are never blended.
+ci_context=null
+if [ -z "$source_file" ]; then
+  ci_context=$(python3 "$scripts/ci_context.py") || exit 2
 fi
 command -v "$agent" >/dev/null || {
   echo "behavior-diff: $agent CLI required (--agent $agent)" >&2
@@ -391,12 +399,13 @@ case "$before_mode" in
 esac
 jq -n --arg f "$rel" --arg task "$task" --arg vocab "$vocab" \
   --arg title "Behavior Diff — $rel" --argjson purpose "$purpose" \
-  --argjson source "$source_json" \
+  --argjson source "$source_json" --argjson ci_context "$ci_context" \
   --arg before_label "$before_label" --arg after_label "$after_label" \
   '{title:$title, scenario:$task, purpose:$purpose,
     target_file:$f, mode:"review", vocab:$vocab,
     before_label:$before_label, after_label:$after_label}
-    + (if $source == null then {} else {source:$source} end)' >"$run/config.json"
+    + (if $source == null then {} else {source:$source} end)
+    + (if $ci_context == null then {} else {ci_context:$ci_context} end)' >"$run/config.json"
 
 # Conservative read/run allowlist; no Write/Edit, no network tools.
 ALLOWED='Bash(pytest:*),Bash(python3:*),Bash(python:*),Bash(bash:*),Bash(sh:*),Bash(node:*),Bash(npm:*),Bash(make:*),Bash(go:*),Bash(cargo:*),Bash(printf:*),Bash(echo:*),Bash(ls:*),Bash(cat:*),Bash(head:*),Bash(sed:*),Bash(git:*),Bash(find:*),Bash(grep:*),Bash(rg:*),Read,Grep,Glob'

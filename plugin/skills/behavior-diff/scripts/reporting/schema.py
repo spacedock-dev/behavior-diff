@@ -39,9 +39,14 @@ from reporting.target import (
     parse_target,
     persisted_evidence,
 )
-from reporting.provenance import SourceData, report_source
+from reporting.provenance import (
+    CiContextData,
+    SourceData,
+    report_ci_context,
+    report_source,
+)
 
-SCHEMA_VERSION = 15
+SCHEMA_VERSION = 16
 RESULT_KINDS = ("good", "bad", "neutral")
 
 
@@ -188,6 +193,7 @@ class MetadataData:
     before_label: str
     after_label: str
     source: Optional[SourceData]
+    ci_context: Optional[CiContextData]
 
 
 @dataclass(frozen=True)
@@ -333,6 +339,12 @@ def _metadata(value, path):
     )
     if trace_source not in ("captured", "self-reported"):
         _invalid(path + ".trace_source", "captured or self-reported")
+    source = report_source(_field(value, "source", path), path + ".source")
+    ci_context = report_ci_context(
+        _field(value, "ci_context", path), path + ".ci_context"
+    )
+    if source is not None and ci_context is not None:
+        _invalid(path + ".ci_context", "null when source is present")
     return MetadataData(
         model=_expect_str(_field(value, "model", path), path + ".model"),
         mode=_expect_str(_field(value, "mode", path), path + ".mode"),
@@ -347,7 +359,8 @@ def _metadata(value, path):
         after_label=_expect_str(
             _field(value, "after_label", path), path + ".after_label"
         ),
-        source=report_source(_field(value, "source", path), path + ".source"),
+        source=source,
+        ci_context=ci_context,
     )
 
 

@@ -233,8 +233,32 @@ and URLs before any trial starts, then freezes the normalized value in the run's
 commits or PRs, or accept abbreviated commits. The skill includes a PR or MR only
 when host tooling such as `gh` or `glab` associates it with an exact commit, and
 omits the whole file for an uncommitted local edit. The source file never enters
-trial copies, the task, or the extraction prompt. Runs without `--source-file`
-keep the local-edit report header.
+trial copies, the task, or the extraction prompt. Outside CI, runs without
+`--source-file` keep the local-edit report header.
+
+### Automatic CI context
+
+In GitHub Actions and GitLab CI, the runner automatically adds repository and
+workflow PR/MR links to the header. No source file or API call is needed:
+
+- GitHub: `GITHUB_ACTIONS=true`, `GITHUB_SERVER_URL`, and `GITHUB_REPOSITORY`
+  identify the repository. For PR events and PR issue comments, the runner reads
+  the matching request from `GITHUB_EVENT_PATH`.
+- GitLab: `GITLAB_CI=true`, `CI_PROJECT_URL`, and `CI_PROJECT_PATH` identify the
+  project. MR variables supply the IID, title, and owning project URL/path;
+  fork MRs link to their owning project rather than the fork.
+
+These links describe the **workflow context**, not verified historical source
+revisions. Before/After labels still describe the actual comparison inputs;
+CI SHA variables never replace them. Explicit `--source-file` wins entirely,
+including when it points to a different repository.
+
+The runner freezes only validated link metadata in `config.json`; offline
+regeneration retains it without reading the current environment. Missing or
+invalid request data produces a repository-only header. Invalid repository
+data or conflicting CI providers produce no CI context. The runner does not
+save the complete environment, event payload, or credential-bearing clone URL.
+
 
 ## Read the report
 
@@ -378,10 +402,10 @@ Expected behavior is labeled as supplied, or explicitly unavailable. The evidenc
 limits state trial counts, provenance, and grading limits. Self-reported actions
 remain distinct from captured tool calls.
 
-The structured `report-data.json` uses schema version 15, including per-group
+The structured `report-data.json` uses schema version 16, including per-group
 `decisions.trial_summaries`, visual `summary`, sourced instruction `intent`,
-saved `content.task`, optional narrative, optional `metadata.source`, and
-`edit_hunks`. The optional
+saved `content.task`, optional narrative, nullable `metadata.source` and
+`metadata.ci_context`, and `edit_hunks`. The optional
 `decisions.purpose_summary` gives the Summary a short, labeled paraphrase of
 the frozen goals; Instruction changes retains their complete text and provenance.
 The task comes from the run's `task.md`, or the capsule's copy

@@ -10,6 +10,8 @@ tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 export BEHAVIOR_DIFF_HOME=$tmp/home
 unset BEHAVIOR_DIFF_TRIAL 2>/dev/null || true
+# Runner checks must not inherit the host CI's report-only context.
+unset GITHUB_ACTIONS GITLAB_CI
 nudge=$BEHAVIOR_DIFF_HOME/nudge
 
 payload() { # session file cwd
@@ -478,12 +480,13 @@ git -C "$extract_repo" add AGENTS.md
 git -C "$extract_repo" commit -qm baseline
 printf '%s\n' 'after' >"$extract_repo/AGENTS.md"
 
+real_python=$(command -v python3)
 capture_bin=$tmp/capture-bin
 mkdir -p "$capture_bin"
 cat >"$capture_bin/python3" <<'SH'
 #!/bin/sh
 case "$1" in
-  */purpose.py) exec "$REAL_PYTHON" "$@" ;;
+  */purpose.py | */ci_context.py) exec "$REAL_PYTHON" "$@" ;;
   */progress.py) exit 0 ;;
 esac
 {
@@ -501,7 +504,7 @@ for stack in pi omp; do
   model=test/$stack-model
   (
     cd "$extract_repo"
-    PATH="$capture_bin:$stub:$PATH" \
+    PATH="$capture_bin:$stub:$PATH" REAL_PYTHON="$real_python" \
       BEHAVIOR_DIFF_HOME="$tmp/extract-home-$stack" \
       PYTHON_ARGS_FILE="$calls" \
       PI_ARGS_FILE="$tmp/extract-pi-args" \
@@ -513,13 +516,12 @@ for stack in pi omp; do
   expected=$(printf '%s\t%s\t%s\t%s' --agent "$stack" --model "$model")
   grep -qF -- "$expected" "$calls" ||
     fail "explicit $stack extractor did not inherit trial model"
-  jq -e '.purpose == null and (has("expected") | not)' \
+  jq -e '.purpose == null and (has("expected") | not) and (has("ci_context") | not)' \
     "$tmp/extract-home-$stack"/runs/*/config.json >/dev/null ||
     fail "absent purpose did not use the nullable purpose contract"
 done
 
 progress 'Purpose isolation from Git and copied trial projects'
-real_python=$(command -v python3)
 for world in git copy; do
   purpose_project=$tmp/purpose-$world-project
   mkdir -p "$purpose_project"

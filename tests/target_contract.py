@@ -666,7 +666,7 @@ def _assert_missing_records(report):
 
 
 def _assert_old_versions_rejected(report):
-    for version in (11, 12, 13, 14):
+    for version in (11, 12, 13, 14, 15):
         raw = report.to_dict()
         raw["schema_version"] = version
         try:

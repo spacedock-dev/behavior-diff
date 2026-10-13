@@ -11,7 +11,7 @@ from reporting import content
 from reporting.attention import parse_attention
 from reporting.explanation import parse_explanation
 from reporting.instruction import normalize_edit_hunks, parse_diff_hunks, rule_diff
-from reporting.provenance import config_source
+from reporting.provenance import config_ci_context, config_source
 from reporting.schema import (
     SCHEMA_VERSION,
     CommandFlowData,
@@ -110,6 +110,10 @@ def _metadata(config, model):
     trace_source = config.get("trace_source", "captured")
     if trace_source not in {"captured", "self-reported"}:
         raise SystemExit('trace_source must be either "captured" or "self-reported"')
+    source = config_source(config.get("source"))
+    ci_context = (
+        None if source is not None else config_ci_context(config.get("ci_context"))
+    )
     return MetadataData(
         model=model,
         mode=config.get("mode", "graded"),
@@ -118,7 +122,9 @@ def _metadata(config, model):
         target_file=config.get("target_file", "CLAUDE.md"),
         before_label=config.get("before_label", "current file"),
         after_label=config.get("after_label", "your change applied"),
-        source=config_source(config.get("source")),
+        source=source,
+        # An explicit source wins entirely; CI run context is never blended in.
+        ci_context=None if source is not None else ci_context,
     )
 
 
