@@ -1,5 +1,5 @@
 # Dogfood Behavior Diff on instruction-file PRs with spacedock-dev/behavior-diff-action.
-# Based on the action's examples/behavior-diff.yml, pinned to v0.1.0's commit.
+# Based on the action's examples/behavior-diff.yml, pinned to v0.1.1's commit.
 # Paid model run: needs the CLAUDE_CODE_OAUTH_TOKEN secret in the protected
 # `behavior-diff` environment. Repo is public, so `publication: comment` makes
 # reports public.
@@ -58,7 +58,7 @@ jobs:
       matrix: ${{ steps.prepare.outputs.matrix }}
       status: ${{ steps.prepare.outputs.status }}
     steps:
-      - uses: spacedock-dev/behavior-diff-action@f92caa329102047eddeae38e118428dfc656b5a2 # v0.1.0
+      - uses: spacedock-dev/behavior-diff-action@d0ca905940bf694ad2fe6738fe10464e9a7e9628 # v0.1.1
         id: prepare
         with:
           mode: prepare
@@ -83,7 +83,7 @@ jobs:
       max-parallel: 1
       matrix: ${{ fromJSON(needs.prepare.outputs.matrix) }}
     steps:
-      - uses: spacedock-dev/behavior-diff-action@f92caa329102047eddeae38e118428dfc656b5a2 # v0.1.0
+      - uses: spacedock-dev/behavior-diff-action@d0ca905940bf694ad2fe6738fe10464e9a7e9628 # v0.1.1
         env:
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
         with:
@@ -111,7 +111,7 @@ jobs:
       max-parallel: 1
       matrix: ${{ fromJSON(needs.prepare.outputs.matrix) }}
     steps:
-      - uses: spacedock-dev/behavior-diff-action@f92caa329102047eddeae38e118428dfc656b5a2 # v0.1.0
+      - uses: spacedock-dev/behavior-diff-action@d0ca905940bf694ad2fe6738fe10464e9a7e9628 # v0.1.1
         with:
           mode: publish
           selection: ${{ toJSON(matrix) }}
