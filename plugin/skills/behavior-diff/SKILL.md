@@ -283,6 +283,8 @@ the single-role or two-agent path. Create the fixtures with
    explain unfamiliar roles, acronyms, objects, or tables by their concrete
    function in the evidence. Never guess an acronym expansion, unread table
    contents, role authority, or the author's motive.
+   Start the user-facing summary with one sentence naming the observed
+   difference, or stating that no difference was observed, before the details.
    Preserve shared checks, unchanged outcomes, minority branches, and evidence
    limits. Distinguish stated plans and answer explanations from completed
    actions; explanation-only differences are not new actions. Separate what the
