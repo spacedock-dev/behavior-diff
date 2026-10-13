@@ -17,7 +17,8 @@ call itself (the live skill hands it to an in-session subagent);
 --ingest validates that extractor's raw reply through the same
 extract_json/normalize path and writes decisions.json, exiting nonzero
 when the reply yields no usable chain. Neither mode touches the CLI
-extractors; the plain RUN_DIR invocation is unchanged.
+extractors; the plain RUN_DIR invocation is unchanged, except that it records
+its outcome in RUN_DIR/assessment-status.json for status readers.
 
 The command-derived flow diff in render.py classifies commands into a fixed
 bucket list, so it is blind twice over: an unfamiliar toolchain matches no
@@ -53,6 +54,7 @@ from pathlib import Path
 from dataclasses import asdict
 
 from codex_model import CodexModelError, resolve_codex_model
+from progress import ProgressError, update as update_status
 from reporting.attention import parse_attention
 from reporting.explanation import parse_explanation
 from reporting.evidence import collect_run_evidence
@@ -1216,18 +1218,51 @@ def write_decisions(run, raw, completed_trial_names, extractor, instruction_diff
     return True
 
 
-def main(run, agent=None, model=None):
+ASSESSMENT_STATUS = "assessment-status.json"
+
+
+def record_assessment(run, state, reason=None, *, owner_pid=None):
+    """Record this producer's outcome; a status failure never stops extraction."""
+    try:
+        update_status(
+            run / ASSESSMENT_STATUS,
+            "assessment",
+            {"state": state, "reason": reason},
+            owner_pid=owner_pid,
+        )
+    except ProgressError as exc:
+        print(f"decision diff: assessment status not recorded ({exc})", file=sys.stderr)
+
+
+def assess(run, agent, model):
+    """Run CLI extraction; return the (state, reason) outcome to record."""
     prompt, completed_trial_names, instruction_diff = build_prompt(
         run, include_style=False
     )
     if prompt is None:
         print(NEED_TRIALS)
-        return
+        return "skipped", "insufficient_trials"
     extractor, raw = run_extractor(prompt, run, agent, model)
     if raw is None:
         print("decision diff: no extractor succeeded — skipped")
-        return
-    write_decisions(run, raw, completed_trial_names, extractor, instruction_diff)
+        return "failed", "extractor_failed"
+    if write_decisions(run, raw, completed_trial_names, extractor, instruction_diff):
+        return "available", None
+    return "failed", "unusable_output"
+
+
+def main(run, agent=None, model=None):
+    # This process, not the runner that waits for it, owns the running record.
+    record_assessment(run, "running", owner_pid=os.getpid())
+    try:
+        state, reason = assess(run, agent, model)
+    except KeyboardInterrupt:
+        record_assessment(run, "failed", "interrupted")
+        raise
+    except Exception:
+        record_assessment(run, "failed", "unexpected_error")
+        raise
+    record_assessment(run, state, reason)
 
 
 def emit_prompt(run):

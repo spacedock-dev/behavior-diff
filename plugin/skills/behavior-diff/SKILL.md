@@ -186,6 +186,25 @@ the single-role or two-agent path. Create the fixtures with
    without this skill and without purpose, assessment uses labeled diff-only
    inference; there is no implied session context.
 
+   **Keep the run handle.** Use the host's background-execution facility when
+   available so other work can continue. Retain the exact run directory printed
+   at startup; concurrent comparisons have separate IDs. Share the printed
+   status/watch commands with the user when they want to follow progress.
+
+   Query `python3 <skill-base>/scripts/status.py <run-directory> --json` when the
+   user asks or your next decision needs progress. Do not repeatedly poll while
+   other useful work remains. `--list --active` discovers unfinished runs without
+   silently selecting the newest one. Human readers can use the same explicit
+   run directory without `--json`, or add `--watch`; closing the watcher does not
+   stop the comparison.
+
+   Distinguish finished trials, available assessment, and a generated report.
+   A finished trial is not a pass; a report can exist without an assessment.
+   Silence is not proof of failure. If process identity cannot be verified,
+   report status as uncertain rather than claiming the run is active or failed.
+   Use host completion notifications where supported, but do not promise an
+   automatic chat notification on hosts that do not provide one.
+
 4. **Present the result.** The runner already opened `report.html` itself — do NOT open it again (that produces a duplicate tab); just summarize.
    Summarize the flow diff honestly:
    - Flows diverge → describe where, in one or two sentences.
