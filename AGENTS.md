@@ -39,7 +39,9 @@ when the flow changes.
    names, or other session data. All committed fixtures must be synthetic.
 5. **Deterministic CI only.** CI must never invoke `claude`, `codex`, a model
    API, `behavior-diff.sh`, `run-trial.sh`, or a live e2e journey. CI runs only
-   static checks and deterministic unit or contract tests.
+   static checks and deterministic unit or contract tests. The one exception
+   is `.github/workflows/behavior-diff.yml`, a dogfood workflow that runs the
+   Behavior Diff Action, at model cost, on PRs that change instruction files.
 6. **Product name.** Use **Behavior Diff** in product prose. Keep
    `behavior-diff` for commands, plugin names, skill names, and paths.
 7. **Clean cutover.** Migrate all callers when a contract changes. Remove the

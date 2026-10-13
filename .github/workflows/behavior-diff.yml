@@ -1,0 +1,118 @@
+# Dogfood Behavior Diff on instruction-file PRs with spacedock-dev/behavior-diff-action.
+# Based on the action's examples/behavior-diff.yml, pinned to v0.1.0's commit.
+# Paid model run: needs the CLAUDE_CODE_OAUTH_TOKEN secret in the protected
+# `behavior-diff` environment. Repo is public, so `publication: comment` makes
+# reports public.
+# No plugin-root: `plugin-root: plugin` fails because .claude/ already exists.
+# So SKILL.md trials point the agent at the file; they do not test whether
+# the skill triggers on its own.
+name: Behavior Diff
+on:
+  pull_request:
+    types: [opened]
+    # e2e/ fixtures are excluded: they are test data, not our instructions.
+    paths:
+      - AGENTS.md
+      - CLAUDE.md
+      - plugin/skills/**/SKILL.md
+      - .agents/skills/**/SKILL.md
+  issue_comment:
+    types: [created]
+  workflow_dispatch:
+    inputs:
+      pr:
+        description: PR number
+        required: true
+        type: string
+      approved-sha:
+        description: Full current PR head SHA that you have reviewed
+        required: true
+        type: string
+      file:
+        description: Exact instruction path (blank selects all eligible changes)
+        type: string
+      fast:
+        description: One trial per side
+        type: boolean
+        default: false
+permissions: {}
+# Publication has no atomic compare-and-swap API. Keep this exact per-PR group
+# shared by every workflow publishing Behavior Diff comments in this repository.
+concurrency:
+  group: behavior-diff-${{ github.repository }}-${{ github.event.pull_request.number || github.event.issue.number || inputs.pr }}-${{ (github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository) || (github.event_name == 'issue_comment' && github.event.issue.pull_request && startsWith(github.event.comment.body, '/behavior-diff ') && contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association))) && 'comparison' || github.run_id }}
+  cancel-in-progress: false
+jobs:
+  prepare:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository) ||
+      (github.event_name == 'issue_comment' && github.event.issue.pull_request &&
+       startsWith(github.event.comment.body, '/behavior-diff ') &&
+       contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association))
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      matrix: ${{ steps.prepare.outputs.matrix }}
+      status: ${{ steps.prepare.outputs.status }}
+    steps:
+      - uses: spacedock-dev/behavior-diff-action@f92caa329102047eddeae38e118428dfc656b5a2 # v0.1.0
+        id: prepare
+        with:
+          mode: prepare
+          trust-policy: same-repository
+          publication: comment
+          pr: ${{ inputs.pr }}
+          approved-sha: ${{ inputs.approved-sha }}
+          file: ${{ inputs.file }}
+          fast: ${{ inputs.fast || false }}
+          max-files: '3'
+  run:
+    needs: prepare
+    if: needs.prepare.outputs.status == 'ready'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      pull-requests: read
+    environment: behavior-diff
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix: ${{ fromJSON(needs.prepare.outputs.matrix) }}
+    steps:
+      - uses: spacedock-dev/behavior-diff-action@f92caa329102047eddeae38e118428dfc656b5a2 # v0.1.0
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        with:
+          mode: run
+          selection: ${{ toJSON(matrix) }}
+          trust-policy: same-repository
+          publication: comment
+          pr: ${{ inputs.pr }}
+          approved-sha: ${{ inputs.approved-sha }}
+          file: ${{ inputs.file }}
+          fast: ${{ inputs.fast || false }}
+          timeout-minutes: '45'
+          retention-days: '7'
+  publish:
+    needs: [prepare, run]
+    if: ${{ always() && needs.prepare.outputs.status == 'ready' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      actions: read
+      pull-requests: write
+      contents: read
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix: ${{ fromJSON(needs.prepare.outputs.matrix) }}
+    steps:
+      - uses: spacedock-dev/behavior-diff-action@f92caa329102047eddeae38e118428dfc656b5a2 # v0.1.0
+        with:
+          mode: publish
+          selection: ${{ toJSON(matrix) }}
+          publication: comment
