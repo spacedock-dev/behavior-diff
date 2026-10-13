@@ -1,15 +1,21 @@
 #!/usr/bin/env bash
 # Print a Markdown table of the most-changed skills in each GitHub repository.
-# Usage: skill-stats.sh [--top N] [--cache DIR] OWNER/REPO|URL...
+# Usage: skill-stats.sh [--top N] [--sort prs|commits] [--cache DIR] OWNER/REPO|URL...
 set -euo pipefail
 
+usage='[--top N] [--sort prs|commits] [--cache DIR] OWNER/REPO|URL...'
 top=20
+sort_by=prs
 cache="${TMPDIR:-/tmp}/github-skill-change-stats"
 repos=()
 while (($#)); do
   case "$1" in
     --top)
       top="$2"
+      shift 2
+      ;;
+    --sort)
+      sort_by="$2"
       shift 2
       ;;
     --cache)
@@ -26,8 +32,16 @@ while (($#)); do
       ;;
   esac
 done
+case "$sort_by" in
+  prs) sort_keys=(-k1,1nr -k2,2nr -k3,3) ;;
+  commits) sort_keys=(-k2,2nr -k1,1nr -k3,3) ;;
+  *)
+    printf '%s: --sort must be prs or commits, not %s\n' "$0" "$sort_by" >&2
+    exit 2
+    ;;
+esac
 if ((${#repos[@]} == 0)); then
-  printf 'usage: %s [--top N] [--cache DIR] OWNER/REPO|URL...\n' "$0" >&2
+  printf 'usage: %s %s\n' "$0" "$usage" >&2
   exit 2
 fi
 
@@ -61,7 +75,7 @@ stats() {
     }
     mode == "P" && pr != "" && !pseen[pr, s]++ { p[s]++ }
     END { for (s in n) printf "%d\t%d\t%s\t%s\t%s\n", p[s], n[s], s, first[s], last[s] }
-  ' | sort -t "$(printf '\t')" -k1,1nr -k2,2nr -k3,3
+  ' | sort -t "$(printf '\t')" "${sort_keys[@]}"
 }
 
 for repo in "${repos[@]}"; do

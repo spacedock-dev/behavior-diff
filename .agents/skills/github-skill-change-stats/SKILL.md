@@ -15,10 +15,13 @@ counting; do not rebuild its `git log` commands by hand.
 
    ```bash
    .agents/skills/github-skill-change-stats/scripts/skill-stats.sh \
-     [--top N] [--cache DIR] OWNER/REPO...
+     [--top N] [--sort prs|commits] [--cache DIR] OWNER/REPO...
    ```
 
-   `--top` defaults to 20 rows. The script makes a blob-less clone with no
+   `--top` defaults to 20 rows. `--sort` defaults to `prs`. Use
+   `--sort commits` for a repository where fewer than about half the commits
+   have a PR number (see the header line), because direct pushes add no PRs
+   and the PR sort then hides active skills. The script makes a blob-less clone with no
    checkout under `--cache` (default `$TMPDIR/github-skill-change-stats`) and
    fetches again on later runs. It is read-only toward GitHub.
 3. If a clone fails (private repo, typo), the script prints `Skipped: clone
@@ -36,7 +39,8 @@ counting; do not rebuild its `git log` commands by hand.
   `(#123)` or `Merge pull request #123`) that touched the skill. A direct push
   with no number adds no PR, so read PRs together with the header line
   `N commits · M with a PR number`.
-- **Rows are sorted** by PRs, then commits.
+- **Rows are sorted** by PRs, then commits; `--sort commits` swaps the two.
+  Say in the report which sort was used.
 
 ## Check before reporting
 
