@@ -82,10 +82,17 @@ jobs:
             plugin/skills/behavior-diff/scripts/codex_model.py \
             plugin/skills/behavior-diff/scripts/decisions.py \
             plugin/skills/behavior-diff/scripts/render.py \
+            plugin/skills/behavior-diff/scripts/progress.py \
+            plugin/skills/behavior-diff/scripts/status.py \
             plugin/skills/behavior-diff/scripts/reporting/*.py
 
       - name: Run hook unit checks
         run: bash tests/hooks-test.sh
+
+      - name: Run progress metadata checks
+        run: |
+          python3 tests/progress-status-test.py
+          python3 tests/progress-assessment-test.py
 
       - name: Run decision unit check
         run: python3 plugin/skills/behavior-diff/scripts/decisions.py --check

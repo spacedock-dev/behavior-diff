@@ -47,6 +47,16 @@ scripts handle execution, evidence, and reporting.
 +---------------------------------------------------------+
 ```
 
+```text
+Runner -----------------> status.json
+Trial workers ----------> before-N/status.json, after-N/status.json
+Assessment producer ----> assessment-status.json
+                                  |
+                                  v
+                        status.py (read-only)
+                        snapshot / JSON / watch / list
+```
+
 Trial execution and decision extraction call models through agent CLIs.
 Report assembly and rendering run locally without model calls.
 
@@ -137,6 +147,31 @@ trials and Sonnet for extraction. Codex uses Sol and Luna, respectively.
 `codex_model.py` resolves Codex selectors to concrete IDs. Both trial variants
 use the same resolved ID. [Model selection](../README.md#trial-and-extraction-models)
 describes overrides and Pi/OMP behavior.
+
+### Background progress
+
+Each comparison receives an atomically allocated, timestamp-prefixed unique run
+directory. The runner prints that handle and absolute status/watch commands at
+startup. Independent comparisons and their trials remain concurrent.
+
+`progress.py` writes private, versioned operational metadata with atomic file
+replacement. The runner owns `status.json`; each worker owns its trial's
+`status.json` outside `project/`; `decisions.py` owns `assessment-status.json`.
+There is no shared index or lock. These records contain lifecycle and process
+identity, not prompts, answers, tool payloads, or environment dumps.
+
+`status.py` reads those bounded records without parsing evidence or changing the
+run. Human and JSON views distinguish recorded state from observed local process
+liveness. Host/boot and process-start identity protect against PID reuse;
+unverifiable identity is uncertain, not a failure. Controller loss does not
+prove that its workers stopped. Per-record timestamps and observation time make
+the independent snapshots explicit.
+
+Trial completion, final-result presence, assessment availability, and report
+availability are separate facts. Extraction can be skipped or fail while a
+fallback report remains available. A completed trial is never labeled a pass.
+Watch is an independent reader; closing it cannot cancel execution. Older runs
+without metadata remain readable reports, but have no reconstructed progress.
 
 ### How Before/After scenarios are built
 

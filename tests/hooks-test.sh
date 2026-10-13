@@ -484,6 +484,7 @@ cat >"$capture_bin/python3" <<'SH'
 #!/bin/sh
 case "$1" in
   */purpose.py) exec "$REAL_PYTHON" "$@" ;;
+  */progress.py) exit 0 ;;
 esac
 {
   printf 'CALL'

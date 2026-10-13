@@ -150,6 +150,33 @@ retain the parent session's model.
 Family selectors can resolve to newer versions on later runs. Use explicit
 IDs when comparisons across runs must retain the same model version.
 
+### Follow a background run
+
+The runner prints a unique run directory and ready-to-copy status commands at
+startup. Keep that directory to check the same comparison from another terminal
+or agent session. Multiple comparisons can run at once without sharing status.
+
+Using the scripts bundled with the installed skill:
+
+```bash
+python3 /path/to/behavior-diff/scripts/status.py /path/to/run
+python3 /path/to/behavior-diff/scripts/status.py /path/to/run --json
+python3 /path/to/behavior-diff/scripts/status.py /path/to/run --watch
+python3 /path/to/behavior-diff/scripts/status.py --list --active
+```
+
+Listing uses `${BEHAVIOR_DIFF_HOME:-~/.behavior-diff}`. It identifies each run
+rather than choosing the latest one. Active listing also retains surviving or
+uncertain trial and assessment processes after their controller stops. Watch shows
+lifecycle changes; closing it leaves the run running. The agent can continue other
+work and check status when needed instead of repeatedly polling.
+
+Progress separates finished trials, assessment availability, and report
+availability. “Finished” does not mean “passed,” and a report may be available
+without an assessment. No output does not mean stuck. When local process identity
+cannot be checked, status stays explicitly uncertain. Older runs without progress
+metadata still have their reports.
+
 ### Report wording
 
 Behavior Diff applies installed Humanizer prose guidance while generating
