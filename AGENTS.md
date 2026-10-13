@@ -105,6 +105,8 @@ and approves the model cost.
 ## Commits and reviews
 
 - Every commit must include a DCO sign-off. Use `git commit --signoff`.
+- Before you create a commit, show the user the planned commit message and
+  the list of staged files. Wait for the user to approve them.
 - Keep commits focused. Do not mix unrelated cleanup with a behavior change.
 - Before a pull request, run the relevant deterministic checks and complete an
   independent read-only review under `REVIEWER_GUIDELINES.md`.
