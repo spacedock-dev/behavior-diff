@@ -84,6 +84,7 @@ jobs:
             plugin/skills/behavior-diff/scripts/render.py \
             plugin/skills/behavior-diff/scripts/progress.py \
             plugin/skills/behavior-diff/scripts/status.py \
+            plugin/skills/behavior-diff/scripts/source.py \
             plugin/skills/behavior-diff/scripts/reporting/*.py
 
       - name: Run hook unit checks
@@ -93,6 +94,11 @@ jobs:
         run: |
           python3 tests/progress-status-test.py
           python3 tests/progress-assessment-test.py
+
+      - name: Run source provenance checks
+        run: |
+          python3 tests/source-provenance-test.py
+          python3 tests/report-source-test.py
 
       - name: Run decision unit check
         run: python3 plugin/skills/behavior-diff/scripts/decisions.py --check

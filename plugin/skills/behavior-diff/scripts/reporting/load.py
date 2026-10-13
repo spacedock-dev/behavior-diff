@@ -11,6 +11,7 @@ from reporting import content
 from reporting.attention import parse_attention
 from reporting.explanation import parse_explanation
 from reporting.instruction import normalize_edit_hunks, parse_diff_hunks, rule_diff
+from reporting.provenance import config_source
 from reporting.schema import (
     SCHEMA_VERSION,
     CommandFlowData,
@@ -117,6 +118,7 @@ def _metadata(config, model):
         target_file=config.get("target_file", "CLAUDE.md"),
         before_label=config.get("before_label", "current file"),
         after_label=config.get("after_label", "your change applied"),
+        source=config_source(config.get("source")),
     )
 
 

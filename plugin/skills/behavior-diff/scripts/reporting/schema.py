@@ -39,8 +39,9 @@ from reporting.target import (
     parse_target,
     persisted_evidence,
 )
+from reporting.provenance import SourceData, report_source
 
-SCHEMA_VERSION = 14
+SCHEMA_VERSION = 15
 RESULT_KINDS = ("good", "bad", "neutral")
 
 
@@ -186,6 +187,7 @@ class MetadataData:
     target_file: str
     before_label: str
     after_label: str
+    source: Optional[SourceData]
 
 
 @dataclass(frozen=True)
@@ -345,6 +347,7 @@ def _metadata(value, path):
         after_label=_expect_str(
             _field(value, "after_label", path), path + ".after_label"
         ),
+        source=report_source(_field(value, "source", path), path + ".source"),
     )
 
 

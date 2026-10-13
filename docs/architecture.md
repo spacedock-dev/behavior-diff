@@ -19,7 +19,7 @@ scripts handle execution, evidence, and reporting.
                              v
 +---------------------------------------------------------+
 | Skill orchestration                                     |
-| Select edit, scenario/model; freeze purpose/provenance   |
+| Select edit/scenario; freeze purpose + source revisions  |
 +----------------------------+----------------------------+
                              v
 +---------------------------------------------------------+
@@ -64,6 +64,13 @@ Purpose travels in run configuration directly to analysis, never in the trial
 task or project copies. Recorded tool returns travel from trials to analysis;
 the collector does not retrieve current source files.
 
+Historical source provenance takes a separate path: the skill verifies the
+original repository, revision pair, and any PR/MR associations, then passes
+`--source-file` to the runner. `source.py` validates the supplied URLs and hashes;
+the runner freezes normalized metadata in `config.json`. It is report context,
+not trial or assessment instructions. Neither validation nor rendering queries
+the forge or infers provenance from a temporary fixture repository.
+
 ## 1. Plugin entry points and hooks
 
 The user can request the skill directly. The plugin can also suggest it after
@@ -100,6 +107,15 @@ back to a labeled diff inference. Raw conversation and unrelated private details
 are excluded. Purpose is the question, not evidence of success. The user-facing
 consent covers bounded source returns reaching assessment; filtering cannot
 certify arbitrary prose as free of private information.
+
+For historical comparisons, the skill records full Before/After commit hashes
+and the original repository's HTTPS URL. It includes PR/MR numbers, titles, URLs,
+and side associations only when verified. Missing associations are omitted.
+Ordinary uncommitted edits retain file labels rather than invented commit links.
+HTML presents the repository and related requests on one compact line, followed
+by linked revisions; local comparison labels are collapsed. Markdown and
+structured report JSON retain the same source provenance. Existing saved runs
+without source metadata remain renderable with their original labels.
 
 For its own user-facing result summary, the host invokes an installed Humanizer
 skill when available. Otherwise it writes concise, natural technical prose
@@ -340,7 +356,8 @@ The modules below live in the skill's [`scripts/`](../plugin/skills/behavior-dif
   unmet outcome on both sides, labeled as a pre-existing target problem.
   Counts come from canonical rows. Malformed bundles become unavailable, never
   an assessed-empty result. No finding quota applies.
-  These modules build schema-v14 `ReportData`. Older report-data versions are
+  These modules build schema-v15 `ReportData`, including nullable
+  `metadata.source` for validated historical provenance. Older versions are
   rejected; regenerate reports from their saved run evidence with `render.py`.
   Saved decisions without optional context, flow starts, or a purpose summary
   still render, without inventing those explanations.
