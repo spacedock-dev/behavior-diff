@@ -106,6 +106,50 @@ or reveal the expected findings. The preparation model may know the intended
 outcome; each trial receives only its historical instructions, task, and normal
 environment access.
 
+### Current generation recipe
+
+1. **Read the original change.** Use its description, commit message, instruction
+   diff and required references. Identify new behavior and behavior that must
+   survive the change. Label preservation goals as inferred unless explicitly
+   stated. Do not give preparation later fixes, incidents or previous results.
+2. **Define observable outcomes.** Describe what the agent must discover, decide
+   or produce. Define evidence for success, failure and insufficient information
+   before trials. Keep these criteria separate from the task and project files.
+3. **Generate the scenario.** Give the agent a natural user request that reaches
+   the relevant workflow. A scenario defines the task, starting state and scope.
+   It must not tell the agent the expected answer or the historical mistake.
+4. **Generate the test data.** Supply project files and queryable observations
+   needed for the task. Combine ordinary inputs with a bounded set of plausible
+   edge cases derived from the original intent. An antagonist review can propose
+   candidates, but cannot predict which candidate will cause a future failure.
+   Record why each selected case matters and what remains untested.
+5. **Provide the tools needed to observe behavior.** A local adapter can capture
+   queries and submitted artifacts without real external effects. It must allow
+   both correct and incorrect outputs, rather than enforce the desired result.
+   Record any task wording or tool design that makes a particular action easier
+   to reach. Hindsight-informed harness choices remain a limitation even when
+   the preparation session does not know the later incident.
+6. **Check and freeze inputs.** Establish coherent ground truth, explicit time
+   and permissions where needed, and supported paths for investigation. Explain
+   differences between observations, such as local inventory versus deployment
+   scope. Record any README or command-catalog cues. Freeze the task, data,
+   historical instructions, tools, criteria and model settings before execution.
+7. **Run and assess separately.** Before and After receive identical tasks and
+   data, with only the instruction version and its references changed. Inspect
+   actual queries and outputs against each case, not only the final summary.
+   Record separately whether the simulation exposes a problem and whether the
+   automatic report identifies it.
+
+For a model comparison, reuse the frozen scenario and data instead of generating
+new ones. Pin the exact trial model and retain the host, reasoning setting and
+tools. Record the preparation and extraction models separately. Assess behavior
+from raw evidence if the extraction model also changes. A negative run does not
+authorize repeated changes until a desired failure appears.
+
+This recipe is the current experimental method, not a claim about the shipped
+scenario generator. Reading a reference is not proof that the agent applies it;
+the submitted output is the evidence of application.
+
 ### Select edge cases by intention coverage
 
 Different update categories exercise functional coverage; they do not by
