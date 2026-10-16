@@ -770,3 +770,172 @@ Seven sessions used 536,093 tokens, including 321,792 cache-read tokens; parent
 orchestration is excluded and this is not a billing total. The scenario was
 reused without another preparation call. The report and raw evidence remain
 private local artifacts. DRC-4899 also tracks this requested model comparison.
+
+### First-change changelog verification replay with Sol
+
+A fresh isolated preparation applied the current generation recipe to the
+original changelog-verification edit and its parent, not the later correction.
+It received contemporary instruction sources only. Preparation, six trials and
+extraction used gpt-6.1-sol with high reasoning through OMP. The historical
+closure contained fourteen files per side, including required editorial
+references and product context. Missing historical links remained unresolved;
+current replacements were not substituted.
+
+Preparation selected an ordinary renaming feature, a stale PR description that
+disagreed with the implemented refresh behavior, and a batch feature composed
+from two synthetic PRs. The task requested website and social drafts for user
+editing, without publication. It did not name the conflict or prescribe its
+resolution. The original instruction change itself already contained a
+behavioral-limits example; this was contemporary evidence, not a later hint.
+
+Before launch, independent checks validated diff hunk sizes and sequential
+revision consistency. A smoke run of the synthetic Python checked rename
+preservation, confirmed Cloud-only refresh, preservation of existing items,
+addition of missing items, and retention of successful batch results after an
+ordinary error. Ground truth and assessment criteria stayed outside trial
+inputs. Preparation and trial preflights confirmed confined tools and Sol.
+
+| Observable | Before | After |
+| --- | --- | --- |
+| Read every selected PR body and code diff before drafting | 3/3 | 3/3 |
+| Correctly describe manual, confirmed, Cloud-only refresh | 3/3 | 3/3 |
+| Preserve existing checks rather than promise automatic synchronization | 3/3 | 3/3 |
+| Integrate bounded batch execution and per-model errors | 3/3 | 3/3 |
+| Incorrect final claim on the selected description/code conflict | 0/3 | 0/3 |
+
+The scenario reached the conflict, but did not reproduce the later error.
+Before already performed the source checks and produced accurate copy. This
+supports the selected outcomes under these conditions, not an incremental
+benefit from the edit or a successful early warning.
+
+All six trials also read a synthetic author comment explicitly explaining the
+revised behavior. Code independently supported that explanation, but the run
+does not isolate resolution from body and code alone. The command catalog
+guided discovery. These cues, retrospective case selection, a draft-only
+checkpoint and synthetic queries limit broader claims.
+
+The raw audit matched fifty successful query responses to the frozen catalog.
+Independent artifact audits inspected all final website/social drafts and
+review notes. Each trial recovered from an empty-path read error. Only local
+drafts and review artifacts were added; no historical files changed or external
+publication occurred. One Before trial corrected an unsupported initial social
+hook during its own review; this was not a final conflict failure.
+
+The generated report contains nine decisions, zero diverging, and no attention
+findings. It correctly notes source requests in both variants, but its evidence
+window omits PR return bodies. Copy accuracy above comes from complete raw
+records and saved-artifact inspection, not an automatic report verdict.
+
+Eight sessions used 1,342,735 tokens, including 973,696 cache-read tokens.
+Orchestration and independent audit agents are excluded; this is not billing.
+Private provenance, raw evidence, fixture checks and reports remain outside the
+repository. No product change or additional trial was made.
+
+### Controlled clarification removal and historical-model comparison
+
+DRC-4900 tracks two owner-approved controls, not another blind preparation.
+The first removed only the explicit author clarification from one recorded
+query response. That command and its aliases remained available and returned
+the unchanged PR body. The task, source closure, purpose, code diffs, release
+selection, build record, other responses and tools were preserved. A structural
+comparison verified exactly one changed JSON value. No scenario was regenerated.
+
+The second ran the same no-clarification fixtures through dated Opus 4.5 and
+Sonnet 4.5 models. All three conditions used OMP and the high thinking setting.
+Frozen hashes proved identical trial input files, task, purpose, historical
+sources, fixture responses, tool configuration and custom system boundary.
+RPC preflights and actual assistant events verified the requested model IDs.
+This controls the agent harness, not provider-specific instructions or equivalent
+reasoning budgets. It does not identify the original incident's model.
+
+All eighteen trials completed. The shared primary criterion was final copy that
+describes confirmed, Cloud-only, additive refresh without promising automatic
+synchronization. Full query logs and saved website/social drafts, including
+revised drafts, were inspected; omissions were separated from false assertions.
+
+| Trial model | Before: read code diff | After: read code diff | Before: false automatic-sync claim | After: false automatic-sync claim |
+| --- | --- | --- | --- | --- |
+| gpt-6.1-sol | 3/3 | 3/3 | 0/3 | 0/3 |
+| claude-opus-4-5-20251101 | 0/3 | 0/3 | 3/3 | 3/3 |
+| claude-sonnet-4-5-20250929 | 0/3 | 0/3 | 3/3 | 3/3 |
+
+Sol read every selected PR description and diff before writing, and all six
+final drafts correctly described confirmation, Cloud PR scope and preservation
+of existing checks. It still requested comments, but received no clarification.
+Compared with the earlier Sol replay, removing the comment did not expose a
+failure in this sample. One empty-path read error per trial and one additional
+read of a not-yet-created drafts directory were recovered.
+
+Opus Before made no source queries. Sonnet Before read the four PR descriptions
+in one of three trials. Both models' After trials consistently read those
+descriptions but never requested code diffs or comments. All twelve final drafts
+promised automatic synchronization. Both models also copied the incorrect
+local-session scope into two of three After website drafts; the other After
+draft omitted that claim while review notes still endorsed it. Some Before
+drafts inferred synchronization from the release selection without reading the
+body at all. One Sonnet Before trial separately asked the editor to confirm the
+unverified behavior, but left the incorrect claim in its draft.
+
+The observable gap is therefore not a demonstrated choice of body over code
+after reading both: the Claude trials did not inspect code. After adopted the
+body-reading step and sometimes labeled its claims verified, without completing
+implementation verification. This reproduces the class of unsupported release
+claim targeted by the historical edit, and exposes an unmet intention after
+that edit under these model configurations. It does not establish the historical
+incident's cause or show that the later patch fixes it; that patch was not run.
+
+The model comparison supports treating execution model/configuration as an
+experimental variable. It does not justify ranking general model quality,
+claiming a failure probability, or saying Sol cannot fail. The catalog and
+short synthetic diffs still simplify discovery. Neither Claude condition
+requested comments, and no Claude-with-clarification arm was run; their
+sensitivity to that comment remains unmeasured.
+
+Reports were generated for all conditions, with extraction using each
+condition's model. Their wording is not a controlled cross-model assessment.
+All target assessments were unavailable. Sol reported unchanged source checking
+with a clearer After handoff. Claude reports emphasized increased PR-description
+reading but did not identify the false automatic-sync claim. The Opus summary
+even labeled incorrect local-session scope a verified detail. The extractor's
+evidence window omitted command-return bodies that were present in raw logs.
+Thus the failure finding above comes from a common raw-evidence audit, not a
+successful automatic intention verdict. This is the same evidence-access
+limitation observed in previous report audits.
+
+The parent verified seventy-nine successful query responses against the frozen
+catalog: fifty-one Sol, twelve Opus and sixteen Sonnet. No Claude tool errors
+occurred. Only local draft/review artifacts were written; nothing was published.
+Claude drafts used `draft: false`, but this was a local template value, not an
+external action. Original experiment artifacts were retained unchanged.
+
+The twenty-one trial/extraction sessions used 2,548,457 tokens, including
+1,784,579 cache-read tokens. Preparation was reused. Parent orchestration and
+audit agents are excluded; this is not a billing total. Reports and detailed
+evidence remain private local artifacts. No product changes were made.
+
+#### Interpretation: evaluate the new requirement on After
+
+Before is the baseline before the explicit code-verification requirement was
+added. Incorrect copy under the misleading release material is an expected
+baseline outcome for this experiment, not evidence that Before violated a
+requirement introduced later. This does not mean incorrect copy was desirable
+or inevitable: Sol produced accurate copy even with the Before instructions.
+
+After must be evaluated against the added requirement to read both the PR body
+and code changes. Opus 4.5 read the body but not the code in all three After
+trials, then retained the false automatic-sync claim. Its Before trials made
+no PR queries at all, so describing them as body-reading trials would be
+inaccurate. The edit changed the process, but did not achieve the intended
+verification outcome in these trials.
+
+The supported change-assumption finding is: adding a code-verification
+instruction did not ensure the agent performed that verification or avoided
+the unsupported claim. Identical wrong Before/After copy does not erase this
+unmet After requirement. The finding is bounded to the tested model, fixtures
+and instruction version; it is not proof of historical causality or of the
+later patch's effectiveness.
+
+The simulation outputs expose this gap, but the automatic report did not
+identify it. End-to-end automatic validation remains unproven until the report
+can assess the required behavior and resulting claims using sufficient source
+evidence. No additional experiment was run for this interpretation.
