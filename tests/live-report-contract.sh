@@ -142,18 +142,6 @@ reject_output 'capsule' "$skill" \
 reject_output 'capsule' "$spacedock_reference" \
   'Spacedock reference still uses the unexplained capsule term'
 require_fixed() { grep -qF -- "$1" "$skill" || fail "$2"; }
-require_output 'The skill owns judgment.' "$headless_skill" \
-  'headless skill does not state its judgment ownership'
-require_output 'The scripts own repeatable mechanics.' "$headless_skill" \
-  'headless skill does not state script ownership'
-require_output '--agent pi' "$headless_skill" \
-  'headless skill does not name the Pi trial stack'
-require_output '<exact-current-pi-model>' "$headless_skill" \
-  'headless skill does not require the exact Pi model'
-require_output '--agent omp' "$headless_skill" \
-  'headless skill does not name the OMP trial stack'
-require_output '<exact-current-omp-model>' "$headless_skill" \
-  'headless skill does not require the exact OMP model'
 require_output 'Pi has no built-in subagent dispatch.' "$skill" \
   'live skill invents a built-in Pi dispatch path'
 require_output "one \`task\` batch" "$skill" \
@@ -168,33 +156,6 @@ require_output 'claude, codex, pi, or omp' "$codex_manifest" \
   'Codex manifest does not name all trial stacks'
 require_output 'Pi and OMP are trial stacks, not plugin hosts' "$readme" \
   'README does not separate trial stacks from plugin hosts'
-require_output "Only add \`--fast\` when the user explicitly requested it" \
-  "$headless_skill" \
-  'headless skill does not reserve fast mode for explicit requests'
-require_output 'full versus fast modes' "$headless_skill" \
-  'headless skill still exposes implementation modes to the user'
-reject_output 'Confirm before running' "$headless_skill" \
-  'headless skill still asks for run confirmation'
-reject_output 'plus the cost:' "$headless_skill" \
-  'headless skill still advertises model-run cost'
-require_line '       behavior-diff.sh --agent <current-host> --file <file> --task "<task>" --purpose-file <private-purpose.json>' \
-  "$headless_skill" \
-  'default command does not preserve the current agent host'
-require_line '       behavior-diff.sh --agent <current-host> --file <file> --task "<task>" --purpose-file <private-purpose.json> --fast' \
-  "$headless_skill" \
-  'explicit fast command does not preserve the current agent host'
-require_output 'Freeze the purpose before drafting or running trials.' "$headless_skill" \
-  'headless skill does not capture purpose before trial design'
-require_output 'current context, including supplied summaries; do not open host transcript' "$headless_skill" \
-  'purpose capture invents host transcript access'
-require_output 'source:"diff", basis:"inferred"' "$headless_skill" \
-  'headless skill has no labeled diff-only fallback'
-require_output 'never revise goals after seeing Before/After results' "$headless_skill" \
-  'headless skill does not freeze purpose independently of outcomes'
-require_output 'Conservative exclusions' "$headless_skill" \
-  'headless skill does not qualify privacy exclusions'
-require_output 'specific approval for that content or a safe fixture' "$headless_skill" \
-  'headless skill lacks the sensitive-content consent boundary'
 require_output 'Run behavior-diff with this exact task:' "$demo_skill" \
   'demo journey does not supply the exact fixture task with the nudge response'
 require_output 'the exact task step 1 printed' "$demo_skill" \

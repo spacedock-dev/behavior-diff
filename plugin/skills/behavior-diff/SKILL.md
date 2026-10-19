@@ -12,13 +12,14 @@ no automatic verdict. The user judges the evidence.
 
 ## Ownership
 
-The skill owns judgment. It finds the change, freezes its purpose, drafts the
-decision-moment task, reviews any shared trial data, selects the current trial
-stack and model, and explains the evidence.
+The skill owns judgment. It finds the change, freezes its purpose, prepares
+the scenario, shared data, and private assessment criteria from the change's
+intent, preflights and freezes the inputs, selects the current trial stack and
+model, and explains the evidence against each goal and case.
 
-The scripts own repeatable mechanics. They stage and verify reviewed shared
+The scripts own repeatable mechanics. They stage and verify prepared shared
 data, build variants, run trials, normalize traces, grade completeness, extract
-decisions, and render the report.
+decisions, and render the report. No script generates a scenario or data.
 
 The runner is bundled with this skill: `scripts/behavior-diff.sh` inside
 this skill's base directory. Pass `--agent` for the stack under test:
@@ -74,6 +75,8 @@ the single-role or two-agent path. Create the fixtures with
    candidate: use it. Several: ask the user which one. None: explain that
    the change must exist as an uncommitted edit first, and stop.
    Then read `git diff -- <file>` so you understand what rule changed.
+   Read the selected instruction and its relevant unchanged references before
+   deriving the intent; a diff alone may omit behavior that must be preserved.
 
    Three cases have no git "before", and each still works:
    - **Untracked file** (git does not know it — e.g. `~/.claude/CLAUDE.md`):
@@ -94,6 +97,12 @@ the single-role or two-agent path. Create the fixtures with
 
    In these cases read the change with `diff <before> <file>` instead of
    `git diff`.
+
+   **Historical context boundary.** Before deriving historical purpose, read
+   the source-isolation rule in `references/scenario-and-test-data.md`. If this
+   session already knows later history or previous trial outcomes, purpose
+   derivation and preparation must use the fresh context described there.
+   If that isolation is unavailable, stop; disclosure alone is not a substitute.
 
    **Freeze the purpose before drafting or running trials.** Derive concise,
    distinct goals from the current conversation and the selected diff without
@@ -192,30 +201,37 @@ the single-role or two-agent path. Create the fixtures with
    `CI_COMMIT_SHA`, or `CI_COMMIT_BEFORE_SHA` for the actual comparison inputs.
    Missing PR/MR metadata is omitted; no API lookup or environment dump is needed.
 
-2. **Draft the task.** `--task` must recreate the decision moment governed by
-   the changed rule, whether the goal is correction, addition, or preservation:
-   - Ask the user for the real request from the incident that motivated
-     the rule, and reuse it when they have one.
-   - Never leak the expected behavior into the task. The changed rule must
-     be the only place the guidance exists — if the task itself says what
-     "good" looks like, both variants will comply and the diff shows
-     nothing.
-   - When the rule fires mid-task, start the task at the decision point:
-     "You already did X (it is in the tree); decide/report Y."
-   - **Shared data.** If the decision moment needs common files that the
-     project base does not contain, read
-     `references/scenario-and-test-data.md` inside this skill's base
-     directory before running. Git trials start from HEAD, so additional
-     untracked or uncommitted data in the user's checkout never reaches them. That
-     reference delivers files the user supplied or approved to every trial.
-     It does not generate a scenario or data.
+2. **Prepare the scenario and data.** Before drafting anything, read
+   `references/scenario-and-test-data.md` inside this skill's base directory
+   and follow its preparation recipe. In short:
+   - From the frozen goals and the selected diff, list the new and preserved
+     behavior, the observable capabilities it needs, and the environment
+     premises those capabilities depend on.
+   - Write a neutral `--task`: a natural request that starts before the tested
+     work and reaches the changed rule. It must not state the expected answer,
+     the rule, or a historical mistake; the changed instruction is the only
+     place the guidance exists.
+   - Reuse project data when it already exercises the capabilities. Otherwise
+     prepare one coherent dataset of ordinary inputs plus a bounded set of
+     compatible edge cases that challenge the goal's assumptions.
+   - Keep per-case criteria, mappings, and omissions in private notes, never
+     in the task or trial files.
 
-3. **Run it as soon as the task is known and any shared data is verified.**
-   Do not ask the user to confirm the file, task, cost, or run mode. Do not
-   mention trial counts, cost, or full versus fast modes during normal
-   execution.
+   Do not require an incident, a real past request, or an existing eval from
+   the user. Ask only when a material requirement cannot be reached from the
+   change, project, or conversation. For a historical comparison, prepare from
+   the contemporary change only, before reading later fixes or results.
+
+3. **Preflight, freeze, then run.** Run as soon as the reference's preflight
+   passes and the task, data, criteria, and settings are frozen. Do not ask the
+   user to confirm the file, task, cost, or run mode. Do not mention trial
+   counts, cost, or full versus fast modes during normal execution.
    First satisfy the privacy and sensitive-content approval boundary above;
-   automatic execution never overrides it.
+   automatic execution never overrides it. If the planned environment cannot
+   support a required capability or premise, stop and report it; do not silently
+   substitute a narrower test or fabricate approvals. Stop preparation workers
+   before launch, and keep the first result: no retuning or reruns to manufacture
+   a finding after seeing outcomes.
 
    Under Claude Code or Codex, preserve the current stack:
 
@@ -252,8 +268,9 @@ the single-role or two-agent path. Create the fixtures with
    does not look anything up. Never put source details in `--task`, a trial
    prompt, or a sandbox file.
 
-   **Shared data.** When step 2 selected shared data, do not run the commands
-   above from the user's checkout. Prepare and verify the stage with
+   **Shared data.** When step 2 prepared new shared data, or private context
+   in the checkout cannot otherwise be kept from trials, do not run the
+   commands above from the user's checkout. Prepare and verify the stage with
    `references/scenario-and-test-data.md`, then run the same runner command
    from `$ROOT/project` with `$ROOT/home` as `BEHAVIOR_DIFF_HOME`, exactly
    as that reference shows. Keep the same agent, model, `--fast`, purpose,
@@ -296,6 +313,14 @@ the single-role or two-agent path. Create the fixtures with
        whether the situation was reached.
      Do not infer a missed situation from identical behavior alone,
      or claim that the rule generally works or fails.
+   Then assess each private case from raw evidence (actions, tool returns,
+   artifacts), not only final answers, as the reference describes. Separately
+   record whether its condition was reached, missed, or unknown and whether its
+   intended outcome was supported, contradicted, or lacked sufficient evidence.
+   Summarize each goal without hiding missed cases. Report interrupted or
+   unassessable attempts and harness failures separately from requirement failures.
+   Identical Before and After behavior can still fail a goal After added. State
+   where your assessment agrees with or differs from the report; do not edit it.
    Orient the reader briefly: say what the agent was asked to do, the changed
    skill's role when relevant, and the decision point tested. Lead with the
    practical supported contrast, not an internal workflow label. At first use,

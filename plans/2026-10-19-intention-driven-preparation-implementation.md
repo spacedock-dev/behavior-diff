@@ -1,10 +1,12 @@
 # Implement intention-driven scenario and test-data preparation
 
 Date: 2026-10-19
-Status: PR 1 implemented and verified locally; draft PR delivery in progress.
-Next delivery: finish PR 1 draft review, then implement PR 2's intention-driven
-preparation. Report assessment/UI work remains deferred until both are complete
-and verified. Do not repeat the public-repository survey or retune old cases.
+Status: PR 1 merged as [#49](https://github.com/spacedock-dev/behavior-diff/pull/49).
+PR 2 is published as [#50](https://github.com/spacedock-dev/behavior-diff/pull/50).
+Preparation checks, both native-host smoke paths and independent source/evidence
+reviews passed the bounded acceptance gate. Merge awaits corrected dogfood CI.
+Report assessment/UI work remains deferred. Do not repeat the public survey or
+retune old cases.
 
 ## 1. User request and product decision
 
@@ -392,9 +394,9 @@ only after observing results from the completed preparation workflow.
 
 | Stage | Deliverable | Dependency | Status |
 |---|---|---|---|
-| PR 1 | Deliver prepared shared data to real Before/After snapshots safely | None | Implemented; checks and independent review passed; draft PR delivery in progress; live verification pending |
-| PR 2 | Generate and preflight scenario/data from intent, then execute and explain evidence | PR 1 | Planned; depends on PR 1 delivery |
-| Preparation acceptance gate | Verify the integrated workflow against AC1–AC10 | PR 2 | Pending; required before declaring preparation complete |
+| PR 1 | Deliver prepared shared data to real Before/After snapshots safely | None | Merged as #49; deterministic checks, independent review and corrected dogfood CI passed |
+| PR 2 | Generate and preflight scenario/data from intent, then execute and explain evidence | PR 1 | Published as #50; independently approved; corrected dogfood CI remains the merge gate |
+| Preparation acceptance gate | Verify the integrated workflow against AC1–AC10 | PR 2 | Passed at bounded two-host evidence level; limitations retained below |
 | Report design checkpoint | Decide what actual results need the report to communicate | Preparation acceptance gate | Deferred; requires user design review |
 | Later report PR(s) | Implement only the agreed assessment/presentation changes | Accepted report design | Not scoped or authorized by this plan |
 
@@ -445,26 +447,27 @@ the affected architecture section and README usage explanation.
 **Not included:** autonomous scenario generation, report changes, a new fixture
 DSL, generic tool simulator, public CLI mode, or multi-file historical replay.
 
-**Local implementation and verification record**
+**Delivery and verification record**
 
-- Added private `prepare_shared.py` staging/verification and the canonical
-  delivery reference. Integrated them into the skill without changing the public
-  runner interface or implementing the PR 2 generator.
-- `python3 tests/shared-data-test.py --runner-smoke -v`: 28 checks passed.
-  Four successful runner scenarios exercised 16 synthetic trial processes across
-  Claude Code and Codex, including normal counts, explicit fast mode, absent
-  Before and explicit Before. Inspected actual trial files and captured host
-  reads, private-context exclusions, source provenance and original state.
-- Boundary regressions cover frozen-input changes, unsafe paths and collisions,
-  unsupported project state, Git environment redirection and archive transforms.
-  Unsafe Git overrides and archive changes were reproduced before their fixes;
-  guarded handoff now rejects them without launching a host.
-- Required deterministic suite, Bash/Python formatting and syntax checks passed.
-  Two independent read-only reviewers approved after material findings were fixed.
-  CI runs only the helper boundary suite; the runner smoke remains manual.
-- No model calls or real Recce-Team replays were run. This establishes PR 1's
-  delivery mechanics, not automatic scenario quality or detection of invalidated
-  change assumptions. PR 2 and its acceptance gate remain pending.
+- Merged as [#49](https://github.com/spacedock-dev/behavior-diff/pull/49).
+  Added private `prepare_shared.py` staging/verification and the canonical
+  delivery reference without changing the public runner interface.
+- The final PR 1 shared-data suite passed 31 checks with `--runner-smoke`.
+  It exercised actual snapshots, normal and explicit fast counts, absent and
+  explicit Before, private-context exclusion, provenance and original state.
+  Boundary regressions cover unsafe paths, unsupported state, frozen-input
+  changes, Git environment redirection and archive transformations.
+- A late CI failure exposed nested comparisons sharing their orchestrator's
+  runs store. Every trial now inherits its own `BEHAVIOR_DIFF_HOME`; actual
+  nested-run smoke tests verify the isolation. The old CI logs were unavailable,
+  so nesting was not established as that particular run's historical cause.
+- Required deterministic checks and independent reviews passed. The corrected
+  dogfood run completed six trials, extraction and report publication.
+  CI's ordinary helper checks remain model-free; runner smoke remains manual.
+- Later approved historical replays inspected raw evidence. The single-file
+  replay exercised the new delivery helper; a multi-file replay was explicitly
+  a historical control, not helper acceptance evidence. Neither reused fixture
+  proves autonomous generation. That proof belongs to PR 2.
 
 ### PR 2 — Prepare scenario and data from intent
 
@@ -486,7 +489,8 @@ data, preflight/freeze them, run the comparison, and explain the observed outcom
   capabilities visibly blocked instead of silently narrowing the experiment.
 - Update the skill's result explanation to cover condition reach, unmet After
   intent, interruptions and raw-evidence versus automatic-report differences.
-  Do not change the report renderer, extractor or report schema in this PR.
+  Do not redesign the report renderer, extraction semantics or report schema.
+  The later user-authorized CI correction below changes prompt transport only.
 - Update the full workflow/flowchart and product explanation in the same PR.
   Add or adjust deterministic tests only for changed behavioral contracts.
 
@@ -509,6 +513,73 @@ the real generator exposes a delivery defect.
   artifacts outside tracked files; public evidence summaries must be synthetic
   or sanitized and must not imply stronger findings than the records support.
 
+**Local implementation and live evidence**
+
+- Canonical skill and its reference now own intent-driven preparation and
+  per-case raw assessment. README and architecture describe that workflow.
+  Delivery scripts, report schemas and renderer are unchanged.
+  A post-publication CI correction sends Claude extraction prompts over stdin
+  instead of argv to avoid Linux's per-argument size limit. Prompt contents,
+  models, extraction semantics and failure handling remain unchanged.
+  Removed affected wording-only assertions instead of pinning the new prose.
+- Required deterministic suites passed, including 31 shared-data checks with
+  runner smoke. Repository Bash/Python formatting, changed-shell syntax and
+  ShellCheck passed. The report contract passed again after the final assertion
+  removal.
+- A fresh Codex session received only a synthetic local invoice-review edit,
+  with no incident, task or dataset. It generated a neutral task, four common
+  data files, private goals/case criteria, capability probes and a frozen stage.
+  One ordinary match, a previously paid invoice and an ambiguous match shared
+  one coherent batch. The operator audited the inputs and additionally proved
+  read/CSV/arithmetic/scratch-write capabilities under native trial settings.
+- The actual runner consumed those generated inputs in three Before and three
+  After attempts. All six initial snapshots had identical common files and
+  the correct instruction version; private criteria were absent, all six
+  traces recorded the relevant source rows, and the original project remained
+  unchanged. Trial selection resolved to `gpt-6.1-sol`; extraction resolved to
+  `gpt-6-luna`. Preparation requested `gpt-6.1-sol` separately.
+- Five attempts completed: two Before and three After. All five recommended
+  the ordinary match, excluded the paid invoice and held the ambiguous match.
+  The remaining Before attempt failed with a model-capacity error after
+  reading the records. Its outcomes are unassessable, not evidence that the
+  instruction edit helped. No trial was retried or model substituted.
+- The unchanged automatic report counted the interrupted attempt as valid and
+  could not assess source agreement despite the raw traces containing the
+  source rows. This is a report/normalization limitation, not a generated-data
+  defect. The skill now explicitly checks CLI status and native terminal events
+  before treating normalized text as completion. Report fixes remain deferred.
+- A separate native Codex continuation executed the revised skill's result
+  explanation against the frozen notes and saved evidence. It read native
+  terminal events, identified the capacity interruption and both report gaps,
+  and assessed condition reach separately from outcomes for every case.
+  It found no contradicted goal among completed attempts and made no causal
+  improvement claim. This was host explanation, not another extraction or trial.
+- Independent round one found a missing historical isolation branch. After the
+  frozen local comparison ended, the skill/reference were corrected to require
+  fresh context before historical purpose derivation when later outcomes are
+  already known. The local-edit smoke does not exercise that historical branch.
+- Claude Code initially stopped before its first model call because authentication
+  had expired. That startup record was preserved. After the user restored native
+  authentication, a fresh Claude preparation generated its own neutral task,
+  three CSV files, seven cases and private criteria without an incident or dataset.
+  Three ordinary cases and four compatible boundaries shared one batch.
+- All six Claude trials completed on `claude-opus-5-5`, with default Sonnet
+  extraction. Actual snapshots contained identical common data, correct
+  instruction versions and no private criteria; raw returns contained the sources.
+  All six recommended the same three invoices totaling $9,315.50 and withheld the
+  four questionable invoices. No payments occurred; this shows no added decision
+  benefit from the edit on these inputs.
+- Native Claude result explanation inspected raw evidence and identified report
+  gaps. It also corrected a frozen preparation-note assumption: Write/Edit tools
+  were available, although unused. The observed read-only actions support local
+  behavior, not a claim that host permissions made writes impossible. Its use of
+  “paid” in summary wording means recommended payment, not an executed action.
+- Codex preparation/execution used the pre-historical-isolation-fix snapshot;
+  its later explanation and the entire Claude smoke used the corrected source.
+  Both smoke cases are local edits, not live coverage of historical isolation.
+  Two independent reviewers approved the source in round two and the final
+  two-host acceptance evidence in round three, including these limitations.
+
 ### Acceptance ownership
 
 | Criterion | Primary delivery and proof |
@@ -523,6 +594,10 @@ the real generator exposes a delivery defect.
 | AC8 — outcome, reach and report distinctions | PR 2 skill explanation; existing automatic report unchanged |
 | AC9 — freeze and preserve first results | PR 1 delivery freeze; PR 2 full preparation/execution discipline |
 | AC10 — skill prepares, runner consumes | PR 2 integrated smoke using PR 1's proven delivery path |
+
+The two local smoke paths supply bounded evidence for AC1–AC10, not general
+reliability or historical-isolation coverage. Preserve the interrupted Codex
+attempt, initial Claude authentication failure and permission-note correction.
 
 ### Deferred report design checkpoint
 
