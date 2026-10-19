@@ -18,20 +18,18 @@ scripts handle execution, evidence, and reporting.
 +----------------------------+----------------------------+
                              v
 +---------------------------------------------------------+
-| Skill orchestration                                     |
-| Select edit/scenario; freeze purpose + source revisions  |
+| Skill preparation (LLM; reference recipe)               |
+| Change intent + preservation -> capabilities/premises   |
+| -> neutral task + ordinary/bounded edge data + private  |
+| case criteria; reuse sufficient project data            |
+| Preflight host environment; freeze task, data, purpose, |
+| source revisions, criteria, and execution settings      |
+| Shared files or exclusions: prepare_shared.py stages    |
+| and verifies; otherwise runner uses user's project      |
 +----------------------------+----------------------------+
                              v
 +---------------------------------------------------------+
-| Conditional shared-data delivery                        |
-| Only when the task needs files the project base lacks:  |
-| prepare_shared.py freezes project, Before, and home;    |
-| verify passes immediately before launch                 |
-| Otherwise the runner starts from the user's project     |
-+----------------------------+----------------------------+
-                             v
-+---------------------------------------------------------+
-| Trial execution                                         |
+| Runner: default 3+3 trials                              |
 | behavior-diff.sh builds independent Before/After copies |
 | run-trial.sh runs the same task/model in each copy      |
 +----------------------------+----------------------------+
@@ -51,7 +49,15 @@ scripts handle execution, evidence, and reporting.
 +---------------------------------------------------------+
 | Presentation                                            |
 | render.py -> HTML, Markdown, and structured JSON        |
-| Skill explains evidence; user reviews the change        |
+| Automatic report from saved evidence                    |
++----------------------------+----------------------------+
+                             v
++---------------------------------------------------------+
+| Skill result explanation (separate from the report)     |
+| Raw actions/returns/artifacts per private case:         |
+| reached / missed / unknown; intent supported /          |
+| contradicted / insufficient evidence; run health apart; |
+| report agreement or gap disclosed; user decides         |
 +---------------------------------------------------------+
 ```
 
@@ -113,17 +119,31 @@ requires explicit user acceptance. Hook failures do not block the host session.
 ## 2. The skill owns the experiment
 
 [`SKILL.md`](../plugin/skills/behavior-diff/SKILL.md) guides the host agent to
-select the changed file and prepare a scenario at the relevant decision point.
-The task must not reveal the expected behavior. The instruction change must
-remain the only source of that guidance.
+select the changed file and prepare the comparison from the change's intent. The
+agent itself designs the scenario and any test data; the
+[skill reference](../plugin/skills/behavior-diff/references/scenario-and-test-data.md)
+holds the detailed recipe. In short, the agent derives the intended change and
+the behavior it must preserve, the capabilities and premises that behavior
+needs, a neutral task that starts before the tested work, coherent ordinary and
+bounded edge-case data, and private per-case criteria. It reuses sufficient
+project data instead of generating more. It asks the user only when a material
+requirement cannot be reached otherwise. The task must not reveal the expected
+behavior. The instruction change must remain the only source of that guidance.
 
-The skill selects the trial host and model, calls the runner, and explains the
-result. It owns scenario quality and interpretation, not filesystem copying or
-report formatting. When the task needs common files that the project base
-lacks, the skill reviews files that the user supplied or approved and delivers
-them through a frozen stage (see
-[Shared-data delivery](#shared-data-delivery)). The skill does not generate the
-scenario or the data.
+Before launch, the skill preflights the real host environment and freezes the
+task, data, criteria, purpose, source revisions, and execution settings. It then
+runs the existing runner with the default trial counts; more edge cases add
+coverage within those trials rather than more runs. When common files must be
+added or private paths excluded, the skill delivers reviewed data through a
+frozen stage (see [Shared-data delivery](#shared-data-delivery)). It owns scenario
+quality and interpretation, not filesystem copying or report formatting.
+
+After the run, the skill explains the result separately from the automatic
+report: per private case it reads raw actions, returns, and artifacts, then
+states whether each case was reached, missed, or unknown, and whether the intent
+is supported, contradicted, or lacks evidence. Run health stays separate from
+requirement failures. The coverage is bounded to the designed cases; it does
+not prove the absence of unknown side effects.
 
 Before execution, the skill records distinct concise goals and their provenance
 (`session`, `commit`, or `diff`; `explicit` or `inferred`) in a reviewed purpose
@@ -286,8 +306,10 @@ shared-data stage.
 The private helper
 [`prepare_shared.py`](../plugin/skills/behavior-diff/scripts/prepare_shared.py)
 delivers a reviewed data directory to every trial without changing the user's
-checkout or adding runner options. It does not generate data, launch models,
-or infer provenance.
+checkout or adding runner options. It only delivers and verifies: the skill
+designs the data, and the helper does not generate data, launch models, or infer
+provenance. Its freeze covers the stage, not the private task, purpose, source
+metadata, or tooling; the skill checks those separately before launch.
 
 ```text
 Project base (Git HEAD or folder copy) --+

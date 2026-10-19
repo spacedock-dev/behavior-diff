@@ -106,17 +106,24 @@ In Claude Code, you can also run:
 /behavior-diff
 ```
 
-Behavior Diff finds the changed instruction file and uses your request as the
-comparison task. Once the task is known, and any shared trial data is verified,
-it runs the comparison and opens the report.
+Behavior Diff finds the changed instruction file and works out what the change
+is meant to do and what it must preserve. From that intent, the agent designs a
+neutral task and, when needed, coherent ordinary and edge-case test data, plus
+private criteria for each case. It reuses suitable project data when it can and
+asks you only when a needed requirement cannot be found another way. It checks
+the environment, freezes the task and data, runs the comparison, and opens the
+report. It then explains, separately from the automatic report, which cases
+were reached and whether the evidence supports the intent.
+
+This coverage is bounded to the designed cases. It is not an exhaustive test,
+and it does not promise to find unknown side effects.
 
 ### Shared trial data
 
 Some tasks need files that your project does not contain, such as sample
 inputs. Git-based trials start from your last commit, so untracked or
-uncommitted files in your checkout never reach them. Behavior Diff does not
-generate such data. When you supply or approve the files, the skill can deliver
-them to every trial:
+uncommitted files in your checkout never reach them. The skill designs or
+selects these files; a helper only delivers them to every trial:
 
 1. A private helper, `prepare_shared.py`, copies your project base, the reviewed
    data directory, and the selected Before and After instructions into a new

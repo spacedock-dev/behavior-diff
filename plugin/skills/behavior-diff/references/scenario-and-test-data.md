@@ -1,10 +1,140 @@
 # Scenario and test data
 
-Read this file before you run a comparison whose task needs shared files that
-the runner's project base does not contain. It explains how to deliver an
-already selected dataset to every Before and After trial. It does not generate
-a scenario or data. Step 2 of `SKILL.md` still drafts the task, and the user
-supplies or approves the files.
+Read this file before drafting the task for any comparison. It is the single
+recipe for preparing the scenario, shared data, and private assessment
+criteria from the change's intent, for preflighting and freezing them, and for
+delivering shared files to every Before and After trial. You, not a script,
+prepare the scenario and data; `prepare_shared.py` only stages and verifies
+files you prepared and reviewed.
+
+Spacedock workflow comparisons use the fixtures in
+[spacedock-duo.md](spacedock-duo.md) for delivery; still derive their task and
+criteria with the recipe below.
+
+## Prepare from intent
+
+Use the contemporary change, relevant unchanged instructions and references,
+and available owner context. A supplied real request is usable, but not required.
+For a historical comparison, exclude later fixes, later incidents, earlier
+fixtures, and trial results; do not mine host transcripts. If the orchestrator
+already knows later history or previous outcomes, derive historical purpose and
+prepare the inputs in a fresh context that inherits none of that conversation.
+Supply only the selected contemporary instruction versions, required references,
+available contemporary owner context or commit message, and this generic method.
+Use a supported fresh session or isolated subagent; if unavailable, stop and
+report the missing isolation prerequisite before deriving or freezing purpose.
+If case selection or tooling was informed by hindsight, still disclose that
+limit: isolation does not remove historical selection bias.
+
+1. **Goals.** Start from the frozen purpose goals. Name new behavior and
+   behavior that must survive the change. Mark preservation goals as inferred
+   unless stated.
+2. **Capabilities and premises.** For each goal, list what the agent must
+   observe, decide, or produce. For each capability, list the environment
+   facts it depends on (files, query results, tools, permissions, repository
+   state, time), where the trial can reach each fact, and which source is
+   authoritative. Assessment-only knowledge must not stand in for a premise
+   missing from the trial. If an outcome depends on time, set one as-of
+   timestamp and timezone, give both variants the same neutral as-of statement,
+   and make every simulated clock and calculation agree.
+3. **Task.** Write a natural user request that starts before the tested work
+   and reaches the changed rule. It defines starting state and scope only. It
+   must not state the expected answer, the rule, a findings list, or a
+   historical mistake. If both variants would comply because the task says
+   what good looks like, rewrite it. Start mid-workflow only when skipped work
+   is outside the capabilities being tested and the starting state is coherent.
+4. **Data.** If the project base already exercises the capabilities, reuse it
+   and add nothing. Otherwise build one coherent dataset: ordinary inputs plus
+   a bounded set of plausible edge cases that challenge the goals'
+   assumptions. Choose cases by relevance, plausibility, assessability, and
+   added coverage of the intent; do not fill a quota or add redundant cases.
+   Combine compatible cases; cases that contradict or obscure each other need
+   separation, which is a separate comparison, not an incoherent fixture. Let
+   the agent acquire facts through supported files or queries; do not replace
+   discovery with a prepared findings list. Query returns can contain legitimate
+   task facts, but assessment conclusions stay private. Any local tool or adapter
+   must accept both correct and incorrect actions, record the actual submitted
+   arguments or artifacts, and not enforce the desired result. Extra scenarios
+   or trial sets require separate approval.
+5. **Private notes.** Outside every trial input, in the private `0700`
+   directory, record with mode `0600`: the goal → capability → premise →
+   case mapping; why each case was selected; evidence that establishes whether
+   each condition was reached, missed, or remains unknown; separate criteria for
+   supported, contradicted, or insufficient-evidence outcomes for every case;
+   cross-case cues and interactions; capabilities left untested; task wording or
+   tool design that makes one action easier; and deviations from the original
+   project, including replaced base files. Combined cases are not independent
+   experiments. These are notes, not a schema, and never enter trials, the task,
+   or `--purpose-file`.
+
+Ask the user only when a material requirement cannot be reached from the
+change, project, or conversation. Do not require an incident or an existing
+eval.
+
+## Preflight
+
+Before spending trial calls, check the actual environment the trials will use,
+under the host's intended permissions:
+
+- The selected After bytes and the Before content or verified absence are
+  available; every reference required by either version is in the trial base.
+  Exactly the selected instruction differs between variants.
+- Exercise the required reads, queries, local tests, artifact writes and safe
+  action recording in scratch copies under the intended host tools and
+  permissions. Confirm consistent facts and authoritative sources, including
+  time when needed. Do not assume subagent dispatch or approvals exist.
+- Represent relevant branch/remote state, permissions and existing user work
+  explicitly. Use safe local artifacts for modeled publication; never include
+  credentials or perform real external effects merely to test an instruction.
+- Private context (purpose, source, notes, criteria) must not enter the trial
+  base. The runner removes the specified purpose and source files, but does
+  not find arbitrary evaluator files. Stage with `--exclude` for other private
+  paths; use reviewed existing task data when no new data is needed. If safe
+  staging is unsupported, stop rather than silently leak.
+
+Run probes in scratch copies only. A probe may exercise discovery queries to
+check the environment, but must not deposit its findings in trial inputs or
+change the original project or frozen stage. The trial still performs discovery
+itself. If a required capability or premise is missing, stop and report it.
+Do not substitute a generic simulator or fabricate approvals. A deliberately
+modeled limitation is part of the scenario; an accidental harness failure is not.
+
+## Freeze
+
+Before launch, freeze privately: the task text, purpose, source, data or
+stage, required references, tool behavior, private notes and criteria, the
+agent and model, extraction host and model, reasoning settings when known,
+`--fast` choice, and the preparation model. Record a readable inventory with
+digests (for example `shasum -a 256`) in the private directory. Do not infer
+reasoning effort from a model name.
+
+`prepare_shared.py verify` freezes only the staged project and Before. It does
+not hash the task, purpose, source, notes, or tooling; recompute your
+inventory digests immediately before launch and stop if any differ.
+
+Keep the default three trials per side, or `--fast` only when the user asked.
+More cases do not add runs; a richer scenario may still use more tokens per
+trial. Stop preparation workers before launch. Keep the first result. Do not
+change cases, data, or criteria after seeing outcomes, and do not rerun to
+produce a finding.
+
+## Assess the result
+
+After the run, read raw trial evidence: actions, tool returns, and produced
+artifacts, not only final answers. For every case in every trial, separately
+record whether the condition was reached, missed, or unknown and whether its
+intended outcome was supported, contradicted, or lacked sufficient evidence.
+Then assess each goal without hiding missed cases or minority outcomes.
+Check each trial's status, CLI exit and available native host terminal events
+before treating normalized final text as a completed answer. A failed turn can
+leave only an earlier progress message in that field. Keep interruptions,
+provider errors and harness failures separate from requirement failures.
+Nonempty error or progress text is not completion; a child's successful return
+does not prove its caller finished the workflow.
+Before and After can behave identically while After still fails its new goal;
+report the unmet After goal alongside the unchanged behavior. State where this
+raw assessment agrees or disagrees with the automatic report, and disclose
+untested capabilities. Never edit an existing report to match the audit.
 
 ## When to deliver shared data
 
@@ -12,13 +142,12 @@ The runner builds each trial from the project base. In a Git project, the base
 is `git archive HEAD`. Outside Git, the base is a copy of the folder. Apart from
 the selected instruction, untracked and uncommitted Git files do not enter trials.
 
-Use shared-data delivery only when all of these conditions are true:
+Use shared-data delivery when the comparison changes exactly one instruction
+file, every Before and After trial must receive the same files, and either the
+task needs files that are not in the project base or private context in the
+project base must be kept out of trials.
 
-- The task needs common files that are not in the project base.
-- Every Before and After trial must receive the same files.
-- The comparison changes exactly one instruction file.
-
-If the task needs no extra files, use the normal step 3 command instead.
+If neither applies, use the normal step 3 command instead.
 
 Do not use this path for:
 
@@ -41,9 +170,9 @@ reach the trials.
    evaluator notes. Review every file before preparation. The helper rejects
    unsafe file types and paths. It does not scan contents for secrets or
    private text.
-   Shared paths replace matching base files. Record the intended deviations
-   from the original project, including any replaced base files, in private
-   preparation notes outside the trial inputs before staging.
+   Shared paths replace matching base files; record them in the private
+   notes. When staging only to exclude private context, the data directory
+   holds reviewed existing project data that the task needs.
 2. **Private context.** Keep the purpose file, the source file, and evaluator
    notes in a private directory with mode `0700`, outside the project, the data
    directory, and the stage. Give each file mode `0600`. If the project already
@@ -179,10 +308,10 @@ local names, not original revisions.
 
 ## Freeze discipline
 
-- After `verify` passes, treat the stage, task, purpose, and source as frozen.
-  Stop any preparation worker before launch. No agent may edit
-  `$ROOT/project/`, `$ROOT/before`, `$ROOT/home/baselines/`, `freeze.json`, or
-  the runner and its scripts.
+- After `verify` passes and your inventory digests match, treat the stage,
+  task, purpose, source, notes, and settings as frozen. See [Freeze](#freeze).
+  No agent may edit `$ROOT/project/`, `$ROOT/before`, `$ROOT/home/baselines/`,
+  `freeze.json`, or the runner and its scripts.
 - To change the data, prepare a new stage and run a new comparison. Never
   prepare a new stage or edit data to turn a negative or inconclusive result
   into a finding. Keep and report the first results.
