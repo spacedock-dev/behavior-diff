@@ -23,6 +23,14 @@ scripts handle execution, evidence, and reporting.
 +----------------------------+----------------------------+
                              v
 +---------------------------------------------------------+
+| Conditional shared-data delivery                        |
+| Only when the task needs files the project base lacks:  |
+| prepare_shared.py freezes project, Before, and home;    |
+| verify passes immediately before launch                 |
+| Otherwise the runner starts from the user's project     |
++----------------------------+----------------------------+
+                             v
++---------------------------------------------------------+
 | Trial execution                                         |
 | behavior-diff.sh builds independent Before/After copies |
 | run-trial.sh runs the same task/model in each copy      |
@@ -111,7 +119,11 @@ remain the only source of that guidance.
 
 The skill selects the trial host and model, calls the runner, and explains the
 result. It owns scenario quality and interpretation, not filesystem copying or
-report formatting.
+report formatting. When the task needs common files that the project base
+lacks, the skill reviews files that the user supplied or approved and delivers
+them through a frozen stage (see
+[Shared-data delivery](#shared-data-delivery)). The skill does not generate the
+scenario or the data.
 
 Before execution, the skill records distinct concise goals and their provenance
 (`session`, `commit`, or `diff`; `explicit` or `inferred`) in a reviewed purpose
@@ -260,7 +272,58 @@ The configuration records the target path, scenario, Before/After labels, and
 validated `purpose`. `--purpose-file` is frozen before trials and excluded from
 trial copies, including when supplied from within the source project.
 Uncommitted setup files do not enter Git-based trials. Required task state must
-already exist in the base project or in a deliberately prepared fixture.
+already exist in the base project, in a deliberately prepared fixture, or in a
+shared-data stage.
+
+### Shared-data delivery
+
+The private helper
+[`prepare_shared.py`](../plugin/skills/behavior-diff/scripts/prepare_shared.py)
+delivers a reviewed data directory to every trial without changing the user's
+checkout or adding runner options. It does not generate data, launch models,
+or infer provenance.
+
+```text
+Project base (Git HEAD or folder copy) --+
+Reviewed data directory -----------------+--> stage/project: scratch commit
+Selected Before (HEAD, file, or absent) -+     + After in the working tree
+   minus --exclude paths                       stage/before: present Before
+                                               stage/home: ABSENT marker
+                                               stage/freeze.json
+                                                       |
+                       verify, then behavior-diff.sh from stage/project
+                       with BEHAVIOR_DIFF_HOME=stage/home
+                       and --before-file stage/before when present
+```
+
+`prepare` resolves Before in the runner's order: an explicit file, the target
+in Git HEAD, then the newest hook baseline. Only a store entry can mean
+`ABSENT`. It copies the base, the data, and the selected Before into a new
+scratch Git repository and commits them. The repository has no remote, and its
+hooks and signing are off. The helper then writes After into the working tree.
+A present Before, from HEAD or a file, is also frozen as the stage's `before`
+file outside the scratch project. The skill passes that file to the runner
+with `--before-file`, so the report labels Before with the frozen file rather
+than a scratch commit. An absent Before has no such file; it receives a marker
+in the stage's `home/baselines/`, and the runner resolves it there. The
+existing runner then builds every trial from the scratch commit, unchanged.
+
+The helper rejects links, special files, Git internals, submodules, unsafe or
+colliding paths, data that replaces the instruction or an excluded path, and
+inputs over `BEHAVIOR_DIFF_COPY_CAP_KB`. The caller excludes in-project purpose,
+source, and evaluator files with `--exclude`. `prepare` also requires
+`git archive` of the scratch commit to match the expected files. Therefore,
+`.gitattributes` rules such as `export-ignore`, `export-subst`, or filters that
+change archived files fail before launch.
+
+`freeze.json` records the original project and commit, the target, the Before
+mode, the scratch commit, exclusions, and the content and executable bit of
+every archived and working file. `verify` compares the stage, including the
+frozen Before file or absent marker, with this record immediately before
+launch. The freeze detects changes. It is not a sandbox, and the stage files
+are not read-only. Source provenance still names the original repository and
+revisions, never scratch commits. Runs and reports stay under the stage's
+`home/runs/`.
 
 ### Trial execution sequence
 
@@ -741,6 +804,11 @@ State lives under `${BEHAVIOR_DIFF_HOME:-~/.behavior-diff}/`:
   completion grades, extracted decisions, and generated reports.
 - `human-evaluations/`: private source snapshots, frozen scenarios/questions,
   original reports, quiz projections, and human submissions for manual evaluations.
+
+A shared-data run uses its own stage instead: `project/` (the scratch base),
+`before` (a present Before version), `home/` (its `BEHAVIOR_DIFF_HOME`, with
+any `ABSENT` marker and its runs), and `freeze.json`. The stage stays after the
+run because it holds the reports.
 
 The runner prepares copies without changing the source project. Separate
 working directories are not a universal security sandbox. Tool restrictions
