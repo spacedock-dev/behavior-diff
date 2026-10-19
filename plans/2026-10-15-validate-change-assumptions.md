@@ -236,6 +236,75 @@ not later fixes, previous fixtures, outcomes, or a suggested failure mechanism.
 Keep the historical skill bundle and trial budget fixed so the new preparation
 does not become a hindsight-guided attempt to manufacture a finding.
 
+## Next phase: main-goal comparison and public-repository survey
+
+Status: proposed experiment, not a shipped feature or a demonstrated improvement.
+
+Extend change-intent validation with a second question: does the modification
+preserve the skill's main goal? The main goal is the user outcome the skill is
+meant to achieve; change intent is what this particular edit aims to improve.
+A modification should preserve that goal unless changing it is intentional.
+
+### Proposed preparation signal
+
+1. Identify the Before goal, the modification's intent, and the After goal from
+   contemporary sources. Cite the supporting instructions and distinguish
+   explicit statements from inference. Wording changes alone are not goal changes.
+2. If the goal changes, check whether the PR or commit explains that change.
+   An intended change is valid; assess it against the new goal. An unexplained
+   shift is a review signal, not a confirmed defect.
+3. Also check whether the edit weakens instructions needed to achieve an
+   unchanged goal. Goal stability alone does not establish behavior preservation.
+4. For an unexplained shift or weakened requirement, test allocating more
+   reasoning to scenario and edge-case data generation. Target what should
+   remain true as well as what should change. Retain ordinary cases and bounded
+   edge coverage; do not expand into exhaustive test generation.
+
+The additional reasoning is a hypothesis, not an automatic product policy.
+Goal extraction is itself a model judgment. Before using it as a cost trigger,
+check its judgments against manually inspected historical edits, including
+wording-only changes, and record unsupported goal-change flags.
+
+### Public-repository survey
+
+Start with the existing public skill history and change-frequency inventories.
+Prioritize actively maintained, frequently updated skills with a recoverable
+Before/After source bundle, clear contemporary intent, and behavior that can
+be observed in a bounded simulation.
+
+For each candidate, record:
+
+- Public repository, skill path, original PR or commit, and exact revisions.
+- The skill's main goal, the change intent, and outcomes that should be preserved.
+- Evidence for a possible goal shift or weakened requirement, including uncertainty.
+- Required tools, data, setup work, and a proposed execution model.
+- Any later issue or correction, stored separately from preparation inputs.
+
+Later fixes can help select historical cases, but must not supply scenarios,
+test data, or expected answers to preparation. Include ordinary and wording-only
+changes rather than selecting only known failures. Preserve negative results.
+Keep private source details and raw evidence in ignored local storage, not here.
+
+### Verification after selection
+
+Freeze the current intention-driven preparation method as the baseline. Compare
+it with goal-aware preparation on the same selected changes. Keep source access,
+execution model, tools, trial count, and assessment criteria comparable; scenario
+and data are the preparation outputs being compared. Record any increased
+preparation reasoning and cost explicitly.
+
+Evaluate whether the proposed method exposes additional evidence-backed unmet
+intentions or preservation failures, rather than merely generating more cases
+or warnings. Audit actual behavior separately from automatic report findings.
+Use the intended user's execution model and record frontier-model results
+without assuming that stronger reasoning will reveal more failures.
+
+Before trials, set a bounded case count, time limit, and cost ceiling. Record
+setup effort, unsupported flags, neutral outcomes, and useful findings. If the
+method adds cost without useful evidence, revisit the hypothesis rather than
+retuning cases around known later fixes. This update records the next plan;
+it does not report a completed public survey or launch new trials.
+
 ## Evidence limits
 
 Conclusions apply to the tested scenario, data, model, and environment. Matching
@@ -939,3 +1008,49 @@ The simulation outputs expose this gap, but the automatic report did not
 identify it. End-to-end automatic validation remains unproven until the report
 can assess the required behavior and resulting claims using sufficient source
 evidence. No additional experiment was run for this interpretation.
+
+### Public workflow replay: EveryInc lfg PR #1702
+
+The owner selected [PR #1702](https://github.com/EveryInc/compound-engineering-plugin/pull/1702)
+and Fable 5.1 at low effort. Isolated preparation used the original PR, its
+parent and changed source snapshots, and the existing intention-driven recipe.
+Later fixes and the survey's failure descriptions were not supplied. This did
+not test the proposed adaptive main-goal preparation arm.
+
+The generated scenario asked the workflow to fix a referenced issue in a small
+synthetic project. Data covered a real rounding defect, issue/comment discovery,
+a main-branch start, an unrelated existing plan, and user-owned uncommitted and
+untracked files. A local remote and GitHub adapter supported observable delivery
+without external mutation. Both historical plugin closures were loaded through
+Claude Code; a private multi-file driver used the unchanged product trial,
+assessment and rendering scripts.
+
+Three trials per side were launched with `claude-fable-5-1`, low effort.
+All observed Before trials routed through planning; all After trials routed
+directly to debugging. Two After trials continued into code review before
+interruption. One After trial completed normally immediately after the debugging
+skill's structured fixed return. It implemented and locally committed the fix
+but did not continue to the required code review or PR delivery. The underlying
+fix matched independent rounding checks, and unrelated user files remained
+intact. Thus the finding is an unmet workflow-preservation requirement, not a
+failure to repair the synthetic bug.
+
+Five trials were interrupted by provider account limits, and extraction failed.
+Their unfinished workflows are not skill failures. No complete Before/After
+completion-rate comparison or automatic detection claim is supported. The one
+normally terminating After trial supplies a bounded positive observation of a
+missing continuation. The later [PR #1715](https://github.com/EveryInc/compound-engineering-plugin/pull/1715)
+describes the same failure class; its patch was not tested here.
+
+Runtime limits include unavailable cross-provider review and web access,
+headless operation, a simulated GitHub service, and no real CI lifecycle.
+The runtime worker also edited the orchestration driver after launch. All six
+generated trial configurations were consistent and their plugin hashes matched
+the frozen sources, but the exact original driver bytes were not retained.
+The enclosing shell failed after report generation. This provenance defect is
+recorded separately from the skill observation. Independent audit workers were
+rate-limited; the parent audited actual calls and artifacts directly.
+
+Raw evidence, detailed assessment and the fallback report remain local. No
+scenario retuning or rerun followed these results. A complete paired comparison
+requires restored provider capacity and the same frozen preparation inputs.
