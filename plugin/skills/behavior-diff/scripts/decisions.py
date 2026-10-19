@@ -1030,7 +1030,8 @@ def _codex(prompt, model):
 
 def _claude(prompt, model):
     proc = subprocess.run(
-        ["claude", "-p", prompt, "--model", model, "--allowedTools", ""],
+        ["claude", "-p", "--model", model, "--allowedTools", ""],
+        input=prompt,
         capture_output=True,
         text=True,
     )

@@ -2,10 +2,11 @@
 
 Date: 2026-10-19
 Status: PR 1 merged as [#49](https://github.com/spacedock-dev/behavior-diff/pull/49).
-PR 2 is implemented locally. Deterministic checks, both native-host smoke paths
-and independent source/evidence reviews passed the bounded acceptance gate.
-Publication still requires the user's request. Report assessment/UI work remains
-deferred. Do not repeat the public survey or retune old cases.
+PR 2 is published as [#50](https://github.com/spacedock-dev/behavior-diff/pull/50).
+Preparation checks, both native-host smoke paths and independent source/evidence
+reviews passed the bounded acceptance gate. Merge awaits corrected dogfood CI.
+Report assessment/UI work remains deferred. Do not repeat the public survey or
+retune old cases.
 
 ## 1. User request and product decision
 
@@ -394,7 +395,7 @@ only after observing results from the completed preparation workflow.
 | Stage | Deliverable | Dependency | Status |
 |---|---|---|---|
 | PR 1 | Deliver prepared shared data to real Before/After snapshots safely | None | Merged as #49; deterministic checks, independent review and corrected dogfood CI passed |
-| PR 2 | Generate and preflight scenario/data from intent, then execute and explain evidence | PR 1 | Implemented and independently approved locally; not yet published |
+| PR 2 | Generate and preflight scenario/data from intent, then execute and explain evidence | PR 1 | Published as #50; independently approved; corrected dogfood CI remains the merge gate |
 | Preparation acceptance gate | Verify the integrated workflow against AC1–AC10 | PR 2 | Passed at bounded two-host evidence level; limitations retained below |
 | Report design checkpoint | Decide what actual results need the report to communicate | Preparation acceptance gate | Deferred; requires user design review |
 | Later report PR(s) | Implement only the agreed assessment/presentation changes | Accepted report design | Not scoped or authorized by this plan |
@@ -488,7 +489,8 @@ data, preflight/freeze them, run the comparison, and explain the observed outcom
   capabilities visibly blocked instead of silently narrowing the experiment.
 - Update the skill's result explanation to cover condition reach, unmet After
   intent, interruptions and raw-evidence versus automatic-report differences.
-  Do not change the report renderer, extractor or report schema in this PR.
+  Do not redesign the report renderer, extraction semantics or report schema.
+  The later user-authorized CI correction below changes prompt transport only.
 - Update the full workflow/flowchart and product explanation in the same PR.
   Add or adjust deterministic tests only for changed behavioral contracts.
 
@@ -515,7 +517,10 @@ the real generator exposes a delivery defect.
 
 - Canonical skill and its reference now own intent-driven preparation and
   per-case raw assessment. README and architecture describe that workflow.
-  Delivery scripts, report schemas, extractor and renderer are unchanged.
+  Delivery scripts, report schemas and renderer are unchanged.
+  A post-publication CI correction sends Claude extraction prompts over stdin
+  instead of argv to avoid Linux's per-argument size limit. Prompt contents,
+  models, extraction semantics and failure handling remain unchanged.
   Removed affected wording-only assertions instead of pinning the new prose.
 - Required deterministic suites passed, including 31 shared-data checks with
   runner smoke. Repository Bash/Python formatting, changed-shell syntax and

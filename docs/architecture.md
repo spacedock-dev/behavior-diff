@@ -380,7 +380,9 @@ The modules below live in the skill's [`scripts/`](../plugin/skills/behavior-dif
 
 - **Model-based interpretation:** `decisions.py` reads the task, trial actions,
   final answers, numbered instruction-diff hunks, frozen purpose, and bounded
-  recorded returns. The same extraction call defines observable target criteria,
+  recorded returns. Extractor prompts travel over stdin, not command-line
+  arguments, so large comparisons do not hit the operating system's per-argument
+  size limit. The same extraction call defines observable target criteria,
   required evidence, and per-trial outcomes (`met`, `not_met`, `uncertain`, or
   `unassessable`), alongside choices, primary task result, narrative, and attention.
   Criteria cover every purpose goal and use the same question on both sides.
