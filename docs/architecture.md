@@ -239,6 +239,12 @@ instruction versions without asking a model to rewrite either version.
    the shared `task.md`, and the selected model. The runner starts all trials
    as background processes and waits before analysis.
 
+`run-trial.sh` gives every host a trial-local `BEHAVIOR_DIFF_HOME` at
+`<trial>/behavior-diff-home`, outside `project/`. Nested comparisons and hook
+baselines cannot populate the orchestrator's run directory or another trial's
+store through the inherited variable. This applies to Claude Code, Codex, Pi,
+and OMP; it isolates storage defaults, not filesystem access.
+
 Each side contains `N` independent copies, not one shared directory:
 
 ```text

@@ -460,6 +460,19 @@ class SharedDataBoundaryTests(Fixtures, unittest.TestCase):
         self.assertEqual(archived[TARGET], (EXPLICIT, False))
         self.assertNotIn("drafts/old-CLAUDE.md", self.working_files(stage / "project"))
 
+    def test_empty_home_override_uses_default_hook_baseline(self):
+        project = self.folder("project", {TARGET: AFTER})
+        data = self.folder("data", SHARED)
+        self.store_home = self.home / ".behavior-diff"
+        self.store_entry(project / TARGET, "20260101-000000", BEFORE, 1000)
+        self.env["BEHAVIOR_DIFF_HOME"] = ""
+        original = self.original_state(project, data, self.store_home)
+        stage = self.staged(project, data)
+        self.assertEqual((stage / "before").read_bytes(), BEFORE)
+        self.assertEqual(self.archive_files(stage / "project")[TARGET][0], BEFORE)
+        self.assertEqual((stage / "project" / TARGET).read_bytes(), AFTER)
+        self.assertEqual(self.original_state(project, data, self.store_home), original)
+
     def test_hook_baseline_uses_newest_visible_entry_under_percent_encoded_key(self):
         project = self.folder(
             "pct%dir", {TARGET: AFTER, "notes.md": b"Synthetic notes.\n"}
@@ -851,7 +864,7 @@ class SharedDataBoundaryTests(Fixtures, unittest.TestCase):
 
 
 FAKE_HOST = r"""
-import json, os, shlex, sys
+import json, os, shlex, subprocess, sys, tempfile
 from pathlib import Path
 
 host, args = sys.argv[1], sys.argv[2:]
@@ -885,7 +898,30 @@ def emit(event):
     sys.stdout.write(json.dumps(event) + "\n")
 
 
+def nested_comparison():
+    runner = os.environ.get("FAKE_NESTED_RUNNER")
+    if not runner:
+        return
+    # Exercise real nested runner allocation, not just echo its environment.
+    with tempfile.TemporaryDirectory(dir=Path.cwd().parent) as temporary:
+        root = Path(temporary)
+        project = root / "project"
+        project.mkdir()
+        (project / "CLAUDE.md").write_text("Synthetic new rule.\n")
+        before = root / "before.md"
+        before.write_text("Synthetic old rule.\n")
+        env = dict(os.environ)
+        del env["FAKE_NESTED_RUNNER"]
+        env["FAKE_HOST_LOG"] = str(root / "nested-host.jsonl")
+        subprocess.run(
+            ["bash", runner, "--file", "CLAUDE.md", "--before-file", str(before),
+             "--task", "Read the rules.", "--agent", host, "--model", "synthetic",
+             "--extract-model", "synthetic", "--fast"],
+            cwd=project, env=env, check=True, capture_output=True, timeout=120)
+
+
 def claude_trial():
+    nested_comparison()
     record("trial", option("--model"))
     emit({"type": "system", "subtype": "init", "session_id": "synthetic",
           "model": option("--model")})
@@ -905,6 +941,7 @@ def claude_trial():
 
 
 def codex_trial():
+    nested_comparison()
     record("trial", option("-m"))
     emit({"type": "thread.started", "thread_id": "synthetic"})
     emit({"type": "turn.started"})
@@ -1113,6 +1150,26 @@ class RunnerSmokeTests(Fixtures, unittest.TestCase):
         )
         self.check_run(stage, agent, trials, before, purpose)
         self.assertEqual(self.original_state(project, data, self.store_home), original)
+
+    def nested_smoke(self, agent):
+        self.env["FAKE_NESTED_RUNNER"] = str(RUNNER)
+        self.smoke(agent, 1)
+        stage = self.tmp / "stage-1"
+        (outer,) = (stage / "home/runs").iterdir()
+        for side in ("before", "after"):
+            trial = outer / f"{side}-1"
+            (nested,) = (trial / "behavior-diff-home/runs").iterdir()
+            self.assertTrue((nested / "report.html").is_file())
+            self.assertEqual(
+                (nested / "grades.tsv").read_text().splitlines(),
+                ["before-1\tREVIEW\t-", "after-1\tREVIEW\t-"],
+            )
+
+    def test_claude_nested_comparisons_preserve_outer_evidence(self):
+        self.nested_smoke("claude")
+
+    def test_codex_nested_comparisons_preserve_outer_evidence(self):
+        self.nested_smoke("codex")
 
     def test_unsafe_git_environment_blocks_runner_handoff(self):
         project, data = self.standard()

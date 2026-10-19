@@ -265,7 +265,7 @@ def prepare(args):
         raise PreparationError("the selected instruction cannot be excluded")
     after = safe_file(project, target)
     home = Path(
-        os.environ.get("BEHAVIOR_DIFF_HOME", str(Path.home() / ".behavior-diff"))
+        os.environ.get("BEHAVIOR_DIFF_HOME") or str(Path.home() / ".behavior-diff")
     ).resolve()
     before_file = None
     if args.before_file:

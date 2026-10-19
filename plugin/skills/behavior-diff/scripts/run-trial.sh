@@ -76,6 +76,10 @@ cd "$dir"
 # trial — otherwise a user-scope install would nudge itself recursively.
 export BEHAVIOR_DIFF_TRIAL=1
 
+# A skill may start another comparison. Keep its runs and baselines out of the
+# orchestrator's home and other trials, including when both share the same HOME.
+export BEHAVIOR_DIFF_HOME="$trace_dir/behavior-diff-home"
+
 normalize_pi_omp_json() { # $1 = raw Pi or OMP JSONL
   local raw=$1
   jq -c '
