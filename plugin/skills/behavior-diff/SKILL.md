@@ -13,11 +13,12 @@ no automatic verdict. The user judges the evidence.
 ## Ownership
 
 The skill owns judgment. It finds the change, freezes its purpose, drafts the
-decision-moment task, selects the current trial stack and model, and explains
-the evidence.
+decision-moment task, reviews any shared trial data, selects the current trial
+stack and model, and explains the evidence.
 
-The scripts own repeatable mechanics. They build variants, run trials,
-normalize traces, grade completeness, extract decisions, and render the report.
+The scripts own repeatable mechanics. They stage and verify reviewed shared
+data, build variants, run trials, normalize traces, grade completeness, extract
+decisions, and render the report.
 
 The runner is bundled with this skill: `scripts/behavior-diff.sh` inside
 this skill's base directory. Pass `--agent` for the stack under test:
@@ -201,10 +202,18 @@ the single-role or two-agent path. Create the fixtures with
      nothing.
    - When the rule fires mid-task, start the task at the decision point:
      "You already did X (it is in the tree); decide/report Y."
+   - **Shared data.** If the decision moment needs common files that the
+     project base does not contain, read
+     `references/scenario-and-test-data.md` inside this skill's base
+     directory before running. Git trials start from HEAD, so additional
+     untracked or uncommitted data in the user's checkout never reaches them. That
+     reference delivers files the user supplied or approved to every trial.
+     It does not generate a scenario or data.
 
-3. **Run it as soon as the task is known.** Do not ask the user to confirm
-   the file, task, cost, or run mode. Do not mention trial counts, cost, or
-   full versus fast modes during normal execution.
+3. **Run it as soon as the task is known and any shared data is verified.**
+   Do not ask the user to confirm the file, task, cost, or run mode. Do not
+   mention trial counts, cost, or full versus fast modes during normal
+   execution.
    First satisfy the privacy and sensitive-content approval boundary above;
    automatic execution never overrides it.
 
@@ -242,6 +251,16 @@ the single-role or two-agent path. Create the fixtures with
    copies, and freezes it in report configuration for the report header. It
    does not look anything up. Never put source details in `--task`, a trial
    prompt, or a sandbox file.
+
+   **Shared data.** When step 2 selected shared data, do not run the commands
+   above from the user's checkout. Prepare and verify the stage with
+   `references/scenario-and-test-data.md`, then run the same runner command
+   from `$ROOT/project` with `$ROOT/home` as `BEHAVIOR_DIFF_HOME`, exactly
+   as that reference shows. Keep the same agent, model, `--fast`, purpose,
+   and source choices. Pass `--before-file` only as the stage's frozen
+   `before` file, and only when it exists; never pass the original Before
+   path. If preparation or verification fails, stop and report the reason;
+   do not launch the run.
 
    **Keep the run handle.** Use the host's background-execution facility when
    available so other work can continue. Retain the exact run directory printed
@@ -301,7 +320,9 @@ the single-role or two-agent path. Create the fixtures with
 ## Boundaries
 
 - The runner never modifies the user's repo; reports and traces stay
-  local under the runs root above.
+  local under the runs root above. Staged shared-data runs keep them under
+  the stage's `home/runs/`.
+- Never write, stage, stash, or commit shared data in the user's checkout.
 - The report quotes the user's real code. Never publish it anywhere
   without the user reviewing it first.
 - Do not edit the user's instruction file yourself — this skill only

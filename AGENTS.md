@@ -89,6 +89,7 @@ For the full deterministic suite, run:
 ```bash
 bash tests/hooks-test.sh
 python3 plugin/skills/behavior-diff/scripts/decisions.py --check
+python3 tests/shared-data-test.py
 bash tests/live-report-contract.sh
 python3 tests/source-provenance-test.py
 python3 tests/report-source-test.py

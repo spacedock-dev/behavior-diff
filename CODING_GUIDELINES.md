@@ -190,10 +190,12 @@ python3 -m py_compile \
   .agents/skills/release-behavior-diff/scripts/bump-version.py \
   plugin/skills/behavior-diff/scripts/codex_model.py \
   plugin/skills/behavior-diff/scripts/decisions.py \
+  plugin/skills/behavior-diff/scripts/prepare_shared.py \
   plugin/skills/behavior-diff/scripts/render.py \
   plugin/skills/behavior-diff/scripts/reporting/*.py
 bash tests/hooks-test.sh
 python3 plugin/skills/behavior-diff/scripts/decisions.py --check
+python3 tests/shared-data-test.py
 bash tests/live-report-contract.sh
 bash tests/release-workflow-test.sh
 python3 .agents/skills/release-behavior-diff/scripts/bump-version.py --check

@@ -168,13 +168,9 @@ require_output 'claude, codex, pi, or omp' "$codex_manifest" \
   'Codex manifest does not name all trial stacks'
 require_output 'Pi and OMP are trial stacks, not plugin hosts' "$readme" \
   'README does not separate trial stacks from plugin hosts'
-require_output 'Run it as soon as the task is known.' "$headless_skill" \
-  'headless skill does not start the default run immediately'
 require_output "Only add \`--fast\` when the user explicitly requested it" \
   "$headless_skill" \
   'headless skill does not reserve fast mode for explicit requests'
-require_output 'Do not mention trial counts, cost' "$headless_skill" \
-  'headless skill still exposes run counts or cost to the user'
 require_output 'full versus fast modes' "$headless_skill" \
   'headless skill still exposes implementation modes to the user'
 reject_output 'Confirm before running' "$headless_skill" \

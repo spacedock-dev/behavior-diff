@@ -86,6 +86,7 @@ jobs:
             plugin/skills/behavior-diff/scripts/status.py \
             plugin/skills/behavior-diff/scripts/source.py \
             plugin/skills/behavior-diff/scripts/ci_context.py \
+            plugin/skills/behavior-diff/scripts/prepare_shared.py \
             plugin/skills/behavior-diff/scripts/reporting/*.py
 
       - name: Run hook unit checks
@@ -102,6 +103,9 @@ jobs:
           python3 tests/report-source-test.py
           python3 tests/ci-context-test.py
           python3 tests/report-ci-context-test.py
+
+      - name: Check shared-data preparation boundaries
+        run: python3 tests/shared-data-test.py
 
       - name: Run decision unit check
         run: python3 plugin/skills/behavior-diff/scripts/decisions.py --check

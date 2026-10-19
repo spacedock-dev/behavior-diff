@@ -107,8 +107,34 @@ In Claude Code, you can also run:
 ```
 
 Behavior Diff finds the changed instruction file and uses your request as the
-comparison task. Once the task is known, it runs the comparison and opens the
-report.
+comparison task. Once the task is known, and any shared trial data is verified,
+it runs the comparison and opens the report.
+
+### Shared trial data
+
+Some tasks need files that your project does not contain, such as sample
+inputs. Git-based trials start from your last commit, so untracked or
+uncommitted files in your checkout never reach them. Behavior Diff does not
+generate such data. When you supply or approve the files, the skill can deliver
+them to every trial:
+
+1. A private helper, `prepare_shared.py`, copies your project base, the reviewed
+   data directory, and the selected Before and After instructions into a new
+   private stage outside your project. Your checkout is not changed.
+2. The helper records a freeze of the stage. It checks the freeze again
+   immediately before launch, and it stops when a file changed.
+3. The skill runs the normal runner from the stage. Both sides receive the same
+   data, and only the selected instruction differs.
+
+The helper accepts one instruction file and plain files only. It rejects
+symbolic links, special files, submodules, unsafe paths, inputs over
+`BEHAVIOR_DIFF_COPY_CAP_KB` (default 200 MiB), and Git attributes that change
+archived files. Purpose files, source metadata, and evaluator notes stay out of
+the stage. The helper does not scan data for secrets, so review every shared
+file first. The freeze detects changes, but it is not a sandbox. Reports for a
+staged run stay in the stage under `home/runs/`; keep the stage after the run.
+The [skill reference](plugin/skills/behavior-diff/references/scenario-and-test-data.md)
+contains the complete commands and limits.
 
 ### Trial and extraction models
 
@@ -438,13 +464,17 @@ change.
 
 Behavior Diff runs each side in a separate copy of the project. The after side
 contains only the instruction change that you selected. Other uncommitted files
-do not enter the experiment.
+do not enter the experiment. Reviewed shared trial data, when used, enters both
+sides identically.
 
 Reports stay on your machine under:
 
 ```text
 ${BEHAVIOR_DIFF_HOME:-~/.behavior-diff}/runs/
 ```
+
+A run with [shared trial data](#shared-trial-data) keeps its reports in its
+private stage under `home/runs/`.
 
 A report can quote code and agent output from your project. Review the report
 before you share it.
