@@ -1964,6 +1964,9 @@ def _target_report(run, scenario):
                 "One fictional export change; other release notes are not tested."
             ],
             "checks": [frozen_check],
+            "source_requirements": [
+                {"check": frozen_check["id"], "any_of": ["*implementation.txt*"]}
+            ],
         }
     _write_json(run / "config.json", config)
     if missing:

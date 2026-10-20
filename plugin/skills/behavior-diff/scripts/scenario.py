@@ -42,14 +42,21 @@ def main():
         # Do not expose rejected data or private paths in error messages.
         print(
             "behavior-diff: invalid --scenario-file JSON; use null or "
-            "{summary,rationale,conditions,limitations,checks} with summary "
+            "{summary,rationale,conditions,limitations,checks,"
+            "source_requirements} with summary "
             "<=400 and rationale <=1200 characters, 1..8 conditions and 0..8 "
             "limitations (<=300 each), and 1..16 checks "
             "{id,goal,text,mode,required_evidence,evidence_kind} with unique "
             "ids (<=80), 1-based goal numbers covering every purpose goal, mode "
             "correction|new|change|preservation, evidence_kind "
             "output|source_consistency|recorded_action, text and "
-            "required_evidence <=600; plain text only",
+            "required_evidence <=600; plain text only. source_requirements is "
+            "0..32 distinct {check,any_of} groups naming only "
+            "source_consistency check ids, covering every such check, each "
+            "with 1..8 distinct fnmatch patterns (<=200, no brackets, no edge "
+            "spaces) over recorded source descriptors; each pattern needs a "
+            "literal path, endpoint, or identifier and must not name a "
+            "sensitive source",
             file=sys.stderr,
         )
         return 2

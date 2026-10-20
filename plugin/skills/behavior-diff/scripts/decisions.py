@@ -268,6 +268,13 @@ the trials: its summary, rationale, conditions and limitations state what the
 scenario was designed to test, never what any trial did, read or saw. Judge
 outcomes only from trial records. When the scenario record is null, derive the
 criteria yourself.
+The record's source_requirements bind source-consistency checks to specific recorded
+source descriptors. Each group must have a cited readable source matching one of
+its any_of patterns; multiple groups for a check are all required. If a required
+source is absent, mark that trial unassessable, not met or not_met. A PR description
+cannot substitute for a required code diff. Source patterns constrain provenance,
+not semantic agreement: judge the actual returned content as well. Do not add
+source_requirements or validator rejection fields to your criterion objects.
 Preserve every supplied purpose goal without revising it to fit the results. If
 purpose is null, infer a fallback goal ONLY from the instruction diff and label it
 in intent; never derive purpose from a convenient observed difference.
@@ -399,8 +406,8 @@ Rules:
   is exactly the number of trials you assigned to that branch of the lead row and
   M is that side's completed-trial count; if unsure, say "some" instead.
   Keep supported observations even when a separate accuracy check lacks evidence.
-  The application shows target_assessment with its specific question and limits;
-  it does not use that status to replace the behavioral headline. Do not imply
+  The application derives the target finding from validated target_assessment.
+  An unmet After requirement takes precedence in the report heading. Do not imply
   an incidental difference proves the intended change worked, or that behavior
   already present Before is new.
   When purpose is supplied, prefer the observed behavior most relevant to it,
@@ -1285,9 +1292,21 @@ def write_decisions(run, raw, completed_trial_names, extractor, instruction_diff
     data["counts"] = {side: len(names) for side, names in completed_trial_names.items()}
     data["instruction_diff"] = instruction_diff
     (run / "decisions.json").write_text(json.dumps(data, indent=2))
-    if data["target_rejection"]:
+    rejection_reason = _target_status_reason(data)
+    if rejection_reason:
         (run / "decisions.raw.txt").write_text(raw)
-        print(f"decision diff: target assessment rejected ({data['target_rejection']})")
+        if data["target_rejection"]:
+            print(
+                f"decision diff: target assessment rejected ({data['target_rejection']})"
+            )
+        else:
+            rejected = sum(
+                bool(criterion["rejection"])
+                for criterion in data["target_assessment"]["criteria"]
+            )
+            print(
+                f"decision diff: {rejected} target check(s) rejected; diagnostics retained"
+            )
     n_div = sum(r["diverges"] for r in data["chain"])
     drop_note = (
         f", {data['dropped']} row(s) dropped for inconsistent trial membership"
@@ -1317,6 +1336,18 @@ def record_assessment(run, state, reason=None, *, owner_pid=None):
         print(f"decision diff: assessment status not recorded ({exc})", file=sys.stderr)
 
 
+def _target_status_reason(data):
+    if data["target_rejection"]:
+        return "target_rejected"
+    target = data["target_assessment"]
+    if target is None:
+        return None
+    rejected = [bool(criterion["rejection"]) for criterion in target["criteria"]]
+    if all(rejected):
+        return "target_rejected"
+    return "target_partially_rejected" if any(rejected) else None
+
+
 def assess(run, agent, model):
     """Run CLI extraction; return the (state, reason) outcome to record."""
     prompt, completed_trial_names, instruction_diff = build_prompt(
@@ -1332,7 +1363,7 @@ def assess(run, agent, model):
     data = write_decisions(run, raw, completed_trial_names, extractor, instruction_diff)
     if data is None:
         return "failed", "unusable_output"
-    return "available", "target_rejected" if data["target_rejection"] else None
+    return "available", _target_status_reason(data)
 
 
 def main(run, agent=None, model=None):

@@ -634,14 +634,15 @@ not proof of extractor adherence; do not copy their conclusions into report data
 - Reuse validated target checks, purpose and saved evidence. Repair call-versus-
   return evidence handling, rejection diagnostics and native interruption accounting.
   Do not weaken source-consistency checks or reconstruct private case criteria.
-- Keep HTML, Markdown and schema-18 structured conclusions consistent.
+- Keep HTML, Markdown and schema-19 structured conclusions consistent.
   Understand the change labels model interpretation below the same conclusion.
   The blind quiz excludes new assessment/setup/next-action content while retaining
   observed comparisons; no paid evaluation is part of this change.
 - Verify deterministic contracts and the shipped renderer on synthetic and saved
-  evidence, then complete independent read-only review and open a PR. Saved
-  invalid extractions remain unavailable; showing audited historical findings
-  automatically requires a separately approved fresh extraction, not UI editing.
+  evidence, then complete independent read-only review and open a PR. Saved raw
+  responses may be revalidated without another model call only against the evidence
+  originally supplied to that model. Do not insert manual findings or promote old
+  outcomes using newly collected evidence the model did not receive.
 
 **Earlier presentation-only acceptance boundary**
 
@@ -676,7 +677,7 @@ Tracking: DRC-4835. The approved prototype is temporary and is not a product rou
 - Admit recorded PR view/diff returns through supported execution adapters,
   retaining existing privacy filters, budgets and omission provenance. Never
   fetch current source or treat assessor knowledge as evidence the trial saw.
-- Deliver the record through configuration, extraction, validation and schema 18.
+- Deliver the record through configuration, extraction, validation and schema 19.
   Show the actual task and why its data challenges the aim. Keep frozen
   expectations visible when assessment fails, with no invented outcome.
 - Historical runs without a record remain explicitly unrecorded. A manual
@@ -687,6 +688,24 @@ Tracking: DRC-4835. The approved prototype is temporary and is not a product rou
   then obtain independent review. Fresh model-backed verification needs new
   approval; prior calls do not authorize retries. Keep the PR unmerged until
   the automatic result and user-facing explanation have been verified.
+
+**Approved policy: keep independently validated findings**
+
+- Isolate evidence and quotation failures per check. Keep the rejected check's
+  definition and validator reason, with no trial outcomes or success claim.
+  Do not erase an independently supported After miss because another check failed.
+- Keep global integrity strict: missing, duplicate, foreign or rewritten check
+  definitions still reject the whole assessment. Never repair a model quotation.
+- Freeze required-source descriptor groups from the preparation inventory, before
+  seeing trial outcomes. Source-consistency judgments need cited readable returns
+  matching every required group; a PR description is not an implementation diff.
+  Descriptor matching is a provenance condition, not proof of semantic agreement.
+- Prioritize required sources within existing capture budgets and admit captured
+  unambiguous API GET returns. Preserve privacy exclusions and omission reasons.
+  More available evidence in a new collector does not change an old model outcome.
+- Verify partial, all-rejected and fully supported states through the production
+  validator and renderer. Rejected and uncertain checks remain distinct, and neither
+  becomes an all-pass result. Retain original raw responses and evidence for replay.
 
 ### Step-by-step implementation protocol
 

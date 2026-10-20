@@ -2,13 +2,17 @@
 
 The record is written before trials from private preparation notes. It explains
 how the comparison tested the purpose and fixes the checks the assessment must
-answer. It never contains outcomes and is never a trial input.
+answer. Its source requirements bind each source-consistency check to the
+recorded sources that must ground it; they are frozen configuration, not part
+of a check definition the assessment restates. It never contains outcomes and
+is never a trial input.
 """
 
 from dataclasses import dataclass
 from typing import Tuple
 
 from reporting.explanation import _text
+from reporting.sources import SourceRequirementData, parse_source_requirements
 from reporting.target import EVIDENCE_KINDS, MODES
 
 SUMMARY_LIMIT = 400
@@ -35,6 +39,7 @@ class ScenarioData:
     conditions: Tuple[str, ...]
     limitations: Tuple[str, ...]
     checks: Tuple[ScenarioCheckData, ...]
+    source_requirements: Tuple[SourceRequirementData, ...]
 
 
 def _texts(values, minimum, maximum):
@@ -80,10 +85,15 @@ def parse_scenario(raw, purpose):
         raise ValueError("duplicate scenario check id")
     if {check.goal for check in parsed} != set(range(1, len(purpose) + 1)):
         raise ValueError("scenario checks must cover every purpose goal")
+    requirements = parse_source_requirements(
+        raw["source_requirements"],
+        (check.id for check in parsed if check.evidence_kind == "source_consistency"),
+    )
     return ScenarioData(
         _text(raw["summary"], SUMMARY_LIMIT),
         _text(raw["rationale"], RATIONALE_LIMIT),
         _texts(raw["conditions"], 1, 8),
         _texts(raw["limitations"], 0, 8),
         parsed,
+        requirements,
     )

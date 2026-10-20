@@ -465,6 +465,12 @@ def _target_explanation_markdown(report):
                 + "\n",
                 f"**Required evidence:** {_text(criterion.required_evidence)}\n",
             ]
+            if criterion.rejection is not None:
+                lines += [
+                    f"Goal {criterion.goal} · {_text(criterion.mode)}\n",
+                    f"**{_text(content.criterion_rejection_text(criterion))}**\n",
+                ]
+                continue
             lines += [
                 "<details><summary>Trial-by-trial reasoning and sources</summary>\n",
                 f"Goal {criterion.goal} · {_text(criterion.mode)}\n",

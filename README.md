@@ -229,10 +229,15 @@ for its fields and privacy boundary.
 
 The assessor must evaluate every frozen check without changing its definition.
 Reading a PR description and checking the implementation are separate checks;
-one cannot stand in for the other. A missing or rejected assessment leaves those
-checks visible as **Not assessed**, not passed. Runs without a scenario record
-show missing setup information explicitly and identify any criteria written by
-the assessor after the trials.
+one cannot stand in for the other. Each source-consistency check also names its
+required recorded sources. These sources get priority within the existing evidence
+budget; an unrelated readable file cannot substitute for them.
+
+Invalid evidence rejects only the affected check, which stays **Not assessed** with
+its reason. Other validated findings remain visible. Missing, duplicate or rewritten
+check definitions still reject the whole assessment. Partial coverage never becomes
+an all-pass result. Runs without a scenario record show missing setup information
+explicitly and identify any criteria written by the assessor after the trials.
 
 ### Report wording
 
@@ -455,17 +460,20 @@ Expected behavior is labeled as supplied, or explicitly unavailable. The evidenc
 limits state trial counts, provenance, and grading limits. Self-reported actions
 remain distinct from captured tool calls.
 
-The structured `report-data.json` uses schema version 18, including per-group
+The structured `report-data.json` uses schema version 19, including per-group
 `decisions.trial_summaries`, assessment-derived `summary.state`, `summary.meaning`,
 `summary.checks` and `summary.next_action`, sourced instruction `intent`,
 saved `content.task`, optional narrative, nullable `metadata.source` and
 `metadata.ci_context`, and `edit_hunks`. `decisions.target_rejection` explains
-a rejected target assessment without dropping the underlying evidence. The optional
+a rejected whole assessment without dropping underlying evidence. Individual
+`target_assessment.criteria[].rejection` values retain check-local diagnostics,
+with empty outcome arrays rather than invented uncertain results. The optional
 `decisions.purpose_summary` gives the Summary a short, labeled paraphrase of
 the frozen goals; Instruction changes retains their complete text and provenance.
-`decisions.scenario_record` carries the validated setup and frozen checks from run
-configuration. The Summary explains the test rationale and conditions even when
-the automatic assessment is unavailable. These expectations are not trial evidence.
+`decisions.scenario_record` carries the validated setup, frozen checks and required
+source groups from run configuration. The Summary explains the test rationale and
+conditions even when the automatic assessment is unavailable. These expectations
+are not trial evidence.
 The task comes from the run's `task.md`, or the capsule's copy
 when absent from the run. A scenario description never replaces missing task text.
 Regenerate reports from their original run artifacts;

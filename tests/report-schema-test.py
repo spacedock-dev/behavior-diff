@@ -43,7 +43,7 @@ from presentation_contract import (  # noqa: E402
 
 def synthetic_raw():
     raw = {
-        "schema_version": 18,
+        "schema_version": 19,
         "metadata": {
             "model": "synthetic/model",
             "mode": "review",
@@ -405,6 +405,7 @@ def scenario_record(payload=""):
                 "evidence_kind": "output",
             }
         ],
+        "source_requirements": [],
     }
 
 
@@ -434,6 +435,7 @@ def scenario_target(record, after_outcome="met"):
                 "decisions": [2],
                 "before": side("before", "not_met"),
                 "after": side("after", after_outcome),
+                "rejection": None,
             }
             for check in record["checks"]
         ]
@@ -3253,7 +3255,7 @@ def main():
     assert_rejected(dict(raw, schema_version=9))
     assert_rejected(dict(raw, schema_version=10))
     # Earlier report-data shapes are rejected; saved runs regenerate from decisions.
-    for version in (11, 12, 13, 14, 15, 16, 17):
+    for version in (11, 12, 13, 14, 15, 16, 17, 18):
         assert_rejected(dict(raw, schema_version=version))
     assert_rejected(dict(raw, schema_version=True))
     assert_rejected(dict(raw, schema_version=1.0))

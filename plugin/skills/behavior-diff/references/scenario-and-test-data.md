@@ -59,19 +59,21 @@ limit: isolation does not remove historical selection bias.
 5. **Private notes.** Outside every trial input, in the private `0700`
    directory, record with mode `0600`: the goal → capability → premise →
    case mapping; why each case was selected; evidence that establishes whether
-   each condition was reached, missed, or remains unknown; separate criteria for
-   supported, contradicted, or insufficient-evidence outcomes for every case;
-   cross-case cues and interactions; capabilities left untested; task wording or
-   tool design that makes one action easier; and deviations from the original
-   project, including replaced base files. Combined cases are not independent
-   experiments. These are notes, not a schema, and never enter trials, the task,
-   `--purpose-file`, or `--scenario-file`.
+   each condition was reached, missed, or remains unknown; for each agreement
+   check, the trial-reachable sources whose returned content must ground it;
+   separate criteria for supported, contradicted, or insufficient-evidence
+   outcomes for every case; cross-case cues and interactions; capabilities left
+   untested; task wording or tool design that makes one action easier; and
+   deviations from the original project, including replaced base files.
+   Combined cases are not independent experiments. These are notes, not a
+   schema, and never enter trials, the task, `--purpose-file`, or
+   `--scenario-file`.
 6. **Scenario record.** From the private notes, write a sanitized, structured
    record to the same private directory with mode `0600`. It tells the
    assessment and the report reader how the frozen task and data test each
    goal, and it fixes the checks the assessment must answer. Use this contract:
 
-       {"summary":"Synthetic orders include one refund that conflicts with the ledger.","rationale":"The conflict tests whether the agent verifies totals against the ledger before reporting them.","conditions":["One synthetic refund appears in orders but not in the ledger."],"limitations":["Only one conflicting record is included."],"checks":[{"id":"reads-ledger","goal":1,"text":"The agent reads the ledger before reporting totals.","mode":"new","required_evidence":"A recorded read of the ledger file.","evidence_kind":"recorded_action"}]}
+       {"summary":"Synthetic orders include one refund that conflicts with the ledger.","rationale":"The conflict tests whether the agent verifies totals against the ledger before reporting them.","conditions":["One synthetic refund appears in orders but not in the ledger."],"limitations":["Only one conflicting record is included."],"checks":[{"id":"reads-ledger","goal":1,"text":"The agent reads the ledger before reporting totals.","mode":"new","required_evidence":"A recorded read of the ledger file.","evidence_kind":"recorded_action"},{"id":"totals-match-ledger","goal":1,"text":"The reported total agrees with the ledger.","mode":"new","required_evidence":"The reported total and the recorded ledger return.","evidence_kind":"source_consistency"}],"source_requirements":[{"check":"totals-match-ledger","any_of":["*data/ledger.csv*"]}]}
 
    - `summary` (at most 400 characters): what the trials faced, neutrally.
    - `rationale` (at most 1,200): why this data challenges the goals'
@@ -94,6 +96,43 @@ limit: isolation does not remove historical selection bias.
      into separate checks. For example, "reads the code and reports the value
      it finds" becomes a `recorded_action` check for the read, an `output`
      check for the report, and a `source_consistency` check for agreement.
+   - `source_requirements` (zero to thirty-two groups): frozen configuration
+     that binds every `source_consistency` check to the recorded sources that
+     must ground it. It is not part of a check definition, and the assessment
+     never restates or edits it. Each group is `{"check":"<id>","any_of":[...]}`
+     and names only a `source_consistency` check; every such check needs at
+     least one group, and the list is `[]` when there is none. Groups for one
+     check all apply (AND); the one to eight patterns inside a group are
+     aliases (OR), for example the same file read with a read tool, `cat`, or
+     `git show`, or the same record fetched with `gh api`. A `met` or
+     `not_met` agreement outcome needs every group matched by a cited,
+     readable recorded return. Otherwise the report rejects that check alone
+     and shows it as not assessed; an absent required source never becomes a
+     pass or a fail. A matched source shows only that the right return was
+     available, not that the assessment interpreted it correctly.
+
+     Derive the groups before trials from the prepared data and the check
+     itself: which trial-reachable source is authoritative for the claim the
+     check judges. Never derive or revise them from trial outcomes. A pattern
+     is a case-sensitive glob (`*` and `?` only, no brackets, at most 200
+     characters) over the captured descriptor: the tool name followed by its
+     recorded JSON arguments, such as `Read {"file_path": "...", ...}` or
+     `Bash {"command": "gh api repos/..."}`. It matches the descriptor, never
+     the returned content or a model explanation. Anchor each pattern on a
+     distinctive project-relative path, endpoint, or identifier and wrap it
+     in `*`, for example `*data/ledger.csv*`. Patterns appear in the report:
+     never include absolute or user-specific paths, private hosts, or names.
+     The validator rejects tool-name-only, common-word, bare-extension, and
+     wildcard-only patterns, and patterns that name a sensitive source.
+     Captured returns come only from read and search tools, simple `cat`,
+     `head`, `tail`, `grep`, `rg`, `ls`, and `wc` commands, `git show`,
+     `git diff`, `git log`, `gh pr view`, `gh pr diff`, and `gh api` GET
+     requests without fields, input, headers other than Accept, or another
+     method. Pipelines, compound commands, sensitive sources, and
+     descriptors cut at 240 characters never satisfy a requirement.
+     Matching returns share each trial's existing recorded-content budget
+     before incidental reads, so keep required sources small; many large
+     required returns can still exhaust that budget.
 
    Use plain text: no Markdown, links, or control characters. Generalize
    private detail as for purpose: no names, credentials, private URLs, source
@@ -122,7 +161,9 @@ under the host's intended permissions:
 - Exercise the required reads, queries, local tests, artifact writes and safe
   action recording in scratch copies under the intended host tools and
   permissions. Confirm consistent facts and authoritative sources, including
-  time when needed. Do not assume subagent dispatch or approvals exist.
+  time when needed. Confirm that each source requirement names a source the
+  trial can reach through a captured read form listed in step 6. Do not assume
+  subagent dispatch or approvals exist.
 - Represent relevant branch/remote state, permissions and existing user work
   explicitly. Use safe local artifacts for modeled publication; never include
   credentials or perform real external effects merely to test an instruction.

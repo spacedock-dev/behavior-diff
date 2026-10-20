@@ -22,7 +22,7 @@ scripts handle execution, evidence, and reporting.
 | Change intent + preservation -> capabilities/premises   |
 | -> neutral task + ordinary/bounded edge data + private  |
 | case criteria; reuse sufficient project data            |
-| Review scenario record + checks from private notes;     |
+| Review scenario, checks and required recorded sources; |
 | freeze task, data, purpose, record, sources + settings   |
 | Shared files or exclusions: prepare_shared.py stages    |
 | and verifies; otherwise runner uses user's project      |
@@ -42,7 +42,7 @@ scripts handle execution, evidence, and reporting.
 +---------------------------------------------------------+
 | Evidence analysis                                       |
 | decisions.py: frozen checks + calls/returns + answers    |
-| Validate source/output claims and native completion    |
+| Validate identities; isolate check evidence failures    |
 | reporting/: derive scoped assessment + linked evidence |
 +----------------------------+----------------------------+
                              v
@@ -446,12 +446,18 @@ The modules below live in the skill's [`scripts/`](../plugin/skills/behavior-dif
   instruction diff. `reporting/content.py` derives shared wording and evidence
   limits. `reporting/target.py` validates purpose, criteria, exact completed-trial
   membership, trial-local source references, and contiguous final-answer excerpts.
-  Source consistency needs readable recorded source text plus a final-answer
-  excerpt. A trustworthy captured call can establish that a call was made even
-  when its return was omitted; it cannot establish source agreement. Sensitive,
-  duplicate, self-reported and overflow records do not supply determinate proof.
-  `decisions.target_rejection` retains a rejected criterion's validation reason;
-  extraction preserves the raw response and reports `available/target_rejected`.
+  Source consistency needs a final-answer excerpt and readable recorded sources
+  matching every frozen `source_requirements` group for that check. Alternatives
+  within a group are OR; groups are AND. Descriptor matching constrains provenance,
+  not semantic truth. A trustworthy captured call can establish that a call was
+  made even when its return was omitted; it cannot establish source agreement.
+  Sensitive, duplicate, self-reported and overflow records do not supply determinate
+  proof. Bad evidence rejects only its check: the definition and validator reason
+  remain, with empty outcome and row-reference arrays. Accepted checks survive.
+  Raw model output cannot author these rejection notes. Missing, duplicate or
+  rewritten definitions still invalidate the whole target; `decisions.target_rejection`
+  is reserved for that global failure. Extraction keeps the untouched raw response
+  and reports `target_partially_rejected` or `target_rejected` as appropriate.
   With a scenario record, the complete frozen check set is mandatory. The report
   loader binds it to configuration, not model output; a conflicting persisted
   record or purpose invalidates the assessment without dropping observations.
@@ -479,7 +485,7 @@ The modules below live in the skill's [`scripts/`](../plugin/skills/behavior-dif
   unmet outcome on both sides, labeled as a pre-existing target problem.
   Counts come from canonical rows. Malformed bundles become unavailable, never
   an assessed-empty result. No finding quota applies.
-  These modules build schema-v18 `ReportData`, including nullable
+  These modules build schema-v19 `ReportData`, including nullable
   `metadata.source` and `metadata.ci_context`. Older versions are
   rejected; regenerate reports from their saved run evidence with `render.py`.
   Saved decisions without optional context, flow starts, or a purpose summary
@@ -509,20 +515,23 @@ Codex keeps the raw shell wrapper alongside its command-flow display text.
 The collector structurally decodes recognized shell command arguments without
 execution; wrapped simple reads remain eligible, while compound commands,
 redirections, substitutions, and non-read commands remain excluded.
-Recorded `gh pr view` and `gh pr diff` returns are eligible through supported
-shell/execution adapters, including namespaced `exec` tools. Mutation commands,
-compound commands, errors and sensitive content remain excluded. This only selects
-already-recorded text; it never invokes `gh` or fetches a source.
+Recorded `gh pr view`, `gh pr diff` and unambiguous `gh api` GET returns are
+eligible through supported shell/execution adapters, including namespaced `exec`
+tools. API request-body flags, mutating methods, compound commands, errors and
+sensitive content remain excluded. This selects already-recorded text; it never
+invokes `gh` or fetches a source.
 
 Limits are 4,096 Unicode characters per excerpt, 16,384 per trial, 131,072 per
 run, and 128 tool records per trial. Selection uses the saved `grades.tsv`
 inventory (directory fallback only without that inventory) and reserves a share
 of the remaining run budget for every remaining trial in lexical order. Within
-each trial, readable returns share the character budget, redistributing unused
-space from short returns; recorded order breaks one-character remainder ties.
-Each excerpt still takes leading characters. Earlier guide reads cannot exhaust
-the budget before every later source return. This is fair coverage, not a
-relevance ranking: needed facts can still fall outside retained prefixes.
+each trial, readable returns matching frozen source requirements share the budget
+first; incidental reads share the remainder. Within each group, unused space from
+short returns is redistributed, with recorded order breaking one-character ties.
+Without frozen requirements, all readable returns share the budget as before.
+Each excerpt takes leading characters. Required-source priority prevents incidental
+guide reads from shrinking a small required source, but it does not remove bounds:
+required sources can still be truncated when they exceed the budget.
 Overflow, missing returns, tool errors, non-text omissions, and truncation remain
 explicit. Missing assessment content does not prove the agent never received it.
 Questions about what a draft says use output evidence; checking those claims
@@ -584,6 +593,10 @@ data challenges the aim, planned conditions and limitations. Private preparation
 notes are not report inputs. Missing records stay explicitly unrecorded rather
 than being reconstructed from outcomes. Frozen checks remain visible as not
 assessed when assessment is missing or rejected; setup is never proof of success.
+Rejected checks keep their canonical positions, reasons and **Not assessed**
+distributions. They cannot support attention findings or claims about evidence
+that was inspected. Accepted After misses remain primary despite unrelated
+rejections; accepted positives plus rejected checks stay inconclusive.
 
 The evidence section retains Before/After branches, their counts, primary-result
 context, attention findings, and optional model why/context/caution claims.

@@ -23,7 +23,8 @@ FINDING_STATES = (
     "preserved",
     "unavailable",
 )
-CHECK_STATES = FINDING_STATES[:-1]
+# A check is "unavailable" only when validation rejected that one criterion.
+CHECK_STATES = FINDING_STATES
 UNMET = "The expected improvement did not happen in these tests."
 FINDING_HEADLINES = {
     "not_met": UNMET,
@@ -46,6 +47,7 @@ CHECK_LABELS = {
     "improved": "met After; not met Before",
     "already_met": "already met Before",
     "preserved": "preserved",
+    "unavailable": "not assessed",
 }
 CHECK_MEANINGS = {
     "not_met": "At least one After trial did not meet this.",
@@ -64,6 +66,10 @@ CHECK_MEANINGS = {
     "already_met": "Before already met this, so the edit showed no added benefit here.",
     "preserved": "Every After trial still met this.",
 }
+REJECTED_CHECK = (
+    "Not assessed: validation rejected this check ({0}). No Before or After "
+    "outcome is reported for it."
+)
 NEXT_ACTIONS = {
     "not_met": (
         "Revise the edit or its expectation, then retest; inspect the After trials "
@@ -449,6 +455,8 @@ def _side_health(criterion, side, variant):
 
 
 def check_state(criterion, variants):
+    if criterion.rejection is not None:
+        return "unavailable"
     after = criterion.after
     if any(trial.outcome == "not_met" for trial in after):
         return "not_met"
@@ -467,6 +475,18 @@ def finding_state(states):
     return next(state for state in CHECK_STATES if state in states)
 
 
+def overall_state(checks, unchecked=()):
+    """Overall finding: an accepted After miss wins; rejected checks never pass."""
+    states = {check.state for check in checks}
+    if checks and unchecked:
+        # A conclusion needs every frozen goal checked; a gap leaves it unsettled.
+        states.add("inconclusive")
+    if "unavailable" in states and len(states) > 1:
+        # A rejected check leaves the rest unsettled; an accepted miss still wins.
+        states.add("inconclusive")
+    return finding_state(states)
+
+
 def build_checks(metadata, variants, target):
     from reporting.schema import SummaryCheckData
 
@@ -479,6 +499,8 @@ def build_checks(metadata, variants, target):
             and metadata.trace_source == "self-reported"
             else CHECK_SCOPES[criterion.evidence_kind]
         )
+        if criterion.rejection:
+            scope = "Required evidence, not assessed: " + criterion.required_evidence
         checks.append(
             SummaryCheckData(
                 number,
@@ -487,7 +509,9 @@ def build_checks(metadata, variants, target):
                 state,
                 question_distribution(criterion, "before", variants.before.total),
                 question_distribution(criterion, "after", variants.after.total),
-                CHECK_MEANINGS[state],
+                REJECTED_CHECK.format(criterion.rejection)
+                if state == "unavailable"
+                else CHECK_MEANINGS[state],
                 scope,
             )
         )
@@ -576,12 +600,8 @@ def build_summary(metadata, variants, decisions):
         "One scenario only; counts and narrative are model interpretations, not causal proof."
     ]
     checks = build_checks(metadata, variants, decisions.target_assessment)
-    states = {check.state for check in checks}
     unchecked = unchecked_goals(decisions)
-    if checks and unchecked:
-        # A conclusion needs every frozen goal checked; a gap leaves it unsettled.
-        states.add("inconclusive")
-    state = finding_state(states)
+    state = overall_state(checks, unchecked)
     if not complete:
         notices.append(
             "Trial evidence is incomplete, blocked, invalid, or dropped; inspect the trial records."

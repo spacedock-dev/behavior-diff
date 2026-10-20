@@ -248,7 +248,7 @@ cat >"$scenario_purpose" <<'JSON'
 {"goals":[{"text":"Preserve the synthetic source check.","source":"session","basis":"explicit","reference":"Current conversation: selected edit"},{"text":"Report the synthetic conflicting record.","source":"session","basis":"inferred","reference":"Current conversation: selected edit"}]}
 JSON
 scenario_check='{"id":"source-check","goal":1,"text":"The answer reads the synthetic rules.","mode":"preservation","required_evidence":"A recorded read of the synthetic rules.","evidence_kind":"recorded_action"}'
-scenario_head='"summary":"Synthetic records include one conflicting row.","rationale":"The row makes the checks observable.","conditions":["One synthetic record conflicts with the rules."],"limitations":[]'
+scenario_head='"summary":"Synthetic records include one conflicting row.","rationale":"The row makes the checks observable.","conditions":["One synthetic record conflicts with the rules."],"limitations":[],"source_requirements":[]'
 for scenario_case in no-purpose missing malformed unknown-field dropped-goal; do
   scenario_path=$tmp/$scenario_case-scenario.json
   purpose_args=(--purpose-file "$scenario_purpose")
@@ -580,7 +580,7 @@ for world in git copy; do
 {"goals":[{"text":"Preserve the synthetic source check.","source":"session","basis":"explicit","reference":"Current conversation: selected edit"}]}
 JSON
   cat >"$purpose_project/scenario.json" <<'JSON'
-{"summary":"Synthetic scenario summary sentinel.","rationale":"Synthetic rationale.","conditions":["Synthetic condition."],"limitations":[],"checks":[{"id":"source-check","goal":1,"text":"The answer reads the synthetic rules.","mode":"preservation","required_evidence":"A recorded read of the synthetic rules.","evidence_kind":"recorded_action"}]}
+{"summary":"Synthetic scenario summary sentinel.","rationale":"Synthetic rationale.","conditions":["Synthetic condition."],"limitations":[],"checks":[{"id":"source-check","goal":1,"text":"The answer reads the synthetic rules.","mode":"preservation","required_evidence":"A recorded read of the synthetic rules.","evidence_kind":"recorded_action"}],"source_requirements":[]}
 JSON
   if [ "$world" = git ]; then
     git -C "$purpose_project" init -q
@@ -644,7 +644,7 @@ cat >"$nested_repo/nested/purpose.json" <<'JSON'
 {"goals":[{"text":"Nested goal must be frozen.","source":"session","basis":"explicit","reference":"Synthetic nested context"}]}
 JSON
 cat >"$nested_repo/nested/scenario.json" <<'JSON'
-{"summary":"Nested scenario must be frozen.","rationale":"Synthetic rationale.","conditions":["Synthetic condition."],"limitations":[],"checks":[{"id":"nested-check","goal":1,"text":"The answer reads the synthetic rule.","mode":"new","required_evidence":"The final answer names the synthetic rule.","evidence_kind":"output"}]}
+{"summary":"Nested scenario must be frozen.","rationale":"Synthetic rationale.","conditions":["Synthetic condition."],"limitations":[],"checks":[{"id":"nested-check","goal":1,"text":"The answer reads the synthetic rule.","mode":"new","required_evidence":"The final answer names the synthetic rule.","evidence_kind":"output"}],"source_requirements":[]}
 JSON
 git -C "$nested_repo" add AGENTS.md purpose.json nested
 git -C "$nested_repo" commit -qm baseline

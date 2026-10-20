@@ -484,14 +484,17 @@ def _assert_invalid_assessments(report):
     changed["criteria"].append(changed["criteria"][0])
     invalid.append(changed)
     for changed in invalid:
-        assert parse(changed) is None, (
-            "Invalid target membership or refs became assessed evidence."
-        )
+        rejected = parse(changed)
+        assert rejected is None or all(
+            criterion.rejection and not criterion.before and not criterion.after
+            for criterion in rejected.criteria
+        ), "Invalid target membership or refs became assessed evidence."
     omitted = tuple(
         replace(entry, status="omitted", text="", reason="Synthetic content omitted")
         for entry in evidence
     )
-    assert parse(raw, omitted) is None, "Unavailable source cannot prove consistency."
+    rejected = parse(raw, omitted).criteria[0]
+    assert rejected.rejection and not rejected.before and not rejected.after
     unavailable = copy.deepcopy(raw)
     for side in ("before", "after"):
         for trial in unavailable["criteria"][0][side]:
@@ -687,7 +690,7 @@ def _assert_missing_records(report):
 
 
 def _assert_old_versions_rejected(report):
-    for version in (11, 12, 13, 14, 15, 16):
+    for version in (11, 12, 13, 14, 15, 16, 17, 18):
         raw = report.to_dict()
         raw["schema_version"] = version
         try:
@@ -767,7 +770,8 @@ def _assert_normalization(report, run):
         purpose=purpose,
         recorded_evidence=evidence,
     )
-    assert normalized["target_assessment"] is None
+    criterion = normalized["target_assessment"]["criteria"][0]
+    assert criterion["rejection"] and not criterion["before"] and not criterion["after"]
     assert normalized["attention"] is None, (
         "Unchanged concern outlived its invalid target support."
     )
@@ -800,6 +804,9 @@ def _scenario_record(report):
                 "required_evidence": "A recorded call that reads implementation.txt.",
                 "evidence_kind": "recorded_action",
             },
+        ],
+        "source_requirements": [
+            {"check": accuracy.id, "any_of": ["*implementation.txt*"]}
         ],
     }
 
@@ -882,6 +889,103 @@ def _assert_frozen_scenario(report, run):
         )
         == check(complete)[0]
     )
+
+    # A bad quotation cannot erase an independent, unchanged After miss.
+    broken = copy.deepcopy(complete)
+    broken[1]["after"][0]["output_excerpt"] = "A quotation not present in this trial."
+    broken[1]["after"][0]["refs"].append("after-1:answer")
+    partial, reason = check(broken)
+    assert reason is None
+    assert partial.criteria[0] == check(complete)[0].criteria[0]
+    rejected = partial.criteria[1]
+    assert rejected.rejection and not rejected.decisions
+    assert rejected.before == rejected.after == ()
+    canonical_partial = json.loads(json.dumps(asdict(partial)))
+    assert check_target(
+        canonical_partial,
+        goals,
+        answers,
+        evidence,
+        report.decisions.rows,
+        scenario=scenario,
+        persisted=True,
+    ) == (partial, None)
+    spoofed, reason = check(canonical_partial["criteria"])
+    assert reason is None and spoofed.criteria[1].rejection != rejected.rejection
+
+    # The production report keeps coverage, links and diagnostics in both formats.
+    accepted = partial.criteria[0]
+    met = replace(
+        accepted,
+        before=tuple(replace(trial, outcome="met") for trial in accepted.before),
+        after=tuple(replace(trial, outcome="met") for trial in accepted.after),
+    )
+    rejected_first = replace(
+        accepted, decisions=(), before=(), after=(), rejection=rejected.rejection
+    )
+    for criteria, expected_state in (
+        (partial.criteria, "not_met"),
+        ((met, rejected), "inconclusive"),
+        ((rejected_first, rejected), "unavailable"),
+    ):
+        data = replace(
+            report.decisions,
+            target_assessment=replace(partial, criteria=criteria),
+            scenario_record=scenario,
+            attention=None,
+        )
+        rendered_report = replace(
+            report,
+            decisions=data,
+            summary=build_summary(report.metadata, report.variants, data),
+        )
+        round_trip = ReportData.from_dict(rendered_report.to_dict())
+        assert round_trip.summary.state == expected_state
+        assert len(round_trip.summary.checks) == len(scenario.checks)
+        page = render_artifact(round_trip, "")
+        markdown = render_markdown(round_trip)
+        markup = _ReportMarkup(page)
+        summary = markup.select(anchor="panel-summary")[0]
+        detail = markup.select(anchor="panel-explanation")[0]
+        checks = markup.select(summary, class_name="summary-check")
+        assert checks[1]["attrs"]["data-state"] == "unavailable"
+        assert rejected.rejection in _plain(checks[1])
+        assert any(
+            rejected.rejection in _plain(node)
+            for node in markup.select(detail, class_name="criterion-rejection")
+        )
+        assert rejected.rejection in visible_text(markdown)
+        for number, criterion in enumerate(criteria, 1):
+            anchor = content.target_criterion_anchor(number)
+            assert markup.select(anchor=anchor)
+            assert any(
+                link["attrs"].get("href") == "#" + anchor
+                for link in markup.select(summary, tag="a")
+            )
+            assert criterion.text in _plain(detail)
+        assert content.summary_heading(round_trip) in _plain(summary)
+        method = markup.select(summary, class_name="story-method")[0]
+        assert round_trip.summary.checks[1].scope not in _plain(method)
+
+    # An unrelated readable source cannot satisfy a frozen implementation source.
+    wrong_sources = tuple(
+        replace(
+            entry, source=entry.source.replace("implementation.txt", "proposal.txt")
+        )
+        for entry in evidence
+    )
+    guarded, reason = check_target(
+        {"criteria": complete},
+        goals,
+        answers,
+        wrong_sources,
+        report.decisions.rows,
+        scenario=scenario,
+    )
+    assert reason is None
+    assert guarded.criteria[0].rejection == "criterion lacks a required frozen source"
+    assert not guarded.criteria[0].after
+    assert guarded.criteria[1].rejection is None
 
     # Dropping the code read still covers every goal, so only frozen IDs catch it.
     assert check([accuracy], frozen=None)[1] is None, "Old runs keep assessor criteria."

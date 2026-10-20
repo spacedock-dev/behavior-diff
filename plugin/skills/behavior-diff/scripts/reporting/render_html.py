@@ -898,6 +898,16 @@ def _target_explanation(report):
                 f"<p>{version_name_html('Before')}: {_target_side(report, criterion, 'before')} · "
                 f"{version_name_html('After')}: {_target_side(report, criterion, 'after')}</p>"
                 f"<p>{version_name_html(criterion.required_evidence)}</p>"
+            )
+            if criterion.rejection is not None:
+                parts.append(
+                    f"<p>Goal {criterion.goal} · {html.escape(criterion.mode)}</p>"
+                    '<p class="criterion-rejection"><strong>'
+                    f"{version_name_html(content.criterion_rejection_text(criterion))}"
+                    "</strong></p>"
+                )
+                continue
+            parts.append(
                 '<details class="criterion-trials"><summary>Trial-by-trial reasoning and sources</summary>'
                 f"<p>Goal {criterion.goal} · {html.escape(criterion.mode)}</p>"
                 f"<p>{version_name_html(acceptance(criterion))}</p>"

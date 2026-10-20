@@ -578,6 +578,7 @@ def _convert_decisions(
             evidence,
             rows,
             scenario=scenario,
+            persisted=True,
         )
     if target is None and target_rejection is None:
         target_rejection = _persisted_rejection(raw.get("target_rejection"))

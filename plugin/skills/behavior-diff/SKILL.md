@@ -222,8 +222,12 @@ the single-role or two-agent path. Create the fixtures with
      describes, in the private directory with mode `0600`. Give every goal at
      least one check, and give each check exactly one evidence kind: split a
      required code read, the reported output, and its agreement with the read
-     source into separate checks. The raw notes never go to trials or the
-     assessment. Omit the record only when the purpose is `null`.
+     source into separate checks. Bind every agreement check to the source
+     patterns that must ground it, derived before trials from the prepared
+     data and that check, never from trial outcomes; keep these frozen source
+     requirements separate from the check definitions. The raw notes never go
+     to trials or the assessment. Omit the record only when the purpose is
+     `null`.
 
    Do not require an incident, a real past request, or an existing eval from
    the user. Ask only when a material requirement cannot be reached from the

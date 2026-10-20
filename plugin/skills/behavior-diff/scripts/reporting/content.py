@@ -12,6 +12,7 @@ from reporting.summary import (
     CHECK_STATES,
     MET_STATES,
     PURPOSE_SUMMARY_LIMIT,
+    REJECTED_CHECK,
     question_distribution,
     unchecked_goals,
 )
@@ -468,7 +469,13 @@ def _summary_method_parts(report):
         f"{after.total} After {trial_noun(after.total)}, model {metadata.model}.",
         f"Instruction file: {metadata.target_file}.",
     )
-    scopes = tuple(dict.fromkeys(check.scope for check in report.summary.checks))
+    scopes = tuple(
+        dict.fromkeys(
+            check.scope
+            for check in report.summary.checks
+            if check.state != "unavailable"
+        )
+    )
     inspected = tuple(f"Evidence inspected: {scope}" for scope in scopes) or (
         "Evidence inspected: " + SUMMARY_NO_CHECKS,
     )
@@ -664,6 +671,7 @@ OPEN_LABELS = {
     "not_met": "Not met",
     "inconclusive": "Not settled",
     "baseline_incomplete": "Before incomplete",
+    "unavailable": "Not assessed",
     "unchecked": "No check",
     "unassessed": FROZEN_UNASSESSED,
 }
@@ -680,7 +688,7 @@ def summary_open_items(report):
     checks = summary.checks
     items = [
         SummaryOpenItem(state, OPEN_LABELS[state], check.text, check.criterion)
-        for state in ("not_met", "inconclusive", "baseline_incomplete")
+        for state in ("not_met", "inconclusive", "baseline_incomplete", "unavailable")
         for check in checks
         if check.state == state
     ]
@@ -754,11 +762,17 @@ def summary_implication(report):
     if state == "inconclusive":
         settled = _settled(checks)
         unsettled = sum(check.state == "inconclusive" for check in checks)
+        rejected = sum(check.state == "unavailable" for check in checks)
         gap = _goal_gap(report)
         parts = []
         if unsettled:
             parts.append(
                 f"{unsettled} {'check is' if unsettled == 1 else 'checks are'} not settled."
+            )
+        if rejected:
+            parts.append(
+                f"{rejected} {'check was' if rejected == 1 else 'checks were'} not "
+                "assessed because validation rejected them."
             )
         if gap:
             parts.append(gap)
@@ -870,6 +884,11 @@ def attention_branch_evidence(report, finding: AttentionFindingData, side: str):
 
 def attention_finding_anchor(decision):
     return "attention-finding-{0}".format(decision)
+
+
+def criterion_rejection_text(criterion):
+    """Validator wording for one rejected criterion; never an outcome or verdict."""
+    return REJECTED_CHECK.format(criterion.rejection)
 
 
 def target_criterion_anchor(number):

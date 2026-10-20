@@ -53,6 +53,7 @@ SCENARIO = {
             "evidence_kind": "output",
         }
     ],
+    "source_requirements": [],
 }
 SOURCE = {
     "forge": "github",

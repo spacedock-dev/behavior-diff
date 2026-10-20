@@ -49,7 +49,7 @@ from reporting.provenance import (
     report_source,
 )
 
-SCHEMA_VERSION = 18
+SCHEMA_VERSION = 19
 RESULT_KINDS = ("good", "bad", "neutral")
 
 
@@ -607,6 +607,7 @@ def _decisions(value, path, hunk_count, groups=None, final_answers=None):
         evidence,
         parsed_rows,
         scenario=scenario,
+        persisted=True,
     )
     if raw_target is not None and (
         target is None or _json_value(asdict(target)) != raw_target

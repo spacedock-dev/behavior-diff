@@ -154,13 +154,19 @@ class AssessmentProgressTests(unittest.TestCase):
         self.assertEqual(self.outcome()["state"], "available")
         self.assertEqual(self.outcome()["reason"], "target_rejected")
         saved = json.loads((self.run / "decisions.json").read_text())
-        self.assertIsNone(saved["target_assessment"])
-        reason = "output assessment needs its relevant exact excerpt"
-        self.assertEqual(saved["target_rejection"], reason)
+        self.assertIsNone(saved["target_rejection"])
+        rejected = saved["target_assessment"]["criteria"][0]
+        self.assertTrue(rejected["rejection"])
+        self.assertEqual(rejected["before"], [])
+        self.assertEqual(rejected["after"], [])
         self.assertTrue((self.run / "decisions.raw.txt").exists())
         report = load_report(self.run, self.run, "synthetic", self.run / "config.json")
-        self.assertIsNone(report.decisions.target_assessment)
-        self.assertEqual(report.decisions.target_rejection, reason)
+        self.assertEqual(
+            report.decisions.target_assessment.criteria[0].rejection,
+            rejected["rejection"],
+        )
+        self.assertEqual(report.summary.state, "unavailable")
+        self.assertIsNone(report.decisions.target_rejection)
 
 
 class NativeTrialFailureTests(unittest.TestCase):

@@ -81,7 +81,6 @@ def _header(page):
 def assert_no_context_unchanged():
     report = _load(_config())
     raw = _roundtrip(report)
-    assert raw["schema_version"] == 18
     assert raw["metadata"]["ci_context"] is None
     page, markdown = _render_offline(report)
     for absent in ("source-line", "revision-pair", "local-paths", "Workflow"):

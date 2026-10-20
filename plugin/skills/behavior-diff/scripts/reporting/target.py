@@ -3,18 +3,18 @@
 from collections import Counter
 import re
 from dataclasses import dataclass
-from typing import Tuple
+from typing import Optional, Tuple
 
 from reporting.evidence import (
     EXCERPT_LIMIT,
     RECORD_LIMIT,
     RUN_LIMIT,
-    SENSITIVE_SOURCE,
     SOURCE_LIMIT,
     TRIAL_LIMIT,
     UNPROVEN_CALL_REASONS,
 )
 from reporting.explanation import _text
+from reporting.sources import SENSITIVE_SOURCE, unmet_source_requirements
 
 OUTCOMES = ("met", "not_met", "uncertain", "unassessable")
 MODES = ("correction", "new", "change", "preservation")
@@ -103,6 +103,7 @@ class TargetCriterionData:
     decisions: Tuple[int, ...]
     before: Tuple[TrialAssessmentData, ...]
     after: Tuple[TrialAssessmentData, ...]
+    rejection: Optional[str] = None
 
 
 @dataclass(frozen=True)
@@ -281,21 +282,199 @@ def _captured_call(record):
 
 
 def parse_target(
-    raw, purpose, final_answers, evidence, rows=(), positions=None, *, scenario=None
+    raw,
+    purpose,
+    final_answers,
+    evidence,
+    rows=(),
+    positions=None,
+    *,
+    scenario=None,
+    persisted=False,
 ):
-    """Invalid assessments stay unavailable, never become successful or assessed-empty."""
+    """Retain rejected checks without treating them as assessed outcomes."""
     return check_target(
-        raw, purpose, final_answers, evidence, rows, positions, scenario=scenario
+        raw,
+        purpose,
+        final_answers,
+        evidence,
+        rows,
+        positions,
+        scenario=scenario,
+        persisted=persisted,
     )[0]
 
 
-def check_target(
-    raw, purpose, final_answers, evidence, rows=(), positions=None, *, scenario=None
-):
-    """Return (assessment, None), or (None, why a returned assessment was rejected).
+def _criterion_definition(item, purpose, seen, frozen):
+    if type(item) is not dict:
+        raise ValueError("invalid criterion fields")
+    identifier = _text(item["id"], 80)
+    goal = item["goal"]
+    if (
+        identifier != item["id"]
+        or identifier in seen
+        or type(goal) is not int
+        or not 1 <= goal <= len(purpose)
+        or item["mode"] not in MODES
+    ):
+        raise ValueError("invalid criterion identity")
+    if item["evidence_kind"] not in EVIDENCE_KINDS:
+        raise ValueError("invalid criterion evidence requirement")
+    definition = (
+        identifier,
+        goal,
+        _text(item["text"], 600),
+        item["mode"],
+        _text(item["required_evidence"], 600),
+        item["evidence_kind"],
+    )
+    if frozen is not None and (
+        identifier not in frozen
+        or definition
+        != tuple(getattr(frozen[identifier], name) for name in _DEFINITION)
+    ):
+        raise ValueError("target criterion must restate its frozen scenario check")
+    return definition
 
-    A frozen scenario fixes the criterion set: the assessment must restate every
-    check exactly and may supply only row links and per-trial outcomes.
+
+def _criterion_assessment(
+    item, definition, final_answers, records, positions, requirements, persisted
+):
+    fields = set(_DEFINITION) | {"decisions", "before", "after"}
+    if set(item) not in (fields, fields | {"rejection"}):
+        raise ValueError("invalid criterion fields")
+    rejection = item.get("rejection")
+    if rejection is not None:
+        if (
+            not persisted
+            or _text(rejection, 240) != rejection
+            or any(item[field] != [] for field in ("decisions", "before", "after"))
+        ):
+            raise ValueError("invalid persisted criterion rejection")
+        return TargetCriterionData(*definition, (), (), (), rejection)
+    references = item["decisions"]
+    if (
+        type(references) is not list
+        or any(type(ref) is not int or ref not in positions for ref in references)
+        or len(set(references)) != len(references)
+    ):
+        raise ValueError("invalid criterion row references")
+    sides = []
+    for side in ("before", "after"):
+        expected = {
+            name
+            for name, answer in (final_answers or {}).get(side, {}).items()
+            if answer.strip()
+        }
+        trials = item[side]
+        if not expected or type(trials) is not list or len(trials) != len(expected):
+            raise ValueError("target must assess every completed trial")
+        outcomes = []
+        assigned = set()
+        for trial in trials:
+            if type(trial) is not dict or set(trial) != {
+                "trial",
+                "outcome",
+                "refs",
+                "explanation",
+                "output_excerpt",
+            }:
+                raise ValueError("invalid target trial")
+            name, outcome, refs = trial["trial"], trial["outcome"], trial["refs"]
+            if (
+                type(name) is not str
+                or name not in expected
+                or name in assigned
+                or outcome not in OUTCOMES
+                or type(refs) is not list
+                or any(type(ref) is not str for ref in refs)
+                or len(set(refs)) != len(refs)
+            ):
+                raise ValueError("invalid target trial membership")
+            excerpt = trial["output_excerpt"]
+            if type(excerpt) is not str or len(excerpt) > 1200:
+                raise ValueError("invalid target output excerpt")
+            if excerpt and name + ":answer" not in refs:
+                raise ValueError("target output excerpt must cite its trial answer")
+            if excerpt and excerpt not in final_answers[side][name]:
+                raise ValueError("target output excerpt must be exact and trial-local")
+            for ref in refs:
+                if ref != name + ":answer" and (
+                    ref not in records or records[ref].trial != name
+                ):
+                    raise ValueError("target reference must resolve in its own trial")
+            answer = name + ":answer"
+            content = [
+                ref for ref in refs if ref != answer and _returned_content(records[ref])
+            ]
+            calls = [
+                ref for ref in refs if ref != answer and _captured_call(records[ref])
+            ]
+            if outcome in ("met", "not_met"):
+                if not refs or any(
+                    ref != answer and ref not in content and ref not in calls
+                    for ref in refs
+                ):
+                    raise ValueError(
+                        "determinate target outcome needs available evidence"
+                    )
+                has_output = answer in refs
+                if (
+                    item["evidence_kind"] == "source_consistency"
+                    and not (has_output and content)
+                    or item["evidence_kind"] == "output"
+                    and not has_output
+                    or item["evidence_kind"] == "recorded_action"
+                    and not calls
+                ):
+                    raise ValueError(
+                        "criterion lacks required source or output evidence"
+                    )
+                if (
+                    item["evidence_kind"] in ("output", "source_consistency")
+                    and not excerpt.strip()
+                ):
+                    raise ValueError(
+                        "output assessment needs its relevant exact excerpt"
+                    )
+                if unmet_source_requirements(
+                    requirements,
+                    definition[0],
+                    (records[ref].source for ref in content if ref in calls),
+                ):
+                    raise ValueError("criterion lacks a required frozen source")
+            assigned.add(name)
+            outcomes.append(
+                TrialAssessmentData(
+                    name,
+                    outcome,
+                    tuple(refs),
+                    _text(trial["explanation"], 600),
+                    excerpt,
+                )
+            )
+        sides.append(tuple(outcomes))
+    return TargetCriterionData(
+        *definition, tuple(positions[ref] for ref in references), *sides
+    )
+
+
+def check_target(
+    raw,
+    purpose,
+    final_answers,
+    evidence,
+    rows=(),
+    positions=None,
+    *,
+    scenario=None,
+    persisted=False,
+):
+    """Validate identities globally, then isolate each check's evidence failures.
+
+    Missing, duplicate or rewritten definitions invalidate the whole assessment.
+    A rejected check retains its definition and diagnostic, never invented outcomes.
+    Only persisted producer output may carry an existing rejection diagnostic.
     """
     if raw is None:
         return None, None
@@ -313,6 +492,16 @@ def check_target(
             if scenario is not None
             else None
         )
+        definitions, seen, covered_goals = [], set(), set()
+        for item in raw["criteria"]:
+            definition = _criterion_definition(item, purpose, seen, frozen)
+            definitions.append(definition)
+            seen.add(definition[0])
+            covered_goals.add(definition[1])
+        if covered_goals != set(range(1, len(purpose) + 1)):
+            raise ValueError("target criteria must cover every purpose goal")
+        if frozen is not None and seen != set(frozen):
+            raise ValueError("target criteria must assess every frozen scenario check")
         positions = (
             positions
             if positions is not None
@@ -320,186 +509,34 @@ def check_target(
         )
         records = {entry.id: entry for entry in evidence}
         criteria = []
-        seen = set()
-        covered_goals = set()
-        for item in raw["criteria"]:
-            if type(item) is not dict or set(item) != {
-                "id",
-                "goal",
-                "text",
-                "mode",
-                "required_evidence",
-                "evidence_kind",
-                "decisions",
-                "before",
-                "after",
-            }:
-                raise ValueError("invalid criterion fields")
-            identifier = _text(item["id"], 80)
-            goal = item["goal"]
-            if (
-                identifier != item["id"]
-                or identifier in seen
-                or type(goal) is not int
-                or not 1 <= goal <= len(purpose)
-                or item["mode"] not in MODES
-            ):
-                raise ValueError("invalid criterion identity")
-            if item["evidence_kind"] not in EVIDENCE_KINDS:
-                raise ValueError("invalid criterion evidence requirement")
-            definition = (
-                identifier,
-                goal,
-                _text(item["text"], 600),
-                item["mode"],
-                _text(item["required_evidence"], 600),
-                item["evidence_kind"],
+        for item, definition in zip(raw["criteria"], definitions):
+            requirements = (
+                tuple(
+                    requirement
+                    for requirement in scenario.source_requirements
+                    if requirement.check == definition[0]
+                )
+                if scenario is not None
+                else ()
             )
-            if frozen is not None and (
-                identifier not in frozen
-                or definition
-                != tuple(getattr(frozen[identifier], name) for name in _DEFINITION)
-            ):
-                raise ValueError(
-                    "target criterion must restate its frozen scenario check"
+            try:
+                criterion = _criterion_assessment(
+                    item,
+                    definition,
+                    final_answers,
+                    records,
+                    positions,
+                    requirements,
+                    persisted,
                 )
-            references = item["decisions"]
-            if (
-                type(references) is not list
-                or any(
-                    type(ref) is not int or ref not in positions for ref in references
+            except ValueError as error:
+                criterion = TargetCriterionData(*definition, (), (), (), str(error))
+            except (KeyError, TypeError, AttributeError):
+                criterion = TargetCriterionData(
+                    *definition, (), (), (), "malformed criterion assessment"
                 )
-                or len(set(references)) != len(references)
-            ):
-                raise ValueError("invalid criterion row references")
-            sides = []
-            for side in ("before", "after"):
-                expected = {
-                    name
-                    for name, answer in (final_answers or {}).get(side, {}).items()
-                    if answer.strip()
-                }
-                trials = item[side]
-                if (
-                    not expected
-                    or type(trials) is not list
-                    or len(trials) != len(expected)
-                ):
-                    raise ValueError("target must assess every completed trial")
-                outcomes = []
-                assigned = set()
-                for trial in trials:
-                    if type(trial) is not dict or set(trial) != {
-                        "trial",
-                        "outcome",
-                        "refs",
-                        "explanation",
-                        "output_excerpt",
-                    }:
-                        raise ValueError("invalid target trial")
-                    name = trial["trial"]
-                    outcome = trial["outcome"]
-                    refs = trial["refs"]
-                    if (
-                        type(name) is not str
-                        or name not in expected
-                        or name in assigned
-                        or outcome not in OUTCOMES
-                        or type(refs) is not list
-                        or any(type(ref) is not str for ref in refs)
-                        or len(set(refs)) != len(refs)
-                    ):
-                        raise ValueError("invalid target trial membership")
-                    excerpt = trial["output_excerpt"]
-                    if (
-                        type(excerpt) is not str
-                        or len(excerpt) > 1200
-                        or (
-                            excerpt
-                            and (
-                                name + ":answer" not in refs
-                                or excerpt not in final_answers[side][name]
-                            )
-                        )
-                    ):
-                        raise ValueError(
-                            "target output excerpt must be exact and trial-local"
-                        )
-                    for ref in refs:
-                        if ref == name + ":answer":
-                            continue
-                        if ref not in records or records[ref].trial != name:
-                            raise ValueError(
-                                "target reference must resolve in its own trial"
-                            )
-                    answer = name + ":answer"
-                    content = [
-                        ref
-                        for ref in refs
-                        if ref != answer and _returned_content(records[ref])
-                    ]
-                    calls = [
-                        ref
-                        for ref in refs
-                        if ref != answer and _captured_call(records[ref])
-                    ]
-                    if outcome in ("met", "not_met") and (
-                        not refs
-                        or any(
-                            ref != answer and ref not in content and ref not in calls
-                            for ref in refs
-                        )
-                    ):
-                        raise ValueError(
-                            "determinate target outcome needs available evidence"
-                        )
-                    if outcome in ("met", "not_met"):
-                        has_output = answer in refs
-                        if (
-                            item["evidence_kind"] == "source_consistency"
-                            and not (has_output and content)
-                            or item["evidence_kind"] == "output"
-                            and not has_output
-                            or item["evidence_kind"] == "recorded_action"
-                            and not calls
-                        ):
-                            raise ValueError(
-                                "criterion lacks required source or output evidence"
-                            )
-                        if (
-                            item["evidence_kind"] in ("output", "source_consistency")
-                            and not excerpt.strip()
-                        ):
-                            raise ValueError(
-                                "output assessment needs its relevant exact excerpt"
-                            )
-                    assigned.add(name)
-                    outcomes.append(
-                        TrialAssessmentData(
-                            name,
-                            outcome,
-                            tuple(refs),
-                            _text(trial["explanation"], 600),
-                            excerpt,
-                        )
-                    )
-                sides.append(tuple(outcomes))
-            seen.add(identifier)
-            covered_goals.add(goal)
-            criteria.append(
-                TargetCriterionData(
-                    *definition,
-                    tuple(positions[ref] for ref in references),
-                    *sides,
-                )
-            )
-        if covered_goals != set(range(1, len(purpose) + 1)):
-            raise ValueError("target criteria must cover every purpose goal")
-        if frozen is not None:
-            if seen != set(frozen):
-                raise ValueError(
-                    "target criteria must assess every frozen scenario check"
-                )
+            criteria.append(criterion)
+        if scenario is not None:
             order = {check.id: index for index, check in enumerate(scenario.checks)}
             criteria.sort(key=lambda criterion: order[criterion.id])
         return TargetAssessmentData(tuple(criteria)), None
@@ -519,6 +556,8 @@ def distribution(criterion, side):
 
 
 def conclusion(criterion):
+    if criterion.rejection:
+        return "Not assessed: " + criterion.rejection + "."
     before = Counter(trial.outcome for trial in criterion.before)
     after = Counter(trial.outcome for trial in criterion.after)
     if before.get("unassessable", 0) == len(criterion.before) and after.get(
@@ -547,6 +586,8 @@ def conclusion(criterion):
 
 
 def acceptance(criterion):
+    if criterion.rejection:
+        return "Resolve the rejected evidence before drawing a conclusion about this check."
     if any(trial.outcome == "not_met" for trial in criterion.after):
         return "Decide whether to accept the edit with the observed target problem still present; inspect the affected After trials."
     if any(
