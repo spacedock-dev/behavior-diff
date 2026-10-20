@@ -862,12 +862,22 @@ class ReportAndServerTests(unittest.TestCase):
 
     def test_scripts_links_attributes_and_unknown_shapes(self):
         source = (self.gallery / "changed-result/report.html").read_text()
-        hostile = source.replace(
-            '<h2 class="summary-headline">',
-            '<h2 class="summary-headline" onclick="leaked()"><script>leaked()</script><a href="https://hostile.invalid">external secret</a>',
+        start = source.index("<p>", source.index('<div class="summary-why">')) + 3
+        hostile = (
+            source[:start] + '<strong class="version-label" style="color:red" '
+            'onclick="leaked()">After</strong><script>leaked()</script>'
+            '<a href="https://hostile.invalid">external secret</a>' + source[start:]
         )
+        self.assertNotEqual(source, hostile)
         blinded = quiz._blinded_report(hostile)
-        for secret in ("leaked", "onclick", "external secret", "hostile.invalid"):
+        self.assertIn('<strong class="version-label">After</strong>', blinded)
+        for secret in (
+            "leaked",
+            "onclick",
+            "color:red",
+            "external secret",
+            "hostile.invalid",
+        ):
             self.assertNotIn(secret, blinded)
         for altered in (
             source.replace('id="panel-summary"', 'id="unknown-panel"'),

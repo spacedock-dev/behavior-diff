@@ -387,17 +387,17 @@ full multi-file replay, or a new automated verdict system was delivered.
 
 ### Delivery boundaries and status
 
-The user deferred report UI design on 2026-10-19. The earlier layout preview is
-exploratory, not an accepted design or an implementation dependency. Revisit it
-only after observing results from the completed preparation workflow.
+The user initially deferred report UI design until preparation evidence was
+available. The later five-step, assumption-first design is now approved; PR 3
+implements that design without importing private audit conclusions.
 
 | Stage | Deliverable | Dependency | Status |
 |---|---|---|---|
 | PR 1 | Deliver prepared shared data to real Before/After snapshots safely | None | Merged as #49; deterministic checks, independent review and corrected dogfood CI passed |
-| PR 2 | Generate and preflight scenario/data from intent, then execute and explain evidence | PR 1 | Published as #50; independently approved; corrected dogfood CI remains the merge gate |
+| PR 2 | Generate and preflight scenario/data from intent, then execute and explain evidence | PR 1 | Merged as #50 |
 | Preparation acceptance gate | Verify the integrated workflow against AC1–AC10 | PR 2 | Passed at bounded two-host evidence level; limitations retained below |
-| Report design checkpoint | Decide what actual results need the report to communicate | Preparation acceptance gate | Deferred; requires user design review |
-| Later report PR(s) | Implement only the agreed assessment/presentation changes | Accepted report design | Not scoped or authorized by this plan |
+| Report design checkpoint | Decide what actual results need the report to communicate | Preparation acceptance gate | Approved: five-step Summary, compact metadata and retained six-tab shell |
+| PR 3 | Implement the agreed assessment/presentation changes | Accepted report design | Published as #51; deterministic and browser checks passed; independent reviewers approved |
 
 PR numbers here are sequence labels, not GitHub PR identifiers. Do not split out
 tests, docs, or smoke proof into a later PR to make an incomplete feature mergeable.
