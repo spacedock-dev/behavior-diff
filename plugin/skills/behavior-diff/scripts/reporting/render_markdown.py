@@ -505,7 +505,7 @@ def _target_explanation_markdown(report):
 def _summary_checks_markdown(report):
     checks = report.summary.checks
     if not checks:
-        return [_text(content.SUMMARY_NO_CHECKS) + "\n"]
+        return []
     lines = [
         f"| Expected | Before | After | What this means | {content.SUMMARY_SCOPE_HEADING} |",
         "| --- | --- | --- | --- | --- |",
@@ -523,14 +523,50 @@ def _summary_checks_markdown(report):
 def _summary_markdown(report):
     summary = report.summary
     intent = content.summary_intent(report)
-    state_text, diagnostic = content.summary_state_text(report)
+    result_text, diagnostic = content.summary_result(report)
     markdown = [
         "## Summary\n",
         f"`{_text(content.summary_status(report))}`\n",
-        f"**{_text(summary.headline)}**\n",
+        f"**{_text(content.summary_heading(report))}**\n",
         f"### 1. {content.SUMMARY_FINDING_HEADING}\n",
-        _text(state_text) + "\n",
     ]
+    if result_text:
+        markdown.append(_text(result_text) + "\n")
+    markdown += [
+        f"#### {content.SUMMARY_AIM_LABEL}\n",
+        f"**{_text(intent.label)}**\n",
+        _text(intent.text) + "\n",
+        _text(intent.note) + "\n",
+        "[Instruction changes →](#instruction-diff)\n",
+        f"#### {content.SUMMARY_CHANGE_LABEL}\n",
+    ]
+    change = content.summary_change(report)
+    if change is None:
+        markdown.append(_text(summary.evidence_label) + "\n")
+    else:
+        markdown.append(_text(change.scope) + "\n")
+        markdown += [f"- **{label}:** {_text(text)}" for label, text in change.sides]
+        markdown.append("")
+        if change.note:
+            markdown.append(_text(change.note) + "\n")
+        if change.others:
+            markdown.append(
+                f"**{content.SUMMARY_OTHER_CHANGES_LABEL}:** "
+                f"{_text(', '.join(change.others))} [Behavior diff →](#panel-decision)\n"
+            )
+    open_items = content.summary_open_items(report)
+    if open_items:
+        markdown.append(f"#### {content.SUMMARY_OPEN_LABEL}\n")
+        markdown += [
+            f"- **{_text(item.label)}:** "
+            + (
+                f"[{_text(item.text)}](#{content.target_criterion_anchor(item.criterion)})"
+                if item.criterion is not None
+                else _text(item.text)
+            )
+            for item in open_items
+        ]
+        markdown.append("")
     if diagnostic:
         markdown += [
             f"<details><summary>{content.SUMMARY_DIAGNOSTICS_LABEL}</summary>\n",
@@ -539,16 +575,6 @@ def _summary_markdown(report):
         ]
     markdown += [
         f"### 2. {content.SUMMARY_EXPECTATION_HEADING}\n",
-        f"#### {content.SUMMARY_EXPECTED_LABEL}\n",
-        f"**{_text(intent.label)}**\n",
-        _text(intent.text) + "\n",
-        _text(intent.note) + "\n",
-        "[Instruction changes →](#instruction-diff)\n",
-        f"#### {content.SUMMARY_OBSERVED_LABEL}\n",
-    ]
-    markdown += [f"- {_text(line)}" for line in content.summary_observed(report)]
-    markdown += [
-        "",
         f"**{content.SUMMARY_IMPLICATION_LABEL}** "
         f"{_text(content.summary_implication(report))}\n",
     ]

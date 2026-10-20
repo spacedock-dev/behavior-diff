@@ -15,7 +15,12 @@ from reporting.summary import (
     question_distribution,
     unchecked_goals,
 )
-from reporting.target import acceptance, conclusion, evidence_limit_text
+from reporting.target import (
+    acceptance,
+    conclusion,
+    effective_purpose,
+    evidence_limit_text,
+)
 
 TRIAL_EVIDENCE_HEADING = "Trial evidence"
 FINAL_ANSWER_HEADING = "Final answer"
@@ -383,8 +388,13 @@ SUMMARY_SCOPE_HEADING = "Checked against"
 SUMMARY_TASK_PREVIEW_LIMIT = 280
 SUMMARY_HELP_LABEL = "How to read this summary"
 SUMMARY_HELP = (
-    "Step 1 gives the conclusion, decided only from the validated checks of the "
-    "goals recorded before trials and from trial completeness.",
+    "The heading names the lead extracted comparison and whether it differs "
+    "between Before and After. A difference is not evidence that the edit's aim "
+    "was achieved.",
+    "The badge and Step 1 give the result, decided only from the validated checks "
+    "of the goals recorded before trials and from trial completeness. Step 1 also "
+    "shows the edit's aim, the lead observed change, and what remains unknown or "
+    "unmet.",
     "Step 2 lists each recorded expectation with its Before and After results. "
     "Unclear, unassessable, and not-assessed trials stay separate from Yes and No.",
     "Step 3 shows the actual task and setup. Anything not recorded with the run "
@@ -407,8 +417,11 @@ SUMMARY_SETUP_HEADING = "Test setup"
 SUMMARY_DATA_HEADING = "Test data and its limits"
 SUMMARY_INSPECTED_HEADING = "What we inspected"
 SUMMARY_CAVEATS_HEADING = "What this does not prove"
-SUMMARY_EXPECTED_LABEL = "Expected"
-SUMMARY_OBSERVED_LABEL = "Observed"
+SUMMARY_AIM_LABEL = "What the edit aimed at"
+SUMMARY_CHANGE_LABEL = "Observed change"
+SUMMARY_OTHER_CHANGES_LABEL = "Other comparisons that differ"
+SUMMARY_OPEN_LABEL = "Still unknown or unmet"
+SUMMARY_AIM_UNCHECKED = "Whether the edit achieved the aim above"
 SUMMARY_IMPLICATION_LABEL = "What this means:"
 SUMMARY_DIAGNOSTICS_LABEL = "Assessment diagnostic"
 SUMMARY_DIGEST_HEADING = "Results by check"
@@ -453,41 +466,167 @@ def _check_label(state):
     return label[0].upper() + label[1:]
 
 
-def _target_rejected(report):
-    return (
-        report.summary.state == "unavailable"
-        and report.decisions.target_rejection is not None
-    )
-
-
 def _settled(checks):
     return sum(check.state in MET_STATES for check in checks)
 
 
 def summary_status(report):
-    """A generic status label from the validated finding state, never from prose."""
+    """A generic status label from the validated finding state, never from prose.
+
+    A rejected assessment is a technical failure; its reason stays in diagnostics.
+    """
     summary = report.summary
     if summary.state == "unavailable":
-        return (
-            "Not checked: assessment rejected"
-            if _target_rejected(report)
-            else "Not checked"
-        )
+        return "Not checked"
     if summary.state == "inconclusive" and _settled(summary.checks):
         return "Partly settled"
     return _check_label(summary.state)
 
 
-def summary_state_text(report):
-    """Return (plain finding text, diagnostic or None); a rejection stays in full."""
-    if _target_rejected(report):
-        return (
-            "The automatic check of the expected behavior did not pass validation, "
-            "so no requirement was assessed. The observations below have not been "
-            "checked against the expected behavior.",
-            report.summary.meaning,
+HEADING_PHRASES = {
+    "changed": "changed between versions",
+    "unchanged": "unchanged between versions",
+    "mixed": "mixed across trials",
+    "unavailable": "comparison incomplete",
+}
+
+
+def _lead_row(report):
+    summary = report.summary
+    if summary.decision is None or not (
+        summary.before.choices or summary.after.choices
+    ):
+        return None
+    return report.decisions.rows[summary.decision - 1]
+
+
+def _row_name(row):
+    """An optional extracted topic, else the required extracted decision label."""
+    return row.topic or row.decision
+
+
+def summary_heading(report):
+    """Name the lead extracted comparison and its status; never narrative prose.
+
+    An unmet expectation keeps the canonical finding as the heading, so a changed
+    process cannot outweigh it. Without a lead comparison the finding is used too.
+    """
+    summary = report.summary
+    row = _lead_row(report)
+    if summary.state == "not_met" or row is None:
+        return summary.headline
+    return f"{_row_name(row)}: {HEADING_PHRASES[summary.status]}"
+
+
+def summary_result(report):
+    """Return (result text, diagnostic or None) for Step 1.
+
+    The canonical finding is repeated only when the heading does not already show
+    it. Without validated checks, the assessment's technical reason is diagnostic.
+    """
+    summary = report.summary
+    parts = [] if summary_heading(report) == summary.headline else [summary.headline]
+    if summary.checks:
+        return " ".join((*parts, summary.meaning)), None
+    return " ".join(parts), summary.meaning
+
+
+@dataclass(frozen=True)
+class SummaryChange:
+    scope: str
+    sides: Tuple[Tuple[str, str], ...]
+    note: str
+    others: Tuple[str, ...]
+
+
+def summary_change(report):
+    """The lead extracted comparison, stated once, from extracted choices only."""
+    summary = report.summary
+    row = _lead_row(report)
+    if row is None:
+        return None
+    sides = tuple(
+        (
+            label,
+            "; ".join(
+                f"{choice.choice} ({trial_count(choice.count, data.total)})"
+                for choice in data.choices
+            )
+            or NO_EXTRACTED_CHOICE,
         )
-    return report.summary.meaning, None
+        for label, data in (("Before", summary.before), ("After", summary.after))
+    )
+    others = (
+        tuple(
+            _row_name(other)
+            for index, other in enumerate(report.decisions.rows, 1)
+            if index != summary.decision and decision_status(other) == "Changed"
+        )
+        if complete_trial_evidence(report)
+        else ()
+    )
+    return SummaryChange(
+        f"Lead comparison, {source_label(row.anchor, report.metadata.trace_source)}:"
+        f" {_row_name(row)}",
+        sides,
+        "Trial evidence is incomplete." if summary.status == "unavailable" else "",
+        others,
+    )
+
+
+@dataclass(frozen=True)
+class SummaryOpenItem:
+    kind: str
+    label: str
+    text: str
+    criterion: Optional[int]
+
+
+OPEN_LABELS = {
+    "not_met": "Not met",
+    "inconclusive": "Not settled",
+    "baseline_incomplete": "Before incomplete",
+    "unchecked": "No check",
+}
+
+
+def summary_open_items(report):
+    """What the validated checks leave unmet or unknown, unmet first.
+
+    Without validated checks every recorded goal is unknown; goal wording is
+    reused exactly and never selected, shortened, or authored.
+    """
+    summary = report.summary
+    checks = summary.checks
+    items = [
+        SummaryOpenItem(state, OPEN_LABELS[state], check.text, check.criterion)
+        for state in ("not_met", "inconclusive", "baseline_incomplete")
+        for check in checks
+        if check.state == state
+    ]
+    decisions = report.decisions
+    if checks:
+        goals = effective_purpose(decisions.purpose, decisions.intent)
+        numbers = unchecked_goals(decisions)
+    else:
+        goals = decisions.purpose
+        numbers = range(1, len(goals) + 1)
+        if not goals or (
+            len(goals) == 1 and goals[0].text == summary_intent(report).text
+        ):
+            numbers = ()
+            items.append(
+                SummaryOpenItem(
+                    "unchecked", OPEN_LABELS["unchecked"], SUMMARY_AIM_UNCHECKED, None
+                )
+            )
+    items += [
+        SummaryOpenItem(
+            "unchecked", OPEN_LABELS["unchecked"], goals[number - 1].text, None
+        )
+        for number in numbers
+    ]
+    return tuple(items)
 
 
 def summary_check_groups(report):
@@ -510,48 +649,6 @@ def _goal_gap(report):
         return ""
     noun = "goal" if len(unchecked) == 1 else "goals"
     return f"No check covers recorded {noun} " + ", ".join(map(str, unchecked)) + "."
-
-
-def summary_observed(report):
-    """Observed facts: validated check counts and the lead extracted comparison."""
-    summary = report.summary
-    lines = []
-    total = len(summary.checks)
-    noun = "check" if total == 1 else "checks"
-    for state, _, numbers in summary_check_groups(report):
-        lines.append(f"{len(numbers)} of {total} {noun}: {CHECK_LABELS[state]}.")
-    if not total:
-        lines.append(
-            "No requirement was assessed: the automatic check was rejected."
-            if _target_rejected(report)
-            else SUMMARY_NO_CHECKS
-        )
-    gap = _goal_gap(report)
-    if gap:
-        lines.append(gap)
-    if summary.decision is not None and (
-        summary.before.choices or summary.after.choices
-    ):
-        row = report.decisions.rows[summary.decision - 1]
-        sides = "; ".join(
-            f"{label}: "
-            + (
-                ", ".join(
-                    f"{choice.choice} ({trial_count(choice.count, data.total)})"
-                    for choice in data.choices
-                )
-                or NO_EXTRACTED_CHOICE
-            )
-            for label, data in (("Before", summary.before), ("After", summary.after))
-        )
-        incomplete = (
-            " Trial evidence is incomplete." if summary.status == "unavailable" else ""
-        )
-        lines.append(
-            f"Extracted comparison, {source_label(row.anchor, report.metadata.trace_source)}"
-            f" ({row.topic}): {sides}.{incomplete}"
-        )
-    return tuple(lines)
 
 
 def summary_implication(report):
@@ -606,14 +703,10 @@ def summary_qualification(report):
         "comparisons; they are retained as written, not endorsed."
     )
     if summary.state == "unavailable":
-        reason = (
-            "the automatic check of the expected behavior was rejected"
-            if _target_rejected(report)
-            else "no validated check of the expected behavior is available"
-        )
+        # A rejection's technical reason stays in the Step 1 diagnostic.
         return (
-            f"{lead} Because {reason}, any claim of success or verification in "
-            "them is unconfirmed."
+            f"{lead} Because no validated check of the expected behavior is "
+            "available, any claim of success or verification in them is unconfirmed."
         )
     if summary.state in ("not_met", "inconclusive", "baseline_incomplete"):
         open_checks = [

@@ -536,13 +536,19 @@ semantic truth, causal attribution, or live extractor adherence.
 
 The default Summary has five numbered steps in one main reading column:
 finding; expected versus observed behavior; how tested; supporting evidence;
-and next action. A separate status badge precedes the finding. Expected/Observed
-panels explain the comparison without replacing the full criteria table.
+and next action. A separate validated-result badge precedes a concrete heading
+from the lead extracted comparison's topic and status. An unmet requirement keeps
+the canonical finding prominent; a missing comparison uses that finding as its
+fallback. The comparison heading is not a claim that the change's goal was met.
+The first step pairs the recorded aim with observed choices and counts, then
+identifies unmet, unresolved and uncovered requirements without inventing findings.
+Full checks and original observation detail remain below; technical rejection
+reasons stay in diagnostics rather than dominating the first screen.
 A compact header keeps source/PR links, compared revisions and the model visible
 without a hover. Reading help, complete task, raw setup limits and rejected-check
 diagnostics expand inline. The other five tabs retain their navigation roles.
 
-The finding is derived from validated target checks, not the narrative headline.
+The assessment conclusion is derived from validated target checks, not narrative prose.
 An unmet After requirement remains unmet when Before made the same mistake.
 All-met checks distinguish an already-correct baseline from an observed improvement;
 an interrupted or uncertain Before cannot prove improvement. Preservation and

@@ -13,13 +13,20 @@ WRAPPED = re.compile(r'<strong class="version-label">(Before|After)</strong>')
 
 
 def _summary_links(report):
-    """Expected per-step links: checks link to criteria; evidence links to detail tabs."""
+    """Expected per-step links: aim to the diff, open goals and checks to criteria,
+    other differing comparisons and evidence to detail tabs."""
     from reporting import content
 
+    change = content.summary_change(report)
     return [
-        [],
         ["#instruction-diff"]
-        + [f"#target-criterion-{check.criterion}" for check in report.summary.checks],
+        + (["#panel-decision"] if change is not None and change.others else [])
+        + [
+            f"#target-criterion-{item.criterion}"
+            for item in content.summary_open_items(report)
+            if item.criterion is not None
+        ],
+        [f"#target-criterion-{check.criterion}" for check in report.summary.checks],
         [],
         [
             f"#target-criterion-{number}"

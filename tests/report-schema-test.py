@@ -958,6 +958,147 @@ def assert_derived_summary_claims(reports):
     # Model narrative never sets the conclusion.
     assert unavailable.headline == finding.FINDING_HEADLINES["unavailable"]
 
+    assert_goal_focus(report, assessed, uncovered, missing)
+
+
+def _focus_markup(page):
+    """Return (status, heading, finding-step plain text, open kinds) from HTML."""
+    from attention_contract import _ReportMarkup, _plain
+
+    markup = _ReportMarkup(page)
+    summary = markup.select(anchor="panel-summary")[0]
+    status = markup.select(summary, class_name="summary-status")[0]
+    heading = markup.select(summary, class_name="summary-headline")[0]
+    step = markup.select(summary, class_name="story-finding")[0]
+    kinds = [
+        entry["attrs"].get("data-kind")
+        for listing in markup.select(step, class_name="summary-open-list")
+        for entry in markup.select(listing, tag="li")
+    ]
+    return status, _plain(heading).strip(), _plain(step), kinds
+
+
+def assert_goal_focus(report, assessed, uncovered, missing):
+    """The first screen names the change, the result and the open requirement.
+
+    The presentation heading may differ from the canonical finding headline, but
+    the badge state, open items and diagnostics must follow validated state only.
+    """
+    from reporting.render_html import render_artifact
+    from reporting.render_markdown import render_markdown
+    from reporting.summary import build_summary
+    from presentation_contract import visible_text as visible
+
+    def rebuilt(decisions):
+        return replace(
+            report,
+            decisions=decisions,
+            summary=build_summary(report.metadata, report.variants, decisions),
+        )
+
+    def check(value):
+        summary = value.summary
+        heading = content.summary_heading(value)
+        text, diagnostic = content.summary_result(value)
+        items = content.summary_open_items(value)
+        html_page = render_artifact(value, "")
+        status, shown, step, kinds = _focus_markup(html_page)
+        assert status["attrs"].get("data-state") == summary.state
+        assert content.summary_status(value) in visible(html_page)
+        assert shown == heading
+        # The canonical finding stays visible even when a presentation heading leads.
+        for page in (visible(html_page), visible(render_markdown(value))):
+            assert heading in page and summary.headline in page
+            if diagnostic:
+                assert diagnostic in page
+        assert kinds == [item.kind for item in items]
+        for item in items:
+            assert item.text in step
+        return summary, heading, text, diagnostic, items
+
+    # Lead comparison changed, but no validated target: the change is shown,
+    # the result stays "not checked" and never reads as a pass.
+    # The fixture's lead is unchanged; rename only its After choices so the same
+    # trial memberships now record a different answer.
+    lead = rebuilt(replace(missing, narrative=None)).summary.decision
+    assert lead is not None
+    rows = list(missing.rows)
+    rows[lead - 1] = replace(
+        rows[lead - 1],
+        after=tuple(
+            replace(choice, choice="Synthetic changed answer " + str(number))
+            for number, choice in enumerate(rows[lead - 1].after, 1)
+        ),
+    )
+    # Narrative labels describe the old choices; the conclusion never uses them.
+    missing = replace(missing, rows=tuple(rows), narrative=None)
+    unavailable = rebuilt(missing)
+    assert unavailable.summary.decision == lead
+    summary, heading, text, diagnostic, items = check(unavailable)
+    row = unavailable.decisions.rows[summary.decision - 1]
+    assert summary.state == "unavailable" and not summary.checks
+    assert content.decision_status(row) == "Changed"
+    assert row.topic in heading and heading != summary.headline
+    change = content.summary_change(unavailable)
+    assert change is not None and row.topic in change.scope
+    for (_, side_text), side in zip(change.sides, (row.before, row.after)):
+        assert all(choice.choice in side_text for choice in side)
+    assert diagnostic == summary.meaning and summary.meaning not in text
+    assert items and {item.kind for item in items} == {"unchecked"}
+    assert all(item.criterion is None for item in items)
+    rejected = rebuilt(replace(missing, target_rejection="synthetic reason"))
+    assert content.summary_status(rejected) == content.summary_status(unavailable)
+    assert "synthetic reason" in check(rejected)[3]
+    # An optional topic may be blank; the heading then names the required
+    # extracted decision label, never an empty or generic subject.
+    untitled_rows = list(missing.rows)
+    untitled_rows[lead - 1] = replace(untitled_rows[lead - 1], topic="")
+    untitled = rebuilt(replace(missing, rows=tuple(untitled_rows)))
+    untitled_heading = check(untitled)[1]
+    untitled_row = untitled.decisions.rows[lead - 1]
+    assert untitled_row.decision.strip()
+    assert untitled_heading.startswith(untitled_row.decision)
+    assert untitled_heading != untitled.summary.headline
+
+    # A process change never hides a missed goal: the finding leads verbatim and
+    # every missed criterion is named and linked to its check.
+    failed = assessed(after="not_met")
+    summary, heading, text, diagnostic, items = check(failed)
+    assert summary.state == "not_met" and heading == summary.headline
+    assert summary.meaning in text and diagnostic is None
+    missed = [item for item in items if item.kind == "not_met"]
+    assert [item.criterion for item in missed] == [
+        number
+        for number, check_ in enumerate(summary.checks, 1)
+        if check_.state == "not_met"
+    ]
+    page = render_artifact(failed, "")
+    for item in missed:
+        assert f'href="#{content.target_criterion_anchor(item.criterion)}"' in page
+
+    # Met checks plus an unchecked goal: only the unchecked goal stays open.
+    met = assessed().decisions
+    partial = rebuilt(replace(met, purpose=uncovered.purpose))
+    summary, heading, text, diagnostic, items = check(partial)
+    assert summary.state == "inconclusive"
+    assert any(c.state in content.MET_STATES for c in summary.checks)
+    assert [item.text for item in items if item.kind == "unchecked"] == [
+        uncovered.purpose[-1].text
+    ]
+    assert all(
+        item.criterion is None
+        or summary.checks[item.criterion - 1].state not in content.MET_STATES
+        for item in items
+    )
+
+    # No lead comparison and no recorded purpose: an honest fallback, not a pass.
+    bare = rebuilt(replace(missing, purpose=(), rows=(), narrative=None, outcome=None))
+    summary, heading, text, diagnostic, items = check(bare)
+    assert summary.state == "unavailable"
+    assert heading == summary.headline
+    assert content.summary_change(bare) is None
+    assert [item.text for item in items] == [content.SUMMARY_AIM_UNCHECKED]
+
 
 def assert_render_import_safe():
     render_path = scripts / "render.py"

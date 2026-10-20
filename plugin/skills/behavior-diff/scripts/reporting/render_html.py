@@ -1059,7 +1059,7 @@ def _summary_claim(label: str, claim, css_class: str) -> str:
 def _summary_checks(report) -> str:
     checks = report.summary.checks
     if not checks:
-        return f'<p class="note summary-no-checks">{html.escape(content.SUMMARY_NO_CHECKS)}</p>'
+        return ""
     rows = "".join(
         f'<tr class="summary-check" data-state="{html.escape(check.state)}">'
         f'<td><a href="#{content.target_criterion_anchor(check.criterion)}">'
@@ -1083,6 +1083,55 @@ def _summary_step(number: int, css_class: str, heading: str, body: str) -> str:
         f'<li class="story-step {css_class}"><span class="story-number" aria-hidden="true">'
         f'{number}</span><div class="story-body"><h3>{html.escape(heading)}</h3>'
         f"{body}</div></li>"
+    )
+
+
+def _summary_change(report) -> str:
+    change = content.summary_change(report)
+    if change is None:
+        return f'<p class="summary-change-scope">{html.escape(report.summary.evidence_label)}</p>'
+    sides = "".join(
+        f"<li><strong>{label}:</strong> {html.escape(text)}</li>"
+        for label, text in change.sides
+    )
+    note = (
+        f'<p class="note summary-change-note">{html.escape(change.note)}</p>'
+        if change.note
+        else ""
+    )
+    others = (
+        '<p class="summary-other-changes">'
+        f"<strong>{html.escape(content.SUMMARY_OTHER_CHANGES_LABEL)}:</strong> "
+        f"{html.escape(', '.join(change.others))} "
+        '<a href="#panel-decision">Behavior diff <span aria-hidden="true">→</span></a></p>'
+        if change.others
+        else ""
+    )
+    return (
+        f'<p class="summary-change-scope">{html.escape(change.scope)}</p>'
+        f'<ul class="summary-change-sides">{sides}</ul>{note}{others}'
+    )
+
+
+def _summary_open(report) -> str:
+    items = content.summary_open_items(report)
+    if not items:
+        return ""
+    rows = "".join(
+        f'<li data-kind="{html.escape(item.kind)}">'
+        f'<span class="summary-open-tag">{html.escape(item.label)}</span> '
+        + (
+            f'<a href="#{content.target_criterion_anchor(item.criterion)}">'
+            f"{html.escape(item.text)}</a>"
+            if item.criterion is not None
+            else html.escape(item.text)
+        )
+        + "</li>"
+        for item in items
+    )
+    return (
+        f'<div class="summary-open"><h4>{html.escape(content.SUMMARY_OPEN_LABEL)}</h4>'
+        f'<ul class="summary-open-list">{rows}</ul></div>'
     )
 
 
@@ -1141,7 +1190,7 @@ def _short_story_summary(report: ReportData) -> str:
         f'<details class="summary-reading-help"><summary>{html.escape(content.SUMMARY_HELP_LABEL)}'
         f"</summary><ul>{help_items}</ul></details>"
     )
-    state_text, diagnostic = content.summary_state_text(report)
+    result_text, diagnostic = content.summary_result(report)
     diagnostic_html = (
         '<details class="summary-diagnostics">'
         f"<summary>{html.escape(content.SUMMARY_DIAGNOSTICS_LABEL)}</summary>"
@@ -1149,8 +1198,11 @@ def _short_story_summary(report: ReportData) -> str:
         if diagnostic
         else ""
     )
-    observed = "".join(
-        f"<li>{html.escape(line)}</li>" for line in content.summary_observed(report)
+    result_html = (
+        f'<p class="summary-state" data-state="{html.escape(summary.state)}">'
+        f"{version_name_html(result_text)}</p>"
+        if result_text
+        else ""
     )
     groups = content.summary_check_groups(report)
     digest = (
@@ -1180,15 +1232,9 @@ def _short_story_summary(report: ReportData) -> str:
             1,
             "story-finding",
             content.SUMMARY_FINDING_HEADING,
-            f'<p class="summary-state" data-state="{html.escape(summary.state)}">'
-            f"{version_name_html(state_text)}</p>{diagnostic_html}",
-        ),
-        _summary_step(
-            2,
-            "story-expectation",
-            content.SUMMARY_EXPECTATION_HEADING,
+            f"{result_html}"
             '<div class="summary-expect-observe"><div class="summary-expected">'
-            f'<p class="summary-panel-label">{html.escape(content.SUMMARY_EXPECTED_LABEL)}</p>'
+            f'<p class="summary-panel-label">{html.escape(content.SUMMARY_AIM_LABEL)}</p>'
             '<div class="intent-heading">'
             f'<span class="intent-source">{html.escape(intent.badge)}</span>'
             f"{_info('intent-info', intent.label, f'<p>{html.escape(intent.note)}</p>')}"
@@ -1197,8 +1243,14 @@ def _short_story_summary(report: ReportData) -> str:
             '<span aria-hidden="true">→</span></a></nav></div>'
             f'<p class="story-intent">{intent_text}</p></div>'
             '<div class="summary-observed">'
-            f'<p class="summary-panel-label">{html.escape(content.SUMMARY_OBSERVED_LABEL)}</p>'
-            f'<ul class="summary-observed-list">{observed}</ul></div></div>'
+            f'<p class="summary-panel-label">{html.escape(content.SUMMARY_CHANGE_LABEL)}</p>'
+            f"{_summary_change(report)}</div></div>"
+            f"{_summary_open(report)}{diagnostic_html}",
+        ),
+        _summary_step(
+            2,
+            "story-expectation",
+            content.SUMMARY_EXPECTATION_HEADING,
             f'<p class="summary-implication"><strong>{html.escape(content.SUMMARY_IMPLICATION_LABEL)}'
             f"</strong> {html.escape(content.summary_implication(report))}</p>"
             f"{_summary_checks(report)}",
@@ -1245,7 +1297,7 @@ def _short_story_summary(report: ReportData) -> str:
         '<div class="short-story-summary">'
         f'<p class="summary-status" data-state="{html.escape(summary.state)}">'
         f"{html.escape(content.summary_status(report))}</p>"
-        f'<h2 class="summary-headline">{html.escape(summary.headline)}</h2>'
+        f'<h2 class="summary-headline">{html.escape(content.summary_heading(report))}</h2>'
         f'<ol class="story-steps" role="list">{"".join(steps)}</ol></div>'
     )
 

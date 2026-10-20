@@ -220,9 +220,15 @@ def _assert_purpose_presentation(reports):
                     assert item.reference not in summary_text, (
                         f"{name}: Summary repeats detailed goal provenance."
                     )
-                    if shown != [item.text]:
-                        # No truncation, selection, or full repetition of a goal.
-                        assert item.text[:60] not in summary_text, name
+                    # Open questions may name a whole uncovered goal, but a goal
+                    # is never shown truncated.
+                    if item.text[:60] in summary_text:
+                        assert item.text in summary_text, name
+                if shown != [item.text]:
+                    # The short aim never truncates, selects, or repeats a goal.
+                    assert all(
+                        item.text[:60] not in aim for aim in surfaces["intent"]
+                    ), name
                 for instruction_text in surfaces["instruction"]:
                     assert item.text in instruction_text, (
                         f"{name}: Instruction changes lost a full recorded goal."
