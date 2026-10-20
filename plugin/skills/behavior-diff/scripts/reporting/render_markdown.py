@@ -523,19 +523,38 @@ def _summary_checks_markdown(report):
 def _summary_markdown(report):
     summary = report.summary
     intent = content.summary_intent(report)
+    state_text, diagnostic = content.summary_state_text(report)
     markdown = [
         "## Summary\n",
+        f"`{_text(content.summary_status(report))}`\n",
         f"**{_text(summary.headline)}**\n",
         f"### 1. {content.SUMMARY_FINDING_HEADING}\n",
-        _text(summary.meaning) + "\n",
+        _text(state_text) + "\n",
+    ]
+    if diagnostic:
+        markdown += [
+            f"<details><summary>{content.SUMMARY_DIAGNOSTICS_LABEL}</summary>\n",
+            _text(diagnostic) + "\n",
+            "</details>\n",
+        ]
+    markdown += [
         f"### 2. {content.SUMMARY_EXPECTATION_HEADING}\n",
+        f"#### {content.SUMMARY_EXPECTED_LABEL}\n",
         f"**{_text(intent.label)}**\n",
         _text(intent.text) + "\n",
         _text(intent.note) + "\n",
         "[Instruction changes →](#instruction-diff)\n",
+        f"#### {content.SUMMARY_OBSERVED_LABEL}\n",
+    ]
+    markdown += [f"- {_text(line)}" for line in content.summary_observed(report)]
+    markdown += [
+        "",
+        f"**{content.SUMMARY_IMPLICATION_LABEL}** "
+        f"{_text(content.summary_implication(report))}\n",
     ]
     markdown += _summary_checks_markdown(report)
     markdown.append(f"### 3. {content.SUMMARY_METHOD_HEADING}\n")
+    markdown.append(f"#### {content.SUMMARY_TASK_HEADING}\n")
     if report.content.task:
         markdown += [
             f"**{content.SUMMARY_TASK_LABEL}:** "
@@ -546,13 +565,31 @@ def _summary_markdown(report):
         ]
     else:
         markdown.append(_text(content.SCENARIO_PROMPT_UNAVAILABLE) + "\n")
-    markdown += [f"- {_text(line)}" for line in content.summary_method(report)]
-    markdown.append("")
+    for heading, lines in content.summary_method_sections(report):
+        markdown.append(f"#### {heading}\n")
+        markdown += [f"- {_text(line)}" for line in lines]
+        markdown.append("")
+    markdown.append(f"#### {content.SUMMARY_CAVEATS_HEADING}\n")
     markdown += [f"- {_text(notice)}" for notice in summary.notices]
     markdown += ["", f"<details><summary>{content.SUMMARY_HELP_LABEL}</summary>\n"]
     markdown += [f"- {_text(line)}" for line in content.SUMMARY_HELP]
     markdown += ["", "</details>\n"]
     markdown += ["", f"### 4. {content.SUMMARY_EVIDENCE_HEADING}\n"]
+    groups = content.summary_check_groups(report)
+    if groups:
+        markdown.append(f"#### {content.SUMMARY_DIGEST_HEADING}\n")
+        markdown += [
+            f"- **{_text(label)}** "
+            + ", ".join(
+                f"[Check {number}](#{content.target_criterion_anchor(number)})"
+                for number in numbers
+            )
+            for _, label, numbers in groups
+        ]
+        markdown.append("")
+    qualification = content.summary_qualification(report)
+    if qualification:
+        markdown.append(f"> {_text(qualification)}\n")
     markdown.append(_text(summary.evidence_label) + "\n")
     for side_name in ("before", "after"):
         side = getattr(summary, side_name)
@@ -616,6 +653,9 @@ def _explanation_markdown(report):
         f"**{content.EXPLANATION_CONCLUSION_LABEL}** {_text(report.summary.headline)} "
         "[Summary](#panel-summary)\n",
     ]
+    qualification = content.summary_qualification(report)
+    if qualification:
+        markdown.append(f"> {_text(qualification)}\n")
     complete = content.complete_trial_evidence(report)
     if explanation is None or not complete:
         notice = (

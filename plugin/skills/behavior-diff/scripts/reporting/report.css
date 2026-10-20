@@ -476,7 +476,40 @@ details { margin-bottom:.25rem; }
 .target-checks td, .summary-checks td { font-weight:400; }
 .target-checks th:first-child, .summary-checks th:first-child { width:40%; }
 .summary-state { font-size:18px; line-height:1.5; margin:0; }
-.summary-method { font-size:14px; line-height:1.7; margin:10px 0 0; padding-left:18px; }
+.summary-status { display:inline-block; margin:0 0 12px; padding:3px 9px;
+  border:1px solid currentColor; border-radius:5px; font-size:12px; font-weight:700;
+  color:#8a5b12; }
+.summary-status[data-state="not_met"] { color:#a8312c; }
+.summary-status[data-state="improved"], .summary-status[data-state="preserved"],
+.summary-status[data-state="already_met"] { color:#22654b; }
+.summary-diagnostics { margin-top:10px; font-size:13px; color:#53646d; }
+.summary-diagnostics > summary { font-weight:650; }
+.summary-diagnostics p { margin:6px 0 0; line-height:1.6; }
+.summary-expect-observe { display:grid; grid-template-columns:minmax(0, 1fr) minmax(0, 1fr);
+  border:1px solid #dbe5e8; border-radius:10px; overflow:hidden; }
+.summary-expected, .summary-observed { padding:16px 18px; min-width:0; }
+.summary-expected { background:#f6f9f8; }
+.summary-observed { background:#fffaf0; border-left:1px solid #dbe5e8; }
+.summary-panel-label { margin:0 0 8px; color:#53646d; letter-spacing:.11em;
+  font-size:11px; font-weight:750; text-transform:uppercase; }
+.summary-expected .story-intent { font-size:18px; }
+.summary-observed-list { margin:0; padding-left:18px; font-size:15px; line-height:1.6; }
+.summary-observed-list li + li { margin-top:6px; }
+.summary-implication { font-size:15px; line-height:1.6; margin:16px 0 0;
+  padding-top:14px; border-top:1px solid #dbe5e8; max-width:780px; }
+.summary-method-grid { display:grid; grid-template-columns:minmax(0, 1fr) minmax(0, 1fr);
+  gap:16px 24px; }
+.summary-method-part, .summary-method-caveats { min-width:0; }
+.summary-method-part h4, .summary-method-caveats h4, .summary-check-digest h4 {
+  font-size:14px; margin:0 0 6px; }
+.summary-method-list { font-size:14px; line-height:1.7; margin:0; padding-left:18px; }
+.summary-method-caveats { margin-top:16px; padding-top:12px; border-top:1px solid #dbe5e8; }
+.summary-check-digest ul { list-style:none; margin:0 0 14px; padding:0; font-size:14px;
+  line-height:1.7; }
+.summary-check-digest a { margin-left:4px; }
+.summary-qualification, .explanation-qualification { border-left:3px solid #8a5b12;
+  background:#fff8e9; padding:10px 14px; margin:0 0 14px; font-size:14px;
+  line-height:1.6; max-width:780px; }
 .summary-task pre { white-space:pre-wrap; max-height:320px; overflow:auto; }
 .summary-attention { margin-top:18px; }
 .summary-next-action { font-size:18px; line-height:1.5; margin:0 0 8px; }
@@ -504,7 +537,7 @@ details { margin-bottom:.25rem; }
 .summary-notices { font-size:13px; color:#53646d; margin:16px 0 0; padding-left:18px;
   line-height:1.7; }
 .summary-notices:empty { display:none; }
-.story-method .summary-notices { margin-top:8px; }
+.story-method .summary-notices { margin-top:0; }
 .summary-evidence-button { display:inline-flex; align-items:center; gap:13px;
   font-size:13px; font-weight:700; background:#173e4a; color:#fff; border-radius:9px;
   padding:11px 15px !important; text-decoration:none; }
@@ -529,7 +562,12 @@ details { margin-bottom:.25rem; }
   .story-step:not(:last-child)::before { left:15px; top:38px; bottom:6px; }
   .story-body > h3, .intent-heading h3 { font-size:15px; }
   .story-body > h3, .intent-heading { margin-top:4px; }
-  .story-intent { font-size:19px; }
+  .story-intent, .summary-expected .story-intent { font-size:17px; }
+  .summary-expect-observe, .summary-method-grid { grid-template-columns:minmax(0, 1fr); }
+  .summary-observed { border-left:0; border-top:1px solid #dbe5e8; }
+  .summary-expected, .summary-observed { padding:14px 12px; }
+  .summary-checks { min-width:760px; }
+  .summary-checks th, .summary-checks td { overflow-wrap:normal; }
   .summary-context { font-size:16px; }
   .summary-pair { grid-template-columns:minmax(0, 1fr); gap:8px; }
   .summary-arrow { transform:rotate(90deg); line-height:1; font-size:24px; }

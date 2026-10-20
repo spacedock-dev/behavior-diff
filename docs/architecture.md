@@ -536,9 +536,11 @@ semantic truth, causal attribution, or live extractor adherence.
 
 The default Summary has five numbered steps in one main reading column:
 finding; expected versus observed behavior; how tested; supporting evidence;
-and next action. A compact header keeps source/PR links, compared revisions and
-the model visible without a hover. Reading help and the complete task expand
-inline. The other five tabs retain their evidence-navigation responsibilities.
+and next action. A separate status badge precedes the finding. Expected/Observed
+panels explain the comparison without replacing the full criteria table.
+A compact header keeps source/PR links, compared revisions and the model visible
+without a hover. Reading help, complete task, raw setup limits and rejected-check
+diagnostics expand inline. The other five tabs retain their navigation roles.
 
 The finding is derived from validated target checks, not the narrative headline.
 An unmet After requirement remains unmet when Before made the same mistake.
@@ -566,6 +568,12 @@ markup. Context must describe evidence, not invent a source conflict. Starts
 require complete trial membership; a recorded action before a final answer does
 not establish other causal ordering. Missing source evidence does not erase
 supported observations, but observations alone do not prove a requirement was met.
+The presentation retains the complete observation subtree rather than replacing
+it with an abstract: Before/After cards, counts, primary outcome, model explanation,
+cautions and attention findings. A separate qualification warns that retained
+model interpretations do not override missing, rejected or partial assessments.
+Deterministic check groups make supported results and unresolved coverage visible
+together; no new model call or authored case-specific finding is used to render.
 
 The blind human-evaluation projection retains only this observation section and
 evidence limits. It excludes the assessment-derived headline, expected criteria,

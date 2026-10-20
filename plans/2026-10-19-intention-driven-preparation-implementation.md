@@ -643,6 +643,23 @@ not proof of extractor adherence; do not copy their conclusions into report data
   invalid extractions remain unavailable; showing audited historical findings
   automatically requires a separately approved fresh extraction, not UI editing.
 
+**Presentation-only acceptance boundary (approved after verification)**
+
+The revised design keeps a concise finding and Expected/Observed framing above
+the full original observations, counts, primary result, explanations, cautions,
+attention findings and assessment checks. Implement it in the production renderer,
+not a permanent authored wrapper. Preserve the raw evidence and qualify conflicting
+model interpretations. Regenerate the saved verification reports without model
+calls, complete deterministic checks and independent review, then obtain the user's
+visual acceptance before recommending merge.
+
+The two approved re-extractions did not establish an issue-found/no-gap pair.
+One assessment was rejected for noncontiguous output quotes and missed a required
+code-check criterion; the other had supported positive results but unresolved
+coverage. Missing source returns limited factual validation. These assessment and
+evidence problems are separate follow-up work, not claims this presentation PR
+resolves. Do not weaken validators or insert manual audit conclusions to pass.
+
 Tracking: DRC-4835. The approved prototype is temporary and is not a product route.
 
 ### Step-by-step implementation protocol

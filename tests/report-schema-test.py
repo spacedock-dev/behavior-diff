@@ -855,6 +855,18 @@ def assert_derived_summary_claims(reports):
         (assessed(before="not_met", variants=interrupted), "baseline_incomplete"),
         (assessed(mode="preservation"), "preserved"),
         (assessed(after="not_met", mode="preservation"), "not_met"),
+        (
+            assessed(before="not_met", after="not_met", mode="preservation"),
+            "not_met",
+        ),
+        (
+            assessed(before="uncertain", after="not_met", mode="preservation"),
+            "not_met",
+        ),
+        (
+            assessed(before="unassessable", after="not_met", mode="preservation"),
+            "not_met",
+        ),
         (assessed(before="not_met", mode="preservation"), "improved"),
         (assessed(before="uncertain", mode="preservation"), "baseline_incomplete"),
         (assessed(before="unassessable", mode="preservation"), "baseline_incomplete"),
@@ -871,6 +883,12 @@ def assert_derived_summary_claims(reports):
         assert summary.state == state, (state, summary.state)
         assert {check.state for check in summary.checks} == {state}, state
         assert summary.next_action == finding.NEXT_ACTIONS[state], state
+        if preservation and state == "not_met":
+            # A requested preservation does not establish a previously met baseline.
+            ordinary_failure = assessed(after="not_met").summary
+            assert tuple(check.meaning for check in summary.checks) == tuple(
+                check.meaning for check in ordinary_failure.checks
+            )
         answers_only = any(
             check.scope == finding.CHECK_SCOPES["output"] for check in summary.checks
         )

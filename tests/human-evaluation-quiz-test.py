@@ -341,7 +341,13 @@ class ReportAndServerTests(unittest.TestCase):
             "scenario-context",
             "scenario-prompt",
             "summary-checks",
-            "summary-method",
+            "summary-status",
+            "summary-state",
+            "summary-diagnostics",
+            "summary-expect-observe",
+            "summary-method-grid",
+            "summary-method-caveats",
+            "summary-check-digest",
             "summary-finding-meaning",
             "summary-next-action",
         ):
@@ -567,6 +573,59 @@ class ReportAndServerTests(unittest.TestCase):
                 '<div class="short-story-summary"><p class="summary-boundary">'
                 "Boundary</p>"
             )
+
+    def test_whitelisted_presentation_nodes_are_validated_but_not_projected(self):
+        source = (self.gallery / "changed-result/report.html").read_text()
+
+        def decorated(extra=None):
+            root = quiz._ReportParser().finish(source)
+            nodes = list(quiz._walk(root))
+            story = quiz._single(
+                [n for n in nodes if n.has_class("short-story-summary")], "story"
+            )
+            body = quiz._children(
+                quiz._single(
+                    [n for n in nodes if n.has_class("story-evidence")], "evidence"
+                )
+            )[1]
+            status = quiz._children(story)[0]
+            self.assertTrue(status.has_class("summary-status"))
+            status.children = ["LEAKSTATUS verdict"]
+            parts = [
+                node
+                for node in quiz._children(body)
+                if not node.has_class("summary-check-digest")
+                and not node.has_class("summary-qualification")
+            ]
+            added = [
+                quiz._Node(
+                    "div",
+                    [("class", "summary-check-digest")],
+                    [quiz._Node("h4", children=["LEAKDIGEST checks"])],
+                ),
+                quiz._Node(
+                    "p",
+                    [("class", "summary-qualification")],
+                    ["LEAKQUALIFICATION note"],
+                ),
+            ]
+            if extra is not None:
+                added.insert(0, extra)
+            body.children = [parts[0], *added, *parts[1:]]
+            return root
+
+        with patch.object(quiz._ReportParser, "finish", return_value=decorated()):
+            blinded = quiz._blinded_report(source)
+        for leak in ("LEAKSTATUS", "LEAKDIGEST", "LEAKQUALIFICATION"):
+            self.assertNotIn(leak, blinded)
+        self.assertIn("summary-observations", blinded)
+        self.assertIn("evidence-limits", blinded)
+        unknown = quiz._Node("div", [("class", "summary-other-findings")])
+        with (
+            patch.object(quiz._ReportParser, "finish", return_value=decorated(unknown)),
+            self.assertRaises(ValueError),
+        ):
+            quiz._blinded_report(source)
 
     def test_blinding_retains_primary_result_beside_answer_detail_contrast(self):
         for scenario in ("answer-details", "non-outcome-narrative", "missing-primary"):

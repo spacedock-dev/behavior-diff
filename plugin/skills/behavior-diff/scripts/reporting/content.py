@@ -7,7 +7,14 @@ from typing import Optional, Tuple
 from reporting.attention import AttentionFindingData
 from reporting.instruction import parse_diff_hunks
 from reporting.schema import ContentData, ResultData
-from reporting.summary import PURPOSE_SUMMARY_LIMIT, question_distribution
+from reporting.summary import (
+    CHECK_LABELS,
+    CHECK_STATES,
+    MET_STATES,
+    PURPOSE_SUMMARY_LIMIT,
+    question_distribution,
+    unchecked_goals,
+)
 from reporting.target import acceptance, conclusion, evidence_limit_text
 
 TRIAL_EVIDENCE_HEADING = "Trial evidence"
@@ -395,27 +402,231 @@ def task_preview(task):
     return text[:SUMMARY_TASK_PREVIEW_LIMIT].rstrip() + "…"
 
 
-def summary_method(report):
-    """Describe only the recorded setup; absent rationale stays explicitly unrecorded."""
+SUMMARY_TASK_HEADING = "Task"
+SUMMARY_SETUP_HEADING = "Test setup"
+SUMMARY_DATA_HEADING = "Test data and its limits"
+SUMMARY_INSPECTED_HEADING = "What we inspected"
+SUMMARY_CAVEATS_HEADING = "What this does not prove"
+SUMMARY_EXPECTED_LABEL = "Expected"
+SUMMARY_OBSERVED_LABEL = "Observed"
+SUMMARY_IMPLICATION_LABEL = "What this means:"
+SUMMARY_DIAGNOSTICS_LABEL = "Assessment diagnostic"
+SUMMARY_DIGEST_HEADING = "Results by check"
+
+
+def _summary_method_parts(report):
     metadata = report.metadata
     before, after = report.variants.before, report.variants.after
-    lines = [
+    setup = (
         "Both versions received the same task and inputs: "
         f"{before.total} Before {trial_noun(before.total)} and "
         f"{after.total} After {trial_noun(after.total)}, model {metadata.model}.",
         f"Instruction file: {metadata.target_file}.",
-        DATA_RATIONALE_UNRECORDED,
-    ]
+    )
     scopes = tuple(dict.fromkeys(check.scope for check in report.summary.checks))
-    lines += [f"Evidence inspected: {scope}" for scope in scopes] or [
-        "Evidence inspected: " + SUMMARY_NO_CHECKS
-    ]
-    if report.decisions.recorded_evidence:
-        lines.append(
+    inspected = tuple(f"Evidence inspected: {scope}" for scope in scopes) or (
+        "Evidence inspected: " + SUMMARY_NO_CHECKS,
+    )
+    limits = (
+        (
             "Recorded evidence limits: "
-            + evidence_limit_text(report.decisions.evidence_limits)
+            + evidence_limit_text(report.decisions.evidence_limits),
+        )
+        if report.decisions.recorded_evidence
+        else ()
+    )
+    return setup, inspected, limits
+
+
+def summary_method_sections(report):
+    """The same recorded setup lines, grouped for reading; nothing is added."""
+    setup, inspected, limits = _summary_method_parts(report)
+    return (
+        (SUMMARY_SETUP_HEADING, setup),
+        (SUMMARY_DATA_HEADING, (DATA_RATIONALE_UNRECORDED, *limits)),
+        (SUMMARY_INSPECTED_HEADING, inspected),
+    )
+
+
+def _check_label(state):
+    label = CHECK_LABELS[state]
+    return label[0].upper() + label[1:]
+
+
+def _target_rejected(report):
+    return (
+        report.summary.state == "unavailable"
+        and report.decisions.target_rejection is not None
+    )
+
+
+def _settled(checks):
+    return sum(check.state in MET_STATES for check in checks)
+
+
+def summary_status(report):
+    """A generic status label from the validated finding state, never from prose."""
+    summary = report.summary
+    if summary.state == "unavailable":
+        return (
+            "Not checked: assessment rejected"
+            if _target_rejected(report)
+            else "Not checked"
+        )
+    if summary.state == "inconclusive" and _settled(summary.checks):
+        return "Partly settled"
+    return _check_label(summary.state)
+
+
+def summary_state_text(report):
+    """Return (plain finding text, diagnostic or None); a rejection stays in full."""
+    if _target_rejected(report):
+        return (
+            "The automatic check of the expected behavior did not pass validation, "
+            "so no requirement was assessed. The observations below have not been "
+            "checked against the expected behavior.",
+            report.summary.meaning,
+        )
+    return report.summary.meaning, None
+
+
+def summary_check_groups(report):
+    """Group validated checks by state, in finding order; numbers stay exact."""
+    checks = report.summary.checks
+    return tuple(
+        (
+            state,
+            _check_label(state),
+            tuple(check.criterion for check in checks if check.state == state),
+        )
+        for state in CHECK_STATES
+        if any(check.state == state for check in checks)
+    )
+
+
+def _goal_gap(report):
+    unchecked = unchecked_goals(report.decisions)
+    if not unchecked:
+        return ""
+    noun = "goal" if len(unchecked) == 1 else "goals"
+    return f"No check covers recorded {noun} " + ", ".join(map(str, unchecked)) + "."
+
+
+def summary_observed(report):
+    """Observed facts: validated check counts and the lead extracted comparison."""
+    summary = report.summary
+    lines = []
+    total = len(summary.checks)
+    noun = "check" if total == 1 else "checks"
+    for state, _, numbers in summary_check_groups(report):
+        lines.append(f"{len(numbers)} of {total} {noun}: {CHECK_LABELS[state]}.")
+    if not total:
+        lines.append(
+            "No requirement was assessed: the automatic check was rejected."
+            if _target_rejected(report)
+            else SUMMARY_NO_CHECKS
+        )
+    gap = _goal_gap(report)
+    if gap:
+        lines.append(gap)
+    if summary.decision is not None and (
+        summary.before.choices or summary.after.choices
+    ):
+        row = report.decisions.rows[summary.decision - 1]
+        sides = "; ".join(
+            f"{label}: "
+            + (
+                ", ".join(
+                    f"{choice.choice} ({trial_count(choice.count, data.total)})"
+                    for choice in data.choices
+                )
+                or NO_EXTRACTED_CHOICE
+            )
+            for label, data in (("Before", summary.before), ("After", summary.after))
+        )
+        incomplete = (
+            " Trial evidence is incomplete." if summary.status == "unavailable" else ""
+        )
+        lines.append(
+            f"Extracted comparison, {source_label(row.anchor, report.metadata.trace_source)}"
+            f" ({row.topic}): {sides}.{incomplete}"
         )
     return tuple(lines)
+
+
+def summary_implication(report):
+    """What the validated finding allows a reader to conclude, decided from states."""
+    summary = report.summary
+    checks = summary.checks
+    state = summary.state
+    if state == "unavailable":
+        return (
+            "No conclusion about the expected behavior is available. A difference "
+            "in the observations is not evidence that the expected behavior was achieved."
+        )
+    if state == "not_met":
+        return (
+            "At least one expected behavior was not met in these tests; other "
+            "supported results do not offset it."
+        )
+    if state == "inconclusive":
+        settled = _settled(checks)
+        unsettled = sum(check.state == "inconclusive" for check in checks)
+        gap = _goal_gap(report)
+        parts = []
+        if unsettled:
+            parts.append(
+                f"{unsettled} {'check is' if unsettled == 1 else 'checks are'} not settled."
+            )
+        if gap:
+            parts.append(gap)
+        lead = (
+            f"{settled} of {len(checks)} checks have a supported result, but this "
+            "is not a pass of every expected behavior."
+            if settled
+            else "No check reached a supported result."
+        )
+        return " ".join((lead, *parts))
+    if state == "baseline_incomplete":
+        return (
+            "After met every check, but incomplete Before results mean no "
+            "improvement is shown."
+        )
+    return (
+        "Every check has a supported result in this scenario. This does not show "
+        "reliability in other situations or that the edit caused the difference."
+    )
+
+
+def summary_qualification(report):
+    """Qualify retained model interpretations whenever validation does not cover them."""
+    summary = report.summary
+    lead = (
+        "Model labels and explanations in this report interpret the extracted "
+        "comparisons; they are retained as written, not endorsed."
+    )
+    if summary.state == "unavailable":
+        reason = (
+            "the automatic check of the expected behavior was rejected"
+            if _target_rejected(report)
+            else "no validated check of the expected behavior is available"
+        )
+        return (
+            f"{lead} Because {reason}, any claim of success or verification in "
+            "them is unconfirmed."
+        )
+    if summary.state in ("not_met", "inconclusive", "baseline_incomplete"):
+        open_checks = [
+            f"{len(numbers)} {CHECK_LABELS[state]}"
+            for state, _, numbers in summary_check_groups(report)
+            if state not in MET_STATES
+        ]
+        detail = f" ({', '.join(open_checks)})" if open_checks else ""
+        return (
+            f"{lead} Only the validated checks are conclusions, and they are "
+            f"incomplete{detail}; claims beyond them are unconfirmed."
+        )
+    return None
 
 
 ATTENTION_UNAVAILABLE = "Attention assessment unavailable."

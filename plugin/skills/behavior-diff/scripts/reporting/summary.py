@@ -64,7 +64,6 @@ CHECK_MEANINGS = {
     "already_met": "Before already met this, so the edit showed no added benefit here.",
     "preserved": "Every After trial still met this.",
 }
-PRESERVATION_NOT_MET = "At least one After trial no longer met this."
 NEXT_ACTIONS = {
     "not_met": (
         "Revise the edit or its expectation, then retest; inspect the After trials "
@@ -474,7 +473,6 @@ def build_checks(metadata, variants, target):
     checks = []
     for number, criterion in enumerate(target.criteria if target else (), 1):
         state = check_state(criterion, variants)
-        preservation = criterion.mode == "preservation"
         scope = (
             SELF_REPORTED_SCOPE
             if criterion.evidence_kind == "recorded_action"
@@ -489,9 +487,7 @@ def build_checks(metadata, variants, target):
                 state,
                 question_distribution(criterion, "before", variants.before.total),
                 question_distribution(criterion, "after", variants.after.total),
-                PRESERVATION_NOT_MET
-                if preservation and state == "not_met"
-                else CHECK_MEANINGS[state],
+                CHECK_MEANINGS[state],
                 scope,
             )
         )

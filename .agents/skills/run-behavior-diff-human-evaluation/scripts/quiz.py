@@ -517,6 +517,11 @@ def _blinded_report(source):
         raise ValueError("Unknown Summary disclosure order.")
     _shape(details[1], [("summary", None), ("ul", "evidence-limits")])
     story_children = _children(story)
+    # A leading status badge states the verdict; it is validated, never projected.
+    if story_children and story_children[0].has_class("summary-status"):
+        if story_children[0].tag != "p":
+            raise ValueError("Unknown summary status.")
+        story_children = story_children[1:]
     if (
         len(story_children) != 2
         or story_children[0].tag != "h2"
@@ -538,10 +543,18 @@ def _blinded_report(source):
         _shape(step, [("span", "story-number"), ("div", "story-body")])[1]
         for step in steps
     ]
-    evidence_heading, observations, navigation = _shape(
-        bodies[3],
-        [("h3", None), ("div", "summary-observations"), ("nav", "evidence-nav")],
-    )
+    # Check digest and qualification summarize the assessment; drop them but
+    # accept only these exact optional siblings before the observations.
+    evidence_shape = [("h3", None)]
+    for tag, optional in (
+        ("div", "summary-check-digest"),
+        ("p", "summary-qualification"),
+    ):
+        if any(node.has_class(optional) for node in _children(bodies[3])):
+            evidence_shape.append((tag, optional))
+    evidence_shape.extend([("div", "summary-observations"), ("nav", "evidence-nav")])
+    evidence_parts = _shape(bodies[3], evidence_shape)
+    evidence_heading, observations = evidence_parts[0], evidence_parts[-2]
     children = _children(observations)
     shape = [("p", "summary-provenance"), ("div", "summary-pair")]
     if any(node.has_class("primary-result-context") for node in children):
