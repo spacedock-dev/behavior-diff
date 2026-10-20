@@ -210,6 +210,30 @@ without an assessment. No output does not mean stuck. When local process identit
 cannot be checked, status stays explicitly uncertain. Older runs without progress
 metadata still have their reports.
 
+### Explain the scenario and freeze its checks
+
+The skill prepares a reviewed scenario record alongside purpose before launching
+trials. It describes the task, why the selected data tests the change assumption,
+the necessary conditions, the limits, and separate observable checks for each goal.
+
+```bash
+behavior-diff.sh --agent claude --file SKILL.md --task "<task>" \
+  --purpose-file <private-purpose.json> --scenario-file <private-scenario.json>
+```
+
+`--scenario-file` requires purpose. The runner validates both before any model call
+and excludes them from both trial copies. Only the sanitized scenario record goes
+to assessment and the report; the private preparation notes do not. See the
+[record contract](plugin/skills/behavior-diff/references/scenario-and-test-data.md)
+for its fields and privacy boundary.
+
+The assessor must evaluate every frozen check without changing its definition.
+Reading a PR description and checking the implementation are separate checks;
+one cannot stand in for the other. A missing or rejected assessment leaves those
+checks visible as **Not assessed**, not passed. Runs without a scenario record
+show missing setup information explicitly and identify any criteria written by
+the assessor after the trials.
+
 ### Report wording
 
 Behavior Diff applies installed Humanizer prose guidance while generating
@@ -431,7 +455,7 @@ Expected behavior is labeled as supplied, or explicitly unavailable. The evidenc
 limits state trial counts, provenance, and grading limits. Self-reported actions
 remain distinct from captured tool calls.
 
-The structured `report-data.json` uses schema version 17, including per-group
+The structured `report-data.json` uses schema version 18, including per-group
 `decisions.trial_summaries`, assessment-derived `summary.state`, `summary.meaning`,
 `summary.checks` and `summary.next_action`, sourced instruction `intent`,
 saved `content.task`, optional narrative, nullable `metadata.source` and
@@ -439,6 +463,9 @@ saved `content.task`, optional narrative, nullable `metadata.source` and
 a rejected target assessment without dropping the underlying evidence. The optional
 `decisions.purpose_summary` gives the Summary a short, labeled paraphrase of
 the frozen goals; Instruction changes retains their complete text and provenance.
+`decisions.scenario_record` carries the validated setup and frozen checks from run
+configuration. The Summary explains the test rationale and conditions even when
+the automatic assessment is unavailable. These expectations are not trial evidence.
 The task comes from the run's `task.md`, or the capsule's copy
 when absent from the run. A scenario description never replaces missing task text.
 Regenerate reports from their original run artifacts;

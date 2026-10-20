@@ -379,9 +379,36 @@ SUMMARY_TASK_LABEL = "Task given to both versions"
 SUMMARY_NO_CHECKS = (
     "No validated check compares the expected behavior with these trials."
 )
-DATA_RATIONALE_UNRECORDED = (
-    "Why this test data was chosen: not recorded in this report."
+SCENARIO_UNRECORDED = (
+    "Scenario, test-data rationale, and test conditions: not recorded before "
+    "trials for this run. Only the task above was saved; nothing is reconstructed "
+    "afterward."
 )
+NO_SCENARIO_LIMITATIONS = "No scenario limitation was recorded before trials."
+FROZEN_CHECKS_LABEL = "Expected results recorded before trials"
+FROZEN_CHECKS_NOTE = (
+    "These checks were frozen with the scenario before any trial ran; an assessor "
+    "could only record outcomes for them, not change them. They are expectations, "
+    "not evidence that the behavior happened."
+)
+FROZEN_UNASSESSED = "Not assessed"
+FROZEN_UNASSESSED_MEANING = "No valid assessment was recorded; no result."
+FROZEN_UNASSESSED_NOTE = (
+    "No valid assessment of these checks was recorded, so they have no Before or "
+    "After result and decide nothing."
+)
+ASSESSOR_CHECKS_LABEL = "Checks written by the assessor after the trials"
+ASSESSOR_CHECKS_NOTE = (
+    "No scenario was recorded before trials for this run. The assessor wrote these "
+    "checks after the trials ran; they were not frozen in advance."
+)
+
+
+def required_evidence_text(check):
+    """The frozen evidence requirement of a check that has no result."""
+    return "Requires: " + check.required_evidence
+
+
 EXPLANATION_CONCLUSION_LABEL = "Summary conclusion:"
 EXPLANATION_MODEL_LABEL = "Model explanation:"
 SUMMARY_SCOPE_HEADING = "Checked against"
@@ -395,10 +422,12 @@ SUMMARY_HELP = (
     "of the goals recorded before trials and from trial completeness. Step 1 also "
     "shows the edit's aim, the lead observed change, and what remains unknown or "
     "unmet.",
-    "Step 2 lists each recorded expectation with its Before and After results. "
+    "Step 2 lists each expected result with its Before and After results and says "
+    "whether it was recorded before trials or written by the assessor afterward. "
     "Unclear, unassessable, and not-assessed trials stay separate from Yes and No.",
-    "Step 3 shows the actual task and setup. Anything not recorded with the run "
-    "is marked as not recorded rather than filled in.",
+    "Step 3 shows the actual task, the scenario and test-data rationale recorded "
+    "before trials, and the setup. Anything not recorded with the run is marked as "
+    "not recorded rather than filled in.",
     "Step 4 shows the observed behavior; model interpretations are labeled.",
     "Step 5 suggests a next step. The report never approves or blocks a change.",
 )
@@ -415,6 +444,9 @@ def task_preview(task):
 SUMMARY_TASK_HEADING = "Task"
 SUMMARY_SETUP_HEADING = "Test setup"
 SUMMARY_DATA_HEADING = "Test data and its limits"
+SUMMARY_SCENARIO_HEADING = "Scenario recorded before trials"
+SUMMARY_RATIONALE_HEADING = "Why this test data challenges the aim"
+SUMMARY_CONDITIONS_HEADING = "Test conditions"
 SUMMARY_INSPECTED_HEADING = "What we inspected"
 SUMMARY_CAVEATS_HEADING = "What this does not prove"
 SUMMARY_AIM_LABEL = "What the edit aimed at"
@@ -452,13 +484,59 @@ def _summary_method_parts(report):
 
 
 def summary_method_sections(report):
-    """The same recorded setup lines, grouped for reading; nothing is added."""
+    """Recorded setup and the frozen scenario, grouped for reading; nothing is added."""
     setup, inspected, limits = _summary_method_parts(report)
+    record = report.decisions.scenario_record
+    if record is None:
+        scenario = ((SUMMARY_DATA_HEADING, (SCENARIO_UNRECORDED, *limits)),)
+    else:
+        scenario = (
+            (SUMMARY_SCENARIO_HEADING, (record.summary,)),
+            (SUMMARY_RATIONALE_HEADING, (record.rationale,)),
+            (SUMMARY_CONDITIONS_HEADING, record.conditions),
+            (
+                SUMMARY_DATA_HEADING,
+                (*(record.limitations or (NO_SCENARIO_LIMITATIONS,)), *limits),
+            ),
+        )
     return (
         (SUMMARY_SETUP_HEADING, setup),
-        (SUMMARY_DATA_HEADING, (DATA_RATIONALE_UNRECORDED, *limits)),
+        *scenario,
         (SUMMARY_INSPECTED_HEADING, inspected),
     )
+
+
+@dataclass(frozen=True)
+class ExpectedChecks:
+    """Where the expected checks came from, and frozen checks left unassessed."""
+
+    provenance: str
+    label: str
+    note: str
+    unassessed: Tuple[object, ...]
+
+
+def expected_checks(report):
+    """Label check provenance; frozen checks stay visible without an assessment.
+
+    Unassessed frozen checks carry no outcome. Assessor-written criteria are never
+    presented as frozen before trials.
+    """
+    record = report.decisions.scenario_record
+    if record is not None:
+        if report.summary.checks:
+            return ExpectedChecks("frozen", FROZEN_CHECKS_LABEL, FROZEN_CHECKS_NOTE, ())
+        return ExpectedChecks(
+            "frozen",
+            FROZEN_CHECKS_LABEL,
+            f"{FROZEN_CHECKS_NOTE} {FROZEN_UNASSESSED_NOTE}",
+            record.checks,
+        )
+    if report.decisions.target_assessment is not None:
+        return ExpectedChecks(
+            "assessor", ASSESSOR_CHECKS_LABEL, ASSESSOR_CHECKS_NOTE, ()
+        )
+    return None
 
 
 def _check_label(state):
@@ -587,14 +665,16 @@ OPEN_LABELS = {
     "inconclusive": "Not settled",
     "baseline_incomplete": "Before incomplete",
     "unchecked": "No check",
+    "unassessed": FROZEN_UNASSESSED,
 }
 
 
 def summary_open_items(report):
     """What the validated checks leave unmet or unknown, unmet first.
 
-    Without validated checks every recorded goal is unknown; goal wording is
-    reused exactly and never selected, shortened, or authored.
+    Without validated checks, frozen checks are listed as not assessed (they cover
+    every goal); otherwise every recorded goal is unknown. Wording is reused
+    exactly and never selected, shortened, or authored.
     """
     summary = report.summary
     checks = summary.checks
@@ -608,6 +688,11 @@ def summary_open_items(report):
     if checks:
         goals = effective_purpose(decisions.purpose, decisions.intent)
         numbers = unchecked_goals(decisions)
+    elif decisions.scenario_record is not None:
+        return tuple(
+            SummaryOpenItem("unassessed", OPEN_LABELS["unassessed"], check.text, number)
+            for number, check in enumerate(decisions.scenario_record.checks, 1)
+        )
     else:
         goals = decisions.purpose
         numbers = range(1, len(goals) + 1)
@@ -1470,7 +1555,12 @@ def scenario_sections(report):
     """Explain the saved setup without deriving new facts from trial outcomes."""
     scenario = report.content.scenario
     task = report.content.task
-    if not scenario or scenario == task:
+    record = report.decisions.scenario_record
+    if record is not None:
+        scenario = (
+            record.summary + "\nRecorded before trials; Step 3 gives its rationale."
+        )
+    elif not scenario or scenario == task:
         scenario = report.summary.scenario or (
             "The agent was given the task below under two instruction versions."
             if task
@@ -1483,13 +1573,23 @@ def scenario_sections(report):
         else "Evidence type: captured tool records and final answers, where available. "
         "A proposed action in an answer does not mean it was executed."
     )
-    expected = (
-        report.content.expected
-        + "\nThis is the supplied expectation, not an observed result."
-        if report.content.expected
-        else "No expected behavior was supplied. This comparison describes what differed; "
-        "it does not decide which behavior is correct."
-    )
+    if report.content.expected:
+        expected = (
+            report.content.expected
+            + "\nThis is the supplied expectation, not an observed result."
+        )
+    elif record is not None:
+        count = len(record.checks)
+        expected = (
+            f"{count} expected {'result was' if count == 1 else 'results were'} "
+            "recorded before trials; Step 2 lists each one. Expectations are not "
+            "observed results."
+        )
+    else:
+        expected = (
+            "No expected behavior was supplied. This comparison describes what "
+            "differed; it does not decide which behavior is correct."
+        )
     return (
         (report.content.scenario_heading, scenario),
         (

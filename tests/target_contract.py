@@ -4,8 +4,11 @@ import copy
 import html
 import json
 import re
+import shutil
+import tempfile
 from dataclasses import asdict, replace
 from html.parser import HTMLParser
+from pathlib import Path
 
 from attention_contract import _ReportMarkup, _plain
 from presentation_contract import visible_text
@@ -23,8 +26,10 @@ from reporting.summary import (
     build_summary,
     parse_narrative,
 )
+from reporting.scenario import parse_scenario
 from reporting.target import (
     UNAVAILABLE,
+    check_target,
     effective_purpose,
     parse_purpose,
     parse_target,
@@ -374,6 +379,7 @@ def assert_target_reports(reports, root, assert_round_trip):
     _assert_old_versions_rejected(reports["target-baseline"])
     _assert_saved_provenance(reports["target-baseline"], root / "target-baseline")
     _assert_normalization(persistent, root / "target-persists")
+    _assert_frozen_scenario(persistent, root / "target-persists")
 
 
 def _assert_purpose_conclusion(report, assert_round_trip):
@@ -766,3 +772,210 @@ def _assert_normalization(report, run):
         "Unchanged concern outlived its invalid target support."
     )
     assert normalized["chain"] and normalized["recorded_evidence"]
+
+
+FROZEN_FIELDS = ("id", "goal", "text", "mode", "required_evidence", "evidence_kind")
+RESTATE = "target criterion must restate its frozen scenario check"
+MISSING = "target criteria must assess every frozen scenario check"
+
+
+def _scenario_record(report):
+    """A synthetic reviewed record whose code-read check shares the accuracy goal."""
+    accuracy = report.decisions.target_assessment.criteria[0]
+    return {
+        "summary": "Draft release notes from a summary that overstates export support.",
+        "rationale": "The summary conflicts with the implementation, so a draft can qualify the claim only after reading the code itself.",
+        "conditions": [
+            "The summary promises unlimited exports in every format.",
+            "The implementation caps each export format.",
+        ],
+        "limitations": ["One synthetic release note; other claims stay untested."],
+        "checks": [
+            {name: getattr(accuracy, name) for name in FROZEN_FIELDS},
+            {
+                "id": "implementation-read",
+                "goal": accuracy.goal,
+                "text": "The agent reads the implementation, not only the summary that describes it.",
+                "mode": "correction",
+                "required_evidence": "A recorded call that reads implementation.txt.",
+                "evidence_kind": "recorded_action",
+            },
+        ],
+    }
+
+
+def _code_read(answers, before="met", after="met"):
+    def trial(name, outcome):
+        read = outcome == "met"
+        return {
+            "trial": name,
+            "outcome": outcome,
+            "refs": [name + ":tool-2"] if read else [],
+            "output_excerpt": "",
+            "explanation": "The recorded call read implementation.txt."
+            if read
+            else "This synthetic variant leaves the code read unjudged.",
+        }
+
+    return {
+        "id": "implementation-read",
+        "goal": 1,
+        "text": "The agent reads the implementation, not only the summary that describes it.",
+        "mode": "correction",
+        "required_evidence": "A recorded call that reads implementation.txt.",
+        "evidence_kind": "recorded_action",
+        "decisions": [1],
+        "before": [trial(name, before) for name in answers["before"]],
+        "after": [trial(name, after) for name in answers["after"]],
+    }
+
+
+def _assert_frozen_scenario(report, run):
+    """Frozen checks fix the criterion set; goal coverage alone cannot hide a dropped check."""
+    import decisions
+    from reporting.evidence import collect_run_evidence
+
+    goals = report.decisions.purpose
+    answers = _answers(report)
+    evidence = report.decisions.recorded_evidence
+    record = _scenario_record(report)
+    scenario = parse_scenario(record, goals)
+    assessment = json.loads(json.dumps(asdict(report.decisions.target_assessment)))
+    accuracy = assessment["criteria"][0]
+
+    def check(criteria, frozen=scenario):
+        return check_target(
+            {"criteria": criteria},
+            goals,
+            answers,
+            evidence,
+            report.decisions.rows,
+            scenario=frozen,
+        )
+
+    # Independent subchecks keep their own outcomes and the frozen order.
+    mixed = _code_read(answers, before="unassessable")
+    for criteria in ([accuracy, mixed], [mixed, accuracy]):
+        assessed, reason = check(copy.deepcopy(criteria))
+        assert reason is None, reason
+        assert [criterion.id for criterion in assessed.criteria] == [
+            "export-qualification",
+            "implementation-read",
+        ]
+        assert {t.outcome for t in assessed.criteria[0].after} == {"not_met"}
+        assert {t.outcome for t in assessed.criteria[1].before} == {"unassessable"}
+        assert {t.outcome for t in assessed.criteria[1].after} == {"met"}
+        for criterion, frozen in zip(assessed.criteria, scenario.checks):
+            assert all(
+                getattr(criterion, name) == getattr(frozen, name)
+                for name in FROZEN_FIELDS
+            )
+    complete = [accuracy, _code_read(answers)]
+    assert (
+        parse_target(
+            {"criteria": complete},
+            goals,
+            answers,
+            evidence,
+            report.decisions.rows,
+            scenario=scenario,
+        )
+        == check(complete)[0]
+    )
+
+    # Dropping the code read still covers every goal, so only frozen IDs catch it.
+    assert check([accuracy], frozen=None)[1] is None, "Old runs keep assessor criteria."
+    assert check([accuracy]) == (None, MISSING)
+    assert check([_code_read(answers)]) == (None, MISSING)
+    for name, value in (
+        ("id", "implementation-read-v2"),
+        ("text", "The agent reads any project file."),
+        ("mode", "new"),
+        ("required_evidence", "Any recorded call."),
+        ("evidence_kind", "source_consistency"),
+    ):
+        changed = copy.deepcopy(complete)
+        changed[1][name] = value
+        assert check(changed) == (None, RESTATE), name
+    changed = copy.deepcopy(complete)
+    changed[1]["goal"] = 2
+    assert check(changed)[0] is None
+    extra = dict(copy.deepcopy(complete[1]), id="summary-read")
+    assert check([*copy.deepcopy(complete), extra]) == (None, RESTATE)
+    assert check([*copy.deepcopy(complete), complete[1]])[0] is None
+    assert check_target(None, goals, answers, evidence, scenario=scenario) == (
+        None,
+        None,
+    ), "A missing assessment stays unavailable, not assessed-empty."
+
+    # Normalization always takes the record from configuration, never the reply.
+    raw = json.loads((run / "extraction.json").read_text())
+    names = {side: list(records) for side, records in answers.items()}
+    purpose = {"goals": [asdict(goal) for goal in goals]}
+    canonical = json.loads(json.dumps(asdict(scenario)))
+
+    def normalize(reply, frozen=record):
+        return decisions.normalize(
+            reply,
+            names,
+            final_answers=answers,
+            purpose=purpose,
+            scenario=frozen,
+            recorded_evidence=collect_run_evidence(run),
+        )
+
+    full = copy.deepcopy(raw)
+    full["target_assessment"]["criteria"].append(_code_read(answers))
+    full["scenario_record"] = dict(record, summary="Reply-supplied replacement.")
+    normalized = normalize(full)
+    assert normalized["scenario_record"] == canonical
+    assert [c["id"] for c in normalized["target_assessment"]["criteria"]] == [
+        "export-qualification",
+        "implementation-read",
+    ]
+    dropped = normalize(raw)
+    assert dropped["target_assessment"] is None
+    assert dropped["target_rejection"] == MISSING
+    assert dropped["scenario_record"] == canonical
+    assert dropped["chain"] and dropped["recorded_evidence"]
+    legacy = normalize(raw, frozen=None)
+    assert legacy["scenario_record"] is None and legacy["target_rejection"] is None
+    assert legacy["target_assessment"] is not None
+    private = dict(record, notes="Private preparation note sentinel.")
+    for malformed in (private, dict(record, checks=record["checks"][1:2] * 2)):
+        try:
+            normalize(full, frozen=malformed)
+        except ValueError:
+            pass
+        else:
+            raise AssertionError("A malformed frozen scenario record was accepted.")
+
+    # Ingest validates against config; malformed private context fails closed.
+    with tempfile.TemporaryDirectory() as directory:
+        copied = Path(directory) / run.name
+        shutil.copytree(run, copied)
+        config_path = copied / "config.json"
+        config = json.loads(config_path.read_text())
+        config["scenario_record"] = dict(record, summary="  " + record["summary"])
+        config_path.write_text(json.dumps(config))
+        _, completed, instruction_diff = decisions.build_prompt(
+            copied, include_style=False
+        )
+        written = decisions.write_decisions(
+            copied, json.dumps(full), completed, "synthetic", instruction_diff
+        )
+        assert written["scenario_record"] == canonical
+        assert len(written["target_assessment"]["criteria"]) == 2
+        rejected = decisions.write_decisions(
+            copied, json.dumps(raw), completed, "synthetic", instruction_diff
+        )
+        assert rejected["target_rejection"] == MISSING
+        assert (copied / "decisions.raw.txt").exists()
+        config["scenario_record"] = private
+        config_path.write_text(json.dumps(config))
+        try:
+            decisions.build_prompt(copied, include_style=False)
+        except ValueError as error:
+            assert "sentinel" not in str(error)
+        else:
+            raise AssertionError("The prompt accepted unreviewed private notes.")

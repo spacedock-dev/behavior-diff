@@ -22,8 +22,8 @@ scripts handle execution, evidence, and reporting.
 | Change intent + preservation -> capabilities/premises   |
 | -> neutral task + ordinary/bounded edge data + private  |
 | case criteria; reuse sufficient project data            |
-| Preflight host environment; freeze task, data, purpose, |
-| source revisions, criteria, and execution settings      |
+| Review scenario record + checks from private notes;     |
+| freeze task, data, purpose, record, sources + settings   |
 | Shared files or exclusions: prepare_shared.py stages    |
 | and verifies; otherwise runner uses user's project      |
 +----------------------------+----------------------------+
@@ -41,7 +41,7 @@ scripts handle execution, evidence, and reporting.
                              v
 +---------------------------------------------------------+
 | Evidence analysis                                       |
-| decisions.py: purpose + calls/returns + trial answers   |
+| decisions.py: frozen checks + calls/returns + answers    |
 | Validate source/output claims and native completion    |
 | reporting/: derive scoped assessment + linked evidence |
 +----------------------------+----------------------------+
@@ -74,9 +74,10 @@ Assessment producer ----> assessment-status.json
 Trial execution and decision extraction call models through agent CLIs.
 Report assembly and rendering run locally without model calls.
 
-Purpose travels in run configuration directly to analysis, never in the trial
-task or project copies. Recorded tool calls and returns travel from trials to
-analysis; the collector does not retrieve current source files.
+Purpose and the reviewed scenario record travel in run configuration directly to
+analysis, never in the trial task or project copies. Raw preparation notes remain
+private. Recorded tool calls and returns travel from trials to analysis; the
+collector does not retrieve current source files.
 
 Historical source provenance takes a separate path: the skill verifies the
 original repository, revision pair, and any PR/MR associations, then passes
@@ -297,9 +298,13 @@ For example, a tracked instruction edit produces this initial state:
 
 The run keeps `task.md` and `config.json` at its root. Each `before-N/` and
 `after-N/` directory contains `project/`, `trace.jsonl`, and `stderr.log`.
-The configuration records the target path, scenario, Before/After labels, and
-validated `purpose`. `--purpose-file` is frozen before trials and excluded from
-trial copies, including when supplied from within the source project.
+The configuration records the target path, task description, Before/After labels,
+validated `purpose`, and nullable `scenario_record`. `--scenario-file` requires
+purpose and is validated by `scenario.py` / `reporting/scenario.py` before model
+discovery. Both context files are frozen before trials and excluded from trial
+copies, including when supplied from within the source project. The scenario
+record holds a summary, rationale, conditions, limitations and goal-linked checks;
+it cannot contain trial outcomes. Every goal must have a check.
 Uncommitted setup files do not enter Git-based trials. Required task state must
 already exist in the base project, in a deliberately prepared fixture, or in a
 shared-data stage.
@@ -311,8 +316,8 @@ The private helper
 delivers a reviewed data directory to every trial without changing the user's
 checkout or adding runner options. It only delivers and verifies: the skill
 designs the data, and the helper does not generate data, launch models, or infer
-provenance. Its freeze covers the stage, not the private task, purpose, source
-metadata, or tooling; the skill checks those separately before launch.
+provenance. Its freeze covers the stage, not the private task, purpose, scenario
+record, source metadata, or tooling; the skill checks those separately before launch.
 
 ```text
 Project base (Git HEAD or folder copy) --+
@@ -342,7 +347,7 @@ existing runner then builds every trial from the scratch commit, unchanged.
 The helper rejects links, special files, Git internals, submodules, unsafe or
 colliding paths, data that replaces the instruction or an excluded path, and
 inputs over `BEHAVIOR_DIFF_COPY_CAP_KB`. The caller excludes in-project purpose,
-source, and evaluator files with `--exclude`. `prepare` also requires
+scenario, source, and evaluator files with `--exclude`. `prepare` also requires
 `git archive` of the scratch commit to match the expected files. Therefore,
 `.gitattributes` rules such as `export-ignore`, `export-subst`, or filters that
 change archived files fail before launch.
@@ -414,11 +419,13 @@ The modules below live in the skill's [`scripts/`](../plugin/skills/behavior-dif
   saved output or post-edit HTML.
   Before returning the extraction JSON, the extractor refines authored questions,
   labels, explanations, and findings into concrete, case-specific language.
-  Questions name the actual action or claim and its relevant condition or limit;
-  conclusions state what each side did and what cannot be confirmed. This pass
-  is required with or without Humanizer, within the existing extraction call.
-  It preserves criterion scope and polarity, canonical label matches, evidence
-  qualifiers, and exact excerpts; it does not rewrite rendered artifacts.
+  Frozen scenario checks are excluded from this prose refinement: their IDs,
+  goals, wording, modes and evidence requirements must remain exact. For those
+  checks the model supplies only row links and per-trial outcomes. Validation
+  rejects missing, extra or rewritten checks even when every goal still has
+  another criterion. Without a record, criteria are assessor-written after the
+  trials and labeled accordingly. Refinement preserves evidence qualifiers and
+  exact excerpts; it does not rewrite rendered artifacts.
   Discovery reads only `humanizer/SKILL.md` in the invoking repository's skill
   roots, then the user's. Claude checks `.claude/skills` before `.agents/skills`
   at each scope; other extraction hosts use `.agents/skills`. Emitted prompts
@@ -445,6 +452,9 @@ The modules below live in the skill's [`scripts/`](../plugin/skills/behavior-dif
   duplicate, self-reported and overflow records do not supply determinate proof.
   `decisions.target_rejection` retains a rejected criterion's validation reason;
   extraction preserves the raw response and reports `available/target_rejected`.
+  With a scenario record, the complete frozen check set is mandatory. The report
+  loader binds it to configuration, not model output; a conflicting persisted
+  record or purpose invalidates the assessment without dropping observations.
   `reporting/summary.py` derives scoped findings from validated checks and native
   trial health. It distinguishes unmet requirements, no added benefit, preservation,
   incomplete baselines and inconclusive outcomes. Incomplete records remain in
@@ -469,13 +479,14 @@ The modules below live in the skill's [`scripts/`](../plugin/skills/behavior-dif
   unmet outcome on both sides, labeled as a pre-existing target problem.
   Counts come from canonical rows. Malformed bundles become unavailable, never
   an assessed-empty result. No finding quota applies.
-  These modules build schema-v17 `ReportData`, including nullable
+  These modules build schema-v18 `ReportData`, including nullable
   `metadata.source` and `metadata.ci_context`. Older versions are
   rejected; regenerate reports from their saved run evidence with `render.py`.
   Saved decisions without optional context, flow starts, or a purpose summary
   still render, without inventing those explanations.
-  Purpose, bounded evidence, limits, and assessments persist with decisions and
-  report data; rendering does not reread current source files or infer new claims.
+  Purpose, scenario records, bounded evidence, limits, and assessments persist
+  with decisions and report data; rendering does not reread current source files
+  or infer new claims.
   Decision branches also retain validated trial memberships: exact coverage of
   completed trials on each side, matching counts, and no duplicate or foreign
   identities. Legacy aggregate-only branches show unavailable attribution;
@@ -498,6 +509,10 @@ Codex keeps the raw shell wrapper alongside its command-flow display text.
 The collector structurally decodes recognized shell command arguments without
 execution; wrapped simple reads remain eligible, while compound commands,
 redirections, substitutions, and non-read commands remain excluded.
+Recorded `gh pr view` and `gh pr diff` returns are eligible through supported
+shell/execution adapters, including namespaced `exec` tools. Mutation commands,
+compound commands, errors and sensitive content remain excluded. This only selects
+already-recorded text; it never invokes `gh` or fetches a source.
 
 Limits are 4,096 Unicode characters per excerpt, 16,384 per trial, 131,072 per
 run, and 128 tool records per trial. Selection uses the saved `grades.tsv`
@@ -564,8 +579,11 @@ Criterion links open its source excerpts and per-trial evidence.
 Frozen purpose remains distinct from observed success. A valid `purpose_summary`
 is a labeled paraphrase; full goals and provenance remain in **Instruction changes**.
 The method section uses the saved task, model, trial inventory and evidence limits.
-Private preparation notes and their test-data rationale are not report inputs;
-the renderer explicitly marks that rationale unrecorded rather than reconstructing it.
+When a reviewed scenario record exists, it also shows the setup summary, why the
+data challenges the aim, planned conditions and limitations. Private preparation
+notes are not report inputs. Missing records stay explicitly unrecorded rather
+than being reconstructed from outcomes. Frozen checks remain visible as not
+assessed when assessment is missing or rejected; setup is never proof of success.
 
 The evidence section retains Before/After branches, their counts, primary-result
 context, attention findings, and optional model why/context/caution claims.

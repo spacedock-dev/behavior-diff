@@ -18,6 +18,8 @@ from reporting.explanation import _text
 
 OUTCOMES = ("met", "not_met", "uncertain", "unassessable")
 MODES = ("correction", "new", "change", "preservation")
+EVIDENCE_KINDS = ("output", "source_consistency", "recorded_action")
+_DEFINITION = ("id", "goal", "text", "mode", "required_evidence", "evidence_kind")
 UNAVAILABLE = (
     "Target assessment unavailable: no valid criterion assessment was recorded. "
     "Underlying trial answers and recorded evidence remain available; this is not an assessed-empty result."
@@ -278,13 +280,23 @@ def _captured_call(record):
     )
 
 
-def parse_target(raw, purpose, final_answers, evidence, rows=(), positions=None):
+def parse_target(
+    raw, purpose, final_answers, evidence, rows=(), positions=None, *, scenario=None
+):
     """Invalid assessments stay unavailable, never become successful or assessed-empty."""
-    return check_target(raw, purpose, final_answers, evidence, rows, positions)[0]
+    return check_target(
+        raw, purpose, final_answers, evidence, rows, positions, scenario=scenario
+    )[0]
 
 
-def check_target(raw, purpose, final_answers, evidence, rows=(), positions=None):
-    """Return (assessment, None), or (None, why a returned assessment was rejected)."""
+def check_target(
+    raw, purpose, final_answers, evidence, rows=(), positions=None, *, scenario=None
+):
+    """Return (assessment, None), or (None, why a returned assessment was rejected).
+
+    A frozen scenario fixes the criterion set: the assessment must restate every
+    check exactly and may supply only row links and per-trial outcomes.
+    """
     if raw is None:
         return None, None
     try:
@@ -296,6 +308,11 @@ def check_target(raw, purpose, final_answers, evidence, rows=(), positions=None)
             or not purpose
         ):
             raise ValueError("invalid target criteria")
+        frozen = (
+            {check.id: check for check in scenario.checks}
+            if scenario is not None
+            else None
+        )
         positions = (
             positions
             if positions is not None
@@ -328,12 +345,24 @@ def check_target(raw, purpose, final_answers, evidence, rows=(), positions=None)
                 or item["mode"] not in MODES
             ):
                 raise ValueError("invalid criterion identity")
-            if item["evidence_kind"] not in (
-                "output",
-                "source_consistency",
-                "recorded_action",
-            ):
+            if item["evidence_kind"] not in EVIDENCE_KINDS:
                 raise ValueError("invalid criterion evidence requirement")
+            definition = (
+                identifier,
+                goal,
+                _text(item["text"], 600),
+                item["mode"],
+                _text(item["required_evidence"], 600),
+                item["evidence_kind"],
+            )
+            if frozen is not None and (
+                identifier not in frozen
+                or definition
+                != tuple(getattr(frozen[identifier], name) for name in _DEFINITION)
+            ):
+                raise ValueError(
+                    "target criterion must restate its frozen scenario check"
+                )
             references = item["decisions"]
             if (
                 type(references) is not list
@@ -459,18 +488,20 @@ def check_target(raw, purpose, final_answers, evidence, rows=(), positions=None)
             covered_goals.add(goal)
             criteria.append(
                 TargetCriterionData(
-                    identifier,
-                    goal,
-                    _text(item["text"], 600),
-                    item["mode"],
-                    _text(item["required_evidence"], 600),
-                    item["evidence_kind"],
+                    *definition,
                     tuple(positions[ref] for ref in references),
                     *sides,
                 )
             )
         if covered_goals != set(range(1, len(purpose) + 1)):
             raise ValueError("target criteria must cover every purpose goal")
+        if frozen is not None:
+            if seen != set(frozen):
+                raise ValueError(
+                    "target criteria must assess every frozen scenario check"
+                )
+            order = {check.id: index for index, check in enumerate(scenario.checks)}
+            criteria.sort(key=lambda criterion: order[criterion.id])
         return TargetAssessmentData(tuple(criteria)), None
     except ValueError as error:
         return None, str(error)

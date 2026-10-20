@@ -870,8 +870,24 @@ def _target_summary(report, target):
 def _target_explanation(report):
     target = report.decisions.target_assessment
     parts = ['<section class="target-evidence"><h3>What we checked</h3>']
+    expected = content.expected_checks(report)
+    if expected is not None:
+        parts.append(
+            f'<p class="note expected-checks-note"><strong>{html.escape(expected.label)}.</strong> '
+            f"{version_name_html(expected.note)}</p>"
+        )
     if target is None:
         parts.append(f"<p>{html.escape(UNAVAILABLE)}</p>")
+        unassessed = html.escape(content.FROZEN_UNASSESSED)
+        for number, check in enumerate(expected.unassessed if expected else (), 1):
+            parts.append(
+                f'<h4 id="{content.target_criterion_anchor(number)}" tabindex="-1">'
+                f"{html.escape(check.text)}</h4>"
+                f"<p>{version_name_html('Before')}: {unassessed} · "
+                f"{version_name_html('After')}: {unassessed}</p>"
+                f"<p>{version_name_html(check.required_evidence)}</p>"
+                f"<p>Goal {check.goal} · {html.escape(check.mode)}</p>"
+            )
     else:
         parts.append(_target_summary(report, target))
         sources = {entry.id: entry for entry in report.decisions.recorded_evidence}
@@ -1057,8 +1073,9 @@ def _summary_claim(label: str, claim, css_class: str) -> str:
 
 
 def _summary_checks(report) -> str:
-    checks = report.summary.checks
-    if not checks:
+    """Validated checks, or frozen checks marked not assessed, with provenance."""
+    expected = content.expected_checks(report)
+    if expected is None:
         return ""
     rows = "".join(
         f'<tr class="summary-check" data-state="{html.escape(check.state)}">'
@@ -1067,14 +1084,28 @@ def _summary_checks(report) -> str:
         f"<td>{html.escape(check.before)}</td><td>{html.escape(check.after)}</td>"
         f"<td>{version_name_html(check.meaning)}</td>"
         f'<td class="summary-check-scope">{version_name_html(check.scope)}</td></tr>'
-        for check in checks
+        for check in report.summary.checks
+    )
+    unassessed = html.escape(content.FROZEN_UNASSESSED)
+    rows += "".join(
+        '<tr class="summary-check" data-state="unassessed">'
+        f'<td><a href="#{content.target_criterion_anchor(number)}">'
+        f"{html.escape(check.text)}</a></td>"
+        f"<td>{unassessed}</td><td>{unassessed}</td>"
+        f"<td>{html.escape(content.FROZEN_UNASSESSED_MEANING)}</td>"
+        '<td class="summary-check-scope">'
+        f"{version_name_html(content.required_evidence_text(check))}</td></tr>"
+        for number, check in enumerate(expected.unassessed, 1)
     )
     return (
+        f'<div class="expected-checks" data-provenance="{html.escape(expected.provenance)}">'
+        f'<p class="expected-checks-label"><strong>{html.escape(expected.label)}</strong></p>'
+        f'<p class="note expected-checks-note">{version_name_html(expected.note)}</p>'
         '<div class="summary-checks-wrap"><table class="summary-checks">'
         '<thead><tr><th scope="col">Expected</th><th scope="col">Before</th>'
         '<th scope="col">After</th><th scope="col">What this means</th>'
         f'<th scope="col">{html.escape(content.SUMMARY_SCOPE_HEADING)}</th></tr></thead>'
-        f"<tbody>{rows}</tbody></table></div>"
+        f"<tbody>{rows}</tbody></table></div></div>"
     )
 
 

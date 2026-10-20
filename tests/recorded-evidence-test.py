@@ -143,6 +143,47 @@ class RecordedEvidenceTests(unittest.TestCase):
         self.assertIn('"offset": 20', record["source"])
         self.assertEqual(record["status"], "available")
 
+    def test_pull_request_reads_retain_returns_through_execution_adapters(self):
+        for tool in ("Bash", "exec_command", "fixture__exec"):
+            for text in ("gh pr view 7", "gh pr diff 7"):
+                with self.subTest(tool=tool, command=text):
+                    events = command("read-pr", text, "Synthetic source: cloud only.")
+                    events[0]["message"]["content"][0]["name"] = tool
+                    self.trace(events)
+                    record = self.records()[0]
+                    self.assertEqual(record["status"], "available")
+                    self.assertEqual(record["text"], "Synthetic source: cloud only.")
+                    self.assertEqual(record["range"]["end"], len(record["text"]))
+
+    def test_execution_adapters_do_not_admit_mutations_or_compound_commands(self):
+        for text in (
+            "gh pr edit 7 --body altered",
+            "gh pr merge 7",
+            "gh api -X POST repos/example/project",
+            "gh pr view 7; gh pr merge 7",
+            "gh pr diff 7 | cat",
+            "gh pr view $(cat .env)",
+        ):
+            with self.subTest(command=text):
+                events = command("not-read", text)
+                events[0]["message"]["content"][0]["name"] = "fixture__exec"
+                self.trace(events)
+                record = self.records()[0]
+                self.assertEqual((record["status"], record["text"]), ("omitted", ""))
+
+    def test_pull_request_returns_keep_privacy_and_error_boundaries(self):
+        for output, result_fields, status in (
+            ("fictional.person@example.invalid", {}, "omitted"),
+            ("permission denied", {"is_error": True}, "unavailable"),
+        ):
+            with self.subTest(status=status):
+                events = command("read-pr", "gh pr view 7", output)
+                events[0]["message"]["content"][0]["name"] = "fixture__exec"
+                events[1]["message"]["content"][0].update(result_fields)
+                self.trace(events)
+                record = self.records()[0]
+                self.assertEqual((record["status"], record["text"]), (status, ""))
+
     def test_missing_return_and_self_report_are_not_proof(self):
         self.trace(call("read-1")[:1])
         self.assertEqual(self.records()[0]["status"], "unavailable")
@@ -378,7 +419,9 @@ class TargetEvidenceTests(unittest.TestCase):
         return check_target(raw, PURPOSE, ANSWERS, evidence)
 
     def test_recorded_call_proves_action_despite_omitted_return(self):
-        self.recorded(command("view-1", "gh pr view 7"))
+        self.recorded(
+            command("view-1", "gh pr view 7", "fictional.person@example.invalid")
+        )
         record = collect_run_evidence(self.root)["trials"]["after-1"][0]
         self.assertEqual((record["status"], record["text"]), ("omitted", ""))
         target, rejection = self.check(criterion())
@@ -387,7 +430,7 @@ class TargetEvidenceTests(unittest.TestCase):
         self.assertEqual(target.criteria[0].before[0].outcome, "not_met")
 
     def test_call_without_returned_content_cannot_prove_source_agreement(self):
-        self.recorded(command("view-1", "gh pr view 7"))
+        self.recorded(command("view-1", "gh pr view 7")[:1])
         raw = criterion(
             "source_consistency",
             excerpt="citing pull request 7",

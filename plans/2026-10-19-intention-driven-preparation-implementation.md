@@ -634,7 +634,7 @@ not proof of extractor adherence; do not copy their conclusions into report data
 - Reuse validated target checks, purpose and saved evidence. Repair call-versus-
   return evidence handling, rejection diagnostics and native interruption accounting.
   Do not weaken source-consistency checks or reconstruct private case criteria.
-- Keep HTML, Markdown and schema-17 structured conclusions consistent.
+- Keep HTML, Markdown and schema-18 structured conclusions consistent.
   Understand the change labels model interpretation below the same conclusion.
   The blind quiz excludes new assessment/setup/next-action content while retaining
   observed comparisons; no paid evaluation is part of this change.
@@ -643,7 +643,7 @@ not proof of extractor adherence; do not copy their conclusions into report data
   invalid extractions remain unavailable; showing audited historical findings
   automatically requires a separately approved fresh extraction, not UI editing.
 
-**Presentation-only acceptance boundary (approved after verification)**
+**Earlier presentation-only acceptance boundary**
 
 The revised design keeps a concise finding and Expected/Observed framing above
 the full original observations, counts, primary result, explanations, cautions,
@@ -656,11 +656,37 @@ visual acceptance before recommending merge.
 The two approved re-extractions did not establish an issue-found/no-gap pair.
 One assessment was rejected for noncontiguous output quotes and missed a required
 code-check criterion; the other had supported positive results but unresolved
-coverage. Missing source returns limited factual validation. These assessment and
-evidence problems are separate follow-up work, not claims this presentation PR
-resolves. Do not weaken validators or insert manual audit conclusions to pass.
+coverage. Missing source returns limited factual validation. Those problems were
+outside the earlier presentation-only pass. The subsequent user instruction to
+fix the missing scenario and unmet After finding authorizes the producer and
+assessment corrections below. Do not weaken validators or insert manual audit
+conclusions to pass.
 
 Tracking: DRC-4835. The approved prototype is temporary and is not a product route.
+
+**Authorized correction: carry preparation into assessment and the report**
+
+- Keep purpose unchanged. Add a separate reviewed `--scenario-file` with the
+  scenario summary, data rationale, conditions, limitations and goal-linked
+  observable checks. Freeze it before trials and exclude it from every trial
+  input. Raw private notes remain private.
+- Split compound requirements: inspecting a PR description is not inspecting
+  implementation; a recorded action is not proof that output agrees with source.
+  The assessor must retain the complete frozen check set and its definitions.
+- Admit recorded PR view/diff returns through supported execution adapters,
+  retaining existing privacy filters, budgets and omission provenance. Never
+  fetch current source or treat assessor knowledge as evidence the trial saw.
+- Deliver the record through configuration, extraction, validation and schema 18.
+  Show the actual task and why its data challenges the aim. Keep frozen
+  expectations visible when assessment fails, with no invented outcome.
+- Historical runs without a record remain explicitly unrecorded. A manual
+  transcription from identifiable original pretrial notes must disclose its
+  later transcription and preserve the original artifacts. It is not proof of
+  fresh autonomous preparation.
+- Verify deterministic contracts and actual saved-evidence collection/rendering,
+  then obtain independent review. Fresh model-backed verification needs new
+  approval; prior calls do not authorize retries. Keep the PR unmerged until
+  the automatic result and user-facing explanation have been verified.
 
 ### Step-by-step implementation protocol
 

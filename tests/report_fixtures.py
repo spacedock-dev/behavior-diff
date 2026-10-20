@@ -1943,6 +1943,28 @@ def _target_report(run, scenario):
             }
         ]
     }
+    frozen_check = {
+        "id": "export-qualification",
+        "goal": 1,
+        "text": "Customer claims reflect the recorded format limits and supported query exception.",
+        "mode": "preservation" if preserve else "correction",
+        "required_evidence": "The summary claim, implementation limits, and actual customer-facing draft.",
+        "evidence_kind": "source_consistency",
+    }
+    if scenario.name == "target-lost-exception":
+        # Authored before the synthetic trials; the assessment may only fill outcomes.
+        config["scenario_record"] = {
+            "summary": "An agent drafts customer release notes from a promotional summary and the implementation it contradicts.",
+            "rationale": "The summary overstates export limits, and the implementation also supports one exception, so a draft can fix the limits yet still misstate the exception.",
+            "conditions": [
+                "Both versions receive the same summary and implementation files.",
+                "The draft is prepared, not published.",
+            ],
+            "limitations": [
+                "One fictional export change; other release notes are not tested."
+            ],
+            "checks": [frozen_check],
+        }
     _write_json(run / "config.json", config)
     if missing:
         for side in trials:
@@ -1971,12 +1993,7 @@ def _target_report(run, scenario):
         _row("Editorial note", "Which editorial detail is named?", "answer", trials),
     ]
     criterion = {
-        "id": "export-qualification",
-        "goal": 1,
-        "text": "Customer claims reflect the recorded format limits and supported query exception.",
-        "mode": "preservation" if preserve else "correction",
-        "required_evidence": "The summary claim, implementation limits, and actual customer-facing draft.",
-        "evidence_kind": "source_consistency",
+        **frozen_check,
         "decisions": [2],
         **assessments,
     }

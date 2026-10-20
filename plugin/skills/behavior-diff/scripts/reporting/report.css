@@ -507,7 +507,11 @@ details { margin-bottom:.25rem; }
   color:#8a5b12; }
 .summary-open-list li[data-kind="not_met"] .summary-open-tag { color:#a8312c; }
 .summary-open-list li[data-kind="not_met"] { font-weight:650; }
-.summary-open-list li[data-kind="unchecked"] .summary-open-tag { color:#53646d; }
+.summary-open-list li[data-kind="unchecked"] .summary-open-tag,
+.summary-open-list li[data-kind="unassessed"] .summary-open-tag { color:#53646d; }
+.expected-checks { margin:18px 0 0; }
+.expected-checks-label { margin:0; font-size:14px; }
+.expected-checks-note { margin:4px 0 0; max-width:780px; }
 .summary-implication { font-size:15px; line-height:1.6; margin:0; max-width:780px; }
 .summary-method-grid { display:grid; grid-template-columns:minmax(0, 1fr) minmax(0, 1fr);
   gap:16px 24px; }

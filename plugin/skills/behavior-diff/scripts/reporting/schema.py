@@ -12,6 +12,7 @@ from reporting.explanation import (
     parse_explanation,
 )
 from reporting.instruction import parse_diff_hunks
+from reporting.scenario import ScenarioData, parse_scenario
 from reporting.summary import (
     CHECK_STATES,
     FINDING_STATES,
@@ -48,7 +49,7 @@ from reporting.provenance import (
     report_source,
 )
 
-SCHEMA_VERSION = 17
+SCHEMA_VERSION = 18
 RESULT_KINDS = ("good", "bad", "neutral")
 
 
@@ -155,6 +156,8 @@ class DecisionData:
     # Validation reason for a returned but rejected target assessment; never set
     # alongside a valid assessment.
     target_rejection: Optional[str] = None
+    # Scenario and expected checks frozen before trials; None means unrecorded.
+    scenario_record: Optional[ScenarioData] = None
 
 
 @dataclass(frozen=True)
@@ -295,6 +298,7 @@ class ReportData:
             "evidence_limits",
             "purpose_summary",
             "target_rejection",
+            "scenario_record",
         ):
             _field(raw_decisions, name, "decisions")
         rule_diff = _expect_str(_field(data, "rule_diff", "report-data"), "rule_diff")
@@ -591,6 +595,10 @@ def _decisions(value, path, hunk_count, groups=None, final_answers=None):
     if purpose_summary != raw_purpose_summary:
         _invalid(path + ".purpose_summary", "plain summary of recorded purpose goals")
     evidence = persisted_evidence(value.get("recorded_evidence", []))
+    raw_scenario = value.get("scenario_record")
+    scenario = parse_scenario(raw_scenario, purpose)
+    if raw_scenario is not None and _json_value(asdict(scenario)) != raw_scenario:
+        _invalid(path + ".scenario_record", "canonical scenario recorded before trials")
     raw_target = value.get("target_assessment")
     target = parse_target(
         raw_target,
@@ -598,6 +606,7 @@ def _decisions(value, path, hunk_count, groups=None, final_answers=None):
         final_answers,
         evidence,
         parsed_rows,
+        scenario=scenario,
     )
     if raw_target is not None and (
         target is None or _json_value(asdict(target)) != raw_target
@@ -638,6 +647,7 @@ def _decisions(value, path, hunk_count, groups=None, final_answers=None):
         target_rejection=_target_rejection(
             value.get("target_rejection"), path + ".target_rejection", target
         ),
+        scenario_record=scenario,
     )
     from reporting.content import valid_decision_choices
 

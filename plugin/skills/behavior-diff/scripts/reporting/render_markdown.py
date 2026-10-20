@@ -429,8 +429,20 @@ def _target_summary_markdown(report, target):
 def _target_explanation_markdown(report):
     target = report.decisions.target_assessment
     lines = ["### What we checked\n"]
+    expected = content.expected_checks(report)
+    if expected is not None:
+        lines.append(f"**{_text(expected.label)}.** {_text(expected.note)}\n")
     if target is None:
         lines.append(_text(UNAVAILABLE) + "\n")
+        unassessed = _text(content.FROZEN_UNASSESSED)
+        for number, check in enumerate(expected.unassessed if expected else (), 1):
+            lines += [
+                f'<a id="{content.target_criterion_anchor(number)}"></a>\n',
+                f"#### {_text(check.text)}\n",
+                f"Before: {unassessed} · After: {unassessed}\n",
+                f"**Required evidence:** {_text(check.required_evidence)}\n",
+                f"Goal {check.goal} · {_text(check.mode)}\n",
+            ]
     else:
         lines += _target_summary_markdown(report, target)
         sources = {entry.id: entry for entry in report.decisions.recorded_evidence}
@@ -503,10 +515,13 @@ def _target_explanation_markdown(report):
 
 
 def _summary_checks_markdown(report):
-    checks = report.summary.checks
-    if not checks:
+    """Validated checks, or frozen checks marked not assessed, with provenance."""
+    expected = content.expected_checks(report)
+    if expected is None:
         return []
     lines = [
+        f"**{_text(expected.label)}**\n",
+        _text(expected.note) + "\n",
         f"| Expected | Before | After | What this means | {content.SUMMARY_SCOPE_HEADING} |",
         "| --- | --- | --- | --- | --- |",
     ]
@@ -514,7 +529,14 @@ def _summary_checks_markdown(report):
         f"| [{_text(check.text)}](#{content.target_criterion_anchor(check.criterion)}) "
         f"| {_text(check.before)} | {_text(check.after)} | {_text(check.meaning)} "
         f"| {_text(check.scope)} |"
-        for check in checks
+        for check in report.summary.checks
+    ]
+    unassessed = _text(content.FROZEN_UNASSESSED)
+    lines += [
+        f"| [{_text(check.text)}](#{content.target_criterion_anchor(number)}) "
+        f"| {unassessed} | {unassessed} | {_text(content.FROZEN_UNASSESSED_MEANING)} "
+        f"| {_text(content.required_evidence_text(check))} |"
+        for number, check in enumerate(expected.unassessed, 1)
     ]
     lines.append("")
     return lines

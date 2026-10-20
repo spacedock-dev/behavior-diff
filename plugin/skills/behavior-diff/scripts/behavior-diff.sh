@@ -6,10 +6,13 @@
 #
 #   behavior-diff.sh --file CLAUDE.md --task "one-line scenario" \
 #       [--trials 3 | --fast] [--model NAME] [--before-file ORIGINAL]
-#       [--purpose-file JSON] [--source-file JSON]
+#       [--purpose-file JSON] [--scenario-file JSON] [--source-file JSON]
 # Purpose is frozen report/assessment context, never an added trial instruction.
 # Purpose and bounded recorded read/search returns go to the assessment provider
 # and local reports. Supply reviewed safe context; exclusions are not privacy guarantees.
+# --scenario-file (requires --purpose-file) is the reviewed scenario record:
+# how the frozen task and data test each goal, and the fixed checks the
+# assessment answers. It goes to the assessment provider and reports, never trials.
 # --source-file is caller-verified historical provenance (original repository
 # web URL, exact Before/After commits, optional PR/MR links) for a replayed
 # Git history comparison. It is report-only, never inferred or a trial input.
@@ -30,10 +33,10 @@
 # ${BEHAVIOR_DIFF_HOME:-~/.behavior-diff}/runs.
 set -euo pipefail
 
-file="" task="" trials=3 agent=claude model="" vocab=generic extract_agent="" extract_model="" before_file="" purpose_file="" source_file=""
+file="" task="" trials=3 agent=claude model="" vocab=generic extract_agent="" extract_model="" before_file="" purpose_file="" scenario_file="" source_file=""
 while [ $# -gt 0 ]; do
   case "$1" in
-    --file | --before-file | --purpose-file | --source-file | --task | --trials | --model | --agent | --vocab | --extract-agent | --extract-model)
+    --file | --before-file | --purpose-file | --scenario-file | --source-file | --task | --trials | --model | --agent | --vocab | --extract-agent | --extract-model)
       if [ $# -lt 2 ] || [ -z "$2" ]; then
         echo "behavior-diff: $1 needs a value" >&2
         exit 2
@@ -51,6 +54,10 @@ while [ $# -gt 0 ]; do
       ;;
     --purpose-file)
       purpose_file=$2
+      shift 2
+      ;;
+    --scenario-file)
+      scenario_file=$2
       shift 2
       ;;
     --source-file)
@@ -90,7 +97,7 @@ while [ $# -gt 0 ]; do
       shift 2
       ;;
     -h | --help)
-      sed -n '2,28p' "$0"
+      sed -n '2,31p' "$0"
       exit 0
       ;;
     *)
@@ -137,6 +144,10 @@ fi
   echo "behavior-diff: --file and --task are required (see --help)" >&2
   exit 2
 }
+if [ -n "$scenario_file" ] && [ -z "$purpose_file" ]; then
+  echo "behavior-diff: --scenario-file requires --purpose-file" >&2
+  exit 2
+fi
 command -v jq >/dev/null || {
   echo "behavior-diff: jq required" >&2
   exit 3
@@ -153,6 +164,17 @@ if [ -n "$purpose_file" ]; then
   }
   purpose=$(python3 "$scripts/purpose.py" "$purpose_file") || exit 2
   purpose_file=$(cd "$(dirname "$purpose_file")" && pwd -P)/$(basename "$purpose_file")
+fi
+# The scenario record is checked against that frozen purpose, also before any
+# model discovery. Never print rejected content.
+scenario_record=null
+if [ -n "$scenario_file" ]; then
+  [ -f "$scenario_file" ] && [ -r "$scenario_file" ] && [ ! -L "$scenario_file" ] || {
+    echo "behavior-diff: --scenario-file must name a readable regular JSON file, not a symlink" >&2
+    exit 2
+  }
+  scenario_record=$(python3 "$scripts/scenario.py" "$scenario_file" --purpose-file "$purpose_file") || exit 2
+  scenario_file=$(cd "$(dirname "$scenario_file")" && pwd -P)/$(basename "$scenario_file")
 fi
 # Source provenance is caller-authoritative: validate its shape and URLs only.
 # Never derive it from the sandbox repository or its remotes.
@@ -229,9 +251,12 @@ context_rel() { # $1 option name, $2 absolute context path -> repo-relative path
   fi
   case "$2" in "$repo"/*) printf '%s\n' "${2#"$repo"/}" ;; esac
 }
-purpose_rel="" source_rel=""
+purpose_rel="" scenario_rel="" source_rel=""
 if [ -n "$purpose_file" ]; then
   purpose_rel=$(context_rel --purpose-file "$purpose_file") || exit 2
+fi
+if [ -n "$scenario_file" ]; then
+  scenario_rel=$(context_rel --scenario-file "$scenario_file") || exit 2
 fi
 if [ -n "$source_file" ]; then
   source_rel=$(context_rel --source-file "$source_file") || exit 2
@@ -400,9 +425,11 @@ case "$before_mode" in
 esac
 jq -n --arg f "$rel" --arg task "$task" --arg vocab "$vocab" \
   --arg title "Behavior Diff — $rel" --argjson purpose "$purpose" \
+  --argjson scenario_record "$scenario_record" \
   --argjson source "$source_json" --argjson ci_context "$ci_context" \
   --arg before_label "$before_label" --arg after_label "$after_label" \
   '{title:$title, scenario:$task, purpose:$purpose,
+    scenario_record:$scenario_record,
     target_file:$f, mode:"review", vocab:$vocab,
     before_label:$before_label, after_label:$after_label}
     + (if $source == null then {} else {source:$source} end)
@@ -496,6 +523,9 @@ prepare_snapshot() { # $1 variant, $2 trial index; retain errexit in foreground
   fi
   if [ -n "$purpose_rel" ]; then
     remove_context_file "$dir/project" "$purpose_rel" --purpose-file || return
+  fi
+  if [ -n "$scenario_rel" ]; then
+    remove_context_file "$dir/project" "$scenario_rel" --scenario-file || return
   fi
   if [ -n "$source_rel" ]; then
     remove_context_file "$dir/project" "$source_rel" --source-file || return

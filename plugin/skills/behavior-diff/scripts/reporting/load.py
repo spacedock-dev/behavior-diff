@@ -4,7 +4,7 @@ import json
 import re
 from collections import Counter
 from pathlib import Path
-from dataclasses import replace
+from dataclasses import asdict, replace
 from typing import Optional
 
 import progress
@@ -13,6 +13,7 @@ from reporting.attention import parse_attention
 from reporting.explanation import _text, parse_explanation
 from reporting.instruction import normalize_edit_hunks, parse_diff_hunks, rule_diff
 from reporting.provenance import config_ci_context, config_source
+from reporting.scenario import parse_scenario
 from reporting.schema import (
     SCHEMA_VERSION,
     CommandFlowData,
@@ -51,6 +52,7 @@ def load_report(
 ) -> ReportData:
     config = _read_config(config_path)
     metadata = _metadata(config, model)
+    scenario = _scenario_record(config)
     grades = _read_grades(run)
     variants = _variants(run, grades, metadata)
     before = variants.before
@@ -71,9 +73,13 @@ def load_report(
             for side, variant in (("before", before), ("after", after))
         },
         purpose=config.get("purpose"),
+        scenario=scenario,
     )
     if not decisions.purpose:
         decisions = replace(decisions, purpose=parse_purpose(config.get("purpose")))
+    # Only the run configuration supplies the frozen record, including when the
+    # saved decisions are missing or unreadable.
+    decisions = replace(decisions, scenario_record=scenario)
     task = _task(run, capsule)
     report_content = content.build_content(
         config,
@@ -105,6 +111,14 @@ def _read_config(config_path):
     if config_path is None:
         return {}
     return json.loads(config_path.read_text())
+
+
+def _scenario_record(config):
+    """Read the frozen record from the run configuration only; malformed fails."""
+    raw = config.get("scenario_record")
+    if raw is None:
+        return None
+    return parse_scenario(raw, parse_purpose(config.get("purpose")))
 
 
 def _metadata(config, model):
@@ -455,6 +469,7 @@ def _read_decisions(
     final_answers=None,
     *,
     purpose=None,
+    scenario=None,
 ):
     path = run / "decisions.json"
     if not path.exists():
@@ -469,6 +484,7 @@ def _read_decisions(
             groups,
             final_answers,
             purpose=purpose,
+            scenario=scenario,
         )
     except (TypeError, ValueError, KeyError):
         return _empty_decisions(before_default, after_default)
@@ -483,6 +499,7 @@ def _convert_decisions(
     final_answers=None,
     *,
     purpose=None,
+    scenario=None,
 ):
     if type(raw) is not dict or type(raw.get("chain")) is not list:
         raise ValueError("malformed decisions")
@@ -540,15 +557,28 @@ def _convert_decisions(
         parse_purpose({"goals": raw["purpose"]}) if raw.get("purpose") else ()
     )
     goals = persisted_goals or parse_purpose(purpose)
+    summarized_goals = persisted_goals
+    canonical = json.loads(json.dumps(asdict(scenario))) if scenario else None
+    mismatch = "scenario_record" in raw and raw["scenario_record"] != canonical
+    if scenario is not None:
+        # Frozen checks number the configured goals; persisted copies must agree.
+        goals = parse_purpose(purpose)
+        if persisted_goals and persisted_goals != goals:
+            mismatch = True
+            summarized_goals = ()
     evidence = persisted_evidence(raw.get("recorded_evidence", []))
     intent = parse_intent(raw.get("intent"), hunk_count)
-    target, target_rejection = check_target(
-        raw.get("target_assessment"),
-        effective_purpose(goals, intent),
-        final_answers,
-        evidence,
-        rows,
-    )
+    if mismatch:
+        target, target_rejection = None, SCENARIO_MISMATCH
+    else:
+        target, target_rejection = check_target(
+            raw.get("target_assessment"),
+            effective_purpose(goals, intent),
+            final_answers,
+            evidence,
+            rows,
+            scenario=scenario,
+        )
     if target is None and target_rejection is None:
         target_rejection = _persisted_rejection(raw.get("target_rejection"))
     return DecisionData(
@@ -571,9 +601,16 @@ def _convert_decisions(
         target,
         parse_evidence_limits(raw.get("evidence_limits")),
         # A summary paraphrases only the goals persisted with that extraction.
-        parse_purpose_summary(raw.get("purpose_summary"), persisted_goals),
+        parse_purpose_summary(raw.get("purpose_summary"), summarized_goals),
         target_rejection,
+        scenario,
     )
+
+
+SCENARIO_MISMATCH = (
+    "the saved assessment's frozen scenario record or goals differ from the run "
+    "configuration"
+)
 
 
 def _persisted_rejection(value):

@@ -43,7 +43,7 @@ from presentation_contract import (  # noqa: E402
 
 def synthetic_raw():
     raw = {
-        "schema_version": 17,
+        "schema_version": 18,
         "metadata": {
             "model": "synthetic/model",
             "mode": "review",
@@ -255,7 +255,13 @@ def synthetic_raw():
         recorded_evidence=[],
         target_assessment=None,
         evidence_limits=None,
+        scenario_record=None,
     )
+    return derive_summary(raw)
+
+
+def derive_summary(raw):
+    """Recompute the derived Summary and intent after changing saved decisions."""
     from reporting.schema import _decisions, _metadata, _variants
     from reporting.summary import build_intent, build_summary
 
@@ -367,6 +373,362 @@ def assert_branch_membership_validation(raw):
             for side in ("before", "after")
             for choice in getattr(row, side)
         )
+
+
+SCENARIO_PURPOSE = [
+    {
+        "text": "Answers name the evidence they reviewed.",
+        "source": "session",
+        "basis": "explicit",
+        "reference": "Synthetic owner request before trials",
+    }
+]
+
+
+def scenario_record(payload=""):
+    """A synthetic record frozen before trials; payload exercises escaping."""
+    return {
+        "summary": "Two synthetic file reviews must say what they read." + payload,
+        "rationale": "The task hides the reviewed file behind a search step." + payload,
+        "conditions": [
+            "Both versions receive the same synthetic file." + payload,
+            "No network access is available.",
+        ],
+        "limitations": ["One synthetic task only." + payload],
+        "checks": [
+            {
+                "id": "names-evidence",
+                "goal": 1,
+                "text": "The final answer names the reviewed file." + payload,
+                "mode": "new",
+                "required_evidence": "The exact final answer." + payload,
+                "evidence_kind": "output",
+            }
+        ],
+    }
+
+
+def scenario_target(record, after_outcome="met"):
+    """Outcomes for exactly the frozen checks, cited from exact final answers."""
+    finals = {
+        "before": ("Before first answer", "Before second answer"),
+        "after": ("After first answer", "After second answer"),
+    }
+
+    def side(name, outcome):
+        return [
+            {
+                "trial": f"{name}-{number}",
+                "outcome": outcome,
+                "refs": [f"{name}-{number}:answer"],
+                "explanation": "Synthetic assessment of the exact answer.",
+                "output_excerpt": answer,
+            }
+            for number, answer in enumerate(finals[name], 1)
+        ]
+
+    return {
+        "criteria": [
+            {
+                **check,
+                "decisions": [2],
+                "before": side("before", "not_met"),
+                "after": side("after", after_outcome),
+            }
+            for check in record["checks"]
+        ]
+    }
+
+
+def scenario_raw(raw, record, target, rejection=None):
+    changed = copy.deepcopy(raw)
+    changed["decisions"].update(
+        purpose=copy.deepcopy(SCENARIO_PURPOSE),
+        scenario_record=record,
+        target_assessment=target,
+        target_rejection=rejection,
+    )
+    return derive_summary(changed)
+
+
+def assert_rejected_at(raw, field):
+    try:
+        ReportData.from_dict(raw)
+    except ValueError as error:
+        assert field in str(error), (field, str(error))
+    else:
+        raise AssertionError(f"invalid {field} was accepted")
+
+
+def _between(page, start, end):
+    return page[page.index(start) : page.index(end, page.index(start))]
+
+
+def _plain_text(markup):
+    return html.unescape(re.sub(r"<[^>]+>", "", markup))
+
+
+def assert_scenario_record_contract(raw):
+    """Frozen records round-trip strictly, bind the target, and stay visible."""
+    from reporting import load
+    from reporting.render_html import render_artifact
+    from reporting.render_markdown import render_markdown
+    from reporting.scenario import ScenarioData
+    from reporting.summary import FINDING_HEADLINES, UNMET
+
+    record = scenario_record()
+    frozen = assert_round_trip(scenario_raw(raw, record, scenario_target(record)))
+    assert isinstance(frozen.decisions.scenario_record, ScenarioData)
+    assert frozen.decisions.scenario_record.conditions == tuple(record["conditions"])
+    assert [check.text for check in frozen.summary.checks] == [
+        record["checks"][0]["text"]
+    ]
+    assert frozen.summary.state == "improved"
+    page = render_artifact(frozen, "")
+    markdown = render_markdown(frozen)
+    expectation = _between(page, "story-expectation", "story-method")
+    method = _between(page, "story-method", "story-evidence")
+    evidence = _between(page, "story-evidence", "story-next")
+    assert content.FROZEN_CHECKS_LABEL in expectation
+    assert content.ASSESSOR_CHECKS_LABEL not in page
+    assert content.FROZEN_UNASSESSED_MEANING not in page
+    for heading, text in (
+        (content.SUMMARY_SCENARIO_HEADING, record["summary"]),
+        (content.SUMMARY_RATIONALE_HEADING, record["rationale"]),
+        (content.SUMMARY_CONDITIONS_HEADING, record["conditions"][0]),
+        (content.SUMMARY_DATA_HEADING, record["limitations"][0]),
+        (content.SUMMARY_TASK_LABEL, raw["content"]["task"]),
+    ):
+        assert heading in method and html.escape(text) in method, heading
+        assert heading in markdown, heading
+        # The blinded quiz keeps Step 4; preparation text must stay outside it.
+        assert html.escape(text) not in evidence, heading
+    assert content.SCENARIO_UNRECORDED not in page
+    assert content.FROZEN_CHECKS_LABEL in markdown
+
+    missing = copy.deepcopy(frozen.to_dict())
+    del missing["decisions"]["scenario_record"]
+    assert_rejected_at(missing, "scenario_record")
+    malformed = []
+    for key, value in (
+        ("extra", "field"),
+        ("summary", "x" * 401),
+        ("conditions", []),
+        ("limitations", "One synthetic task only."),
+        ("checks", []),
+    ):
+        broken = copy.deepcopy(record)
+        broken[key] = value
+        malformed.append(broken)
+    for key, value in (
+        ("goal", 2),
+        ("goal", True),
+        ("mode", "future"),
+        ("evidence_kind", "anything"),
+        ("id", " names-evidence"),
+        ("text", "<b>markup</b>"),
+    ):
+        broken = copy.deepcopy(record)
+        broken["checks"][0][key] = value
+        malformed.append(broken)
+    duplicate = copy.deepcopy(record)
+    duplicate["checks"].append(copy.deepcopy(duplicate["checks"][0]))
+    malformed.append(duplicate)
+    padded = copy.deepcopy(record)
+    padded["summary"] = " " + padded["summary"]
+    # A saved report must hold the canonical record, not merely a parseable one.
+    for broken in (*malformed, padded):
+        tampered = copy.deepcopy(frozen.to_dict())
+        tampered["decisions"]["scenario_record"] = broken
+        assert_rejected(tampered)
+    unpurposed = copy.deepcopy(frozen.to_dict())
+    unpurposed["decisions"]["purpose"] = []
+    assert_rejected(unpurposed)
+
+    # A target must restate every frozen check exactly; nothing is substituted.
+    for field, value in (
+        ("text", "A looser restatement of the check."),
+        ("required_evidence", "Any evidence."),
+        ("mode", "change"),
+        ("evidence_kind", "recorded_action"),
+        ("id", "other-check"),
+    ):
+        tampered = copy.deepcopy(frozen.to_dict())
+        tampered["decisions"]["target_assessment"]["criteria"][0][field] = value
+        assert_rejected_at(tampered, "target_assessment")
+    extra = copy.deepcopy(frozen.to_dict())
+    added = copy.deepcopy(extra["decisions"]["target_assessment"]["criteria"][0])
+    added["id"] = "assessor-added"
+    extra["decisions"]["target_assessment"]["criteria"].append(added)
+    assert_rejected_at(extra, "target_assessment")
+
+    # Without a valid assessment, frozen checks stay visible and decide nothing.
+    for rejection in (None, "target criterion must restate its frozen scenario check"):
+        unassessed = assert_round_trip(scenario_raw(raw, record, None, rejection))
+        assert unassessed.summary.checks == ()
+        assert unassessed.summary.state == "unavailable"
+        heading = content.summary_heading(unassessed)
+        assert heading != UNMET
+        assert unassessed.summary.headline == FINDING_HEADLINES["unavailable"]
+        assert [item.kind for item in content.summary_open_items(unassessed)] == [
+            "unassessed"
+        ]
+        page = render_artifact(unassessed, "")
+        markdown = render_markdown(unassessed)
+        expectation = _between(page, "story-expectation", "story-method")
+        for text in (
+            content.FROZEN_CHECKS_LABEL,
+            content.FROZEN_UNASSESSED_MEANING,
+            html.escape(record["checks"][0]["text"]),
+            html.escape(
+                content.required_evidence_text(
+                    unassessed.decisions.scenario_record.checks[0]
+                )
+            ),
+        ):
+            assert text in expectation, text
+        assert content.FROZEN_UNASSESSED_NOTE in _plain_text(expectation)
+        assert 'data-state="unassessed"' in expectation
+        assert expectation.count(content.FROZEN_UNASSESSED) >= 2
+        assert UNMET not in page
+        assert f'id="{content.target_criterion_anchor(1)}"' in page
+        assert f'href="#{content.target_criterion_anchor(1)}"' in page
+        assert f'<a id="{content.target_criterion_anchor(1)}"></a>' in markdown
+
+    # Assessor-written criteria without a frozen record are labeled as such.
+    legacy_raw = scenario_raw(raw, None, scenario_target(record))
+    legacy = assert_round_trip(legacy_raw)
+    assert legacy.decisions.scenario_record is None
+    page = render_artifact(legacy, "")
+    assert content.ASSESSOR_CHECKS_LABEL in _between(
+        page, "story-expectation", "story-method"
+    )
+    assert content.FROZEN_CHECKS_LABEL not in page
+    assert html.escape(content.SCENARIO_UNRECORDED) in _between(
+        page, "story-method", "story-evidence"
+    )
+    assert content.ASSESSOR_CHECKS_LABEL in render_markdown(legacy)
+    unrecorded = ReportData.from_dict(raw)
+    page = render_artifact(unrecorded, "")
+    assert html.escape(content.SCENARIO_UNRECORDED) in page
+    assert "expected-checks" not in page
+
+    # Every new record field is escaped in both formats.
+    payload = ' Compare A & B when x < 3 > 1 "quoted" | piped.'
+    unsafe_record = scenario_record(payload)
+    for target in (scenario_target(unsafe_record), None):
+        unsafe = assert_round_trip(scenario_raw(raw, unsafe_record, target))
+        page = render_artifact(unsafe, "")
+        markdown = render_markdown(unsafe)
+        assert "x < 3" not in page and "A & B" not in page
+        assert page.count("x &lt; 3 &gt; 1 &quot;quoted&quot; | piped") >= 6
+        assert "x < 3" not in markdown and "A & B" not in markdown
+        assert markdown.count('x &lt; 3 &gt; 1 "quoted" &#124; piped') >= 6
+        assert_unchanged_scripts(render_artifact(frozen, ""), page)
+
+    # Loading binds the configuration's record; persisted tampering rejects the target.
+    config = {"purpose": {"goals": SCENARIO_PURPOSE}, "scenario_record": record}
+    canonical = load._scenario_record(config)
+    assert canonical == frozen.decisions.scenario_record
+    assert load._scenario_record({"scenario_record": None}) is None
+    for broken in (*malformed, None):
+        try:
+            load._scenario_record(
+                {"purpose": config["purpose"], "scenario_record": broken}
+                if broken is not None
+                else {"scenario_record": record}
+            )
+        except ValueError:
+            pass
+        else:
+            raise AssertionError("a malformed configured scenario was accepted")
+    finals = {
+        side: {trial["name"]: trial["final"] for trial in variant["trials"]}
+        for side, variant in raw["variants"].items()
+    }
+    persisted_target = scenario_target(record)
+    for criterion in persisted_target["criteria"]:
+        criterion["decisions"] = []
+
+    def convert(**changes):
+        saved = {
+            "chain": [],
+            "purpose": copy.deepcopy(SCENARIO_PURPOSE),
+            "target_assessment": copy.deepcopy(persisted_target),
+            "scenario_record": copy.deepcopy(record),
+            **changes,
+        }
+        return load._convert_decisions(
+            saved,
+            2,
+            2,
+            "",
+            final_answers=finals,
+            purpose=config["purpose"],
+            scenario=canonical,
+        )
+
+    bound = convert()
+    assert bound.target_assessment is not None and bound.target_rejection is None
+    assert bound.scenario_record == canonical
+    without_key = {
+        "chain": [],
+        "purpose": copy.deepcopy(SCENARIO_PURPOSE),
+        "target_assessment": copy.deepcopy(persisted_target),
+    }
+    assert (
+        load._convert_decisions(
+            without_key,
+            2,
+            2,
+            "",
+            final_answers=finals,
+            purpose=config["purpose"],
+            scenario=canonical,
+        ).target_assessment
+        is not None
+    )
+    changed_record = copy.deepcopy(record)
+    changed_record["checks"][0]["text"] = "A check rewritten after the trials."
+    changed_goals = copy.deepcopy(SCENARIO_PURPOSE)
+    changed_goals[0]["text"] = "A goal rewritten after the trials."
+    for changes in (
+        {"scenario_record": changed_record},
+        {"scenario_record": None},
+        {"purpose": changed_goals},
+    ):
+        rejected = convert(**changes)
+        assert rejected.target_assessment is None, changes
+        assert rejected.target_rejection == load.SCENARIO_MISMATCH, changes
+        assert rejected.purpose == canonical_goals(config), changes
+        assert rejected.scenario_record == canonical
+    restated = copy.deepcopy(persisted_target)
+    restated["criteria"][0]["text"] = "A looser restatement of the check."
+    rejected = convert(target_assessment=restated)
+    assert rejected.target_assessment is None and rejected.target_rejection
+    unconfigured = load._convert_decisions(
+        {
+            "chain": [],
+            "purpose": copy.deepcopy(SCENARIO_PURPOSE),
+            "target_assessment": copy.deepcopy(persisted_target),
+            "scenario_record": copy.deepcopy(record),
+        },
+        2,
+        2,
+        "",
+        final_answers=finals,
+        purpose=config["purpose"],
+        scenario=None,
+    )
+    assert unconfigured.target_assessment is None
+    assert unconfigured.target_rejection == load.SCENARIO_MISMATCH
+    assert unconfigured.scenario_record is None
+
+
+def canonical_goals(config):
+    from reporting.target import parse_purpose
+
+    return parse_purpose(config["purpose"])
 
 
 def summary_narrative(context=None, before_start=None, after_start=None):
@@ -2401,6 +2763,21 @@ def assert_gallery_reports():
             self_reported.command_flow.after,
         ):
             assert branch.prefix == branch.paths == ()
+        # Only the configured record is shown; no other case gains one afterward.
+        for name, report in reports.items():
+            record = report.decisions.scenario_record
+            assert (record is not None) == (name == "target-lost-exception"), name
+        frozen = reports["target-lost-exception"].decisions
+        assert [criterion.id for criterion in frozen.target_assessment.criteria] == [
+            check.id for check in frozen.scenario_record.checks
+        ]
+        frozen_page = (root / "target-lost-exception" / "report.html").read_text()
+        assert content.FROZEN_CHECKS_LABEL in frozen_page
+        assert content.ASSESSOR_CHECKS_LABEL not in frozen_page
+        assert (
+            content.ASSESSOR_CHECKS_LABEL
+            in (root / "target-mixed" / "report.html").read_text()
+        )
         assert_visual_summaries(reports)
         assert_derived_summary_claims(reports)
         assert_instruction_intent(reports, root)
@@ -2840,6 +3217,7 @@ def main():
     assert_branch_membership_validation(raw)
     assert_summary_context_and_starts(raw)
     assert_purpose_summary_contract(raw)
+    assert_scenario_record_contract(raw)
     assert_trial_summary_pipeline()
     assert_trial_summary_rendering(report)
     assert_summary_evidence(report)
@@ -2875,7 +3253,7 @@ def main():
     assert_rejected(dict(raw, schema_version=9))
     assert_rejected(dict(raw, schema_version=10))
     # Earlier report-data shapes are rejected; saved runs regenerate from decisions.
-    for version in (11, 12, 13, 14, 15, 16):
+    for version in (11, 12, 13, 14, 15, 16, 17):
         assert_rejected(dict(raw, schema_version=version))
     assert_rejected(dict(raw, schema_version=True))
     assert_rejected(dict(raw, schema_version=1.0))

@@ -55,6 +55,9 @@ def _eligible_command(command):
         or len(words) > 1
         and words[0] == "git"
         and words[1] in {"show", "diff", "log"}
+        or len(words) > 2
+        and words[:2] == ["gh", "pr"]
+        and words[2] in {"view", "diff"}
     )
 
 
@@ -67,7 +70,7 @@ def _descriptor(part):
         return SENSITIVE_SOURCE, False, "sensitive source"
     name = str(tool).lower().rsplit("__", 1)[-1]
     eligible = name in _READ_TOOLS
-    if name in {"bash", "shell", "exec_command"}:
+    if name in {"bash", "shell", "exec", "exec_command"}:
         # Codex preserves its raw wrapper alongside the command-flow display field.
         eligible = _eligible_command(args.get("raw_command", args.get("command", "")))
     if len(descriptor) > SOURCE_LIMIT:
