@@ -8,7 +8,11 @@ from reporting import content
 from reporting.attention import AttentionFindingData
 from reporting.provenance import ci_header_links, commit_links, header_links
 from reporting.schema import ReportData
-from reporting.summary import question_distribution, question_distribution_changed
+from reporting.summary import (
+    GATE_NOTE,
+    question_distribution,
+    question_distribution_changed,
+)
 from reporting.target import (
     UNAVAILABLE,
     acceptance,
@@ -111,7 +115,7 @@ def _attention_branches_markdown(report, finding: AttentionFindingData):
 
 def _attention_summary_markdown(report):
     attention = report.decisions.attention
-    markdown = [f"### 3. {content.SUMMARY_ATTENTION_HEADING}\n"]
+    markdown = [f"#### {content.SUMMARY_ATTENTION_HEADING}\n"]
     markdown += _attention_notice_markdown(attention)
     for item in content.attention_items(report):
         finding = item.finding
@@ -498,28 +502,57 @@ def _target_explanation_markdown(report):
     return lines
 
 
+def _summary_checks_markdown(report):
+    checks = report.summary.checks
+    if not checks:
+        return [_text(content.SUMMARY_NO_CHECKS) + "\n"]
+    lines = [
+        f"| Expected | Before | After | What this means | {content.SUMMARY_SCOPE_HEADING} |",
+        "| --- | --- | --- | --- | --- |",
+    ]
+    lines += [
+        f"| [{_text(check.text)}](#{content.target_criterion_anchor(check.criterion)}) "
+        f"| {_text(check.before)} | {_text(check.after)} | {_text(check.meaning)} "
+        f"| {_text(check.scope)} |"
+        for check in checks
+    ]
+    lines.append("")
+    return lines
+
+
 def _summary_markdown(report):
     summary = report.summary
     intent = content.summary_intent(report)
     markdown = [
         "## Summary\n",
         f"**{_text(summary.headline)}**\n",
-        f"### 1. {content.SUMMARY_PURPOSE_HEADING}\n",
+        f"### 1. {content.SUMMARY_FINDING_HEADING}\n",
+        _text(summary.meaning) + "\n",
+        f"### 2. {content.SUMMARY_EXPECTATION_HEADING}\n",
         f"**{_text(intent.label)}**\n",
         _text(intent.text) + "\n",
         _text(intent.note) + "\n",
-    ]
-    if summary.context:
-        markdown.append(
-            f"**{content.SUMMARY_CONTEXT_LABEL}:** {_text(summary.context.text)} "
-            f"{_decision_links(summary.context.decisions)}\n"
-        )
-    markdown += [
         "[Instruction changes →](#instruction-diff)\n",
-        f"### 2. {content.SUMMARY_EVIDENCE_HEADING}\n",
     ]
-    if summary.scenario:
-        markdown.append(_text(summary.scenario) + "\n")
+    markdown += _summary_checks_markdown(report)
+    markdown.append(f"### 3. {content.SUMMARY_METHOD_HEADING}\n")
+    if report.content.task:
+        markdown += [
+            f"**{content.SUMMARY_TASK_LABEL}:** "
+            f"{_text(content.task_preview(report.content.task))}\n",
+            "<details><summary>Full task</summary>\n",
+            "<pre><code>" + html.escape(report.content.task) + "</code></pre>\n",
+            "</details>\n",
+        ]
+    else:
+        markdown.append(_text(content.SCENARIO_PROMPT_UNAVAILABLE) + "\n")
+    markdown += [f"- {_text(line)}" for line in content.summary_method(report)]
+    markdown.append("")
+    markdown += [f"- {_text(notice)}" for notice in summary.notices]
+    markdown += ["", f"<details><summary>{content.SUMMARY_HELP_LABEL}</summary>\n"]
+    markdown += [f"- {_text(line)}" for line in content.SUMMARY_HELP]
+    markdown += ["", "</details>\n"]
+    markdown += ["", f"### 4. {content.SUMMARY_EVIDENCE_HEADING}\n"]
     markdown.append(_text(summary.evidence_label) + "\n")
     for side_name in ("before", "after"):
         side = getattr(summary, side_name)
@@ -552,16 +585,26 @@ def _summary_markdown(report):
             f"**{content.SUMMARY_MEANING_LABEL}:** {_text(summary.why.text)} "
             f"{_decision_links(summary.why.decisions)}\n"
         )
-    markdown.append("[Understand the change →](#panel-explanation)\n")
-    markdown += _attention_summary_markdown(report)
-    markdown.append(f"### 4. {content.SUMMARY_LIMITS_HEADING}\n")
+    if summary.context:
+        markdown.append(
+            f"**{content.SUMMARY_CONTEXT_LABEL}:** {_text(summary.context.text)} "
+            f"{_decision_links(summary.context.decisions)}\n"
+        )
     if summary.caution:
         markdown.append(
             f"**Watch out:** {_text(summary.caution.text)} "
             f"{_decision_links(summary.caution.decisions)}\n"
         )
-    markdown += [f"- {_text(notice)}" for notice in summary.notices]
-    markdown.append("")
+    markdown += _attention_summary_markdown(report)
+    markdown.append(
+        "[Understand the change →](#panel-explanation) · "
+        "[Behavior diff →](#panel-decision) · [Trial evidence →](#panel-trials)\n"
+    )
+    markdown += [
+        f"### 5. {content.SUMMARY_NEXT_HEADING}\n",
+        _text(summary.next_action) + "\n",
+        _text(GATE_NOTE) + "\n",
+    ]
     return markdown
 
 
@@ -570,6 +613,8 @@ def _explanation_markdown(report):
     markdown = [
         '<a id="panel-explanation"></a>\n',
         "## Understand the change\n",
+        f"**{content.EXPLANATION_CONCLUSION_LABEL}** {_text(report.summary.headline)} "
+        "[Summary](#panel-summary)\n",
     ]
     complete = content.complete_trial_evidence(report)
     if explanation is None or not complete:
@@ -586,7 +631,7 @@ def _explanation_markdown(report):
         markdown += _target_explanation_markdown(report)
     else:
         markdown += [
-            f"### {_text(explanation.headline)}\n",
+            f"### {content.EXPLANATION_MODEL_LABEL} {_text(explanation.headline)}\n",
             _text(explanation.overview) + "\n",
             _text(content.INTERPRETATION_NOTE) + "\n",
         ]
@@ -782,6 +827,8 @@ def render_markdown(report: ReportData) -> str:
             cells.append(
                 f'<a id="{anchor}"></a><strong>{html.escape(trial.name)}</strong> — {html.escape(trial.verdict)}'
             )
+            if trial.verdict == "BLOCKED" and trial.outcome:
+                cells[-1] += f"<p>{html.escape(trial.outcome)}</p>"
             answers.append(
                 "<pre>"
                 + html.escape(

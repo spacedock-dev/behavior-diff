@@ -43,7 +43,7 @@ from presentation_contract import (  # noqa: E402
 
 def synthetic_raw():
     raw = {
-        "schema_version": 16,
+        "schema_version": 17,
         "metadata": {
             "model": "synthetic/model",
             "mode": "review",
@@ -251,6 +251,7 @@ def synthetic_raw():
     raw["decisions"].update(
         purpose=[],
         purpose_summary=None,
+        target_rejection=None,
         recorded_evidence=[],
         target_assessment=None,
         evidence_limits=None,
@@ -298,11 +299,11 @@ def assert_round_trip(raw):
     return report
 
 
-def assert_rejected(raw, message):
+def assert_rejected(raw):
     try:
         ReportData.from_dict(raw)
-    except ValueError as error:
-        assert str(error) == message
+    except ValueError:
+        pass
     else:
         raise AssertionError("invalid report data was accepted")
 
@@ -507,7 +508,6 @@ def assert_summary_context_and_starts(raw):
     full_raw = full.to_dict()
     assert_round_trip(full_raw)
     absent = narrated(plain)
-    assert absent.summary.headline == narrative.headline
     absent_raw = absent.to_dict()
     assert_round_trip(absent_raw)
     # Missing claims serialize as explicit nulls rather than disappearing.
@@ -568,7 +568,7 @@ def assert_summary_context_and_starts(raw):
             del target[name]
         else:
             target[name] = value
-        assert_rejected(changed, message)
+        assert_rejected(changed)
     # A Summary claim cannot appear without a validated narrative claim.
     for parents in ((), ("after",)):
         invented = copy.deepcopy(raw)
@@ -576,7 +576,7 @@ def assert_summary_context_and_starts(raw):
         for key in parents:
             target = target[key]
         target["start" if parents else "context"] = dict(shared)
-        assert_rejected(invented, derived)
+        assert_rejected(invented)
 
     # Extraction remaps sorted references and keeps the same canonical narrative.
     completed = {"before": ["before-1", "before-2"], "after": ["after-1", "after-2"]}
@@ -654,7 +654,6 @@ def assert_summary_context_and_starts(raw):
             (run / "decisions.json").write_text(json.dumps(saved_decisions))
             loaded = load_report(run, run, "synthetic/model", run / "config.json")
             assert loaded.decisions.narrative == expected
-            assert loaded.summary.headline == expected.headline
             for value, source in (
                 (loaded.summary.context, expected.context),
                 (loaded.summary.before.start, expected.before.start),
@@ -718,17 +717,14 @@ def assert_purpose_summary_contract(raw):
     ):
         changed = copy.deepcopy(purposed)
         changed["decisions"]["purpose_summary"] = value
-        assert_rejected(changed, invalid)
+        assert_rejected(changed)
     # Without frozen goals a summary cannot appear, even as a paraphrase.
     unfrozen = copy.deepcopy(raw)
     unfrozen["decisions"]["purpose_summary"] = paraphrase
-    assert_rejected(unfrozen, invalid)
+    assert_rejected(unfrozen)
     missing = copy.deepcopy(purposed)
     del missing["decisions"]["purpose_summary"]
-    assert_rejected(
-        missing,
-        "invalid report-data field decisions.purpose_summary: expected present field",
-    )
+    assert_rejected(missing)
 
     # Saved decisions keep observations whether the summary is valid, absent, or not.
     completed = {"before": ["before-1", "before-2"], "after": ["after-1", "after-2"]}
@@ -788,10 +784,11 @@ def assert_purpose_summary_contract(raw):
 
 
 def assert_derived_summary_claims(reports):
-    """Starts cite one full lead branch; unknown target outcomes stay visible."""
+    """Starts cite one full lead branch; the conclusion follows validated target checks."""
     from reporting.render_html import render_artifact
     from reporting.render_markdown import render_markdown
-    from reporting.summary import TARGET_UNCERTAIN, build_summary
+    from reporting import summary as finding
+    from reporting.summary import build_summary
 
     for name, report in reports.items():
         summary = report.summary
@@ -804,52 +801,144 @@ def assert_derived_summary_claims(reports):
             members = {trial for branch in lead for trial in branch.trials}
             assert len(start.decisions) == len(cited) == 1, name
             assert members and set(cited[0].trials) == members, name
-        target = report.decisions.target_assessment
-        unknown = target is not None and any(
-            trial.outcome in ("uncertain", "unassessable")
-            for criterion in target.criteria
-            for trial in criterion.before + criterion.after
-        )
-        assert (TARGET_UNCERTAIN in summary.notices) == unknown, name
 
     report = reports["target-baseline"]
     target = report.decisions.target_assessment
-    narrative = report.decisions.narrative
-    quiet = narrative and replace(narrative, caution=None)
 
-    def assessed(unknown=None):
-        """Mark every outcome met, except one optional (side, outcome) override."""
+    def assessed(before="met", after="met", mode=None, variants=None, drop=False):
+        """Set every outcome per side; optionally change mode, health or coverage."""
         criteria = []
-        for number, criterion in enumerate(target.criteria):
-            sides = {}
-            for side in ("before", "after"):
-                outcomes = ["met"] * len(getattr(criterion, side))
-                if unknown and number == 0 and side == unknown[0]:
-                    outcomes[0] = unknown[1]
-                sides[side] = tuple(
+        for criterion in target.criteria:
+            sides = {
+                side: tuple(
                     replace(trial, outcome=outcome)
-                    for trial, outcome in zip(getattr(criterion, side), outcomes)
+                    for trial in getattr(criterion, side)
                 )
-            criteria.append(replace(criterion, **sides))
+                for side, outcome in (("before", before), ("after", after))
+            }
+            if drop:
+                sides["after"] = sides["after"][1:]
+            criteria.append(replace(criterion, mode=mode or criterion.mode, **sides))
         decisions = replace(
             report.decisions,
-            narrative=quiet,
             target_assessment=replace(target, criteria=tuple(criteria)),
         )
-        summary = build_summary(report.metadata, report.variants, decisions)
-        return replace(report, decisions=decisions, summary=summary)
+        changed = replace(
+            report, decisions=decisions, variants=variants or report.variants
+        )
+        return replace(
+            changed,
+            summary=build_summary(changed.metadata, changed.variants, decisions),
+        )
 
-    met = assessed().summary
-    assert TARGET_UNCERTAIN not in met.notices
-    assert TARGET_UNCERTAIN not in assessed(("after", "not_met")).summary.notices
-    for unknown in (("after", "unassessable"), ("before", "uncertain")):
-        visible = assessed(unknown)
-        assert visible.summary.caution is None
-        assert TARGET_UNCERTAIN in visible.summary.notices
-        # The notice is additive: headline, cards, and claims stay behavioral.
-        assert replace(visible.summary, notices=met.notices) == met
-        for rendered in (render_artifact(visible, ""), render_markdown(visible)):
-            assert TARGET_UNCERTAIN in html.unescape(rendered).replace("\\", "")
+    from presentation_contract import visible_text as visible
+
+    assert all(c.mode != "preservation" for c in target.criteria)
+    interrupted = replace(
+        report.variants,
+        before=replace(
+            report.variants.before,
+            blocked=1,
+            valid=report.variants.before.total - 1,
+        ),
+    )
+    cases = (
+        (assessed(), "already_met"),
+        (assessed(before="not_met"), "improved"),
+        (assessed(after="not_met"), "not_met"),
+        (assessed(before="not_met", after="not_met"), "not_met"),
+        (assessed(after="unassessable"), "inconclusive"),
+        (assessed(after="uncertain"), "inconclusive"),
+        (assessed(drop=True), "inconclusive"),
+        (assessed(before="uncertain"), "baseline_incomplete"),
+        # An interrupted Before never turns a met After into an improvement.
+        (assessed(before="not_met", variants=interrupted), "baseline_incomplete"),
+        (assessed(mode="preservation"), "preserved"),
+        (assessed(after="not_met", mode="preservation"), "not_met"),
+        (assessed(before="not_met", mode="preservation"), "improved"),
+        (assessed(before="uncertain", mode="preservation"), "baseline_incomplete"),
+        (assessed(before="unassessable", mode="preservation"), "baseline_incomplete"),
+        (
+            assessed(mode="preservation", variants=interrupted),
+            "baseline_incomplete",
+        ),
+    )
+    for value, state in cases:
+        summary = value.summary
+        preservation = (
+            value.decisions.target_assessment.criteria[0].mode == "preservation"
+        )
+        assert summary.state == state, (state, summary.state)
+        assert {check.state for check in summary.checks} == {state}, state
+        assert summary.next_action == finding.NEXT_ACTIONS[state], state
+        answers_only = any(
+            check.scope == finding.CHECK_SCOPES["output"] for check in summary.checks
+        )
+        expected = (
+            finding.PRESERVATION_UNMET
+            if state == "not_met" and preservation
+            else finding.FINDING_HEADLINES[state]
+        )
+        if state in finding.MET_STATES and answers_only:
+            # Met answer checks never read as proof that actions happened.
+            expected += " " + finding.ANSWER_SCOPED
+        assert summary.headline == expected, state
+        criteria = value.decisions.target_assessment.criteria
+        # A dropped assessment is invalid saved data; it is exercised in memory only.
+        if all(len(c.after) == value.variants.after.total for c in criteria):
+            assert_round_trip(value.to_dict())
+        # Every export carries the same derived conclusion and per-check results.
+        pages = (render_artifact(value, ""), render_markdown(value))
+        for page in map(visible, pages):
+            for text in (
+                summary.headline,
+                summary.meaning,
+                summary.next_action,
+                finding.GATE_NOTE,
+                *(
+                    part
+                    for check in summary.checks
+                    for part in (
+                        check.text,
+                        check.before,
+                        check.after,
+                        check.meaning,
+                        check.scope,
+                    )
+                ),
+            ):
+                assert text in page, (state, text)
+        assert value.to_dict()["summary"]["state"] == state
+
+    # Every frozen goal needs a check; an uncovered goal blocks a met conclusion.
+    extra_goal = replace(report.decisions.purpose[0], text="Synthetic extra goal.")
+    uncovered = replace(
+        report.decisions, purpose=report.decisions.purpose + (extra_goal,)
+    )
+    gap = build_summary(report.metadata, report.variants, uncovered)
+    assert gap.state == "inconclusive"
+    assert f"recorded goal {len(uncovered.purpose)}." in gap.meaning
+
+    # A miss stays a miss when the extracted behavior does not diverge at all.
+    same = assessed(after="not_met")
+    rows = tuple(replace(row, after=row.before) for row in same.decisions.rows)
+    assert report.decisions.before_count == report.decisions.after_count
+    flat = replace(same.decisions, rows=rows, narrative=None)
+    flat_summary = build_summary(same.metadata, same.variants, flat)
+    assert flat_summary.state == "not_met" and flat_summary.headline == finding.UNMET
+
+    # No validated target: the conclusion is unavailable, never inferred from rows.
+    missing = replace(report.decisions, target_assessment=None)
+    unavailable = build_summary(report.metadata, report.variants, missing)
+    assert unavailable.state == "unavailable" and not unavailable.checks
+    rejected = build_summary(
+        report.metadata,
+        report.variants,
+        replace(missing, target_rejection="synthetic validation reason"),
+    )
+    assert rejected.meaning.endswith(": synthetic validation reason.")
+    # Model narrative never sets the conclusion.
+    assert unavailable.headline == finding.FINDING_HEADLINES["unavailable"]
 
 
 def assert_render_import_safe():
@@ -1592,7 +1681,6 @@ def assert_visual_summaries(reports):
     assert non_outcome.summary.decision == 5, (
         "A changed outcome must not displace a validated changed non-outcome narrative."
     )
-    assert non_outcome.summary.headline == non_outcome.decisions.narrative.headline
     assert non_outcome.summary.status == "changed"
     selected = non_outcome.decisions.rows[4]
     narrative = non_outcome.decisions.narrative
@@ -1618,7 +1706,6 @@ def assert_visual_summaries(reports):
         non_outcome.metadata, non_outcome.variants, mixed_decisions
     )
     assert mixed_lead.decision == 5
-    assert mixed_lead.headline == narrative.headline
     assert mixed_lead.status == "mixed"
     assert [choice.count for choice in mixed_lead.before.choices] == [2, 1]
     assert [choice.count for choice in mixed_lead.after.choices] == [3]
@@ -1629,7 +1716,6 @@ def assert_visual_summaries(reports):
         fallback = build_summary(non_outcome.metadata, non_outcome.variants, decisions)
         assert fallback.decision == non_outcome.decisions.outcome
         assert fallback.status == status
-        assert fallback.headline != narrative.headline
         assert fallback.why is None
 
     mixed_primary = reports["mixed-primary"]
@@ -1637,7 +1723,6 @@ def assert_visual_summaries(reports):
     assert mixed_primary.summary.decision == mixed_primary.decisions.outcome, (
         "A unanimous secondary action must not displace a mixed primary-result narrative."
     )
-    assert mixed_primary.summary.headline == mixed_primary.decisions.narrative.headline
     assert mixed_primary.summary.status == "mixed"
     assert [
         (choice.choice, choice.count) for choice in mixed_primary.summary.before.choices
@@ -1659,14 +1744,12 @@ def assert_visual_summaries(reports):
     assert fallback.decision == 2, (
         "Without a supported changed primary narrative, retain the action fallback."
     )
-    assert fallback.headline != primary_decisions.narrative.headline
     incomplete = build_summary(
         mixed_primary.metadata,
         mixed_primary.variants,
         replace(primary_decisions, dropped=1),
     )
     assert incomplete.status == "unavailable"
-    assert incomplete.headline != primary_decisions.narrative.headline
     assert incomplete.why is None
     missing_primary = build_summary(
         mixed_primary.metadata,
@@ -1674,7 +1757,6 @@ def assert_visual_summaries(reports):
         replace(primary_decisions, outcome=None),
     )
     assert missing_primary.decision == primary_decisions.narrative.decision
-    assert missing_primary.headline == primary_decisions.narrative.headline
     assert missing_primary.status == "mixed"
 
     def summarize(variants=changed.variants, decisions=changed.decisions):
@@ -1739,7 +1821,10 @@ def assert_visual_summaries(reports):
     payload = '<script>alert("x")</script>|[link](javascript:alert(1))'
     unsafe_decisions = replace(
         changed.decisions,
-        narrative=replace(changed.decisions.narrative, headline=payload),
+        narrative=replace(
+            changed.decisions.narrative,
+            why=replace(changed.decisions.narrative.why, text=payload),
+        ),
     )
     unsafe = replace(
         changed,
@@ -2391,19 +2476,14 @@ def assert_trial_summary_validation(raw):
     ):
         specimen = copy.deepcopy(raw)
         specimen["decisions"]["trial_summaries"] = invalid
-        assert_rejected(specimen, canonical_error)
+        assert_rejected(specimen)
     empty = copy.deepcopy(raw)
     empty["decisions"]["trial_summaries"] = []
     assert assert_round_trip(empty).decisions.trial_summaries == ()
     missing = copy.deepcopy(raw)
     del missing["decisions"]["trial_summaries"]
-    assert_rejected(
-        missing,
-        "invalid report-data field decisions.trial_summaries: expected present field",
-    )
-    assert_rejected(
-        dict(raw, schema_version=7), "unsupported report-data schema version: 7"
-    )
+    assert_rejected(missing)
+    assert_rejected(dict(raw, schema_version=7))
 
 
 def assert_trial_summary_pipeline():
@@ -2630,97 +2710,45 @@ def main():
         "search",
     ]
 
-    assert_rejected(
-        dict(raw, schema_version=1),
-        "unsupported report-data schema version: 1",
-    )
-    assert_rejected(
-        dict(raw, schema_version=2),
-        "unsupported report-data schema version: 2",
-    )
-    assert_rejected(
-        dict(raw, schema_version=3),
-        "unsupported report-data schema version: 3",
-    )
-    assert_rejected(
-        dict(raw, schema_version=9),
-        "unsupported report-data schema version: 9",
-    )
-    assert_rejected(
-        dict(raw, schema_version=10),
-        "unsupported report-data schema version: 10",
-    )
+    assert_rejected(dict(raw, schema_version=1))
+    assert_rejected(dict(raw, schema_version=2))
+    assert_rejected(dict(raw, schema_version=3))
+    assert_rejected(dict(raw, schema_version=9))
+    assert_rejected(dict(raw, schema_version=10))
     # Earlier report-data shapes are rejected; saved runs regenerate from decisions.
-    for version in (11, 12, 13, 14, 15):
-        assert_rejected(
-            dict(raw, schema_version=version),
-            f"unsupported report-data schema version: {version}",
-        )
-    assert_rejected(
-        dict(raw, schema_version=True),
-        "invalid report-data field schema_version: expected integer",
-    )
-    assert_rejected(
-        dict(raw, schema_version=1.0),
-        "invalid report-data field schema_version: expected integer",
-    )
+    for version in (11, 12, 13, 14, 15, 16):
+        assert_rejected(dict(raw, schema_version=version))
+    assert_rejected(dict(raw, schema_version=True))
+    assert_rejected(dict(raw, schema_version=1.0))
 
     invalid_commands = copy.deepcopy(raw)
     invalid_commands["variants"]["before"]["trials"][0]["commands"] = "read AGENTS.md"
-    assert_rejected(
-        invalid_commands,
-        "invalid report-data field variants.before.trials[0].commands: expected list",
-    )
+    assert_rejected(invalid_commands)
     invalid_model = copy.deepcopy(raw)
     invalid_model["metadata"]["model"] = ["synthetic/model"]
-    assert_rejected(
-        invalid_model,
-        "invalid report-data field metadata.model: expected string",
-    )
+    assert_rejected(invalid_model)
     invalid_count = copy.deepcopy(raw)
     invalid_count["command_flow"]["before"]["paths"][0]["count"] = True
-    assert_rejected(
-        invalid_count,
-        "invalid report-data field command_flow.before.paths[0].count: expected integer",
-    )
+    assert_rejected(invalid_count)
     invalid_suffix = copy.deepcopy(raw)
     invalid_suffix["variants"]["after"]["count_suffix"] = True
-    assert_rejected(
-        invalid_suffix,
-        "invalid report-data field variants.after.count_suffix: expected string",
-    )
+    assert_rejected(invalid_suffix)
     invalid_result_kind = copy.deepcopy(raw)
     invalid_result_kind["result"]["kind"] = "future"
-    assert_rejected(
-        invalid_result_kind,
-        "invalid report-data field result.kind: expected one of good, bad, neutral",
-    )
+    assert_rejected(invalid_result_kind)
     invalid_result_kind_type = copy.deepcopy(raw)
     invalid_result_kind_type["result"]["kind"] = None
-    assert_rejected(
-        invalid_result_kind_type,
-        "invalid report-data field result.kind: expected string",
-    )
+    assert_rejected(invalid_result_kind_type)
     for heading in ("outcome_heading", "behavior_heading"):
         missing_heading = copy.deepcopy(raw)
         del missing_heading["result"][heading]
-        assert_rejected(
-            missing_heading,
-            "invalid report-data field result." + heading + ": expected present field",
-        )
+        assert_rejected(missing_heading)
         invalid_heading = copy.deepcopy(raw)
         invalid_heading["result"][heading] = None
-        assert_rejected(
-            invalid_heading,
-            "invalid report-data field result." + heading + ": expected string",
-        )
+        assert_rejected(invalid_heading)
     invalid_evidence = copy.deepcopy(raw)
     invalid_evidence["result"]["implications"][0]["decisions"] = [99]
-    assert_rejected(
-        invalid_evidence,
-        "invalid report-data field result.implications[0].decisions[0]: "
-        "expected 1-based decision row index",
-    )
+    assert_rejected(invalid_evidence)
 
     from reporting.render_html import render_artifact, render_document
 

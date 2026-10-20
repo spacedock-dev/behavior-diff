@@ -53,7 +53,10 @@ def _assert_presentation(reports):
         report = reports[name]
         for rendered in (render_artifact(report, ""), render_markdown(report)):
             plain = visible_text(rendered)
-            assert report.decisions.narrative.headline in plain
+            assert report.summary.headline in plain
+            assert report.summary.meaning in plain
+            for check in report.summary.checks:
+                assert check.before in plain and check.after in plain
             assert report.summary.why.text in plain
             for side in (report.summary.before, report.summary.after):
                 assert all(choice.label in plain for choice in side.choices)
@@ -61,7 +64,10 @@ def _assert_presentation(reports):
         markup = _ReportMarkup(render_artifact(report, ""))
         summary = markup.select(anchor="panel-summary")[0]
         detail = markup.select(anchor="panel-explanation")[0]
-        assert not markup.select(summary, tag="table")
+        checks = markup.select(summary, class_name="summary-check")
+        assert len(checks) == len(report.decisions.target_assessment.criteria)
+        for row, check in zip(checks, report.summary.checks):
+            assert check.text in _plain(row) and check.after in _plain(row)
         assert report.summary.context.text in _plain(summary)
         assert report.summary.why.text in _plain(summary)
         for side in ("before", "after"):
@@ -402,7 +408,7 @@ def _assert_purpose_conclusion(report, assert_round_trip):
             assert text in plain, (
                 "An unchanged observation must retain its supported conclusion."
             )
-            assert raw["headline"] in plain
+            assert specimen.summary.headline in plain
     incomplete = build_summary(
         report.metadata, report.variants, replace(decisions, dropped=1)
     )
@@ -663,10 +669,13 @@ def _assert_missing_records(report):
         assert "No (1/4)" not in plain
     assert summary.why is None
     assert summary.status == "unavailable"
+    # An interrupted After trial leaves the check unsettled, not met.
+    assert summary.state == "inconclusive"
+    assert {check.state for check in summary.checks} == {"inconclusive"}
 
 
 def _assert_old_versions_rejected(report):
-    for version in (11, 12, 13, 14, 15):
+    for version in (11, 12, 13, 14, 15, 16):
         raw = report.to_dict()
         raw["schema_version"] = version
         try:

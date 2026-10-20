@@ -14,6 +14,12 @@ TRIAL_LIMIT = 16384
 RUN_LIMIT = 131072
 RECORD_LIMIT = 128
 SOURCE_LIMIT = 240
+SENSITIVE_SOURCE = "[sensitive source omitted]"
+SELF_REPORTED = "self-reported action, not a captured return"
+DUPLICATE_CALL = "duplicate tool call identity"
+DUPLICATE_RESULT = "duplicate tool result identity"
+# A tool record proves its call ran only when the call itself was captured once.
+UNPROVEN_CALL_REASONS = (SELF_REPORTED, DUPLICATE_CALL, DUPLICATE_RESULT)
 
 _SENSITIVE = re.compile(
     r"(?i)(?:\b(?:api[_ -]?key|access[_ -]?token|password|passwd|client[_ -]?secret)"
@@ -58,7 +64,7 @@ def _descriptor(part):
     args = args if type(args) is dict else {}
     descriptor = str(tool) + " " + json.dumps(args, ensure_ascii=False, sort_keys=True)
     if _SENSITIVE.search(descriptor) or _PRIVATE_PATH.search(descriptor):
-        return "[sensitive source omitted]", False, "sensitive source"
+        return SENSITIVE_SOURCE, False, "sensitive source"
     name = str(tool).lower().rsplit("__", 1)[-1]
     eligible = name in _READ_TOOLS
     if name in {"bash", "shell", "exec_command"}:
@@ -135,7 +141,7 @@ def _trial_evidence(path, name, remaining, self_reported=False):
                     ):
                         record.update(
                             status="omitted",
-                            reason="self-reported action, not a captured return",
+                            reason=SELF_REPORTED,
                         )
                         eligible = False
                     records.append(record)
@@ -146,12 +152,12 @@ def _trial_evidence(path, name, remaining, self_reported=False):
                             previous.update(
                                 status="unavailable",
                                 text="",
-                                reason="duplicate tool call identity",
+                                reason=DUPLICATE_CALL,
                             )
                             previous["range"]["end"] = 0
                             record.update(
                                 status="unavailable",
-                                reason="duplicate tool call identity",
+                                reason=DUPLICATE_CALL,
                             )
                             pending[call_id] = (record, False)
                         else:
@@ -168,7 +174,7 @@ def _trial_evidence(path, name, remaining, self_reported=False):
                         record.update(
                             status="unavailable",
                             text="",
-                            reason="duplicate tool result identity",
+                            reason=DUPLICATE_RESULT,
                         )
                         record["range"]["end"] = 0
                         continue

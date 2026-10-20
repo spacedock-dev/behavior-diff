@@ -113,13 +113,14 @@ normalize_pi_omp_json() { # $1 = raw Pi or OMP JSONL
 
 record_status() { # $1 JSON fields; only with --status-file
   [ -n "$status_file" ] || return 0
-  # Status is observability only. progress.py diagnoses its own failures on
-  # stderr; none may change the trial or its exit code.
+  # A status write never changes the trial or its exit code. progress.py
+  # diagnoses its own failures on stderr.
   python3 "$scripts/progress.py" "$status_file" trial "$1" || :
 }
 
-# A failing host CLI still leaves its output for normalization and grading, as
-# before. Record its exit code rather than propagating it.
+# A failing host CLI still leaves its output for normalization as evidence.
+# Record its exit code rather than propagating it; report loading and
+# assessment treat a nonzero exit as an incomplete trial.
 cli_exit=0
 record_status '{"phase":"running"}'
 if [ "$agent" = claude ]; then

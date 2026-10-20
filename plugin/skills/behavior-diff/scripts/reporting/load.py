@@ -7,9 +7,10 @@ from pathlib import Path
 from dataclasses import replace
 from typing import Optional
 
+import progress
 from reporting import content
 from reporting.attention import parse_attention
-from reporting.explanation import parse_explanation
+from reporting.explanation import _text, parse_explanation
 from reporting.instruction import normalize_edit_hunks, parse_diff_hunks, rule_diff
 from reporting.provenance import config_ci_context, config_source
 from reporting.schema import (
@@ -37,10 +38,10 @@ from reporting.summary import (
 )
 from reporting.trial_summary import parse_trial_summaries, trial_group_names
 from reporting.target import (
+    check_target,
     effective_purpose,
     parse_evidence_limits,
     parse_purpose,
-    parse_target,
     persisted_evidence,
 )
 
@@ -168,6 +169,16 @@ def _variants(run, grades, metadata):
 def _trial(run, name, grade, metadata):
     verdict, actions = grade
     commands, final = read_trial_trace(run / name / "trace.jsonl")
+    interruption = trial_interruption(run / name)
+    if interruption is not None:
+        return TrialData(
+            name=name,
+            verdict="BLOCKED",
+            actions=actions,
+            commands=tuple(commands),
+            final="",
+            outcome="Blocked — " + interruption,
+        )
     return TrialData(
         name=name,
         verdict=verdict,
@@ -176,6 +187,36 @@ def _trial(run, name, grade, metadata):
         final=final,
         outcome=_outcome_label(verdict, actions, metadata.mode),
     )
+
+
+def trial_interruption(trial_dir):
+    """Return why the trial's own status record rules out a completed answer.
+
+    A failed or interrupted host CLI can leave an earlier progress message as the
+    normalized final text; that text is not a completed answer. Runs without trial
+    status records, such as older runs and authored fixtures, return None.
+    """
+    try:
+        record = progress.read_record(trial_dir / progress.TRIAL_RECORD, "trial")
+    except progress.ProgressError:
+        return "trial record unreadable"
+    if record is None:
+        return None
+    if record.get("cli_exit_code") not in (None, 0):
+        return f"agent CLI exited {record['cli_exit_code']}"
+    state = record["state"]
+    if state == "interrupted":
+        return "interrupted"
+    if state == "running":
+        return "worker ended without a final record"
+    if state == "failed":
+        return {
+            "preparing": "preparation failed",
+            "normalizing": "trace normalization failed",
+        }.get(record["phase"], "worker failed")
+    if record.get("exit_code") not in (None, 0):
+        return f"worker exited {record['exit_code']}"
+    return None
 
 
 def read_trial_trace(path):
@@ -501,13 +542,15 @@ def _convert_decisions(
     goals = persisted_goals or parse_purpose(purpose)
     evidence = persisted_evidence(raw.get("recorded_evidence", []))
     intent = parse_intent(raw.get("intent"), hunk_count)
-    target = parse_target(
+    target, target_rejection = check_target(
         raw.get("target_assessment"),
         effective_purpose(goals, intent),
         final_answers,
         evidence,
         rows,
     )
+    if target is None and target_rejection is None:
+        target_rejection = _persisted_rejection(raw.get("target_rejection"))
     return DecisionData(
         rows,
         fork,
@@ -529,7 +572,18 @@ def _convert_decisions(
         parse_evidence_limits(raw.get("evidence_limits")),
         # A summary paraphrases only the goals persisted with that extraction.
         parse_purpose_summary(raw.get("purpose_summary"), persisted_goals),
+        target_rejection,
     )
+
+
+def _persisted_rejection(value):
+    """Keep a plain validator reason; a damaged note must not hide the decisions."""
+    if value is None:
+        return None
+    try:
+        return _text(value, 240)
+    except ValueError:
+        return None
 
 
 def _decision_row(raw, hunk_count):

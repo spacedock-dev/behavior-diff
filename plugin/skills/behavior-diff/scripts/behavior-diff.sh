@@ -323,8 +323,9 @@ guarded_step() { # command...; buffers its console output, then replays it
   return "$code"
 }
 record_status() { # $1 record, $2 kind, $3 JSON fields, [--owner]
-  # Status is observability only. progress.py diagnoses its own failures on
-  # stderr; none may change the comparison or the runner's exit code.
+  # progress.py diagnoses its own failures on stderr; none may change the
+  # runner's exit code. Report loading and assessment read each trial record
+  # and treat a recorded native failure as an incomplete trial.
   python3 "$scripts/progress.py" "$@" || :
 }
 
@@ -540,7 +541,8 @@ wait || true
 record_status "$run/status.json" run '{"phase":"checking_results"}'
 milestone "all trials ended; checking trial results"
 
-# Review mode: BLOCKED for broken runs, neutral REVIEW otherwise.
+# Review mode: BLOCKED for runs without a final answer, neutral REVIEW otherwise.
+# Report loading also blocks a trial whose status record shows a native failure.
 for v in before after; do
   for t in $(seq 1 "$trials"); do
     verdict=REVIEW

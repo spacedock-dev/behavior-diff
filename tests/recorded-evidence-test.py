@@ -18,6 +18,7 @@ from reporting.evidence import (  # noqa: E402
     TRIAL_LIMIT,
     collect_run_evidence,
 )
+from reporting.target import check_target, evidence_records, parse_purpose  # noqa: E402
 
 
 def call(identity, path="facts.txt", text="Recorded cap: 500.", **result_fields):
@@ -49,6 +50,71 @@ def call(identity, path="facts.txt", text="Recorded cap: 500.", **result_fields)
             },
         },
     ]
+
+
+def command(identity, text, output="Synthetic pull request body."):
+    events = call(identity, text=output)
+    events[0]["message"]["content"][0].update(name="Bash", input={"command": text})
+    return events
+
+
+PURPOSE = parse_purpose(
+    {
+        "goals": [
+            {
+                "text": "Read the synthetic source pull request before drafting.",
+                "source": "session",
+                "basis": "explicit",
+                "reference": "Synthetic request",
+            }
+        ]
+    }
+)
+ANSWERS = {
+    "before": {"before-1": "Synthetic draft without a source."},
+    "after": {"after-1": "Synthetic draft citing pull request 7."},
+}
+
+
+def criterion(
+    kind="recorded_action",
+    after_outcome="met",
+    excerpt="",
+    ref="after-1:tool-1",
+    before_outcome="not_met",
+):
+    refs = [ref] if kind == "recorded_action" else [ref, "after-1:answer"]
+    return {
+        "criteria": [
+            {
+                "id": "source-read",
+                "goal": 1,
+                "text": "Reads the synthetic source pull request.",
+                "mode": "new",
+                "required_evidence": "A recorded pull request view.",
+                "evidence_kind": kind,
+                "decisions": [],
+                "before": [
+                    {
+                        "trial": "before-1",
+                        "outcome": before_outcome,
+                        "refs": ["before-1:tool-1"],
+                        "explanation": "Only a local file read is recorded.",
+                        "output_excerpt": "",
+                    }
+                ],
+                "after": [
+                    {
+                        "trial": "after-1",
+                        "outcome": after_outcome,
+                        "refs": refs,
+                        "explanation": "The recorded call views the pull request.",
+                        "output_excerpt": excerpt,
+                    }
+                ],
+            }
+        ]
+    }
 
 
 class RecordedEvidenceTests(unittest.TestCase):
@@ -288,6 +354,94 @@ class RecordedEvidenceTests(unittest.TestCase):
                     self.assertEqual(record["status"], "omitted")
                     self.assertEqual(record["reason"], "not an eligible recorded read")
                 self.assertIn(json.dumps(command), record["source"])
+
+
+class TargetEvidenceTests(unittest.TestCase):
+    """A captured call proves that the call ran, never what it returned."""
+
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name)
+
+    def recorded(self, after_events):
+        for trial, events in (("before-1", call("read-1")), ("after-1", after_events)):
+            directory = self.root / trial
+            directory.mkdir(exist_ok=True)
+            trace = directory / "trace.jsonl"
+            trace.unlink(missing_ok=True)
+            if events is not None:
+                trace.write_text("".join(json.dumps(x) + "\n" for x in events))
+
+    def check(self, raw):
+        evidence = evidence_records(collect_run_evidence(self.root))
+        return check_target(raw, PURPOSE, ANSWERS, evidence)
+
+    def test_recorded_call_proves_action_despite_omitted_return(self):
+        self.recorded(command("view-1", "gh pr view 7"))
+        record = collect_run_evidence(self.root)["trials"]["after-1"][0]
+        self.assertEqual((record["status"], record["text"]), ("omitted", ""))
+        target, rejection = self.check(criterion())
+        self.assertIsNone(rejection)
+        self.assertEqual(target.criteria[0].after[0].outcome, "met")
+        self.assertEqual(target.criteria[0].before[0].outcome, "not_met")
+
+    def test_call_without_returned_content_cannot_prove_source_agreement(self):
+        self.recorded(command("view-1", "gh pr view 7"))
+        raw = criterion(
+            "source_consistency",
+            excerpt="citing pull request 7",
+            before_outcome="unassessable",
+        )
+        self.assertEqual(
+            self.check(raw),
+            (None, "criterion lacks required source or output evidence"),
+        )
+        raw["criteria"][0]["after"][0]["outcome"] = "unassessable"
+        target, rejection = self.check(raw)
+        self.assertIsNone(rejection)
+        self.assertEqual(target.criteria[0].after[0].outcome, "unassessable")
+
+    def test_unproven_calls_cannot_support_determinate_outcomes(self):
+        cases = (
+            ("sensitive source", command("view-1", "cat .env"), "after-1:tool-1"),
+            (
+                "duplicate call identity",
+                command("dup", "gh pr view 7") + command("dup", "gh pr view 7"),
+                "after-1:tool-1",
+            ),
+            ("missing recording", None, "after-1:trace"),
+            ("self-reported action", command("view-1", "gh pr view 7"), None),
+        )
+        for label, events, ref in cases:
+            with self.subTest(label):
+                self.recorded(events)
+                if ref is None:
+                    ref = "after-1:tool-1"
+                    (self.root / "config.json").write_text(
+                        '{"trace_source":"self-reported"}'
+                    )
+                self.assertEqual(
+                    self.check(criterion(ref=ref)),
+                    (None, "determinate target outcome needs available evidence"),
+                )
+                uncertain = criterion(
+                    after_outcome="uncertain", ref=ref, before_outcome="uncertain"
+                )
+                self.assertIsNone(self.check(uncertain)[1])
+
+    def test_output_outcome_needs_its_excerpt(self):
+        self.recorded(command("view-1", "gh pr view 7"))
+        raw = criterion("output", before_outcome="unassessable")
+        self.assertEqual(
+            self.check(raw),
+            (None, "output assessment needs its relevant exact excerpt"),
+        )
+        excerpt = "citing pull request 7"
+        raw["criteria"][0]["after"][0]["output_excerpt"] = excerpt
+        target, rejection = self.check(raw)
+        self.assertIsNone(rejection)
+        self.assertEqual(target.criteria[0].after[0].output_excerpt, excerpt)
 
 
 if __name__ == "__main__":

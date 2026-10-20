@@ -8,7 +8,7 @@ from reporting.attention import AttentionFindingData
 from reporting.instruction import parse_diff_hunks
 from reporting.schema import ContentData, ResultData
 from reporting.summary import PURPOSE_SUMMARY_LIMIT, question_distribution
-from reporting.target import acceptance, conclusion
+from reporting.target import acceptance, conclusion, evidence_limit_text
 
 TRIAL_EVIDENCE_HEADING = "Trial evidence"
 FINAL_ANSWER_HEADING = "Final answer"
@@ -351,16 +351,72 @@ def primary_result_context(report):
     )
 
 
-SUMMARY_PURPOSE_HEADING = "What this edit was meant to change"
-SUMMARY_CONTEXT_LABEL = "Context for this comparison"
+SUMMARY_FINDING_HEADING = "What we found"
+SUMMARY_EXPECTATION_HEADING = "What was expected, and what happened"
+SUMMARY_METHOD_HEADING = "How we tested it"
 SUMMARY_EVIDENCE_HEADING = "What the evidence shows"
-SUMMARY_MEANING_LABEL = "What this means"
+SUMMARY_NEXT_HEADING = "What to do next"
+SUMMARY_CONTEXT_LABEL = "Context for this comparison"
+SUMMARY_MEANING_LABEL = "Model interpretation"
 SUMMARY_ATTENTION_HEADING = "What needs your attention"
-SUMMARY_LIMITS_HEADING = "What we still cannot tell"
 SUMMARY_INTERPRETATION_UNAVAILABLE = (
     "No supported interpretation was supplied; these observations alone "
     "do not establish the edit's benefit."
 )
+SUMMARY_TASK_LABEL = "Task given to both versions"
+SUMMARY_NO_CHECKS = (
+    "No validated check compares the expected behavior with these trials."
+)
+DATA_RATIONALE_UNRECORDED = (
+    "Why this test data was chosen: not recorded in this report."
+)
+EXPLANATION_CONCLUSION_LABEL = "Summary conclusion:"
+EXPLANATION_MODEL_LABEL = "Model explanation:"
+SUMMARY_SCOPE_HEADING = "Checked against"
+SUMMARY_TASK_PREVIEW_LIMIT = 280
+SUMMARY_HELP_LABEL = "How to read this summary"
+SUMMARY_HELP = (
+    "Step 1 gives the conclusion, decided only from the validated checks of the "
+    "goals recorded before trials and from trial completeness.",
+    "Step 2 lists each recorded expectation with its Before and After results. "
+    "Unclear, unassessable, and not-assessed trials stay separate from Yes and No.",
+    "Step 3 shows the actual task and setup. Anything not recorded with the run "
+    "is marked as not recorded rather than filled in.",
+    "Step 4 shows the observed behavior; model interpretations are labeled.",
+    "Step 5 suggests a next step. The report never approves or blocks a change.",
+)
+
+
+def task_preview(task):
+    """A whitespace-collapsed prefix of the task; the full text stays one click away."""
+    text = " ".join(task.split())
+    if len(text) <= SUMMARY_TASK_PREVIEW_LIMIT:
+        return text
+    return text[:SUMMARY_TASK_PREVIEW_LIMIT].rstrip() + "…"
+
+
+def summary_method(report):
+    """Describe only the recorded setup; absent rationale stays explicitly unrecorded."""
+    metadata = report.metadata
+    before, after = report.variants.before, report.variants.after
+    lines = [
+        "Both versions received the same task and inputs: "
+        f"{before.total} Before {trial_noun(before.total)} and "
+        f"{after.total} After {trial_noun(after.total)}, model {metadata.model}.",
+        f"Instruction file: {metadata.target_file}.",
+        DATA_RATIONALE_UNRECORDED,
+    ]
+    scopes = tuple(dict.fromkeys(check.scope for check in report.summary.checks))
+    lines += [f"Evidence inspected: {scope}" for scope in scopes] or [
+        "Evidence inspected: " + SUMMARY_NO_CHECKS
+    ]
+    if report.decisions.recorded_evidence:
+        lines.append(
+            "Recorded evidence limits: "
+            + evidence_limit_text(report.decisions.evidence_limits)
+        )
+    return tuple(lines)
+
 
 ATTENTION_UNAVAILABLE = "Attention assessment unavailable."
 ATTENTION_UNAVAILABLE_NOTE = (

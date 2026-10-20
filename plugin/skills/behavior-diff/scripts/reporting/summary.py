@@ -1,4 +1,8 @@
-"""Validate optional extractor narrative and derive an evidence-safe visual summary."""
+"""Derive the assessment-first Summary from validated target, purpose and trial health.
+
+Optional extractor narrative is validated here too, but it only labels observed
+branches; it never decides the Summary's conclusion.
+"""
 
 from dataclasses import dataclass
 from typing import Optional, Tuple
@@ -9,9 +13,94 @@ from reporting.instruction import normalize_edit_hunks
 ICONS = ("neutral", "continue", "stop", "report", "edit", "inspect", "test", "delegate")
 EVIDENCE_KINDS = ("plans", "answers", "actions")
 SUMMARY_STATUSES = ("changed", "unchanged", "mixed", "unavailable")
-TARGET_UNCERTAIN = (
-    "Some target checks remain uncertain or lack enough evidence; "
-    "inspect the detailed assessment before drawing a conclusion."
+# Overall Summary finding, decided only from validated target checks and trial health.
+FINDING_STATES = (
+    "not_met",
+    "inconclusive",
+    "baseline_incomplete",
+    "improved",
+    "already_met",
+    "preserved",
+    "unavailable",
+)
+CHECK_STATES = FINDING_STATES[:-1]
+UNMET = "The expected improvement did not happen in these tests."
+FINDING_HEADLINES = {
+    "not_met": UNMET,
+    "inconclusive": "These tests did not settle whether the expected behavior happened.",
+    "baseline_incomplete": (
+        "After met the expected behavior, but incomplete Before results do not show an improvement."
+    ),
+    "improved": "After met the expected behavior in these tests; Before did not.",
+    "already_met": (
+        "Before already met the expected behavior; no added benefit was shown in these tests."
+    ),
+    "preserved": "The behavior expected to stay the same held in these tests.",
+    "unavailable": "The expected behavior could not be checked in these tests.",
+}
+PRESERVATION_UNMET = "A behavior expected to stay the same did not hold in these tests."
+CHECK_LABELS = {
+    "not_met": "not met",
+    "inconclusive": "not settled",
+    "baseline_incomplete": "met After; Before incomplete",
+    "improved": "met After; not met Before",
+    "already_met": "already met Before",
+    "preserved": "preserved",
+}
+CHECK_MEANINGS = {
+    "not_met": "At least one After trial did not meet this.",
+    "inconclusive": (
+        "Some After trials were unclear, lacked evidence, or were not assessed, "
+        "so this is not settled."
+    ),
+    "baseline_incomplete": (
+        "Every After trial met this, but Before trials were incomplete, unclear, or "
+        "not assessed, so no improvement is shown."
+    ),
+    "improved": (
+        "Every After trial met this and at least one Before trial did not. "
+        "This does not prove the edit caused the difference."
+    ),
+    "already_met": "Before already met this, so the edit showed no added benefit here.",
+    "preserved": "Every After trial still met this.",
+}
+PRESERVATION_NOT_MET = "At least one After trial no longer met this."
+NEXT_ACTIONS = {
+    "not_met": (
+        "Revise the edit or its expectation, then retest; inspect the After trials "
+        "that did not meet the expected behavior."
+    ),
+    "inconclusive": (
+        "Inspect or rerun the unclear, missing, or interrupted trials before drawing a conclusion."
+    ),
+    "baseline_incomplete": (
+        "Inspect or rerun the incomplete Before trials before claiming an improvement."
+    ),
+    "improved": (
+        "Review the evidence and decide whether to accept the edit; these tests do not "
+        "show reliability in other situations."
+    ),
+    "already_met": (
+        "Decide whether the edit is still needed; Before already met the expected "
+        "behavior in these tests."
+    ),
+    "preserved": "Review the evidence and decide whether to accept the edit.",
+    "unavailable": (
+        "Inspect the trial evidence directly; no validated check of the expected "
+        "behavior is available."
+    ),
+}
+GATE_NOTE = "This report does not approve or block the change; the decision is yours."
+CHECK_SCOPES = {
+    "output": (
+        "Checked against final answers. An answer describing a plan or action does "
+        "not show that it was carried out."
+    ),
+    "source_consistency": "Checked final answers against recorded sources.",
+    "recorded_action": "Checked against recorded tool activity.",
+}
+SELF_REPORTED_SCOPE = (
+    "Checked against self-reported actions, not independently captured tool activity."
 )
 PURPOSE_SUMMARY_LIMIT = 320
 
@@ -348,6 +437,118 @@ def question_distribution_changed(criterion, before_total, after_total):
     )
 
 
+def _side_health(criterion, side, variant):
+    """A side is usable only when every recorded trial completed and was assessed."""
+    trials = getattr(criterion, side)
+    return (
+        variant.total > 0
+        and len(trials) == variant.total
+        and variant.valid == variant.total
+        and not variant.blocked
+        and all(trial.outcome in ("met", "not_met") for trial in trials)
+    )
+
+
+def check_state(criterion, variants):
+    after = criterion.after
+    if any(trial.outcome == "not_met" for trial in after):
+        return "not_met"
+    if not _side_health(criterion, "after", variants.after):
+        return "inconclusive"
+    if not _side_health(criterion, "before", variants.before):
+        return "baseline_incomplete"
+    if all(trial.outcome == "met" for trial in criterion.before):
+        return "preserved" if criterion.mode == "preservation" else "already_met"
+    return "improved"
+
+
+def finding_state(states):
+    if not states:
+        return "unavailable"
+    return next(state for state in CHECK_STATES if state in states)
+
+
+def build_checks(metadata, variants, target):
+    from reporting.schema import SummaryCheckData
+
+    checks = []
+    for number, criterion in enumerate(target.criteria if target else (), 1):
+        state = check_state(criterion, variants)
+        preservation = criterion.mode == "preservation"
+        scope = (
+            SELF_REPORTED_SCOPE
+            if criterion.evidence_kind == "recorded_action"
+            and metadata.trace_source == "self-reported"
+            else CHECK_SCOPES[criterion.evidence_kind]
+        )
+        checks.append(
+            SummaryCheckData(
+                number,
+                criterion.text,
+                criterion.mode,
+                state,
+                question_distribution(criterion, "before", variants.before.total),
+                question_distribution(criterion, "after", variants.after.total),
+                PRESERVATION_NOT_MET
+                if preservation and state == "not_met"
+                else CHECK_MEANINGS[state],
+                scope,
+            )
+        )
+    return tuple(checks)
+
+
+ANSWER_SCOPED = "Judged from final answers, not observed actions."
+MET_STATES = ("baseline_incomplete", "improved", "already_met", "preserved")
+
+
+def finding_text(state, checks):
+    if state == "not_met" and all(
+        check.mode == "preservation" for check in checks if check.state == "not_met"
+    ):
+        return PRESERVATION_UNMET
+    # A met answer-only check cannot read as proof that actions happened.
+    if state in MET_STATES and any(
+        check.scope == CHECK_SCOPES["output"] for check in checks
+    ):
+        return f"{FINDING_HEADLINES[state]} {ANSWER_SCOPED}"
+    return FINDING_HEADLINES[state]
+
+
+def unchecked_goals(decisions):
+    """Frozen goal numbers that no validated criterion checks."""
+    from reporting.target import effective_purpose
+
+    target = decisions.target_assessment
+    if target is None:
+        return ()
+    goals = effective_purpose(decisions.purpose, decisions.intent)
+    covered = {criterion.goal for criterion in target.criteria}
+    return tuple(n for n in range(1, len(goals) + 1) if n not in covered)
+
+
+def finding_meaning(checks, rejection=None, unchecked=()):
+    if not checks:
+        from reporting.target import UNAVAILABLE
+
+        if rejection is None:
+            return UNAVAILABLE
+        return (
+            f"{UNAVAILABLE} The returned target check was rejected by validation: "
+            f"{rejection}."
+        )
+    counts = [
+        f"{sum(check.state == state for check in checks)} {CHECK_LABELS[state]}"
+        for state in CHECK_STATES
+        if any(check.state == state for check in checks)
+    ]
+    noun = "check" if len(checks) == 1 else "checks"
+    text = f"Of {len(checks)} recorded {noun}: {', '.join(counts)}."
+    if unchecked:
+        text += " No check covers recorded goal " + ", ".join(map(str, unchecked)) + "."
+    return text
+
+
 def build_summary(metadata, variants, decisions):
     from reporting import content
     from reporting.schema import (
@@ -356,8 +557,6 @@ def build_summary(metadata, variants, decisions):
         SummarySideData,
         VisualSummaryData,
     )
-
-    from reporting.target import UNAVAILABLE
 
     def claim(value):
         return EvidenceClaimData(value.text, value.decisions) if value else None
@@ -380,16 +579,13 @@ def build_summary(metadata, variants, decisions):
     notices = [
         "One scenario only; counts and narrative are model interpretations, not causal proof."
     ]
-    target = decisions.target_assessment
-    if target is None:
-        notices.append(UNAVAILABLE)
-    elif any(
-        trial.outcome in ("uncertain", "unassessable")
-        for criterion in target.criteria
-        for trial in criterion.before + criterion.after
-    ):
-        # The target table lives in details; keep unknown outcomes visible here.
-        notices.append(TARGET_UNCERTAIN)
+    checks = build_checks(metadata, variants, decisions.target_assessment)
+    states = {check.state for check in checks}
+    unchecked = unchecked_goals(decisions)
+    if checks and unchecked:
+        # A conclusion needs every frozen goal checked; a gap leaves it unsettled.
+        states.add("inconclusive")
+    state = finding_state(states)
     if not complete:
         notices.append(
             "Trial evidence is incomplete, blocked, invalid, or dropped; inspect the trial records."
@@ -429,18 +625,7 @@ def build_summary(metadata, variants, decisions):
         notices.append(
             "Plain-language narrative unavailable; original extracted comparisons are shown without added explanation."
         )
-    if status == "unavailable":
-        headline = "Before and After behavior in this scenario."
-    elif narrative:
-        headline = narrative.headline
-    elif different_process:
-        headline = "Same result; different actions."
-    elif status == "mixed":
-        headline = "Answers or actions vary across trials in this scenario."
-    elif status == "changed":
-        headline = "Different answers or actions were observed in this scenario."
-    else:
-        headline = "No difference was observed in the selected comparison."
+    headline = finding_text(state, checks)
     if status == "unchanged":
         notices.append(
             "Matching observations in this scenario do not prove that the instruction edit has no effect."
@@ -500,4 +685,8 @@ def build_summary(metadata, variants, decisions):
         claim(narrative.caution) if narrative else None,
         tuple(notices),
         claim(narrative.context) if narrative else None,
+        state,
+        finding_meaning(checks, decisions.target_rejection, unchecked),
+        checks,
+        NEXT_ACTIONS[state],
     )

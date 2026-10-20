@@ -9,8 +9,10 @@ from reporting.evidence import (
     EXCERPT_LIMIT,
     RECORD_LIMIT,
     RUN_LIMIT,
+    SENSITIVE_SOURCE,
     SOURCE_LIMIT,
     TRIAL_LIMIT,
+    UNPROVEN_CALL_REASONS,
 )
 from reporting.explanation import _text
 
@@ -263,10 +265,28 @@ def persisted_evidence(raw):
     return evidence_records({"trials": trials})
 
 
+def _returned_content(record):
+    return record.status in ("available", "truncated") and bool(record.text)
+
+
+def _captured_call(record):
+    """A captured call record proves that its listed call ran, not what it returned."""
+    return (
+        re.fullmatch(r".+:tool-[1-9][0-9]*", record.id) is not None
+        and record.source != SENSITIVE_SOURCE
+        and record.reason not in UNPROVEN_CALL_REASONS
+    )
+
+
 def parse_target(raw, purpose, final_answers, evidence, rows=(), positions=None):
     """Invalid assessments stay unavailable, never become successful or assessed-empty."""
+    return check_target(raw, purpose, final_answers, evidence, rows, positions)[0]
+
+
+def check_target(raw, purpose, final_answers, evidence, rows=(), positions=None):
+    """Return (assessment, None), or (None, why a returned assessment was rejected)."""
     if raw is None:
-        return None
+        return None, None
     try:
         if (
             type(raw) is not dict
@@ -383,29 +403,36 @@ def parse_target(raw, purpose, final_answers, evidence, rows=(), positions=None)
                             raise ValueError(
                                 "target reference must resolve in its own trial"
                             )
-                    usable = [
+                    answer = name + ":answer"
+                    content = [
                         ref
                         for ref in refs
-                        if ref == name + ":answer"
-                        or records[ref].status in ("available", "truncated")
-                        and records[ref].text
+                        if ref != answer and _returned_content(records[ref])
+                    ]
+                    calls = [
+                        ref
+                        for ref in refs
+                        if ref != answer and _captured_call(records[ref])
                     ]
                     if outcome in ("met", "not_met") and (
-                        not refs or len(usable) != len(refs)
+                        not refs
+                        or any(
+                            ref != answer and ref not in content and ref not in calls
+                            for ref in refs
+                        )
                     ):
                         raise ValueError(
                             "determinate target outcome needs available evidence"
                         )
                     if outcome in ("met", "not_met"):
-                        has_output = name + ":answer" in refs
-                        has_source = any(ref != name + ":answer" for ref in usable)
+                        has_output = answer in refs
                         if (
                             item["evidence_kind"] == "source_consistency"
-                            and not (has_output and has_source)
+                            and not (has_output and content)
                             or item["evidence_kind"] == "output"
                             and not has_output
                             or item["evidence_kind"] == "recorded_action"
-                            and not has_source
+                            and not calls
                         ):
                             raise ValueError(
                                 "criterion lacks required source or output evidence"
@@ -444,9 +471,11 @@ def parse_target(raw, purpose, final_answers, evidence, rows=(), positions=None)
             )
         if covered_goals != set(range(1, len(purpose) + 1)):
             raise ValueError("target criteria must cover every purpose goal")
-        return TargetAssessmentData(tuple(criteria))
-    except (KeyError, TypeError, ValueError, AttributeError):
-        return None
+        return TargetAssessmentData(tuple(criteria)), None
+    except ValueError as error:
+        return None, str(error)
+    except (KeyError, TypeError, AttributeError):
+        return None, "malformed target assessment"
 
 
 def distribution(criterion, side):

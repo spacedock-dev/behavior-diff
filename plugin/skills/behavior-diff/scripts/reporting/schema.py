@@ -13,6 +13,8 @@ from reporting.explanation import (
 )
 from reporting.instruction import parse_diff_hunks
 from reporting.summary import (
+    CHECK_STATES,
+    FINDING_STATES,
     ICONS,
     SUMMARY_STATUSES,
     EditIntentData,
@@ -46,7 +48,7 @@ from reporting.provenance import (
     report_source,
 )
 
-SCHEMA_VERSION = 16
+SCHEMA_VERSION = 17
 RESULT_KINDS = ("good", "bad", "neutral")
 
 
@@ -150,6 +152,9 @@ class DecisionData:
     target_assessment: Optional[TargetAssessmentData] = None
     evidence_limits: Optional[EvidenceLimitsData] = None
     purpose_summary: Optional[str] = None
+    # Validation reason for a returned but rejected target assessment; never set
+    # alongside a valid assessment.
+    target_rejection: Optional[str] = None
 
 
 @dataclass(frozen=True)
@@ -169,6 +174,20 @@ class SummarySideData:
 
 
 @dataclass(frozen=True)
+class SummaryCheckData:
+    """One recorded expectation compared with its validated Before/After outcomes."""
+
+    criterion: int
+    text: str
+    mode: str
+    state: str
+    before: str
+    after: str
+    meaning: str
+    scope: str
+
+
+@dataclass(frozen=True)
 class VisualSummaryData:
     headline: str
     scenario: str
@@ -180,7 +199,11 @@ class VisualSummaryData:
     why: Optional[EvidenceClaimData]
     caution: Optional[EvidenceClaimData]
     notices: Tuple[str, ...]
-    context: Optional[EvidenceClaimData] = None
+    context: Optional[EvidenceClaimData]
+    state: str
+    meaning: str
+    checks: Tuple[SummaryCheckData, ...]
+    next_action: str
 
 
 @dataclass(frozen=True)
@@ -271,6 +294,7 @@ class ReportData:
             "target_assessment",
             "evidence_limits",
             "purpose_summary",
+            "target_rejection",
         ):
             _field(raw_decisions, name, "decisions")
         rule_diff = _expect_str(_field(data, "rule_diff", "report-data"), "rule_diff")
@@ -611,12 +635,29 @@ def _decisions(value, path, hunk_count, groups=None, final_answers=None):
         target_assessment=target,
         evidence_limits=parse_evidence_limits(value.get("evidence_limits")),
         purpose_summary=purpose_summary,
+        target_rejection=_target_rejection(
+            value.get("target_rejection"), path + ".target_rejection", target
+        ),
     )
     from reporting.content import valid_decision_choices
 
     if not all(valid_decision_choices(row, decisions) for row in decisions.rows):
         _invalid(path, "unique nonblank decision choices matching side trial totals")
     return decisions
+
+
+def _target_rejection(value, path, target):
+    if value is None:
+        return None
+    value = _expect_str(value, path)
+    if (
+        target is not None
+        or not value.strip()
+        or value != value.strip()
+        or len(value) > 240
+    ):
+        _invalid(path, "plain rejection reason only when the target is unavailable")
+    return value
 
 
 def validate_branch_memberships(rows, final_answers):
@@ -728,11 +769,28 @@ def _intent(value, path, hunk_count, expected, decisions):
     return intent
 
 
+def _summary_check(value, path):
+    value = _expect_dict(value, path)
+    check = SummaryCheckData(
+        _expect_int(_field(value, "criterion", path), path + ".criterion"),
+        *(
+            _expect_str(_field(value, name, path), path + "." + name)
+            for name in ("text", "mode", "state", "before", "after", "meaning", "scope")
+        ),
+    )
+    if check.state not in CHECK_STATES:
+        _invalid(path + ".state", "supported check state")
+    return check
+
+
 def _summary(value, path, decisions, metadata, variants):
     value = _expect_dict(value, path)
     status = _expect_str(_field(value, "status", path), path + ".status")
     if status not in SUMMARY_STATUSES:
         _invalid(path + ".status", "supported comparison status")
+    state = _expect_str(_field(value, "state", path), path + ".state")
+    if state not in FINDING_STATES:
+        _invalid(path + ".state", "supported finding state")
     row_count = len(decisions.rows)
     summary = VisualSummaryData(
         _expect_str(_field(value, "headline", path), path + ".headline"),
@@ -748,9 +806,18 @@ def _summary(value, path, decisions, metadata, variants):
         _optional_claim(_field(value, "caution", path), path + ".caution", row_count),
         _string_tuple(_field(value, "notices", path), path + ".notices"),
         _optional_claim(_field(value, "context", path), path + ".context", row_count),
+        state,
+        _expect_str(_field(value, "meaning", path), path + ".meaning"),
+        tuple(
+            _summary_check(item, "{0}.checks[{1}]".format(path, index))
+            for index, item in enumerate(
+                _expect_list(_field(value, "checks", path), path + ".checks")
+            )
+        ),
+        _expect_str(_field(value, "next_action", path), path + ".next_action"),
     )
     if summary != build_summary(metadata, variants, decisions):
-        _invalid(path, "summary derived from the validated decision and trial evidence")
+        _invalid(path, "summary derived from the validated target and trial evidence")
     return summary
 
 

@@ -298,25 +298,21 @@ save the complete environment, event payload, or credential-bearing clone URL.
 A **run** compares the instruction versions. A **trial** is one agent execution on
 one side. Each run creates a local HTML report with six tabs:
 
-- **Summary** tells a four-part numbered story: the intended change, what the
-  evidence shows, what needs your attention, and what this means. Illustrated
-  Before/After cards retain every observed branch and its trial count, and
-  distinguish plans, answers, and recorded actions. The primary result stays
-  visible when a secondary comparison leads the story.
-  **What needs your attention** explains relevant tradeoffs with pictures,
-  consequences, applicability, and possible actions. An expected tradeoff can
-  matter too. An assessed-empty result is distinct from an unavailable
-  assessment; neither hides the underlying comparisons.
-  **See why this matters** opens the detailed attention explanation.
-  **Full scenario and expected behavior** contains the setup and nested full
-  prompt; complete evidence limits remain in their own disclosure.
-- **Understand the change** preserves the original explanation. Attention detail
-  adds reasoning, all branch counts with links to supporting trials, cited
-  context, and uncertainty instead of repeating the Summary pictures and actions.
-  Count-only saved evidence explicitly marks trial attribution unavailable.
-  Optional **Check the evidence** disclosures link to raw comparisons.
-  **Not relevant here** hides a Summary finding's body for this report session;
-  **Show again** or reloading restores it. This does not change the evidence.
+- **Summary** follows one five-step reading sequence: what we found; expected
+  versus observed behavior; how we tested it; supporting evidence; and next action.
+  Validated checks distinguish unmet After requirements, an already-correct
+  baseline, preservation, improvement in these trials, and inconclusive evidence.
+  The same mistake on both sides can still leave an After requirement unmet.
+  Missing or rejected assessments never become a no-gap result. Recorded task,
+  model, trial counts and evidence limits explain the test; private preparation
+  rationale is not invented when it was not saved in report inputs.
+  Repository/PR links, compared revisions and model remain visible in a compact
+  header. Full task, reading help and detailed limits are expandable.
+- **Understand the change** explains the same assessment conclusion. Original
+  model interpretation is labeled separately, not promoted to a competing verdict.
+  Detailed checks link their recorded sources, output excerpts and trial outcomes.
+  Attention findings retain consequences, applicability and uncertainty; **Not
+  relevant here** hides a finding's body for this report session only.
 - **Instruction changes** shows the saved aim, filename, line counts, and
   complete instruction diff. **Likely aim** marks an inferred interpretation;
   **Supplied expectation** marks an explicit expectation. Missing explanations
@@ -435,10 +431,12 @@ Expected behavior is labeled as supplied, or explicitly unavailable. The evidenc
 limits state trial counts, provenance, and grading limits. Self-reported actions
 remain distinct from captured tool calls.
 
-The structured `report-data.json` uses schema version 16, including per-group
-`decisions.trial_summaries`, visual `summary`, sourced instruction `intent`,
+The structured `report-data.json` uses schema version 17, including per-group
+`decisions.trial_summaries`, assessment-derived `summary.state`, `summary.meaning`,
+`summary.checks` and `summary.next_action`, sourced instruction `intent`,
 saved `content.task`, optional narrative, nullable `metadata.source` and
-`metadata.ci_context`, and `edit_hunks`. The optional
+`metadata.ci_context`, and `edit_hunks`. `decisions.target_rejection` explains
+a rejected target assessment without dropping the underlying evidence. The optional
 `decisions.purpose_summary` gives the Summary a short, labeled paraphrase of
 the frozen goals; Instruction changes retains their complete text and provenance.
 The task comes from the run's `task.md`, or the capsule's copy
@@ -449,10 +447,10 @@ capsule directory, recorded model label, and original configuration. Rendering
 does not run trials or call a model.
 
 Old `decisions.json` observations can be re-rendered with the new layout.
-Without narrative, the Summary uses original choice text and marks explanations
-unavailable. Missing trial summaries, aim interpretations, and edit mappings
-remain unavailable. Trial summaries are produced in the existing extraction
-call; rendering never substitutes an overall conclusion for a trial's summary.
+Without validated target checks, the Summary states that assessment is unavailable;
+observed comparisons remain accessible. Missing narrative, trial summaries, aim
+interpretations, and edit mappings remain unavailable. Trial summaries are produced
+in the existing extraction call; rendering never invents a trial's summary.
 To obtain them, explicitly rerun extraction on saved evidence after approving
 its model cost; no new trials are needed. Rendering never triggers extraction.
 Without a valid purpose summary, a single short recorded goal can appear verbatim.

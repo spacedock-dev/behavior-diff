@@ -357,7 +357,7 @@ class HostedTests(unittest.TestCase):
         original_summary = summary.read_bytes()
         original_receipt = receipt_path.read_bytes()
         prefix, attention = original_summary.split(
-            b'class="story-step story-attention"', 1
+            b'class="summary-attention story-attention"', 1
         )
         alterations = (
             attention.replace(
@@ -374,7 +374,9 @@ class HostedTests(unittest.TestCase):
         for altered_attention in alterations:
             with self.subTest(alteration=altered_attention[:100]):
                 altered = (
-                    prefix + b'class="story-step story-attention"' + altered_attention
+                    prefix
+                    + b'class="summary-attention story-attention"'
+                    + altered_attention
                 )
                 self.assertNotEqual(original_summary, altered)
                 summary.write_bytes(altered)

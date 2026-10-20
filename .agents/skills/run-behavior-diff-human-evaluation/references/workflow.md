@@ -187,18 +187,18 @@ Do not represent an answer describing an action as evidence of execution.
 ## Quiz and scoring
 
 `build` creates blinded excerpts from the original saved report HTML. It retains
-the generated headline, case-evidence context, Before/After cards and supported
-starts, practical meaning, attention findings, target gaps, and visible limits.
-It removes instruction intent/diff, full scenario/expected behavior, commit
-metadata, source-intent relationship labels, and links to unblinded evidence.
-Case context is preserved separately from the removed purpose; extraction must
-not use it to restate the instruction. An exact repetition of the Summary intent,
-any full recorded goal, or the full supplied expectation or inferred aim from
-Instruction changes is rejected. This guard cannot detect semantic paraphrases.
-The projection never rewrites prose or synthesizes missing summaries. The v3
-projection accepts only the current Summary structure and fails closed on older
-layouts. Already-built sessions keep their frozen bytes; do not rebuild an
-active evaluation to adopt a new presentation.
+the bounded observation section: case-evidence context, Before/After cards and
+supported starts, practical meaning, attention findings, target gaps, and limits.
+The assessment-derived headline is replaced by a neutral observation heading,
+not another finding. Expected criteria, method/rationale, next actions, instruction
+intent/diff, commit metadata, source-intent relationship labels and links to
+unblinded evidence are excluded because they can reveal the keyed edit.
+Case context must not restate the instruction. Exact repetition of the Summary
+intent, any full goal, supplied expectation or inferred aim is rejected; this
+guard cannot detect semantic paraphrases. Observation prose is never rewritten.
+The v4 projection accepts only the current five-step Summary structure and fails
+closed on older layouts. Already-built sessions keep their frozen bytes; do not
+rebuild an active evaluation to adopt a new presentation.
 
 `serve SESSION --port 0` prints an available loopback URL. Only public quiz assets
 are served before submission. The answer key stays on the server. Check desktop

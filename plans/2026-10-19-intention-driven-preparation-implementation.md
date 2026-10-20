@@ -2,11 +2,10 @@
 
 Date: 2026-10-19
 Status: PR 1 merged as [#49](https://github.com/spacedock-dev/behavior-diff/pull/49).
-PR 2 is published as [#50](https://github.com/spacedock-dev/behavior-diff/pull/50).
-Preparation checks, both native-host smoke paths and independent source/evidence
-reviews passed the bounded acceptance gate. Merge awaits corrected dogfood CI.
-Report assessment/UI work remains deferred. Do not repeat the public survey or
-retune old cases.
+PR 2 merged as [#50](https://github.com/spacedock-dev/behavior-diff/pull/50), including
+the corrected Claude prompt transport and dogfood CI gate.
+PR 3 implements the approved assumption-first report design and assessment
+reliability fixes. No new live model runs are authorized for this implementation.
 
 ## 1. User request and product decision
 
@@ -618,6 +617,33 @@ not create an extra schema PR. Preview report hierarchy changes against the save
 real-case evidence required by CODING_GUIDELINES.md; label new-state illustrations
 as authored synthetic examples. Keep HTML, Markdown and structured output aligned.
 Choose the final number and boundaries of report PRs at that checkpoint.
+
+### PR 3 — Approved assumption-first report
+
+User approval follows private previews of the three required historical examples
+and supplemental saved cases. Preview interpretations were authored from audits,
+not proof of extractor adherence; do not copy their conclusions into report data.
+
+- Preserve the six-tab report shell. Summary owns five ordered steps: finding;
+  expected versus observed; how tested; evidence; next action.
+- Keep repository/PR links, compared revisions and model visible in a compact
+  metadata strip. Expand full task, reading help and detailed evidence on demand.
+- Use “The expected improvement did not happen in these tests” for observed
+  unmet requirements. No-gap results require supported coverage; distinguish
+  already-correct Before, preservation, uncertain outcomes and incomplete runs.
+- Reuse validated target checks, purpose and saved evidence. Repair call-versus-
+  return evidence handling, rejection diagnostics and native interruption accounting.
+  Do not weaken source-consistency checks or reconstruct private case criteria.
+- Keep HTML, Markdown and schema-17 structured conclusions consistent.
+  Understand the change labels model interpretation below the same conclusion.
+  The blind quiz excludes new assessment/setup/next-action content while retaining
+  observed comparisons; no paid evaluation is part of this change.
+- Verify deterministic contracts and the shipped renderer on synthetic and saved
+  evidence, then complete independent read-only review and open a PR. Saved
+  invalid extractions remain unavailable; showing audited historical findings
+  automatically requires a separately approved fresh extraction, not UI editing.
+
+Tracking: DRC-4835. The approved prototype is temporary and is not a product route.
 
 ### Step-by-step implementation protocol
 

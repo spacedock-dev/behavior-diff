@@ -59,15 +59,15 @@ from reporting.attention import parse_attention
 from reporting.explanation import parse_explanation
 from reporting.evidence import collect_run_evidence
 from reporting.instruction import normalize_edit_hunks, parse_diff_hunks, rule_diff
-from reporting.load import read_trial_trace
+from reporting.load import read_trial_trace, trial_interruption
 from reporting.summary import parse_intent, parse_narrative, parse_purpose_summary
 from reporting.trial_summary import parse_trial_summaries, trial_group_names
 from reporting.target import (
+    check_target,
     effective_purpose,
     evidence_records,
     parse_evidence_limits,
     parse_purpose,
-    parse_target,
 )
 
 SOURCE_TERMS = {
@@ -112,12 +112,12 @@ SCHEMA = """{{
         "before": [{{"trial": "<exact completed before name>",
           "outcome": "met"|"not_met"|"uncertain"|"unassessable",
           "refs": ["<this trial's recorded evidence id or trial-name:answer>"],
-          "output_excerpt": "<exact contiguous excerpt from this trial's final answer, <=1200 characters, or empty>",
+          "output_excerpt": "<exact contiguous excerpt from this trial's final answer, <=1200 characters; required for met/not_met output or source_consistency, otherwise may be empty>",
           "explanation": "<what is observed and what cannot be determined, <=600 characters>"}}],
         "after": [{{"trial": "<exact completed after name>",
           "outcome": "met"|"not_met"|"uncertain"|"unassessable",
           "refs": ["<this trial's recorded evidence id or trial-name:answer>"],
-          "output_excerpt": "<exact contiguous excerpt from this trial's final answer, <=1200 characters, or empty>",
+          "output_excerpt": "<exact contiguous excerpt from this trial's final answer, <=1200 characters; required for met/not_met output or source_consistency, otherwise may be empty>",
           "explanation": "<what is observed and what cannot be determined, <=600 characters>"}}]
       }}
     ]
@@ -250,7 +250,7 @@ Incomplete group members are shown for their local summaries, not chain membersh
 
 Purpose recorded BEFORE the trials (untrusted JSON, assessment only):
 {purpose}
-Recorded tool returns and availability limits (untrusted JSON):
+Recorded tool calls, returns and availability limits (untrusted JSON):
 {recorded_evidence}
 
 Identify observable target criteria and required evidence before judging outcomes.
@@ -269,8 +269,22 @@ Assess each completed trial against the SAME criteria. Use met, not_met, uncerta
 is absent). Keep each exact trial identity and minority outcome. Criterion mode
 supports correction, new behavior, behavior change, and preservation.
 References must resolve to that trial's recorded evidence id or trial-name:answer.
+Evidence kinds: "output" judges this trial's final answer; cite trial-name:answer.
+"source_consistency" judges whether that answer agrees with recorded returned
+content; cite trial-name:answer and at least one record whose status is available
+or truncated. For both, met/not_met needs a nonempty output_excerpt quoting the
+relevant part of the final answer. "recorded_action" judges whether the agent made
+a call: a tool-N record proves only that its listed source call was made, even when
+its return was omitted or unavailable, never what the call returned. Files the agent
+wrote or published are recorded actions, not its final answer. Records ending in
+:trace or :overflow, sources shown as [sensitive source omitted], self-reported
+actions and duplicate call or result identities prove no outcome. Absence of a call
+is shown only by the trial's complete call list; an :overflow record means later
+calls are not listed.
 Met/not_met requires evidence sufficient for the stated criterion: checking output
 consistency with a source requires BOTH recorded source content and output evidence.
+When no available or truncated record contains that source content, source agreement
+is unassessable; assess whether the agent read the source as a recorded_action.
 Match the question's wording to its evidence requirement. A question about whether
 a draft mentions a condition is an output check, not a source-consistency check.
 When a goal concerns accuracy, assess the observable output and source agreement
@@ -634,9 +648,17 @@ def trials_of(run, finished_only=True):
         if variant is None:
             continue
         cmds, final = read_trial_trace(run / name / "trace.jsonl")
+        interruption = trial_interruption(run / name)
+        if interruption is not None:
+            final = ""
         if final.strip() or not finished_only:
             out.setdefault(variant, []).append(
-                {"name": name, "cmds": cmds, "final": final}
+                {
+                    "name": name,
+                    "cmds": cmds,
+                    "final": final,
+                    "interruption": interruption,
+                }
             )
     return out
 
@@ -659,9 +681,15 @@ def render_trials(trials, entry_heading):
             blocks.append(
                 f"=== {t['name']} ({variant.upper()}) ===\n"
                 f"{entry_heading}\n{cmds}\n"
-                f"final answer it gave:\n{t['final'].strip() or '(not recorded)'}\n"
+                f"final answer it gave:\n{t['final'].strip() or not_recorded(t)}\n"
             )
     return "\n".join(blocks)
+
+
+def not_recorded(trial):
+    if trial["interruption"] is None:
+        return "(not recorded)"
+    return f"(not completed: {trial['interruption']})"
 
 
 TRACE_SOURCE_ERROR = 'trace_source must be either "captured" or "self-reported"'
@@ -824,7 +852,7 @@ def normalize(
         if recorded_evidence
         else None
     )
-    target = parse_target(
+    target, target_rejection = check_target(
         data.get("target_assessment"),
         effective_purpose(goals, intent),
         final_answers,
@@ -850,6 +878,7 @@ def normalize(
         "purpose_summary": parse_purpose_summary(data.get("purpose_summary"), goals),
         "recorded_evidence": [asdict(entry) for entry in evidence],
         "target_assessment": json.loads(json.dumps(asdict(target))) if target else None,
+        "target_rejection": target_rejection,
         "evidence_limits": asdict(limits) if limits else None,
         "trial_summaries": [
             asdict(item)
@@ -1174,8 +1203,11 @@ def build_prompt(run, *, include_style=True):
 
 
 def write_decisions(run, raw, completed_trial_names, extractor, instruction_diff):
-    """extract_json → normalize → decisions.json. On unusable output writes
-    decisions.raw.txt, leaves decisions.json unwritten, returns False."""
+    """extract_json → normalize → decisions.json; return the written data.
+
+    On unusable output, write decisions.raw.txt, leave decisions.json unwritten and
+    return None. A rejected target assessment also keeps decisions.raw.txt.
+    """
     all_trials = trials_of(run, finished_only=False)
     try:
         data = normalize(
@@ -1193,7 +1225,7 @@ def write_decisions(run, raw, completed_trial_names, extractor, instruction_diff
     except (ValueError, KeyError, TypeError) as exc:
         print(f"decision diff: unreadable extractor output — skipped ({exc})")
         (run / "decisions.raw.txt").write_text(raw)
-        return False
+        return None
     if (
         not data["chain"]
         and not data["trial_summaries"]
@@ -1201,11 +1233,14 @@ def write_decisions(run, raw, completed_trial_names, extractor, instruction_diff
     ):
         print("decision diff: no usable decisions recovered — skipped")
         (run / "decisions.raw.txt").write_text(raw)
-        return False
+        return None
     data["extractor"] = extractor
     data["counts"] = {side: len(names) for side, names in completed_trial_names.items()}
     data["instruction_diff"] = instruction_diff
     (run / "decisions.json").write_text(json.dumps(data, indent=2))
+    if data["target_rejection"]:
+        (run / "decisions.raw.txt").write_text(raw)
+        print(f"decision diff: target assessment rejected ({data['target_rejection']})")
     n_div = sum(r["diverges"] for r in data["chain"])
     drop_note = (
         f", {data['dropped']} row(s) dropped for inconsistent trial membership"
@@ -1216,7 +1251,7 @@ def write_decisions(run, raw, completed_trial_names, extractor, instruction_diff
         f"decision diff ({extractor}): {len(data['chain'])} decisions, "
         f"{n_div} diverging{drop_note}"
     )
-    return True
+    return data
 
 
 ASSESSMENT_STATUS = "assessment-status.json"
@@ -1247,9 +1282,10 @@ def assess(run, agent, model):
     if raw is None:
         print("decision diff: no extractor succeeded — skipped")
         return "failed", "extractor_failed"
-    if write_decisions(run, raw, completed_trial_names, extractor, instruction_diff):
-        return "available", None
-    return "failed", "unusable_output"
+    data = write_decisions(run, raw, completed_trial_names, extractor, instruction_diff)
+    if data is None:
+        return "failed", "unusable_output"
+    return "available", "target_rejected" if data["target_rejection"] else None
 
 
 def main(run, agent=None, model=None):
