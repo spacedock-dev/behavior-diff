@@ -61,6 +61,17 @@ gates:
                 id: briefing:dmz5fz1edtpmyc9vx28ez15w:validation:attempt-1:revision-1
                 digest: sha256:6634113e2ea1fa2071d7abdc6b67707ca9c9b1194f0e3a39887dcebf75e3ccaa
                 room-ref: ./refine-summary-page-signal/review/validation/briefing-1
+              resolution:
+                type: Resolution
+                id: resolution:spacedock:dmz5fz1edtpmyc9vx28ez15w:validation:1
+                briefing: briefing:dmz5fz1edtpmyc9vx28ez15w:validation:attempt-1:revision-1
+                by: person:captain
+                at: "2026-10-21T11:02:12.034574Z"
+                decision: approve
+                reason: Captain reviewed implemented candidate and said Approve and agree the new layout, replaced the study with owner review, and explicitly said approve to creat PR after disclosed size. Both independent reviewers now APPROVE unchanged c0350114; no measured comprehension claim or merge permission.
+              application:
+                target-stage: done
+                state: pending
 ---
 
 Help readers understand the main Before/After result at a glance without
