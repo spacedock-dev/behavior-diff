@@ -1,6 +1,6 @@
 ---
 title: Refine the summary page to make the main result clear
-status: backlog
+status: ideation
 source: Captain-requested follow-up from case-01-auto-download-audio.md
 started:
 completed:
@@ -33,7 +33,7 @@ gates:
                 reason: Captain approved the presented backlog gate to start ideation only.
               application:
                 target-stage: ideation
-                state: pending
+                state: consumed
 ---
 
 Help readers understand the main Before/After result at a glance without
