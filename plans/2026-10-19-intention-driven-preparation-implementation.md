@@ -2,11 +2,10 @@
 
 Date: 2026-10-19
 Status: PR 1 merged as [#49](https://github.com/spacedock-dev/behavior-diff/pull/49).
-PR 2 is published as [#50](https://github.com/spacedock-dev/behavior-diff/pull/50).
-Preparation checks, both native-host smoke paths and independent source/evidence
-reviews passed the bounded acceptance gate. Merge awaits corrected dogfood CI.
-Report assessment/UI work remains deferred. Do not repeat the public survey or
-retune old cases.
+PR 2 merged as [#50](https://github.com/spacedock-dev/behavior-diff/pull/50), including
+the corrected Claude prompt transport and dogfood CI gate.
+PR 3 implements the approved assumption-first report design and assessment
+reliability fixes. No new live model runs are authorized for this implementation.
 
 ## 1. User request and product decision
 
@@ -388,17 +387,17 @@ full multi-file replay, or a new automated verdict system was delivered.
 
 ### Delivery boundaries and status
 
-The user deferred report UI design on 2026-10-19. The earlier layout preview is
-exploratory, not an accepted design or an implementation dependency. Revisit it
-only after observing results from the completed preparation workflow.
+The user initially deferred report UI design until preparation evidence was
+available. The later five-step, assumption-first design is now approved; PR 3
+implements that design without importing private audit conclusions.
 
 | Stage | Deliverable | Dependency | Status |
 |---|---|---|---|
 | PR 1 | Deliver prepared shared data to real Before/After snapshots safely | None | Merged as #49; deterministic checks, independent review and corrected dogfood CI passed |
-| PR 2 | Generate and preflight scenario/data from intent, then execute and explain evidence | PR 1 | Published as #50; independently approved; corrected dogfood CI remains the merge gate |
+| PR 2 | Generate and preflight scenario/data from intent, then execute and explain evidence | PR 1 | Merged as #50 |
 | Preparation acceptance gate | Verify the integrated workflow against AC1–AC10 | PR 2 | Passed at bounded two-host evidence level; limitations retained below |
-| Report design checkpoint | Decide what actual results need the report to communicate | Preparation acceptance gate | Deferred; requires user design review |
-| Later report PR(s) | Implement only the agreed assessment/presentation changes | Accepted report design | Not scoped or authorized by this plan |
+| Report design checkpoint | Decide what actual results need the report to communicate | Preparation acceptance gate | Approved: five-step Summary, compact metadata and retained six-tab shell |
+| PR 3 | Implement the agreed assessment/presentation changes | Accepted report design | Published as #51; deterministic and browser checks passed; independent reviewers approved |
 
 PR numbers here are sequence labels, not GitHub PR identifiers. Do not split out
 tests, docs, or smoke proof into a later PR to make an incomplete feature mergeable.
@@ -618,6 +617,95 @@ not create an extra schema PR. Preview report hierarchy changes against the save
 real-case evidence required by CODING_GUIDELINES.md; label new-state illustrations
 as authored synthetic examples. Keep HTML, Markdown and structured output aligned.
 Choose the final number and boundaries of report PRs at that checkpoint.
+
+### PR 3 — Approved assumption-first report
+
+User approval follows private previews of the three required historical examples
+and supplemental saved cases. Preview interpretations were authored from audits,
+not proof of extractor adherence; do not copy their conclusions into report data.
+
+- Preserve the six-tab report shell. Summary owns five ordered steps: finding;
+  expected versus observed; how tested; evidence; next action.
+- Keep repository/PR links, compared revisions and model visible in a compact
+  metadata strip. Expand full task, reading help and detailed evidence on demand.
+- Use “The expected improvement did not happen in these tests” for observed
+  unmet requirements. No-gap results require supported coverage; distinguish
+  already-correct Before, preservation, uncertain outcomes and incomplete runs.
+- Reuse validated target checks, purpose and saved evidence. Repair call-versus-
+  return evidence handling, rejection diagnostics and native interruption accounting.
+  Do not weaken source-consistency checks or reconstruct private case criteria.
+- Keep HTML, Markdown and schema-19 structured conclusions consistent.
+  Understand the change labels model interpretation below the same conclusion.
+  The blind quiz excludes new assessment/setup/next-action content while retaining
+  observed comparisons; no paid evaluation is part of this change.
+- Verify deterministic contracts and the shipped renderer on synthetic and saved
+  evidence, then complete independent read-only review and open a PR. Saved raw
+  responses may be revalidated without another model call only against the evidence
+  originally supplied to that model. Do not insert manual findings or promote old
+  outcomes using newly collected evidence the model did not receive.
+
+**Earlier presentation-only acceptance boundary**
+
+The revised design keeps a concise finding and Expected/Observed framing above
+the full original observations, counts, primary result, explanations, cautions,
+attention findings and assessment checks. Implement it in the production renderer,
+not a permanent authored wrapper. Preserve the raw evidence and qualify conflicting
+model interpretations. Regenerate the saved verification reports without model
+calls, complete deterministic checks and independent review, then obtain the user's
+visual acceptance before recommending merge.
+
+The two approved re-extractions did not establish an issue-found/no-gap pair.
+One assessment was rejected for noncontiguous output quotes and missed a required
+code-check criterion; the other had supported positive results but unresolved
+coverage. Missing source returns limited factual validation. Those problems were
+outside the earlier presentation-only pass. The subsequent user instruction to
+fix the missing scenario and unmet After finding authorizes the producer and
+assessment corrections below. Do not weaken validators or insert manual audit
+conclusions to pass.
+
+Tracking: DRC-4835. The approved prototype is temporary and is not a product route.
+
+**Authorized correction: carry preparation into assessment and the report**
+
+- Keep purpose unchanged. Add a separate reviewed `--scenario-file` with the
+  scenario summary, data rationale, conditions, limitations and goal-linked
+  observable checks. Freeze it before trials and exclude it from every trial
+  input. Raw private notes remain private.
+- Split compound requirements: inspecting a PR description is not inspecting
+  implementation; a recorded action is not proof that output agrees with source.
+  The assessor must retain the complete frozen check set and its definitions.
+- Admit recorded PR view/diff returns through supported execution adapters,
+  retaining existing privacy filters, budgets and omission provenance. Never
+  fetch current source or treat assessor knowledge as evidence the trial saw.
+- Deliver the record through configuration, extraction, validation and schema 19.
+  Show the actual task and why its data challenges the aim. Keep frozen
+  expectations visible when assessment fails, with no invented outcome.
+- Historical runs without a record remain explicitly unrecorded. A manual
+  transcription from identifiable original pretrial notes must disclose its
+  later transcription and preserve the original artifacts. It is not proof of
+  fresh autonomous preparation.
+- Verify deterministic contracts and actual saved-evidence collection/rendering,
+  then obtain independent review. Fresh model-backed verification needs new
+  approval; prior calls do not authorize retries. Keep the PR unmerged until
+  the automatic result and user-facing explanation have been verified.
+
+**Approved policy: keep independently validated findings**
+
+- Isolate evidence and quotation failures per check. Keep the rejected check's
+  definition and validator reason, with no trial outcomes or success claim.
+  Do not erase an independently supported After miss because another check failed.
+- Keep global integrity strict: missing, duplicate, foreign or rewritten check
+  definitions still reject the whole assessment. Never repair a model quotation.
+- Freeze required-source descriptor groups from the preparation inventory, before
+  seeing trial outcomes. Source-consistency judgments need cited readable returns
+  matching every required group; a PR description is not an implementation diff.
+  Descriptor matching is a provenance condition, not proof of semantic agreement.
+- Prioritize required sources within existing capture budgets and admit captured
+  unambiguous API GET returns. Preserve privacy exclusions and omission reasons.
+  More available evidence in a new collector does not change an old model outcome.
+- Verify partial, all-rejected and fully supported states through the production
+  validator and renderer. Rejected and uncertain checks remain distinct, and neither
+  becomes an all-pass result. Retain original raw responses and evidence for replay.
 
 ### Step-by-step implementation protocol
 

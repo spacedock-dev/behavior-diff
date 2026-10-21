@@ -8,7 +8,11 @@ from reporting.attention import AttentionFindingData
 from reporting.illustrations import illustration
 from reporting.instruction import parse_diff_hunks
 from reporting.schema import ReportData
-from reporting.summary import question_distribution, question_distribution_changed
+from reporting.summary import (
+    GATE_NOTE,
+    question_distribution,
+    question_distribution_changed,
+)
 from reporting.target import (
     UNAVAILABLE,
     acceptance,
@@ -52,19 +56,24 @@ def _header_meta(report) -> str:
     if source is None:
         ci_context = report.metadata.ci_context
         if ci_context is None:
-            return meta_html
+            return f'<div class="report-meta-strip">{meta_html}</div>'
         # CI run context has no commit pair; keep the ordinary Before/After labels.
-        return f'<div class="source-line">{_source_rows(ci_header_links(ci_context))}</div>{meta_html}'
+        return (
+            '<div class="report-meta-strip">'
+            f'<div class="source-line">{_source_rows(ci_header_links(ci_context))}</div>'
+            f"{meta_html}</div>"
+        )
     rows = _source_rows(header_links(source))
     before, after = commit_links(source)
     metadata = report.metadata
     return (
+        '<div class="report-meta-strip">'
         f'<div class="source-line">{rows}</div>'
         '<p class="revision-pair">'
         f"<span><b>{before.label}</b> {_source_link(before, 'commit')}</span>"
         '<span class="revision-arrow" aria-hidden="true">→</span>'
         f"<span><b>{after.label}</b> {_source_link(after, 'commit')}</span></p>"
-        f"{meta_html}"
+        f"{meta_html}</div>"
         '<details class="local-paths"><summary>Local comparison files</summary><dl>'
         f"<dt>Before</dt><dd>{html.escape(metadata.before_label)}</dd>"
         f"<dt>After</dt><dd>{html.escape(metadata.after_label)}</dd></dl></details>"
@@ -122,6 +131,8 @@ def _trial_group(index, before, after, self_reported: bool, mode: str, summary) 
                 f'<span class="badge {escaped(trial.verdict.lower())}">'
                 f"{escaped(trial.verdict)}</span></p>"
             )
+            if trial.verdict == "BLOCKED" and trial.outcome:
+                header += f'<p class="note">{escaped(trial.outcome)}</p>'
             answer = (
                 f"<pre>{escaped(trial.final)}</pre>"
                 if trial.final.strip()
@@ -859,8 +870,24 @@ def _target_summary(report, target):
 def _target_explanation(report):
     target = report.decisions.target_assessment
     parts = ['<section class="target-evidence"><h3>What we checked</h3>']
+    expected = content.expected_checks(report)
+    if expected is not None:
+        parts.append(
+            f'<p class="note expected-checks-note"><strong>{html.escape(expected.label)}.</strong> '
+            f"{version_name_html(expected.note)}</p>"
+        )
     if target is None:
         parts.append(f"<p>{html.escape(UNAVAILABLE)}</p>")
+        unassessed = html.escape(content.FROZEN_UNASSESSED)
+        for number, check in enumerate(expected.unassessed if expected else (), 1):
+            parts.append(
+                f'<h4 id="{content.target_criterion_anchor(number)}" tabindex="-1">'
+                f"{html.escape(check.text)}</h4>"
+                f"<p>{version_name_html('Before')}: {unassessed} · "
+                f"{version_name_html('After')}: {unassessed}</p>"
+                f"<p>{version_name_html(check.required_evidence)}</p>"
+                f"<p>Goal {check.goal} · {html.escape(check.mode)}</p>"
+            )
     else:
         parts.append(_target_summary(report, target))
         sources = {entry.id: entry for entry in report.decisions.recorded_evidence}
@@ -871,6 +898,16 @@ def _target_explanation(report):
                 f"<p>{version_name_html('Before')}: {_target_side(report, criterion, 'before')} · "
                 f"{version_name_html('After')}: {_target_side(report, criterion, 'after')}</p>"
                 f"<p>{version_name_html(criterion.required_evidence)}</p>"
+            )
+            if criterion.rejection is not None:
+                parts.append(
+                    f"<p>Goal {criterion.goal} · {html.escape(criterion.mode)}</p>"
+                    '<p class="criterion-rejection"><strong>'
+                    f"{version_name_html(content.criterion_rejection_text(criterion))}"
+                    "</strong></p>"
+                )
+                continue
+            parts.append(
                 '<details class="criterion-trials"><summary>Trial-by-trial reasoning and sources</summary>'
                 f"<p>Goal {criterion.goal} · {html.escape(criterion.mode)}</p>"
                 f"<p>{version_name_html(acceptance(criterion))}</p>"
@@ -922,6 +959,21 @@ def _target_explanation(report):
     return "".join(parts)
 
 
+def _explanation_conclusion(report) -> str:
+    qualification = content.summary_qualification(report)
+    return (
+        '<p class="explanation-conclusion"><strong>'
+        f"{html.escape(content.EXPLANATION_CONCLUSION_LABEL)}</strong> "
+        f"{html.escape(report.summary.headline)} "
+        '<a href="#panel-summary">Summary</a></p>'
+        + (
+            f'<p class="explanation-qualification">{html.escape(qualification)}</p>'
+            if qualification
+            else ""
+        )
+    )
+
+
 def _change_explanation(report: ReportData) -> str:
     explanation = report.decisions.explanation
     navigation = (
@@ -940,15 +992,20 @@ def _change_explanation(report: ReportData) -> str:
         )
         return (
             "<h2>Understand the change</h2>"
+            f"{_explanation_conclusion(report)}"
             '<div class="empty-state"><h3>Change explanation unavailable</h3>'
             f"<p>{html.escape(notice)}</p></div>"
             + _attention_explanation(report)
             + _target_explanation(report)
             + navigation
         )
+    # The Summary owns the conclusion; the model explanation only describes how.
     parts = [
-        '<div class="change-explanation"><p class="explanation-kicker">Understand the change</p>',
-        f'<h2 class="explanation-headline">{html.escape(explanation.headline)}</h2>',
+        '<div class="change-explanation"><h2>Understand the change</h2>',
+        _explanation_conclusion(report),
+        f'<h3 class="explanation-headline"><span class="explanation-kicker">'
+        f"{html.escape(content.EXPLANATION_MODEL_LABEL)}</span> "
+        f"{html.escape(explanation.headline)}</h3>",
         f'<p class="explanation-overview">{version_name_html(explanation.overview)}</p>',
         f'<p class="note">{html.escape(content.INTERPRETATION_NOTE)}</p>',
         '<ol class="explanation-steps" role="list">',
@@ -1025,13 +1082,103 @@ def _summary_claim(label: str, claim, css_class: str) -> str:
     )
 
 
+def _summary_checks(report) -> str:
+    """Validated checks, or frozen checks marked not assessed, with provenance."""
+    expected = content.expected_checks(report)
+    if expected is None:
+        return ""
+    rows = "".join(
+        f'<tr class="summary-check" data-state="{html.escape(check.state)}">'
+        f'<td><a href="#{content.target_criterion_anchor(check.criterion)}">'
+        f"{html.escape(check.text)}</a></td>"
+        f"<td>{html.escape(check.before)}</td><td>{html.escape(check.after)}</td>"
+        f"<td>{version_name_html(check.meaning)}</td>"
+        f'<td class="summary-check-scope">{version_name_html(check.scope)}</td></tr>'
+        for check in report.summary.checks
+    )
+    unassessed = html.escape(content.FROZEN_UNASSESSED)
+    rows += "".join(
+        '<tr class="summary-check" data-state="unassessed">'
+        f'<td><a href="#{content.target_criterion_anchor(number)}">'
+        f"{html.escape(check.text)}</a></td>"
+        f"<td>{unassessed}</td><td>{unassessed}</td>"
+        f"<td>{html.escape(content.FROZEN_UNASSESSED_MEANING)}</td>"
+        '<td class="summary-check-scope">'
+        f"{version_name_html(content.required_evidence_text(check))}</td></tr>"
+        for number, check in enumerate(expected.unassessed, 1)
+    )
+    return (
+        f'<div class="expected-checks" data-provenance="{html.escape(expected.provenance)}">'
+        f'<p class="expected-checks-label"><strong>{html.escape(expected.label)}</strong></p>'
+        f'<p class="note expected-checks-note">{version_name_html(expected.note)}</p>'
+        '<div class="summary-checks-wrap"><table class="summary-checks">'
+        '<thead><tr><th scope="col">Expected</th><th scope="col">Before</th>'
+        '<th scope="col">After</th><th scope="col">What this means</th>'
+        f'<th scope="col">{html.escape(content.SUMMARY_SCOPE_HEADING)}</th></tr></thead>'
+        f"<tbody>{rows}</tbody></table></div></div>"
+    )
+
+
+def _summary_step(number: int, css_class: str, heading: str, body: str) -> str:
+    return (
+        f'<li class="story-step {css_class}"><span class="story-number" aria-hidden="true">'
+        f'{number}</span><div class="story-body"><h3>{html.escape(heading)}</h3>'
+        f"{body}</div></li>"
+    )
+
+
+def _summary_change(report) -> str:
+    change = content.summary_change(report)
+    if change is None:
+        return f'<p class="summary-change-scope">{html.escape(report.summary.evidence_label)}</p>'
+    sides = "".join(
+        f"<li><strong>{label}:</strong> {html.escape(text)}</li>"
+        for label, text in change.sides
+    )
+    note = (
+        f'<p class="note summary-change-note">{html.escape(change.note)}</p>'
+        if change.note
+        else ""
+    )
+    others = (
+        '<p class="summary-other-changes">'
+        f"<strong>{html.escape(content.SUMMARY_OTHER_CHANGES_LABEL)}:</strong> "
+        f"{html.escape(', '.join(change.others))} "
+        '<a href="#panel-decision">Behavior diff <span aria-hidden="true">→</span></a></p>'
+        if change.others
+        else ""
+    )
+    return (
+        f'<p class="summary-change-scope">{html.escape(change.scope)}</p>'
+        f'<ul class="summary-change-sides">{sides}</ul>{note}{others}'
+    )
+
+
+def _summary_open(report) -> str:
+    items = content.summary_open_items(report)
+    if not items:
+        return ""
+    rows = "".join(
+        f'<li data-kind="{html.escape(item.kind)}">'
+        f'<span class="summary-open-tag">{html.escape(item.label)}</span> '
+        + (
+            f'<a href="#{content.target_criterion_anchor(item.criterion)}">'
+            f"{html.escape(item.text)}</a>"
+            if item.criterion is not None
+            else html.escape(item.text)
+        )
+        + "</li>"
+        for item in items
+    )
+    return (
+        f'<div class="summary-open"><h4>{html.escape(content.SUMMARY_OPEN_LABEL)}</h4>'
+        f'<ul class="summary-open-list">{rows}</ul></div>'
+    )
+
+
 def _short_story_summary(report: ReportData) -> str:
     summary = report.summary
     intent = content.summary_intent(report)
-    intent_links = (
-        '<a href="#instruction-diff">Instruction changes '
-        '<span aria-hidden="true">→</span></a>'
-    )
     case_context = (
         _summary_claim(
             content.SUMMARY_CONTEXT_LABEL, summary.context, "summary-case-context"
@@ -1050,16 +1197,7 @@ def _short_story_summary(report: ReportData) -> str:
         if summary.caution
         else ""
     )
-    lead_link = (
-        '<a class="summary-evidence-button" href="#panel-explanation">'
-        'Understand the change <span aria-hidden="true">→</span></a>'
-    )
     notices = "".join(f"<li>{version_name_html(note)}</li>" for note in summary.notices)
-    scenario = (
-        f'<p class="summary-context">{version_name_html(summary.scenario)}</p>'
-        if summary.scenario
-        else ""
-    )
     # Label only a model summary; recorded goals and supplied text stay exact.
     intent_text = (
         version_name_html(intent.text)
@@ -1067,40 +1205,141 @@ def _short_story_summary(report: ReportData) -> str:
         and report.decisions.purpose_summary is not None
         else html.escape(intent.text)
     )
+    task = report.content.task
+    task_html = (
+        f'<p class="summary-task-preview"><strong>{html.escape(content.SUMMARY_TASK_LABEL)}:'
+        f"</strong> {html.escape(content.task_preview(task))}</p>"
+        '<details class="summary-task"><summary>Full task</summary>'
+        f"<pre>{html.escape(task)}</pre></details>"
+        if task
+        else f'<p class="note summary-task">{html.escape(content.SCENARIO_PROMPT_UNAVAILABLE)}</p>'
+    )
+    method_parts = [
+        f'<section class="summary-method-part"><h4>{html.escape(content.SUMMARY_TASK_HEADING)}</h4>'
+        f"{task_html}</section>"
+    ]
+    for heading, lines in content.summary_method_sections(report):
+        items = "".join(f"<li>{version_name_html(line)}</li>" for line in lines)
+        method_parts.append(
+            f'<section class="summary-method-part"><h4>{html.escape(heading)}</h4>'
+            f'<ul class="summary-method-list">{items}</ul></section>'
+        )
+    help_items = "".join(
+        f"<li>{html.escape(line)}</li>" for line in content.SUMMARY_HELP
+    )
+    reading_help = (
+        f'<details class="summary-reading-help"><summary>{html.escape(content.SUMMARY_HELP_LABEL)}'
+        f"</summary><ul>{help_items}</ul></details>"
+    )
+    result_text, diagnostic = content.summary_result(report)
+    diagnostic_html = (
+        '<details class="summary-diagnostics">'
+        f"<summary>{html.escape(content.SUMMARY_DIAGNOSTICS_LABEL)}</summary>"
+        f"<p>{version_name_html(diagnostic)}</p></details>"
+        if diagnostic
+        else ""
+    )
+    result_html = (
+        f'<p class="summary-state" data-state="{html.escape(summary.state)}">'
+        f"{version_name_html(result_text)}</p>"
+        if result_text
+        else ""
+    )
+    groups = content.summary_check_groups(report)
+    digest = (
+        '<div class="summary-check-digest">'
+        f"<h4>{html.escape(content.SUMMARY_DIGEST_HEADING)}</h4><ul>"
+        + "".join(
+            f'<li data-state="{html.escape(state)}"><strong>{html.escape(label)}</strong> '
+            + ", ".join(
+                f'<a href="#{content.target_criterion_anchor(number)}">Check {number}</a>'
+                for number in numbers
+            )
+            + "</li>"
+            for state, label, numbers in groups
+        )
+        + "</ul></div>"
+        if groups
+        else ""
+    )
+    qualification_text = content.summary_qualification(report)
+    qualification = (
+        f'<p class="summary-qualification">{html.escape(qualification_text)}</p>'
+        if qualification_text
+        else ""
+    )
+    steps = (
+        _summary_step(
+            1,
+            "story-finding",
+            content.SUMMARY_FINDING_HEADING,
+            f"{result_html}"
+            '<div class="summary-expect-observe"><div class="summary-expected">'
+            f'<p class="summary-panel-label">{html.escape(content.SUMMARY_AIM_LABEL)}</p>'
+            '<div class="intent-heading">'
+            f'<span class="intent-source">{html.escape(intent.badge)}</span>'
+            f"{_info('intent-info', intent.label, f'<p>{html.escape(intent.note)}</p>')}"
+            '<nav class="intent-evidence" aria-label="Instruction aim evidence">'
+            '<a href="#instruction-diff">Instruction changes '
+            '<span aria-hidden="true">→</span></a></nav></div>'
+            f'<p class="story-intent">{intent_text}</p></div>'
+            '<div class="summary-observed">'
+            f'<p class="summary-panel-label">{html.escape(content.SUMMARY_CHANGE_LABEL)}</p>'
+            f"{_summary_change(report)}</div></div>"
+            f"{_summary_open(report)}{diagnostic_html}",
+        ),
+        _summary_step(
+            2,
+            "story-expectation",
+            content.SUMMARY_EXPECTATION_HEADING,
+            f'<p class="summary-implication"><strong>{html.escape(content.SUMMARY_IMPLICATION_LABEL)}'
+            f"</strong> {html.escape(content.summary_implication(report))}</p>"
+            f"{_summary_checks(report)}",
+        ),
+        _summary_step(
+            3,
+            "story-method",
+            content.SUMMARY_METHOD_HEADING,
+            f'<div class="summary-method-grid">{"".join(method_parts)}</div>'
+            '<section class="summary-method-caveats">'
+            f"<h4>{html.escape(content.SUMMARY_CAVEATS_HEADING)}</h4>"
+            f'<ul class="summary-notices">{notices}</ul></section>{reading_help}',
+        ),
+        _summary_step(
+            4,
+            "story-evidence",
+            content.SUMMARY_EVIDENCE_HEADING,
+            f"{digest}{qualification}"
+            '<div class="summary-observations">'
+            f'<p class="summary-provenance">{html.escape(summary.evidence_label)}</p>'
+            '<div class="summary-pair">'
+            f"{_summary_side(report, 'before')}"
+            '<span class="summary-arrow" aria-hidden="true">→</span>'
+            f"{_summary_side(report, 'after')}</div>"
+            f"{_primary_result_context(report)}{meaning}{case_context}{caution}"
+            '<div class="summary-attention story-attention">'
+            f"<h3>{html.escape(content.SUMMARY_ATTENTION_HEADING)}</h3>"
+            f"{_attention_summary(report)}</div></div>"
+            '<nav class="evidence-nav" aria-label="Summary evidence">'
+            '<a class="summary-evidence-button" href="#panel-explanation">'
+            'Understand the change <span aria-hidden="true">→</span></a>'
+            '<a href="#panel-decision">Behavior diff <span aria-hidden="true">→</span></a>'
+            '<a href="#panel-trials">Trial evidence <span aria-hidden="true">→</span></a></nav>',
+        ),
+        _summary_step(
+            5,
+            "story-next",
+            content.SUMMARY_NEXT_HEADING,
+            f'<p class="summary-next-action">{version_name_html(summary.next_action)}</p>'
+            f'<p class="note summary-gate-note">{html.escape(GATE_NOTE)}</p>',
+        ),
+    )
     return (
         '<div class="short-story-summary">'
-        f'<h2 class="summary-headline">{html.escape(summary.headline)}</h2>'
-        '<ol class="story-steps" role="list">'
-        '<li class="story-step"><span class="story-number" aria-hidden="true">1</span>'
-        '<div class="story-body"><div class="intent-heading">'
-        f"<h3>{html.escape(content.SUMMARY_PURPOSE_HEADING)}</h3>"
-        f'<span class="intent-source">{html.escape(intent.badge)}</span>'
-        f"{_info('intent-info', intent.label, f'<p>{html.escape(intent.note)}</p>')}"
-        f'<nav class="intent-evidence" aria-label="Instruction aim evidence">{intent_links}</nav>'
-        "</div>"
-        f'<p class="story-intent">{intent_text}</p>'
-        f"{case_context}"
-        "</div></li>"
-        '<li class="story-step"><span class="story-number" aria-hidden="true">2</span>'
-        f'<div class="story-body"><h3>{html.escape(content.SUMMARY_EVIDENCE_HEADING)}</h3>'
-        f"{scenario}"
-        f'<p class="summary-provenance">{html.escape(summary.evidence_label)}</p>'
-        '<div class="summary-pair">'
-        f"{_summary_side(report, 'before')}"
-        '<span class="summary-arrow" aria-hidden="true">→</span>'
-        f"{_summary_side(report, 'after')}</div>"
-        f"{_primary_result_context(report)}{meaning}"
-        '<nav class="evidence-nav" aria-label="Summary evidence">'
-        f"{lead_link}</nav>"
-        "</div></li>"
-        '<li class="story-step story-attention"><span class="story-number" aria-hidden="true">3</span>'
-        f'<div class="story-body"><h3>{html.escape(content.SUMMARY_ATTENTION_HEADING)}</h3>'
-        f"{_attention_summary(report)}"
-        "</div></li>"
-        '<li class="story-step story-limits"><span class="story-number" aria-hidden="true">4</span>'
-        f'<div class="story-body"><h3>{html.escape(content.SUMMARY_LIMITS_HEADING)}</h3>'
-        f'{caution}<ul class="summary-notices">{notices}</ul>'
-        "</div></li></ol></div>"
+        f'<p class="summary-status" data-state="{html.escape(summary.state)}">'
+        f"{html.escape(content.summary_status(report))}</p>"
+        f'<h2 class="summary-headline">{html.escape(content.summary_heading(report))}</h2>'
+        f'<ol class="story-steps" role="list">{"".join(steps)}</ol></div>'
     )
 
 

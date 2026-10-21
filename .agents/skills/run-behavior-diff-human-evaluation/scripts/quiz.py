@@ -464,25 +464,11 @@ def _claim_shape(claim):
     _shape(claim, [("strong", None), ("p", None)])
 
 
-def _intent_case_context(body, source_intents):
-    """Reject case context that repeats displayed or full-detail source intent."""
-    children = _children(body)
-    if (
-        len(children) not in (2, 3)
-        or children[0].tag != "div"
-        or not children[0].has_class("intent-heading")
-        or children[1].tag != "p"
-        or not children[1].has_class("story-intent")
-    ):
-        raise ValueError("Unknown intended-change step.")
-    if len(children) == 2:
-        return None
-    context = children[2]
-    if context.tag != "div" or not context.has_class("summary-case-context"):
-        raise ValueError("Unknown intended-change step.")
+def _case_context(context, source_intents):
+    """Reject observed context that repeats a displayed source goal."""
     _claim_shape(context)
     shown = " ".join(_plain(context).split())
-    for intent in (children[1], *source_intents):
+    for intent in source_intents:
         text = " ".join(_plain(intent).split())
         if intent.has_class("edit-aim"):
             for prefix in ("Supplied expectation: ", "Likely aim: "):
@@ -491,7 +477,6 @@ def _intent_case_context(body, source_intents):
                     break
         if text and text in shown:
             raise ValueError("Case context repeats the intended change.")
-    return context
 
 
 def _blinded_report(source):
@@ -532,6 +517,11 @@ def _blinded_report(source):
         raise ValueError("Unknown Summary disclosure order.")
     _shape(details[1], [("summary", None), ("ul", "evidence-limits")])
     story_children = _children(story)
+    # A leading status badge states the verdict; it is validated, never projected.
+    if story_children and story_children[0].has_class("summary-status"):
+        if story_children[0].tag != "p":
+            raise ValueError("Unknown summary status.")
+        story_children = story_children[1:]
     if (
         len(story_children) != 2
         or story_children[0].tag != "h2"
@@ -541,44 +531,47 @@ def _blinded_report(source):
     ):
         raise ValueError("Unknown summary story structure.")
     steps = _children(story_children[1])
-    if (
-        len(steps) != 4
-        or any(node.tag != "li" or not node.has_class("story-step") for node in steps)
-        or not steps[2].has_class("story-attention")
-        or not steps[3].has_class("story-limits")
+    names = ("finding", "expectation", "method", "evidence", "next")
+    if len(steps) != len(names) or any(
+        step.tag != "li"
+        or not step.has_class("story-step")
+        or not step.has_class(f"story-{name}")
+        for step, name in zip(steps, names)
     ):
         raise ValueError("Unknown story steps.")
     bodies = [
         _shape(step, [("span", "story-number"), ("div", "story-body")])[1]
         for step in steps
     ]
-    source_intents = [
-        node
-        for node in nodes
-        if node.has_class("purpose-goal-text") or node.has_class("edit-aim")
-    ]
-    case_context = _intent_case_context(bodies[0], source_intents)
+    # Check digest and qualification summarize the assessment; drop them but
+    # accept only these exact optional siblings before the observations.
     evidence_shape = [("h3", None)]
-    if any(node.has_class("summary-context") for node in _children(bodies[1])):
-        evidence_shape.append(("p", "summary-context"))
-    evidence_shape.extend([("p", "summary-provenance"), ("div", "summary-pair")])
-    if any(node.has_class("primary-result-context") for node in _children(bodies[1])):
-        evidence_shape.append(("section", "primary-result-context"))
-    if any(
-        node.has_class("summary-interpretation-unavailable")
-        for node in _children(bodies[1])
+    for tag, optional in (
+        ("div", "summary-check-digest"),
+        ("p", "summary-qualification"),
     ):
-        evidence_shape.append(("p", "summary-interpretation-unavailable"))
-    else:
-        evidence_shape.append(("div", "summary-why"))
-    evidence_shape.append(("nav", "evidence-nav"))
-    evidence_body = _shape(bodies[1], evidence_shape)
-    if _plain(evidence_body[0]) != "What the evidence shows":
-        raise ValueError("Unknown evidence heading.")
-    pair = _single(
-        [node for node in evidence_body if node.has_class("summary-pair")],
-        "summary pair",
+        if any(node.has_class(optional) for node in _children(bodies[3])):
+            evidence_shape.append((tag, optional))
+    evidence_shape.extend([("div", "summary-observations"), ("nav", "evidence-nav")])
+    evidence_parts = _shape(bodies[3], evidence_shape)
+    evidence_heading, observations = evidence_parts[0], evidence_parts[-2]
+    children = _children(observations)
+    shape = [("p", "summary-provenance"), ("div", "summary-pair")]
+    if any(node.has_class("primary-result-context") for node in children):
+        shape.append(("section", "primary-result-context"))
+    shape.append(
+        ("p", "summary-interpretation-unavailable")
+        if any(
+            node.has_class("summary-interpretation-unavailable") for node in children
+        )
+        else ("div", "summary-why")
     )
+    for optional in ("summary-case-context", "summary-caution"):
+        if any(node.has_class(optional) for node in children):
+            shape.append(("div", optional))
+    shape.append(("div", "summary-attention"))
+    _shape(observations, shape)
+    pair = children[1]
     cards = _shape(
         pair,
         [
@@ -588,9 +581,9 @@ def _blinded_report(source):
         ],
     )
     for card in (cards[0], cards[2]):
-        children = _children(card)
-        start = bool(len(children) > 1 and children[1].has_class("summary-start"))
-        empty = bool(children and children[-1].has_class("summary-empty"))
+        parts = _children(card)
+        start = bool(len(parts) > 1 and parts[1].has_class("summary-start"))
+        empty = bool(parts and parts[-1].has_class("summary-empty"))
         card_shape = [("h4", "summary-side-label")]
         if start:
             card_shape.append(("div", "summary-start"))
@@ -603,28 +596,52 @@ def _blinded_report(source):
         _shape(card, card_shape)
         if start:
             start_shape = [("p", "summary-start-text"), ("p", "summary-start-source")]
-            if len(_children(children[1])) == 3:
+            if len(_children(parts[1])) == 3:
                 start_shape.append(("span", "summary-start-arrow"))
-            _shape(children[1], start_shape)
-    if evidence_body[-2].tag == "div":
-        _claim_shape(evidence_body[-2])
-    _attention_shape(bodies[2])
-    limits_shape = [("h3", None)]
-    if any(node.has_class("summary-caution") for node in _children(bodies[3])):
-        limits_shape.append(("div", "summary-caution"))
-    limits_shape.append(("ul", "summary-notices"))
-    limits = _shape(bodies[3], limits_shape)
-    if len(limits) == 3:
-        _claim_shape(limits[1])
-    # Remove the intended change, its source label and every navigation link.
-    # Case context is observation context; the reader sees it beside the evidence.
-    if case_context is not None:
-        evidence = bodies[1].children
-        evidence.insert(evidence.index(evidence_body[0]) + 1, case_context)
+            _shape(parts[1], start_shape)
+    source_intents = [
+        node
+        for node in nodes
+        if any(
+            node.has_class(name)
+            for name in ("purpose-goal-text", "edit-aim", "story-intent")
+        )
+    ]
+    for node in children:
+        if node.has_class("summary-case-context"):
+            _case_context(node, source_intents)
+        elif node.has_class("summary-why") or node.has_class("summary-caution"):
+            _claim_shape(node)
+    _attention_shape(children[-1])
+    # Keep only the bounded observation section. Assessment verdicts, expected
+    # criteria, preparation rationale and next actions can reveal the keyed edit.
     trimmed_story = _Node(
         story.tag,
         story.attrs.items(),
-        [story_children[0], _Node("ol", story_children[1].attrs.items(), steps[1:])],
+        [
+            _Node(
+                "h2",
+                [("class", "summary-headline")],
+                ["Observed Before / After behavior"],
+            ),
+            _Node(
+                "ol",
+                story_children[1].attrs.items(),
+                [
+                    _Node(
+                        "li",
+                        steps[3].attrs.items(),
+                        [
+                            _Node(
+                                "div",
+                                [("class", "story-body")],
+                                [evidence_heading, observations],
+                            )
+                        ],
+                    )
+                ],
+            ),
+        ],
     )
     fragment = "".join(
         _safe_fragment(node) for node in (trimmed_story, direct[1], details[1])
@@ -774,7 +791,7 @@ def build_quiz(session: Path, repo_root: Path) -> None:
         "reports": reports,
         "answer_key_sha256": _hash((session / "answer-key.json").read_bytes()),
         "session_sha256": _hash((session / "session.json").read_bytes()),
-        "summary_method": "saved-html-summary-panel-v3",
+        "summary_method": "saved-html-summary-panel-v4",
     }
     _atomic_file(session / "quiz-build.json", _bytes(receipt))
 

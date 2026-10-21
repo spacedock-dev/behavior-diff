@@ -211,7 +211,7 @@ def parse_attention(raw, rows, positions=None, target=None) -> Optional[Attentio
                 else None
             )
             if criterion is not None and (
-                type(criterion) is not str or assessed is None
+                type(criterion) is not str or assessed is None or assessed.rejection
             ):
                 raise ValueError("unknown attention target criterion")
             if not changed and not (

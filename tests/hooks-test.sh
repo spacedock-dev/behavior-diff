@@ -235,6 +235,56 @@ set -e
 printf '%s' "$out" | grep -qF -- '--purpose-file needs a value' ||
   fail "purpose missing value: missing diagnostic"
 
+progress 'Scenario-file validation before host discovery'
+scenario_bin=$tmp/scenario-bin && mkdir -p "$scenario_bin"
+cat >"$scenario_bin/codex" <<SH
+#!/bin/sh
+touch "$tmp/scenario-discovery-called"
+exit 0
+SH
+chmod +x "$scenario_bin/codex"
+scenario_purpose=$tmp/scenario-purpose.json
+cat >"$scenario_purpose" <<'JSON'
+{"goals":[{"text":"Preserve the synthetic source check.","source":"session","basis":"explicit","reference":"Current conversation: selected edit"},{"text":"Report the synthetic conflicting record.","source":"session","basis":"inferred","reference":"Current conversation: selected edit"}]}
+JSON
+scenario_check='{"id":"source-check","goal":1,"text":"The answer reads the synthetic rules.","mode":"preservation","required_evidence":"A recorded read of the synthetic rules.","evidence_kind":"recorded_action"}'
+scenario_head='"summary":"Synthetic records include one conflicting row.","rationale":"The row makes the checks observable.","conditions":["One synthetic record conflicts with the rules."],"limitations":[],"source_requirements":[]'
+for scenario_case in no-purpose missing malformed unknown-field dropped-goal; do
+  scenario_path=$tmp/$scenario_case-scenario.json
+  purpose_args=(--purpose-file "$scenario_purpose")
+  case "$scenario_case" in
+    no-purpose)
+      printf '{%s,"checks":[%s]}\n' "$scenario_head" "$scenario_check" >"$scenario_path"
+      purpose_args=()
+      ;;
+    malformed) printf '%s\n' 'synthetic-private-sentinel not JSON' >"$scenario_path" ;;
+    unknown-field)
+      printf '{%s,"checks":[%s],"notes":"synthetic-private-sentinel"}\n' \
+        "$scenario_head" "$scenario_check" >"$scenario_path"
+      ;;
+    dropped-goal)
+      printf '{%s,"checks":[%s]}\n' "$scenario_head" "$scenario_check" >"$scenario_path"
+      ;;
+  esac
+  set +e
+  out=$(cd "$plainrun" && PATH="$scenario_bin:$PATH" \
+    BEHAVIOR_DIFF_HOME="$tmp/scenario-invalid-home" "$runner" --agent codex \
+    --file CLAUDE.md --task t "${purpose_args[@]+"${purpose_args[@]}"}" \
+    --scenario-file "$scenario_path" 2>&1)
+  code=$?
+  set -e
+  [ "$code" -eq 2 ] || fail "$scenario_case scenario: exit $code, want 2"
+  printf '%s' "$out" | grep -qF -- '--scenario-file' ||
+    fail "$scenario_case scenario: missing option diagnostic"
+  if printf '%s' "$out" | grep -qF 'synthetic-private-sentinel'; then
+    fail "$scenario_case scenario: diagnostic echoed rejected content"
+  fi
+done
+[ ! -e "$tmp/scenario-discovery-called" ] ||
+  fail "invalid scenario reached host model discovery"
+[ ! -e "$tmp/scenario-invalid-home/runs" ] ||
+  fail "invalid scenario created a run directory"
+
 progress 'Runner baseline resolution and early-stop errors'
 
 # 21. --before-file that does not exist is a plain exit 2
@@ -486,7 +536,7 @@ mkdir -p "$capture_bin"
 cat >"$capture_bin/python3" <<'SH'
 #!/bin/sh
 case "$1" in
-  */purpose.py | */ci_context.py) exec "$REAL_PYTHON" "$@" ;;
+  */purpose.py | */scenario.py | */ci_context.py) exec "$REAL_PYTHON" "$@" ;;
   */progress.py) exit 0 ;;
 esac
 {
@@ -529,10 +579,13 @@ for world in git copy; do
   cat >"$purpose_project/purpose.json" <<'JSON'
 {"goals":[{"text":"Preserve the synthetic source check.","source":"session","basis":"explicit","reference":"Current conversation: selected edit"}]}
 JSON
+  cat >"$purpose_project/scenario.json" <<'JSON'
+{"summary":"Synthetic scenario summary sentinel.","rationale":"Synthetic rationale.","conditions":["Synthetic condition."],"limitations":[],"checks":[{"id":"source-check","goal":1,"text":"The answer reads the synthetic rules.","mode":"preservation","required_evidence":"A recorded read of the synthetic rules.","evidence_kind":"recorded_action"}],"source_requirements":[]}
+JSON
   if [ "$world" = git ]; then
     git -C "$purpose_project" init -q
     git -C "$purpose_project" -c user.email=synthetic@example.invalid \
-      -c user.name=synthetic add AGENTS.md purpose.json
+      -c user.name=synthetic add AGENTS.md purpose.json scenario.json
     git -C "$purpose_project" -c user.email=synthetic@example.invalid \
       -c user.name=synthetic commit -qm baseline
     before_args=()
@@ -549,19 +602,29 @@ JSON
       PI_ARGS_FILE="$tmp/purpose-$world-args" PI_ENV_FILE="$tmp/purpose-$world-env" \
       "$runner" --agent pi --model test/pi-model --file AGENTS.md \
       --task 'Inspect the synthetic project.' --purpose-file purpose.json \
+      --scenario-file scenario.json \
       --fast "${before_args[@]+"${before_args[@]}"}" >/dev/null
   )
   run=$(find "$home/runs" -mindepth 1 -maxdepth 1 -type d)
   jq -e '.purpose.goals[0].text == "Preserve the synthetic source check."' \
     "$run/config.json" >/dev/null || fail "$world purpose missing from config"
+  jq -e '.scenario == "Inspect the synthetic project."
+    and .scenario_record.summary == "Synthetic scenario summary sentinel."
+    and .scenario_record.checks[0].id == "source-check"' \
+    "$run/config.json" >/dev/null || fail "$world scenario record missing from config"
   grep -qxF 'Inspect the synthetic project.' "$run/task.md" ||
     fail "$world purpose contaminated task"
   for side in before after; do
     [ ! -e "$run/$side-1/project/purpose.json" ] ||
       fail "$world purpose copied into $side project"
+    [ ! -e "$run/$side-1/project/scenario.json" ] ||
+      fail "$world scenario record copied into $side project"
   done
   if grep -qF 'Preserve the synthetic source check' "$tmp/purpose-$world-args"; then
     fail "$world purpose leaked into trial arguments"
+  fi
+  if grep -qF 'Synthetic scenario summary sentinel' "$tmp/purpose-$world-args" "$run/task.md"; then
+    fail "$world scenario record leaked into trial inputs"
   fi
 done
 
@@ -580,6 +643,9 @@ JSON
 cat >"$nested_repo/nested/purpose.json" <<'JSON'
 {"goals":[{"text":"Nested goal must be frozen.","source":"session","basis":"explicit","reference":"Synthetic nested context"}]}
 JSON
+cat >"$nested_repo/nested/scenario.json" <<'JSON'
+{"summary":"Nested scenario must be frozen.","rationale":"Synthetic rationale.","conditions":["Synthetic condition."],"limitations":[],"checks":[{"id":"nested-check","goal":1,"text":"The answer reads the synthetic rule.","mode":"new","required_evidence":"The final answer names the synthetic rule.","evidence_kind":"output"}],"source_requirements":[]}
+JSON
 git -C "$nested_repo" add AGENTS.md purpose.json nested
 git -C "$nested_repo" commit -qm baseline
 cp "$nested_repo/AGENTS.md" "$tmp/nested-original.md"
@@ -591,16 +657,20 @@ home=$tmp/nested-purpose-home
     PI_ARGS_FILE="$tmp/nested-purpose-args" PI_ENV_FILE="$tmp/nested-purpose-env" \
     "$front_door" rule.md --into AGENTS.md --agent pi --model test/pi-model \
     --task 'Inspect the synthetic project.' --purpose-file ./purpose.json \
-    --fast >"$tmp/nested-purpose-output"
+    --scenario-file ./scenario.json --fast >"$tmp/nested-purpose-output"
 )
 run=$(find "$home/runs" -mindepth 1 -maxdepth 1 -type d)
 jq -e '.purpose.goals[0].text == "Nested goal must be frozen."' \
   "$run/config.json" >/dev/null || fail "front door froze root purpose instead of nested purpose"
+jq -e '.scenario_record.summary == "Nested scenario must be frozen."' \
+  "$run/config.json" >/dev/null || fail "front door lost the nested scenario record"
 cmp -s "$tmp/nested-original.md" "$nested_repo/AGENTS.md" ||
   fail "front door did not restore instructions"
 for side in before after; do
   [ ! -e "$run/$side-1/project/nested/purpose.json" ] ||
     fail "front door exposed supplied nested purpose in $side project"
+  [ ! -e "$run/$side-1/project/nested/scenario.json" ] ||
+    fail "front door exposed supplied nested scenario in $side project"
   [ -f "$run/$side-1/project/purpose.json" ] ||
     fail "front door removed the unrelated root purpose"
 done
@@ -663,6 +733,9 @@ cmp -s "$tmp/external-original" "$external/purpose.json" ||
 if find "$home/runs" -name trace.jsonl | grep -q .; then
   fail "unsafe purpose project produced a launched trial"
 fi
+
+progress 'Scenario record contract'
+python3 "$here/scenario-contract-test.py"
 
 progress 'Bounded recorded assessment evidence'
 python3 "$here/recorded-evidence-test.py"

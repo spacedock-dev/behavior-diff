@@ -9,26 +9,81 @@ import re
 import shlex
 from pathlib import Path
 
+from reporting.sources import (
+    DESCRIPTOR_TRUNCATED,
+    SENSITIVE_SOURCE,
+    sensitive_text,
+    source_matches,
+)
+
 EXCERPT_LIMIT = 4096
 TRIAL_LIMIT = 16384
 RUN_LIMIT = 131072
 RECORD_LIMIT = 128
 SOURCE_LIMIT = 240
-
-_SENSITIVE = re.compile(
-    r"(?i)(?:\b(?:api[_ -]?key|access[_ -]?token|password|passwd|client[_ -]?secret)"
-    r"(?:\\?[\"'])?\s*[:=]\s*\S+|\bbearer\s+\S+|-----BEGIN [^-]*PRIVATE KEY-----|"
-    r"\b(?:sk-[A-Za-z0-9_-]{12,}|gh[pousr]_[A-Za-z0-9]{12,}|AKIA[A-Z0-9]{16})\b|"
-    r"[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,})"
+SELF_REPORTED = "self-reported action, not a captured return"
+DUPLICATE_CALL = "duplicate tool call identity"
+DUPLICATE_RESULT = "duplicate tool result identity"
+# A tool record proves its call ran only when the call itself was captured once.
+UNPROVEN_CALL_REASONS = (SELF_REPORTED, DUPLICATE_CALL, DUPLICATE_RESULT)
+_ORDER = (
+    "lexical trial order with a reserved share for each remaining trial; "
+    "leading returned characters"
 )
-_PRIVATE_PATH = re.compile(
-    r"(?i)(?:^|[:/\\\s\"'])(?:\.env(?:\.[^/\\\s]*)?|\.ssh|\.aws|\.gnupg|"
-    r"credentials(?:\.[^/\\\s]*)?|secrets?(?:\.[^/\\\s]*)?|auth\.json|"
-    r"id_rsa|id_ed25519)(?:$|[/\\\s\"':])"
+_SELECTION = "fair-share character budget across readable returns; " + _ORDER
+_REQUIRED_SELECTION = (
+    "readable returns matching frozen source requirements fair-share each trial "
+    "budget first, then other readable returns fair-share the remainder; " + _ORDER
 )
 _READ_TOOLS = {"read", "read_file", "readfile", "grep", "glob", "find", "ls"}
 _READ_COMMANDS = {"cat", "head", "tail", "grep", "rg", "ls", "wc"}
 _SHELL_WRAPPERS = {"/bin/sh", "/bin/bash", "/bin/zsh"}
+_GH_API_SWITCHES = {"--paginate", "--slurp", "-i", "--include"}
+_GH_API_OPTIONS = {
+    "-X": "--method",
+    "--method": "--method",
+    "-H": "--header",
+    "--header": "--header",
+    "-q": "--jq",
+    "--jq": "--jq",
+    "-t": "--template",
+    "--template": "--template",
+    "--cache": "--cache",
+    "--hostname": "--hostname",
+}
+
+
+def _read_only_api(words):
+    """Admit `gh api` only as one unambiguous GET without request-body input."""
+    endpoints = []
+    index = 0
+    while index < len(words):
+        word = words[index]
+        index += 1
+        if word in _GH_API_SWITCHES:
+            continue
+        name, value = word, None
+        if word.startswith("--") and "=" in word:
+            name, value = word.split("=", 1)
+        elif word[:2] in {"-X", "-H", "-q", "-t"} and len(word) > 2:
+            name, value = word[:2], word[2:]
+        option = _GH_API_OPTIONS.get(name)
+        if option:
+            if value is None:
+                if index == len(words):
+                    return False
+                value = words[index]
+                index += 1
+            if option == "--method" and value != "GET":
+                return False
+            if option == "--header" and not re.fullmatch(r"(?i)accept:.*", value):
+                return False
+        elif word.startswith("-"):
+            # Fields, raw fields, --input, and unknown flags may send a body.
+            return False
+        else:
+            endpoints.append(word)
+    return len(endpoints) == 1 and endpoints[0] != "graphql"
 
 
 def _eligible_command(command):
@@ -49,6 +104,11 @@ def _eligible_command(command):
         or len(words) > 1
         and words[0] == "git"
         and words[1] in {"show", "diff", "log"}
+        or len(words) > 2
+        and words[:2] == ["gh", "pr"]
+        and words[2] in {"view", "diff"}
+        or words[:2] == ["gh", "api"]
+        and _read_only_api(words[2:])
     )
 
 
@@ -57,15 +117,15 @@ def _descriptor(part):
     args = part.get("input")
     args = args if type(args) is dict else {}
     descriptor = str(tool) + " " + json.dumps(args, ensure_ascii=False, sort_keys=True)
-    if _SENSITIVE.search(descriptor) or _PRIVATE_PATH.search(descriptor):
-        return "[sensitive source omitted]", False, "sensitive source"
+    if sensitive_text(descriptor):
+        return SENSITIVE_SOURCE, False, "sensitive source"
     name = str(tool).lower().rsplit("__", 1)[-1]
     eligible = name in _READ_TOOLS
-    if name in {"bash", "shell", "exec_command"}:
+    if name in {"bash", "shell", "exec", "exec_command"}:
         # Codex preserves its raw wrapper alongside the command-flow display field.
         eligible = _eligible_command(args.get("raw_command", args.get("command", "")))
     if len(descriptor) > SOURCE_LIMIT:
-        descriptor = descriptor[: SOURCE_LIMIT - 24] + " [descriptor truncated]"
+        descriptor = descriptor[: SOURCE_LIMIT - 24] + DESCRIPTOR_TRUNCATED
     return descriptor, eligible, "not an eligible recorded read"
 
 
@@ -83,7 +143,36 @@ def _text_parts(value):
     return []
 
 
-def _trial_evidence(path, name, remaining, self_reported=False):
+def _share(records, budget):
+    """Fair-share `budget` over records' leading text; return characters kept."""
+    low, high = 0, EXCERPT_LIMIT
+    while low < high:
+        cap = (low + high + 1) // 2
+        if sum(min(len(record["text"]), cap) for record in records) <= budget:
+            low = cap
+        else:
+            high = cap - 1
+    spare = budget - sum(min(len(record["text"]), low) for record in records)
+    used = 0
+    for record in records:
+        length = min(len(record["text"]), low)
+        if spare and length < len(record["text"]):
+            length += 1
+            spare -= 1
+        if length < len(record["text"]):
+            record.update(
+                text=record["text"][:length],
+                status="truncated" if length else "omitted",
+                reason="fair-share assessment truncation"
+                if length
+                else "assessment content budget exhausted",
+            )
+            record["range"]["end"] = length
+        used += length
+    return used
+
+
+def _trial_evidence(path, name, remaining, self_reported=False, required=()):
     records = []
     pending = {}
     used = 0
@@ -135,7 +224,7 @@ def _trial_evidence(path, name, remaining, self_reported=False):
                     ):
                         record.update(
                             status="omitted",
-                            reason="self-reported action, not a captured return",
+                            reason=SELF_REPORTED,
                         )
                         eligible = False
                     records.append(record)
@@ -146,12 +235,12 @@ def _trial_evidence(path, name, remaining, self_reported=False):
                             previous.update(
                                 status="unavailable",
                                 text="",
-                                reason="duplicate tool call identity",
+                                reason=DUPLICATE_CALL,
                             )
                             previous["range"]["end"] = 0
                             record.update(
                                 status="unavailable",
-                                reason="duplicate tool call identity",
+                                reason=DUPLICATE_CALL,
                             )
                             pending[call_id] = (record, False)
                         else:
@@ -168,7 +257,7 @@ def _trial_evidence(path, name, remaining, self_reported=False):
                         record.update(
                             status="unavailable",
                             text="",
-                            reason="duplicate tool result identity",
+                            reason=DUPLICATE_RESULT,
                         )
                         record["range"]["end"] = 0
                         continue
@@ -180,10 +269,7 @@ def _trial_evidence(path, name, remaining, self_reported=False):
                     if part.get("is_error"):
                         record.update(reason="recorded tool error")
                         continue
-                    if any(
-                        _SENSITIVE.search(text) or _PRIVATE_PATH.search(text)
-                        for text in texts
-                    ):
+                    if any(sensitive_text(text) for text in texts):
                         record.update(
                             status="omitted",
                             reason="potentially sensitive returned content",
@@ -229,32 +315,41 @@ def _trial_evidence(path, name, remaining, self_reported=False):
                 "reason": f"{overflow} calls exceed the {RECORD_LIMIT}-record trial limit",
             }
         )
-    available = [record for record in records if record["text"]]
+    priority, incidental = [], []
+    for record in records:
+        if record["text"]:
+            matched = source_matches(record["source"], required)
+            (priority if matched else incidental).append(record)
     budget = max(0, min(TRIAL_LIMIT, remaining))
-    low, high = 0, EXCERPT_LIMIT
-    while low < high:
-        cap = (low + high + 1) // 2
-        if sum(min(len(record["text"]), cap) for record in available) <= budget:
-            low = cap
-        else:
-            high = cap - 1
-    spare = budget - sum(min(len(record["text"]), low) for record in available)
-    for record in available:
-        length = min(len(record["text"]), low)
-        if spare and length < len(record["text"]):
-            length += 1
-            spare -= 1
-        if length < len(record["text"]):
-            record.update(
-                text=record["text"][:length],
-                status="truncated" if length else "omitted",
-                reason="fair-share assessment truncation"
-                if length
-                else "assessment content budget exhausted",
-            )
-            record["range"]["end"] = length
-        used += length
+    # Frozen required sources claim the same trial budget before incidental reads.
+    used = _share(priority, budget)
+    used += _share(incidental, budget - used)
     return records, used
+
+
+def _required_patterns(config):
+    """Return frozen source-requirement patterns; historical runs have none."""
+    if type(config) is not dict or config.get("scenario_record") is None:
+        return ()
+    # Scenario validation imports target, which imports this module.
+    from reporting.scenario import parse_scenario
+    from reporting.target import parse_purpose
+
+    try:
+        scenario = parse_scenario(
+            config["scenario_record"], parse_purpose(config.get("purpose"))
+        )
+    except (ValueError, TypeError, KeyError):
+        raise ValueError(
+            "invalid frozen scenario record in run configuration"
+        ) from None
+    return tuple(
+        dict.fromkeys(
+            pattern
+            for requirement in scenario.source_requirements
+            for pattern in requirement.any_of
+        )
+    )
 
 
 def collect_run_evidence(run):
@@ -267,6 +362,7 @@ def collect_run_evidence(run):
     self_reported = (
         type(config) is dict and config.get("trace_source") == "self-reported"
     )
+    required = _required_patterns(config)
     trials = {}
     remaining = RUN_LIMIT
     grades = run / "grades.tsv"
@@ -286,7 +382,9 @@ def collect_run_evidence(run):
         trace = trial / "trace.jsonl"
         # Reserve a share for every remaining trial, including the other variant.
         allowance = remaining // (len(names) - index)
-        records, used = _trial_evidence(trace, trial.name, allowance, self_reported)
+        records, used = _trial_evidence(
+            trace, trial.name, allowance, self_reported, required
+        )
         trials[trial.name] = records
         remaining -= used
     return {
@@ -295,7 +393,7 @@ def collect_run_evidence(run):
             "per_trial_characters": TRIAL_LIMIT,
             "per_run_characters": RUN_LIMIT,
             "per_trial_records": RECORD_LIMIT,
-            "selection": "fair-share character budget across readable returns; lexical trial order with a reserved share for each remaining trial; leading returned characters",
+            "selection": _REQUIRED_SELECTION if required else _SELECTION,
             "privacy": "Known sensitive sources and credential/email patterns are omitted; arbitrary private prose cannot be reliably detected.",
             "provenance": "Ranges are offsets in recorded returned text, not source-file lines. Absence here does not prove the agent lacked information.",
         },

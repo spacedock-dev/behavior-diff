@@ -10,12 +10,39 @@ from attention_contract import _ReportMarkup, _plain
 
 LABEL = '<strong class="version-label">{0}</strong>'
 WRAPPED = re.compile(r'<strong class="version-label">(Before|After)</strong>')
-SUMMARY_LINKS = [
-    ["#instruction-diff"],
-    ["#panel-explanation"],
-    ["#attention-explanation"],
-    [],
-]
+
+
+def _summary_links(report):
+    """Expected per-step links: aim to the diff, open goals and checks to criteria,
+    other differing comparisons and evidence to detail tabs."""
+    from reporting import content
+
+    change = content.summary_change(report)
+    return [
+        ["#instruction-diff"]
+        + (["#panel-decision"] if change is not None and change.others else [])
+        + [
+            f"#target-criterion-{item.criterion}"
+            for item in content.summary_open_items(report)
+            if item.criterion is not None
+        ],
+        [f"#target-criterion-{check.criterion}" for check in report.summary.checks],
+        [],
+        [
+            f"#target-criterion-{number}"
+            for _, _, numbers in content.summary_check_groups(report)
+            for number in numbers
+        ]
+        + [
+            "#attention-explanation",
+            "#panel-explanation",
+            "#panel-decision",
+            "#panel-trials",
+        ],
+        [],
+    ]
+
+
 # {B} and {A} mark the only words that name a compared version.
 VERSION_NAME_CASES = (
     ("Both Before and After trials stop.", "Both {B} and {A} trials stop."),
@@ -285,7 +312,7 @@ def assert_version_labels(reports):
 
 
 def assert_summary_detail_links(reports):
-    """The Summary keeps one detail link per section; detailed views keep evidence."""
+    """Each Summary step links only to its detail; detailed views keep evidence."""
     from reporting import content
     from reporting.render_html import render_artifact
 
@@ -293,13 +320,17 @@ def assert_summary_detail_links(reports):
         markup = _ReportMarkup(render_artifact(report, ""))
         summary = markup.select(anchor="panel-summary")[0]
         steps = markup.select(summary, class_name="story-step")
+        expected = _summary_links(report)
         assert [
             [link["attrs"].get("href") for link in markup.select(step, tag="a")]
             for step in steps
-        ] == SUMMARY_LINKS, name
+        ] == expected, name
         assert {
             link["attrs"].get("href") for link in markup.select(summary, tag="a")
-        } == {href for links in SUMMARY_LINKS for href in links}, name
+        } == {href for links in expected for href in links}, name
+        for links in expected:
+            for href in links:
+                assert markup.select(anchor=href[1:]), (name, href)
         for removed in ("evidence-links", "attention-finding-nav"):
             assert not markup.select(summary, class_name=removed), (name, removed)
         for item in content.attention_items(report):

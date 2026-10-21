@@ -14,8 +14,9 @@ no automatic verdict. The user judges the evidence.
 
 The skill owns judgment. It finds the change, freezes its purpose, prepares
 the scenario, shared data, and private assessment criteria from the change's
-intent, preflights and freezes the inputs, selects the current trial stack and
-model, and explains the evidence against each goal and case.
+intent, writes the reviewed scenario record, preflights and freezes the inputs,
+selects the current trial stack and model, and explains the evidence against
+each goal and case.
 
 The scripts own repeatable mechanics. They stage and verify prepared shared
 data, build variants, run trials, normalize traces, grade completeness, extract
@@ -145,14 +146,15 @@ the single-role or two-agent path. Create the fixtures with
    excerpts, unrelated work, or raw session text. Generalize the behavior, not
    sensitive values. If safe generalization loses the question, use a neutral
    diff-inferred goal or `null`; never silently send sensitive context.
-   Explain before running that the derived purpose and bounded recorded
-   read/search tool returns go to the configured assessment provider and may
-   appear in local reports. A request to compare an edit permits this limited,
-   non-sensitive handoff, not transmission of additional private session data.
-   If the run requires sensitive purpose or source content, stop and obtain
-   specific approval for that content or a safe fixture; normal automatic
-   execution below does not override this boundary. Conservative exclusions
-   are not a guarantee that all secrets or private prose will be detected.
+   Explain before running that the derived purpose, the scenario record, and
+   bounded recorded read/search tool returns go to the configured assessment
+   provider and may appear in local reports. A request to compare an edit
+   permits this limited, non-sensitive handoff, not transmission of additional
+   private session data. If the run requires sensitive purpose, scenario, or
+   source content, stop and obtain specific approval for that content or a safe
+   fixture; normal automatic execution below does not override this boundary.
+   Conservative exclusions are not a guarantee that all secrets or private prose
+   will be detected.
    Freeze the file now; never revise goals after seeing Before/After results.
 
    **Capture source provenance only for a historical comparison.** It applies
@@ -216,6 +218,16 @@ the single-role or two-agent path. Create the fixtures with
      compatible edge cases that challenge the goal's assumptions.
    - Keep per-case criteria, mappings, and omissions in private notes, never
      in the task or trial files.
+   - From those notes, write the sanitized scenario record the reference
+     describes, in the private directory with mode `0600`. Give every goal at
+     least one check, and give each check exactly one evidence kind: split a
+     required code read, the reported output, and its agreement with the read
+     source into separate checks. Bind every agreement check to the source
+     patterns that must ground it, derived before trials from the prepared
+     data and that check, never from trial outcomes; keep these frozen source
+     requirements separate from the check definitions. The raw notes never go
+     to trials or the assessment. Omit the record only when the purpose is
+     `null`.
 
    Do not require an incident, a real past request, or an existing eval from
    the user. Ask only when a material requirement cannot be reached from the
@@ -235,33 +247,37 @@ the single-role or two-agent path. Create the fixtures with
 
    Under Claude Code or Codex, preserve the current stack:
 
-       behavior-diff.sh --agent <current-host> --file <file> --task "<task>" --purpose-file <private-purpose.json>
+       behavior-diff.sh --agent <current-host> --file <file> --task "<task>" --purpose-file <private-purpose.json> --scenario-file <private-scenario.json>
 
    Under upstream Pi, preserve the exact current model:
 
-       behavior-diff.sh --agent pi --model <exact-current-pi-model> --file <file> --task "<task>" --purpose-file <private-purpose.json>
+       behavior-diff.sh --agent pi --model <exact-current-pi-model> --file <file> --task "<task>" --purpose-file <private-purpose.json> --scenario-file <private-scenario.json>
 
    Under OMP, preserve the exact current model:
 
-       behavior-diff.sh --agent omp --model <exact-current-omp-model> --file <file> --task "<task>" --purpose-file <private-purpose.json>
+       behavior-diff.sh --agent omp --model <exact-current-omp-model> --file <file> --task "<task>" --purpose-file <private-purpose.json> --scenario-file <private-scenario.json>
 
    Only add `--fast` when the user explicitly requested it in the current
    request with `fast`, `--fast`, `two runs`, or `one trial per side`:
 
-       behavior-diff.sh --agent <current-host> --file <file> --task "<task>" --purpose-file <private-purpose.json> --fast
+       behavior-diff.sh --agent <current-host> --file <file> --task "<task>" --purpose-file <private-purpose.json> --scenario-file <private-scenario.json> --fast
 
    For Pi or OMP, append `--fast` to its model-pinned command.
-   Pass the frozen JSON only through `--purpose-file`. The runner validates and
-   copies it to report configuration before trials. Never put it in `--task`,
-   a trial prompt, a sandbox file, or other trial inputs. If invoking the runner
-   without this skill and without purpose, assessment uses labeled diff-only
-   inference; there is no implied session context.
+   Pass the frozen purpose only through `--purpose-file` and the frozen
+   scenario record only through `--scenario-file`; drop `--scenario-file` when
+   the purpose is `null`. The runner validates both and copies them to report
+   configuration before trials, and it removes both files from trial copies.
+   Never put either in `--task`, a trial prompt, a sandbox file, or other trial
+   inputs. If invoking the runner without this skill and without purpose,
+   assessment uses labeled diff-only inference; there is no implied session
+   context. Without a scenario record, the assessment writes its own criteria,
+   and the report labels them as such.
 
    For a historical comparison with verified provenance from step 1, append
    `--source-file <private-source.json>` to the command prepared for that
    comparison, including any `--before-file` or `--fast` it already uses:
 
-       behavior-diff.sh --agent <current-host> --file <file> --task "<task>" --purpose-file <private-purpose.json> --source-file <private-source.json>
+       behavior-diff.sh --agent <current-host> --file <file> --task "<task>" --purpose-file <private-purpose.json> --scenario-file <private-scenario.json> --source-file <private-source.json>
 
    The runner validates the source before trials, excludes the file from trial
    copies, and freezes it in report configuration for the report header. It
@@ -274,10 +290,10 @@ the single-role or two-agent path. Create the fixtures with
    `references/scenario-and-test-data.md`, then run the same runner command
    from `$ROOT/project` with `$ROOT/home` as `BEHAVIOR_DIFF_HOME`, exactly
    as that reference shows. Keep the same agent, model, `--fast`, purpose,
-   and source choices. Pass `--before-file` only as the stage's frozen
-   `before` file, and only when it exists; never pass the original Before
-   path. If preparation or verification fails, stop and report the reason;
-   do not launch the run.
+   scenario record, and source choices. Pass `--before-file` only as the
+   stage's frozen `before` file, and only when it exists; never pass the
+   original Before path. If preparation or verification fails, stop and report
+   the reason; do not launch the run.
 
    **Keep the run handle.** Use the host's background-execution facility when
    available so other work can continue. Retain the exact run directory printed

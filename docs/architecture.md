@@ -22,8 +22,8 @@ scripts handle execution, evidence, and reporting.
 | Change intent + preservation -> capabilities/premises   |
 | -> neutral task + ordinary/bounded edge data + private  |
 | case criteria; reuse sufficient project data            |
-| Preflight host environment; freeze task, data, purpose, |
-| source revisions, criteria, and execution settings      |
+| Review scenario, checks and required recorded sources; |
+| freeze task, data, purpose, record, sources + settings   |
 | Shared files or exclusions: prepare_shared.py stages    |
 | and verifies; otherwise runner uses user's project      |
 +----------------------------+----------------------------+
@@ -41,15 +41,15 @@ scripts handle execution, evidence, and reporting.
                              v
 +---------------------------------------------------------+
 | Evidence analysis                                       |
-| decisions.py: purpose + bounded returns + trial answers |
-| Same extraction: context, flow starts, target checks     |
-| reporting/: validate memberships/links; assemble reports |
+| decisions.py: frozen checks + calls/returns + answers    |
+| Validate identities; isolate check evidence failures    |
+| reporting/: derive scoped assessment + linked evidence |
 +----------------------------+----------------------------+
                              v
 +---------------------------------------------------------+
 | Presentation                                            |
-| render.py -> HTML, Markdown, and structured JSON        |
-| Automatic report from saved evidence                    |
+| render.py -> consistent HTML, Markdown, structured JSON |
+| Five-step Summary; detailed tabs retain evidence       |
 +----------------------------+----------------------------+
                              v
 +---------------------------------------------------------+
@@ -74,9 +74,10 @@ Assessment producer ----> assessment-status.json
 Trial execution and decision extraction call models through agent CLIs.
 Report assembly and rendering run locally without model calls.
 
-Purpose travels in run configuration directly to analysis, never in the trial
-task or project copies. Recorded tool returns travel from trials to analysis;
-the collector does not retrieve current source files.
+Purpose and the reviewed scenario record travel in run configuration directly to
+analysis, never in the trial task or project copies. Raw preparation notes remain
+private. Recorded tool calls and returns travel from trials to analysis; the
+collector does not retrieve current source files.
 
 Historical source provenance takes a separate path: the skill verifies the
 original repository, revision pair, and any PR/MR associations, then passes
@@ -202,7 +203,10 @@ The trace contains paired tool actions and recorded returns plus a final answer.
 Claude's stream is retained; Codex command output and Pi/OMP tool results keep
 their call identities during normalization. Raw host logs and stderr remain
 available where captured. After trials finish, `grades.tsv` records `REVIEW`
-for a final answer, otherwise `BLOCKED`: completeness, not correctness.
+for a normalized final answer, otherwise `BLOCKED`. Analysis and report loading
+also inspect saved native status: a nonzero CLI exit, interruption or unfinished
+worker overrides a normalized final answer. Older runs without status retain
+their recorded grading. Completion is not correctness.
 
 Trial and extraction models have separate roles. Claude defaults to Opus for
 trials and Sonnet for extraction. Codex uses Sol and Luna, respectively.
@@ -294,9 +298,13 @@ For example, a tracked instruction edit produces this initial state:
 
 The run keeps `task.md` and `config.json` at its root. Each `before-N/` and
 `after-N/` directory contains `project/`, `trace.jsonl`, and `stderr.log`.
-The configuration records the target path, scenario, Before/After labels, and
-validated `purpose`. `--purpose-file` is frozen before trials and excluded from
-trial copies, including when supplied from within the source project.
+The configuration records the target path, task description, Before/After labels,
+validated `purpose`, and nullable `scenario_record`. `--scenario-file` requires
+purpose and is validated by `scenario.py` / `reporting/scenario.py` before model
+discovery. Both context files are frozen before trials and excluded from trial
+copies, including when supplied from within the source project. The scenario
+record holds a summary, rationale, conditions, limitations and goal-linked checks;
+it cannot contain trial outcomes. Every goal must have a check.
 Uncommitted setup files do not enter Git-based trials. Required task state must
 already exist in the base project, in a deliberately prepared fixture, or in a
 shared-data stage.
@@ -308,8 +316,8 @@ The private helper
 delivers a reviewed data directory to every trial without changing the user's
 checkout or adding runner options. It only delivers and verifies: the skill
 designs the data, and the helper does not generate data, launch models, or infer
-provenance. Its freeze covers the stage, not the private task, purpose, source
-metadata, or tooling; the skill checks those separately before launch.
+provenance. Its freeze covers the stage, not the private task, purpose, scenario
+record, source metadata, or tooling; the skill checks those separately before launch.
 
 ```text
 Project base (Git HEAD or folder copy) --+
@@ -339,7 +347,7 @@ existing runner then builds every trial from the scratch commit, unchanged.
 The helper rejects links, special files, Git internals, submodules, unsafe or
 colliding paths, data that replaces the instruction or an excluded path, and
 inputs over `BEHAVIOR_DIFF_COPY_CAP_KB`. The caller excludes in-project purpose,
-source, and evaluator files with `--exclude`. `prepare` also requires
+scenario, source, and evaluator files with `--exclude`. `prepare` also requires
 `git archive` of the scratch commit to match the expected files. Therefore,
 `.gitattributes` rules such as `export-ignore`, `export-subst`, or filters that
 change archived files fail before launch.
@@ -411,11 +419,13 @@ The modules below live in the skill's [`scripts/`](../plugin/skills/behavior-dif
   saved output or post-edit HTML.
   Before returning the extraction JSON, the extractor refines authored questions,
   labels, explanations, and findings into concrete, case-specific language.
-  Questions name the actual action or claim and its relevant condition or limit;
-  conclusions state what each side did and what cannot be confirmed. This pass
-  is required with or without Humanizer, within the existing extraction call.
-  It preserves criterion scope and polarity, canonical label matches, evidence
-  qualifiers, and exact excerpts; it does not rewrite rendered artifacts.
+  Frozen scenario checks are excluded from this prose refinement: their IDs,
+  goals, wording, modes and evidence requirements must remain exact. For those
+  checks the model supplies only row links and per-trial outcomes. Validation
+  rejects missing, extra or rewritten checks even when every goal still has
+  another criterion. Without a record, criteria are assessor-written after the
+  trials and labeled accordingly. Refinement preserves evidence qualifiers and
+  exact excerpts; it does not rewrite rendered artifacts.
   Discovery reads only `humanizer/SKILL.md` in the invoking repository's skill
   roots, then the user's. Claude checks `.claude/skills` before `.agents/skills`
   at each scope; other extraction hosts use `.agents/skills`. Emitted prompts
@@ -436,13 +446,25 @@ The modules below live in the skill's [`scripts/`](../plugin/skills/behavior-dif
   instruction diff. `reporting/content.py` derives shared wording and evidence
   limits. `reporting/target.py` validates purpose, criteria, exact completed-trial
   membership, trial-local source references, and contiguous final-answer excerpts.
-  A determinate source-consistency judgment requires both a readable recorded
-  return and an output excerpt; unavailable or omitted content cannot supply proof.
-  `reporting/summary.py` leads with valid target assessments, including unchanged
-  or mixed outcomes, instead of ranking incidental changes ahead of the target.
-  Without a valid target assessment, it explicitly says assessment is unavailable
-  and retains underlying comparisons. Task completion remains separate.
-  Incomplete records stay visible in the coverage denominator.
+  Source consistency needs a final-answer excerpt and readable recorded sources
+  matching every frozen `source_requirements` group for that check. Alternatives
+  within a group are OR; groups are AND. Descriptor matching constrains provenance,
+  not semantic truth. A trustworthy captured call can establish that a call was
+  made even when its return was omitted; it cannot establish source agreement.
+  Sensitive, duplicate, self-reported and overflow records do not supply determinate
+  proof. Bad evidence rejects only its check: the definition and validator reason
+  remain, with empty outcome and row-reference arrays. Accepted checks survive.
+  Raw model output cannot author these rejection notes. Missing, duplicate or
+  rewritten definitions still invalidate the whole target; `decisions.target_rejection`
+  is reserved for that global failure. Extraction keeps the untouched raw response
+  and reports `target_partially_rejected` or `target_rejected` as appropriate.
+  With a scenario record, the complete frozen check set is mandatory. The report
+  loader binds it to configuration, not model output; a conflicting persisted
+  record or purpose invalidates the assessment without dropping observations.
+  `reporting/summary.py` derives scoped findings from validated checks and native
+  trial health. It distinguishes unmet requirements, no added benefit, preservation,
+  incomplete baselines and inconclusive outcomes. Incomplete records remain in
+  coverage denominators; rendering does not fill gaps from private audits.
   `reporting/trial_summary.py` validates bounded plain-text trial summaries
   against exact positional record identities; duplicates and invalid entries
   are omitted without losing raw evidence. `reporting/explanation.py` validates
@@ -463,13 +485,14 @@ The modules below live in the skill's [`scripts/`](../plugin/skills/behavior-dif
   unmet outcome on both sides, labeled as a pre-existing target problem.
   Counts come from canonical rows. Malformed bundles become unavailable, never
   an assessed-empty result. No finding quota applies.
-  These modules build schema-v16 `ReportData`, including nullable
+  These modules build schema-v19 `ReportData`, including nullable
   `metadata.source` and `metadata.ci_context`. Older versions are
   rejected; regenerate reports from their saved run evidence with `render.py`.
   Saved decisions without optional context, flow starts, or a purpose summary
   still render, without inventing those explanations.
-  Purpose, bounded evidence, limits, and assessments persist with decisions and
-  report data; rendering does not reread current source files or infer new claims.
+  Purpose, scenario records, bounded evidence, limits, and assessments persist
+  with decisions and report data; rendering does not reread current source files
+  or infer new claims.
   Decision branches also retain validated trial memberships: exact coverage of
   completed trials on each side, matching counts, and no duplicate or foreign
   identities. Legacy aggregate-only branches show unavailable attribution;
@@ -492,16 +515,23 @@ Codex keeps the raw shell wrapper alongside its command-flow display text.
 The collector structurally decodes recognized shell command arguments without
 execution; wrapped simple reads remain eligible, while compound commands,
 redirections, substitutions, and non-read commands remain excluded.
+Recorded `gh pr view`, `gh pr diff` and unambiguous `gh api` GET returns are
+eligible through supported shell/execution adapters, including namespaced `exec`
+tools. API request-body flags, mutating methods, compound commands, errors and
+sensitive content remain excluded. This selects already-recorded text; it never
+invokes `gh` or fetches a source.
 
 Limits are 4,096 Unicode characters per excerpt, 16,384 per trial, 131,072 per
 run, and 128 tool records per trial. Selection uses the saved `grades.tsv`
 inventory (directory fallback only without that inventory) and reserves a share
 of the remaining run budget for every remaining trial in lexical order. Within
-each trial, readable returns share the character budget, redistributing unused
-space from short returns; recorded order breaks one-character remainder ties.
-Each excerpt still takes leading characters. Earlier guide reads cannot exhaust
-the budget before every later source return. This is fair coverage, not a
-relevance ranking: needed facts can still fall outside retained prefixes.
+each trial, readable returns matching frozen source requirements share the budget
+first; incidental reads share the remainder. Within each group, unused space from
+short returns is redistributed, with recorded order breaking one-character ties.
+Without frozen requirements, all readable returns share the budget as before.
+Each excerpt takes leading characters. Required-source priority prevents incidental
+guide reads from shrinking a small required source, but it does not remove bounds:
+required sources can still be truncated when they exceed the budget.
 Overflow, missing returns, tool errors, non-text omissions, and truncation remain
 explicit. Missing assessment content does not prove the agent never received it.
 Questions about what a draft says use output evidence; checking those claims
@@ -528,52 +558,64 @@ semantic truth, causal attribution, or live extractor adherence.
 | `report-data.json` | Structured, versioned report data. |
 | `report-artifact.html` | Embeddable HTML body. |
 
-The default Summary tells a four-part story: what the edit was meant to change,
-what the evidence shows, what needs attention, and what remains unknown.
-With frozen purpose, the aim shows the `purpose_summary` paraphrase, labeled as a
-summary of the recorded goals rather than wording frozen before trials. Without
-one, a single short goal appears exactly; otherwise the aim states the goal count.
-Full goal texts with their source, basis, and reference stay in **Instruction
-changes**, which the aim links to. Supplied expectations and inferred aims
-remain distinct; neither proves goal completion.
-An optional evidence-linked `summary.context` explains the concrete case near
-the aim, such as a description disagreeing with recorded implementation. It
-must describe task evidence, not restate the instruction or invent a conflict.
-`reporting/illustrations.py` supplies fixed SVG shapes for the Before/After
-comparison. Model output supplies text and selectors, never markup.
-The edit illustration uses an original solid open-end wrench with a compact head
-and slim handle, not third-party artwork. Check its silhouette in both card
-palettes when changing its geometry.
-The Summary headline describes supported observed behavior. A target-assessment
-status never replaces it; missing source evidence must not hide observations
-that final answers or recorded actions support. Without a usable narrative,
-the heading introduces the Before/After comparison without inventing a finding.
-One illustrated Before/After pair shows observed behavior with the original
-blue/amber palettes and all branch counts. An optional `start` on each side
-cites one comparison whose single branch covers exactly that side's lead trials.
-Missing, partial, or aggregate-only membership cannot supply a start. Its own
-source qualifier distinguishes recorded commands from answer claims and
-self-reported actions. A downward arrow appears only for a recorded command
-before a final-answer comparison; shared membership does not prove other ordering.
-Invalid optional context or starts are omitted without losing valid comparisons.
-Extraction prefers purpose-relevant observations, including an already-correct
-baseline, over incidental differences. Longer assessment questions and their
-complete outcome distributions live in Understand the change. Changed Yes/No
-proportions are bold; mixed results retain all counts, and unknown is not No.
-The rows label `unassessable` outcomes “Not enough evidence”, scoped to their
-question rather than promoted to the headline. Excluded recorded evidence is not
-the same as evidence never captured. The report does not automatically approve edits.
-The narrative `why` supplies the practical conclusion below the main comparison.
-When purpose is available, extraction connects the observed outcome to that purpose:
-an already-correct baseline, a remaining problem, preservation, or a mixed result.
-It also names when the scenario did not exercise the intended problem or source
-content is insufficient. Additional wording or source reads alone cannot establish
-that the intended fix worked. The conclusion allows up to 480 characters, with
-supporting comparison references; the separate caution remains capped at 240.
-The HTML Summary shows only one detail link per linked story section: Instruction
-changes for the aim, Understand the change for observed behavior, and the attention
-assessment for concerns. Inline comparison and per-finding links stay out of the
-Summary; detailed views retain evidence navigation and stored references.
+The default Summary has five numbered steps in one main reading column:
+finding; expected versus observed behavior; how tested; supporting evidence;
+and next action. A separate validated-result badge precedes a concrete heading
+from the lead extracted comparison's topic and status. An unmet requirement keeps
+the canonical finding prominent; a missing comparison uses that finding as its
+fallback. The comparison heading is not a claim that the change's goal was met.
+The first step pairs the recorded aim with observed choices and counts, then
+identifies unmet, unresolved and uncovered requirements without inventing findings.
+Full checks and original observation detail remain below; technical rejection
+reasons stay in diagnostics rather than dominating the first screen.
+A compact header keeps source/PR links, compared revisions and the model visible
+without a hover. Reading help, complete task, raw setup limits and rejected-check
+diagnostics expand inline. The other five tabs retain their navigation roles.
+
+The assessment conclusion is derived from validated target checks, not narrative prose.
+An unmet After requirement remains unmet when Before made the same mistake.
+All-met checks distinguish an already-correct baseline from an observed improvement;
+an interrupted or uncertain Before cannot prove improvement. Preservation and
+answer-only scope remain explicit. Unknown requirements never become passes,
+and no report automatically approves or blocks a change.
+
+Structured `summary.state`, `meaning`, `checks` and `next_action` carry the same
+conclusion used by HTML and Markdown. Each check retains complete outcome
+distributions, interpretation and evidence scope. **Understand the change**
+repeats that conclusion and labels the original model explanation separately.
+Criterion links open its source excerpts and per-trial evidence.
+
+Frozen purpose remains distinct from observed success. A valid `purpose_summary`
+is a labeled paraphrase; full goals and provenance remain in **Instruction changes**.
+The method section uses the saved task, model, trial inventory and evidence limits.
+When a reviewed scenario record exists, it also shows the setup summary, why the
+data challenges the aim, planned conditions and limitations. Private preparation
+notes are not report inputs. Missing records stay explicitly unrecorded rather
+than being reconstructed from outcomes. Frozen checks remain visible as not
+assessed when assessment is missing or rejected; setup is never proof of success.
+Rejected checks keep their canonical positions, reasons and **Not assessed**
+distributions. They cannot support attention findings or claims about evidence
+that was inspected. Accepted After misses remain primary despite unrelated
+rejections; accepted positives plus rejected checks stay inconclusive.
+
+The evidence section retains Before/After branches, their counts, primary-result
+context, attention findings, and optional model why/context/caution claims.
+`reporting/illustrations.py` supplies fixed SVG shapes; model output never supplies
+markup. Context must describe evidence, not invent a source conflict. Starts
+require complete trial membership; a recorded action before a final answer does
+not establish other causal ordering. Missing source evidence does not erase
+supported observations, but observations alone do not prove a requirement was met.
+The presentation retains the complete observation subtree rather than replacing
+it with an abstract: Before/After cards, counts, primary outcome, model explanation,
+cautions and attention findings. A separate qualification warns that retained
+model interpretations do not override missing, rejected or partial assessments.
+Deterministic check groups make supported results and unresolved coverage visible
+together; no new model call or authored case-specific finding is used to render.
+
+The blind human-evaluation projection retains only this observation section and
+evidence limits. It excludes the assessment-derived headline, expected criteria,
+method and next actions because they can reveal the keyed edit. Its neutral
+heading is not a replacement finding. Source prose and claims remain unchanged.
 In HTML explanatory prose, `reporting/version_names.py` emphasizes clear **Before**
 and **After** version references without changing their text or surrounding font
 size. It leaves ordinary temporal openings and ambiguous references plain.
@@ -581,15 +623,15 @@ Quoted/code spans, identifiers, URLs, recorded outputs, and frozen instruction
 text stay untouched. This is deterministic presentation, not a model judgment;
 Markdown and stored report data remain unchanged. Blinded HTML exports retain
 the safe emphasis while preserving their existing evidence and privacy boundaries.
-The final Summary section keeps that caution and one-scenario/noncausal notices
-visible. Uncertain or unassessable target checks add a notice even without an
-authored caution. Later revisions are mentioned only when supplied evidence
-supports their context, never as an assumed part of every skill change.
-HTML and Markdown retain this conclusion even for an unchanged target. An absent
-conclusion is explicitly unavailable; incomplete trial evidence suppresses it.
+The method section keeps one-scenario/noncausal notices visible; evidence retains
+the model caution. Uncertain or unassessable checks remain explicit in the
+assessment table even without authored caution. Later revisions are mentioned
+only when supplied evidence supports their context. HTML and Markdown retain
+unmet requirements even for an unchanged target. Missing assessments remain
+unavailable; native interruptions cannot be promoted to improvements.
 These checks preserve structure and provenance, not interpretation correctness.
-Understand the change starts with readable explanations. For source-checking edits,
-extraction explains the input claim, relevant recorded source facts, and actual
+Understand the change starts with the shared conclusion and labeled interpretation.
+For source-checking edits, extraction explains the input claim, source facts and actual
 Before/After deliverables without inventing a conflict. Source reads, self-review
 claims, and output consistent with a source remain distinct observations.
 Criterion reasoning, exact excerpts, source availability, and trial consistency

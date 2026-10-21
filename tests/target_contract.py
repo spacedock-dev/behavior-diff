@@ -4,8 +4,11 @@ import copy
 import html
 import json
 import re
+import shutil
+import tempfile
 from dataclasses import asdict, replace
 from html.parser import HTMLParser
+from pathlib import Path
 
 from attention_contract import _ReportMarkup, _plain
 from presentation_contract import visible_text
@@ -23,8 +26,10 @@ from reporting.summary import (
     build_summary,
     parse_narrative,
 )
+from reporting.scenario import parse_scenario
 from reporting.target import (
     UNAVAILABLE,
+    check_target,
     effective_purpose,
     parse_purpose,
     parse_target,
@@ -53,7 +58,10 @@ def _assert_presentation(reports):
         report = reports[name]
         for rendered in (render_artifact(report, ""), render_markdown(report)):
             plain = visible_text(rendered)
-            assert report.decisions.narrative.headline in plain
+            assert report.summary.headline in plain
+            assert report.summary.meaning in plain
+            for check in report.summary.checks:
+                assert check.before in plain and check.after in plain
             assert report.summary.why.text in plain
             for side in (report.summary.before, report.summary.after):
                 assert all(choice.label in plain for choice in side.choices)
@@ -61,7 +69,10 @@ def _assert_presentation(reports):
         markup = _ReportMarkup(render_artifact(report, ""))
         summary = markup.select(anchor="panel-summary")[0]
         detail = markup.select(anchor="panel-explanation")[0]
-        assert not markup.select(summary, tag="table")
+        checks = markup.select(summary, class_name="summary-check")
+        assert len(checks) == len(report.decisions.target_assessment.criteria)
+        for row, check in zip(checks, report.summary.checks):
+            assert check.text in _plain(row) and check.after in _plain(row)
         assert report.summary.context.text in _plain(summary)
         assert report.summary.why.text in _plain(summary)
         for side in ("before", "after"):
@@ -214,9 +225,15 @@ def _assert_purpose_presentation(reports):
                     assert item.reference not in summary_text, (
                         f"{name}: Summary repeats detailed goal provenance."
                     )
-                    if shown != [item.text]:
-                        # No truncation, selection, or full repetition of a goal.
-                        assert item.text[:60] not in summary_text, name
+                    # Open questions may name a whole uncovered goal, but a goal
+                    # is never shown truncated.
+                    if item.text[:60] in summary_text:
+                        assert item.text in summary_text, name
+                if shown != [item.text]:
+                    # The short aim never truncates, selects, or repeats a goal.
+                    assert all(
+                        item.text[:60] not in aim for aim in surfaces["intent"]
+                    ), name
                 for instruction_text in surfaces["instruction"]:
                     assert item.text in instruction_text, (
                         f"{name}: Instruction changes lost a full recorded goal."
@@ -362,6 +379,7 @@ def assert_target_reports(reports, root, assert_round_trip):
     _assert_old_versions_rejected(reports["target-baseline"])
     _assert_saved_provenance(reports["target-baseline"], root / "target-baseline")
     _assert_normalization(persistent, root / "target-persists")
+    _assert_frozen_scenario(persistent, root / "target-persists")
 
 
 def _assert_purpose_conclusion(report, assert_round_trip):
@@ -402,7 +420,7 @@ def _assert_purpose_conclusion(report, assert_round_trip):
             assert text in plain, (
                 "An unchanged observation must retain its supported conclusion."
             )
-            assert raw["headline"] in plain
+            assert specimen.summary.headline in plain
     incomplete = build_summary(
         report.metadata, report.variants, replace(decisions, dropped=1)
     )
@@ -466,14 +484,17 @@ def _assert_invalid_assessments(report):
     changed["criteria"].append(changed["criteria"][0])
     invalid.append(changed)
     for changed in invalid:
-        assert parse(changed) is None, (
-            "Invalid target membership or refs became assessed evidence."
-        )
+        rejected = parse(changed)
+        assert rejected is None or all(
+            criterion.rejection and not criterion.before and not criterion.after
+            for criterion in rejected.criteria
+        ), "Invalid target membership or refs became assessed evidence."
     omitted = tuple(
         replace(entry, status="omitted", text="", reason="Synthetic content omitted")
         for entry in evidence
     )
-    assert parse(raw, omitted) is None, "Unavailable source cannot prove consistency."
+    rejected = parse(raw, omitted).criteria[0]
+    assert rejected.rejection and not rejected.before and not rejected.after
     unavailable = copy.deepcopy(raw)
     for side in ("before", "after"):
         for trial in unavailable["criteria"][0][side]:
@@ -663,10 +684,13 @@ def _assert_missing_records(report):
         assert "No (1/4)" not in plain
     assert summary.why is None
     assert summary.status == "unavailable"
+    # An interrupted After trial leaves the check unsettled, not met.
+    assert summary.state == "inconclusive"
+    assert {check.state for check in summary.checks} == {"inconclusive"}
 
 
 def _assert_old_versions_rejected(report):
-    for version in (11, 12, 13, 14, 15):
+    for version in (11, 12, 13, 14, 15, 16, 17, 18):
         raw = report.to_dict()
         raw["schema_version"] = version
         try:
@@ -746,8 +770,316 @@ def _assert_normalization(report, run):
         purpose=purpose,
         recorded_evidence=evidence,
     )
-    assert normalized["target_assessment"] is None
+    criterion = normalized["target_assessment"]["criteria"][0]
+    assert criterion["rejection"] and not criterion["before"] and not criterion["after"]
     assert normalized["attention"] is None, (
         "Unchanged concern outlived its invalid target support."
     )
     assert normalized["chain"] and normalized["recorded_evidence"]
+
+
+FROZEN_FIELDS = ("id", "goal", "text", "mode", "required_evidence", "evidence_kind")
+RESTATE = "target criterion must restate its frozen scenario check"
+MISSING = "target criteria must assess every frozen scenario check"
+
+
+def _scenario_record(report):
+    """A synthetic reviewed record whose code-read check shares the accuracy goal."""
+    accuracy = report.decisions.target_assessment.criteria[0]
+    return {
+        "summary": "Draft release notes from a summary that overstates export support.",
+        "rationale": "The summary conflicts with the implementation, so a draft can qualify the claim only after reading the code itself.",
+        "conditions": [
+            "The summary promises unlimited exports in every format.",
+            "The implementation caps each export format.",
+        ],
+        "limitations": ["One synthetic release note; other claims stay untested."],
+        "checks": [
+            {name: getattr(accuracy, name) for name in FROZEN_FIELDS},
+            {
+                "id": "implementation-read",
+                "goal": accuracy.goal,
+                "text": "The agent reads the implementation, not only the summary that describes it.",
+                "mode": "correction",
+                "required_evidence": "A recorded call that reads implementation.txt.",
+                "evidence_kind": "recorded_action",
+            },
+        ],
+        "source_requirements": [
+            {"check": accuracy.id, "any_of": ["*implementation.txt*"]}
+        ],
+    }
+
+
+def _code_read(answers, before="met", after="met"):
+    def trial(name, outcome):
+        read = outcome == "met"
+        return {
+            "trial": name,
+            "outcome": outcome,
+            "refs": [name + ":tool-2"] if read else [],
+            "output_excerpt": "",
+            "explanation": "The recorded call read implementation.txt."
+            if read
+            else "This synthetic variant leaves the code read unjudged.",
+        }
+
+    return {
+        "id": "implementation-read",
+        "goal": 1,
+        "text": "The agent reads the implementation, not only the summary that describes it.",
+        "mode": "correction",
+        "required_evidence": "A recorded call that reads implementation.txt.",
+        "evidence_kind": "recorded_action",
+        "decisions": [1],
+        "before": [trial(name, before) for name in answers["before"]],
+        "after": [trial(name, after) for name in answers["after"]],
+    }
+
+
+def _assert_frozen_scenario(report, run):
+    """Frozen checks fix the criterion set; goal coverage alone cannot hide a dropped check."""
+    import decisions
+    from reporting.evidence import collect_run_evidence
+
+    goals = report.decisions.purpose
+    answers = _answers(report)
+    evidence = report.decisions.recorded_evidence
+    record = _scenario_record(report)
+    scenario = parse_scenario(record, goals)
+    assessment = json.loads(json.dumps(asdict(report.decisions.target_assessment)))
+    accuracy = assessment["criteria"][0]
+
+    def check(criteria, frozen=scenario):
+        return check_target(
+            {"criteria": criteria},
+            goals,
+            answers,
+            evidence,
+            report.decisions.rows,
+            scenario=frozen,
+        )
+
+    # Independent subchecks keep their own outcomes and the frozen order.
+    mixed = _code_read(answers, before="unassessable")
+    for criteria in ([accuracy, mixed], [mixed, accuracy]):
+        assessed, reason = check(copy.deepcopy(criteria))
+        assert reason is None, reason
+        assert [criterion.id for criterion in assessed.criteria] == [
+            "export-qualification",
+            "implementation-read",
+        ]
+        assert {t.outcome for t in assessed.criteria[0].after} == {"not_met"}
+        assert {t.outcome for t in assessed.criteria[1].before} == {"unassessable"}
+        assert {t.outcome for t in assessed.criteria[1].after} == {"met"}
+        for criterion, frozen in zip(assessed.criteria, scenario.checks):
+            assert all(
+                getattr(criterion, name) == getattr(frozen, name)
+                for name in FROZEN_FIELDS
+            )
+    complete = [accuracy, _code_read(answers)]
+    assert (
+        parse_target(
+            {"criteria": complete},
+            goals,
+            answers,
+            evidence,
+            report.decisions.rows,
+            scenario=scenario,
+        )
+        == check(complete)[0]
+    )
+
+    # A bad quotation cannot erase an independent, unchanged After miss.
+    broken = copy.deepcopy(complete)
+    broken[1]["after"][0]["output_excerpt"] = "A quotation not present in this trial."
+    broken[1]["after"][0]["refs"].append("after-1:answer")
+    partial, reason = check(broken)
+    assert reason is None
+    assert partial.criteria[0] == check(complete)[0].criteria[0]
+    rejected = partial.criteria[1]
+    assert rejected.rejection and not rejected.decisions
+    assert rejected.before == rejected.after == ()
+    canonical_partial = json.loads(json.dumps(asdict(partial)))
+    assert check_target(
+        canonical_partial,
+        goals,
+        answers,
+        evidence,
+        report.decisions.rows,
+        scenario=scenario,
+        persisted=True,
+    ) == (partial, None)
+    spoofed, reason = check(canonical_partial["criteria"])
+    assert reason is None and spoofed.criteria[1].rejection != rejected.rejection
+
+    # The production report keeps coverage, links and diagnostics in both formats.
+    accepted = partial.criteria[0]
+    met = replace(
+        accepted,
+        before=tuple(replace(trial, outcome="met") for trial in accepted.before),
+        after=tuple(replace(trial, outcome="met") for trial in accepted.after),
+    )
+    rejected_first = replace(
+        accepted, decisions=(), before=(), after=(), rejection=rejected.rejection
+    )
+    for criteria, expected_state in (
+        (partial.criteria, "not_met"),
+        ((met, rejected), "inconclusive"),
+        ((rejected_first, rejected), "unavailable"),
+    ):
+        data = replace(
+            report.decisions,
+            target_assessment=replace(partial, criteria=criteria),
+            scenario_record=scenario,
+            attention=None,
+        )
+        rendered_report = replace(
+            report,
+            decisions=data,
+            summary=build_summary(report.metadata, report.variants, data),
+        )
+        round_trip = ReportData.from_dict(rendered_report.to_dict())
+        assert round_trip.summary.state == expected_state
+        assert len(round_trip.summary.checks) == len(scenario.checks)
+        page = render_artifact(round_trip, "")
+        markdown = render_markdown(round_trip)
+        markup = _ReportMarkup(page)
+        summary = markup.select(anchor="panel-summary")[0]
+        detail = markup.select(anchor="panel-explanation")[0]
+        checks = markup.select(summary, class_name="summary-check")
+        assert checks[1]["attrs"]["data-state"] == "unavailable"
+        assert rejected.rejection in _plain(checks[1])
+        assert any(
+            rejected.rejection in _plain(node)
+            for node in markup.select(detail, class_name="criterion-rejection")
+        )
+        assert rejected.rejection in visible_text(markdown)
+        for number, criterion in enumerate(criteria, 1):
+            anchor = content.target_criterion_anchor(number)
+            assert markup.select(anchor=anchor)
+            assert any(
+                link["attrs"].get("href") == "#" + anchor
+                for link in markup.select(summary, tag="a")
+            )
+            assert criterion.text in _plain(detail)
+        assert content.summary_heading(round_trip) in _plain(summary)
+        method = markup.select(summary, class_name="story-method")[0]
+        assert round_trip.summary.checks[1].scope not in _plain(method)
+
+    # An unrelated readable source cannot satisfy a frozen implementation source.
+    wrong_sources = tuple(
+        replace(
+            entry, source=entry.source.replace("implementation.txt", "proposal.txt")
+        )
+        for entry in evidence
+    )
+    guarded, reason = check_target(
+        {"criteria": complete},
+        goals,
+        answers,
+        wrong_sources,
+        report.decisions.rows,
+        scenario=scenario,
+    )
+    assert reason is None
+    assert guarded.criteria[0].rejection == "criterion lacks a required frozen source"
+    assert not guarded.criteria[0].after
+    assert guarded.criteria[1].rejection is None
+
+    # Dropping the code read still covers every goal, so only frozen IDs catch it.
+    assert check([accuracy], frozen=None)[1] is None, "Old runs keep assessor criteria."
+    assert check([accuracy]) == (None, MISSING)
+    assert check([_code_read(answers)]) == (None, MISSING)
+    for name, value in (
+        ("id", "implementation-read-v2"),
+        ("text", "The agent reads any project file."),
+        ("mode", "new"),
+        ("required_evidence", "Any recorded call."),
+        ("evidence_kind", "source_consistency"),
+    ):
+        changed = copy.deepcopy(complete)
+        changed[1][name] = value
+        assert check(changed) == (None, RESTATE), name
+    changed = copy.deepcopy(complete)
+    changed[1]["goal"] = 2
+    assert check(changed)[0] is None
+    extra = dict(copy.deepcopy(complete[1]), id="summary-read")
+    assert check([*copy.deepcopy(complete), extra]) == (None, RESTATE)
+    assert check([*copy.deepcopy(complete), complete[1]])[0] is None
+    assert check_target(None, goals, answers, evidence, scenario=scenario) == (
+        None,
+        None,
+    ), "A missing assessment stays unavailable, not assessed-empty."
+
+    # Normalization always takes the record from configuration, never the reply.
+    raw = json.loads((run / "extraction.json").read_text())
+    names = {side: list(records) for side, records in answers.items()}
+    purpose = {"goals": [asdict(goal) for goal in goals]}
+    canonical = json.loads(json.dumps(asdict(scenario)))
+
+    def normalize(reply, frozen=record):
+        return decisions.normalize(
+            reply,
+            names,
+            final_answers=answers,
+            purpose=purpose,
+            scenario=frozen,
+            recorded_evidence=collect_run_evidence(run),
+        )
+
+    full = copy.deepcopy(raw)
+    full["target_assessment"]["criteria"].append(_code_read(answers))
+    full["scenario_record"] = dict(record, summary="Reply-supplied replacement.")
+    normalized = normalize(full)
+    assert normalized["scenario_record"] == canonical
+    assert [c["id"] for c in normalized["target_assessment"]["criteria"]] == [
+        "export-qualification",
+        "implementation-read",
+    ]
+    dropped = normalize(raw)
+    assert dropped["target_assessment"] is None
+    assert dropped["target_rejection"] == MISSING
+    assert dropped["scenario_record"] == canonical
+    assert dropped["chain"] and dropped["recorded_evidence"]
+    legacy = normalize(raw, frozen=None)
+    assert legacy["scenario_record"] is None and legacy["target_rejection"] is None
+    assert legacy["target_assessment"] is not None
+    private = dict(record, notes="Private preparation note sentinel.")
+    for malformed in (private, dict(record, checks=record["checks"][1:2] * 2)):
+        try:
+            normalize(full, frozen=malformed)
+        except ValueError:
+            pass
+        else:
+            raise AssertionError("A malformed frozen scenario record was accepted.")
+
+    # Ingest validates against config; malformed private context fails closed.
+    with tempfile.TemporaryDirectory() as directory:
+        copied = Path(directory) / run.name
+        shutil.copytree(run, copied)
+        config_path = copied / "config.json"
+        config = json.loads(config_path.read_text())
+        config["scenario_record"] = dict(record, summary="  " + record["summary"])
+        config_path.write_text(json.dumps(config))
+        _, completed, instruction_diff = decisions.build_prompt(
+            copied, include_style=False
+        )
+        written = decisions.write_decisions(
+            copied, json.dumps(full), completed, "synthetic", instruction_diff
+        )
+        assert written["scenario_record"] == canonical
+        assert len(written["target_assessment"]["criteria"]) == 2
+        rejected = decisions.write_decisions(
+            copied, json.dumps(raw), completed, "synthetic", instruction_diff
+        )
+        assert rejected["target_rejection"] == MISSING
+        assert (copied / "decisions.raw.txt").exists()
+        config["scenario_record"] = private
+        config_path.write_text(json.dumps(config))
+        try:
+            decisions.build_prompt(copied, include_style=False)
+        except ValueError as error:
+            assert "sentinel" not in str(error)
+        else:
+            raise AssertionError("The prompt accepted unreviewed private notes.")

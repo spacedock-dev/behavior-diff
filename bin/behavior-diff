@@ -3,7 +3,7 @@
 #
 #   behavior-diff RULE.md --task "..." [--into FILE] [--fast | --trials N]
 #                                      [--agent claude|codex|pi|omp] [--model NAME]
-#                                      [--purpose-file JSON] [--dry-run]
+#                                      [--purpose-file JSON] [--scenario-file JSON] [--dry-run]
 #
 # The underlying runner compares the repo at HEAD against the repo plus one
 # uncommitted instruction-file edit. This front door makes that edit for you:
@@ -52,16 +52,16 @@ while [[ $# -gt 0 ]]; do
       passthru+=("$1")
       shift
       ;;
-    --purpose-file)
+    --purpose-file | --scenario-file)
       [[ $# -ge 2 ]] || die "$1 needs a value"
       # Anchor to the caller before changing directories; keep the leaf intact
       # so the runner can still reject a supplied symlink.
-      purpose_path=$2
-      case $purpose_path in
+      context_path=$2
+      case $context_path in
         /*) ;;
-        *) purpose_path=$PWD/$purpose_path ;;
+        *) context_path=$PWD/$context_path ;;
       esac
-      passthru+=("$1" "$purpose_path")
+      passthru+=("$1" "$context_path")
       shift 2
       ;;
     --trials | --agent | --model | --extract-agent | --extract-model)

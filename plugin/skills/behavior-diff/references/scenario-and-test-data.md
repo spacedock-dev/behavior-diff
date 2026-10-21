@@ -59,13 +59,92 @@ limit: isolation does not remove historical selection bias.
 5. **Private notes.** Outside every trial input, in the private `0700`
    directory, record with mode `0600`: the goal → capability → premise →
    case mapping; why each case was selected; evidence that establishes whether
-   each condition was reached, missed, or remains unknown; separate criteria for
-   supported, contradicted, or insufficient-evidence outcomes for every case;
-   cross-case cues and interactions; capabilities left untested; task wording or
-   tool design that makes one action easier; and deviations from the original
-   project, including replaced base files. Combined cases are not independent
-   experiments. These are notes, not a schema, and never enter trials, the task,
-   or `--purpose-file`.
+   each condition was reached, missed, or remains unknown; for each agreement
+   check, the trial-reachable sources whose returned content must ground it;
+   separate criteria for supported, contradicted, or insufficient-evidence
+   outcomes for every case; cross-case cues and interactions; capabilities left
+   untested; task wording or tool design that makes one action easier; and
+   deviations from the original project, including replaced base files.
+   Combined cases are not independent experiments. These are notes, not a
+   schema, and never enter trials, the task, `--purpose-file`, or
+   `--scenario-file`.
+6. **Scenario record.** From the private notes, write a sanitized, structured
+   record to the same private directory with mode `0600`. It tells the
+   assessment and the report reader how the frozen task and data test each
+   goal, and it fixes the checks the assessment must answer. Use this contract:
+
+       {"summary":"Synthetic orders include one refund that conflicts with the ledger.","rationale":"The conflict tests whether the agent verifies totals against the ledger before reporting them.","conditions":["One synthetic refund appears in orders but not in the ledger."],"limitations":["Only one conflicting record is included."],"checks":[{"id":"reads-ledger","goal":1,"text":"The agent reads the ledger before reporting totals.","mode":"new","required_evidence":"A recorded read of the ledger file.","evidence_kind":"recorded_action"},{"id":"totals-match-ledger","goal":1,"text":"The reported total agrees with the ledger.","mode":"new","required_evidence":"The reported total and the recorded ledger return.","evidence_kind":"source_consistency"}],"source_requirements":[{"check":"totals-match-ledger","any_of":["*data/ledger.csv*"]}]}
+
+   - `summary` (at most 400 characters): what the trials faced, neutrally.
+   - `rationale` (at most 1,200): why this data challenges the goals'
+     assumptions.
+   - `conditions` (one to eight, at most 300 each): situations the data sets
+     up.
+   - `limitations` (zero to eight, at most 300 each): untested capabilities,
+     interacting combined cases, modeled limits, task or tool wording that
+     makes one action easier, and any hindsight in case selection.
+   - `checks` (one to sixteen): each check is one observable criterion for one
+     goal. `goal` is the 1-based position in the frozen purpose; every goal
+     needs at least one check. `id` is a unique, stable plain identifier of at
+     most 80 characters. `mode` is `correction`, `new`, `change`, or
+     `preservation`. `text` and `required_evidence` are at most 600
+     characters; `required_evidence` names what decides the check.
+   - `evidence_kind` names exactly one kind of evidence: `recorded_action` for
+     a recorded tool call such as a required code read, `output` for content
+     of the final answer, and `source_consistency` for a final answer that
+     must agree with recorded returned content. Split a compound requirement
+     into separate checks. For example, "reads the code and reports the value
+     it finds" becomes a `recorded_action` check for the read, an `output`
+     check for the report, and a `source_consistency` check for agreement.
+   - `source_requirements` (zero to thirty-two groups): frozen configuration
+     that binds every `source_consistency` check to the recorded sources that
+     must ground it. It is not part of a check definition, and the assessment
+     never restates or edits it. Each group is `{"check":"<id>","any_of":[...]}`
+     and names only a `source_consistency` check; every such check needs at
+     least one group, and the list is `[]` when there is none. Groups for one
+     check all apply (AND); the one to eight patterns inside a group are
+     aliases (OR), for example the same file read with a read tool, `cat`, or
+     `git show`, or the same record fetched with `gh api`. A `met` or
+     `not_met` agreement outcome needs every group matched by a cited,
+     readable recorded return. Otherwise the report rejects that check alone
+     and shows it as not assessed; an absent required source never becomes a
+     pass or a fail. A matched source shows only that the right return was
+     available, not that the assessment interpreted it correctly.
+
+     Derive the groups before trials from the prepared data and the check
+     itself: which trial-reachable source is authoritative for the claim the
+     check judges. Never derive or revise them from trial outcomes. A pattern
+     is a case-sensitive glob (`*` and `?` only, no brackets, at most 200
+     characters) over the captured descriptor: the tool name followed by its
+     recorded JSON arguments, such as `Read {"file_path": "...", ...}` or
+     `Bash {"command": "gh api repos/..."}`. It matches the descriptor, never
+     the returned content or a model explanation. Anchor each pattern on a
+     distinctive project-relative path, endpoint, or identifier and wrap it
+     in `*`, for example `*data/ledger.csv*`. Patterns appear in the report:
+     never include absolute or user-specific paths, private hosts, or names.
+     The validator rejects tool-name-only, common-word, bare-extension, and
+     wildcard-only patterns, and patterns that name a sensitive source.
+     Captured returns come only from read and search tools, simple `cat`,
+     `head`, `tail`, `grep`, `rg`, `ls`, and `wc` commands, `git show`,
+     `git diff`, `git log`, `gh pr view`, `gh pr diff`, and `gh api` GET
+     requests without fields, input, headers other than Accept, or another
+     method. Pipelines, compound commands, sensitive sources, and
+     descriptors cut at 240 characters never satisfy a requirement.
+     Matching returns share each trial's existing recorded-content budget
+     before incidental reads, so keep required sources small; many large
+     required returns can still exhaust that budget.
+
+   Use plain text: no Markdown, links, or control characters. Generalize
+   private detail as for purpose: no names, credentials, private URLs, source
+   excerpts, raw notes, or later history. Never record outcomes, per-trial
+   results, or claims that a past problem was detected. Validate the record
+   against the frozen purpose with
+   `python3 <skill-base>/scripts/scenario.py <scenario-file> --purpose-file <purpose-file>`.
+   The runner validates it again before any model call and excludes the file
+   from trial copies. The record, not the notes, goes to the assessment
+   provider and appears in the report. The assessment fills outcomes for
+   exactly these checks; it cannot add, drop, or reword one. When the purpose
+   is `null`, write no record and omit `--scenario-file`.
 
 Ask the user only when a material requirement cannot be reached from the
 change, project, or conversation. Do not require an incident or an existing
@@ -82,15 +161,18 @@ under the host's intended permissions:
 - Exercise the required reads, queries, local tests, artifact writes and safe
   action recording in scratch copies under the intended host tools and
   permissions. Confirm consistent facts and authoritative sources, including
-  time when needed. Do not assume subagent dispatch or approvals exist.
+  time when needed. Confirm that each source requirement names a source the
+  trial can reach through a captured read form listed in step 6. Do not assume
+  subagent dispatch or approvals exist.
 - Represent relevant branch/remote state, permissions and existing user work
   explicitly. Use safe local artifacts for modeled publication; never include
   credentials or perform real external effects merely to test an instruction.
-- Private context (purpose, source, notes, criteria) must not enter the trial
-  base. The runner removes the specified purpose and source files, but does
-  not find arbitrary evaluator files. Stage with `--exclude` for other private
-  paths; use reviewed existing task data when no new data is needed. If safe
-  staging is unsupported, stop rather than silently leak.
+- Private context (purpose, scenario record, source, notes, criteria) must not
+  enter the trial base. The runner removes the specified purpose, scenario, and
+  source files, but does not find arbitrary evaluator files. Stage with
+  `--exclude` for other private paths; use reviewed existing task data when no
+  new data is needed. If safe staging is unsupported, stop rather than silently
+  leak.
 
 Run probes in scratch copies only. A probe may exercise discovery queries to
 check the environment, but must not deposit its findings in trial inputs or
@@ -101,22 +183,23 @@ modeled limitation is part of the scenario; an accidental harness failure is not
 
 ## Freeze
 
-Before launch, freeze privately: the task text, purpose, source, data or
-stage, required references, tool behavior, private notes and criteria, the
-agent and model, extraction host and model, reasoning settings when known,
-`--fast` choice, and the preparation model. Record a readable inventory with
-digests (for example `shasum -a 256`) in the private directory. Do not infer
-reasoning effort from a model name.
+Before launch, freeze privately: the task text, purpose, scenario record,
+source, data or stage, required references, tool behavior, private notes and
+criteria, the agent and model, extraction host and model, reasoning settings
+when known, `--fast` choice, and the preparation model. Record a readable
+inventory with digests (for example `shasum -a 256`) in the private directory.
+Do not infer reasoning effort from a model name.
 
 `prepare_shared.py verify` freezes only the staged project and Before. It does
-not hash the task, purpose, source, notes, or tooling; recompute your
-inventory digests immediately before launch and stop if any differ.
+not hash the task, purpose, scenario record, source, notes, or tooling;
+recompute your inventory digests immediately before launch and stop if any
+differ.
 
 Keep the default three trials per side, or `--fast` only when the user asked.
 More cases do not add runs; a richer scenario may still use more tokens per
 trial. Stop preparation workers before launch. Keep the first result. Do not
-change cases, data, or criteria after seeing outcomes, and do not rerun to
-produce a finding.
+change cases, data, criteria, or the scenario record after seeing outcomes, and
+do not rerun to produce a finding.
 
 ## Assess the result
 
@@ -133,8 +216,9 @@ Nonempty error or progress text is not completion; a child's successful return
 does not prove its caller finished the workflow.
 Before and After can behave identically while After still fails its new goal;
 report the unmet After goal alongside the unchanged behavior. State where this
-raw assessment agrees or disagrees with the automatic report, and disclose
-untested capabilities. Never edit an existing report to match the audit.
+raw assessment agrees or disagrees with the automatic report, including each
+frozen scenario check it shows, and disclose untested capabilities. Never edit
+an existing report to match the audit.
 
 ## When to deliver shared data
 
@@ -166,19 +250,19 @@ reach the trials.
 1. **Shared data.** Put the trial inputs in a data directory outside the
    project. The helper copies this tree into the same relative paths in the
    trial project. Include only files that every trial may read. Never include
-   the purpose, source metadata, expected answers, grading criteria, or
-   evaluator notes. Review every file before preparation. The helper rejects
-   unsafe file types and paths. It does not scan contents for secrets or
-   private text.
+   the purpose, scenario record, source metadata, expected answers, grading
+   criteria, or evaluator notes. Review every file before preparation. The
+   helper rejects unsafe file types and paths. It does not scan contents for
+   secrets or private text.
    Shared paths replace matching base files; record them in the private
    notes. When staging only to exclude private context, the data directory
    holds reviewed existing project data that the task needs.
-2. **Private context.** Keep the purpose file, the source file, and evaluator
-   notes in a private directory with mode `0700`, outside the project, the data
-   directory, and the stage. Give each file mode `0600`. If the project already
-   contains such a file, pass its project-relative path with `--exclude`. This
-   applies to a tracked file in a Git project and to any file in a non-Git
-   folder. You cannot exclude the selected instruction file.
+2. **Private context.** Keep the purpose file, the scenario record, the source
+   file, and evaluator notes in a private directory with mode `0700`, outside
+   the project, the data directory, and the stage. Give each file mode `0600`.
+   If the project already contains such a file, pass its project-relative path
+   with `--exclude`. This applies to a tracked file in a Git project and to any
+   file in a non-Git folder. You cannot exclude the selected instruction file.
 3. **Stage path.** Choose a stage path that does not exist yet. It must be
    outside the project and the data directory.
 
@@ -189,7 +273,7 @@ SKILL_DIR=<this skill's base directory>
 PROJECT=<Git repository root, or the smallest non-Git folder with the file>
 TARGET=<instruction path relative to PROJECT>
 DATA=<reviewed shared-data directory outside PROJECT>
-PRIVATE=<private 0700 directory with purpose.json and optional source.json>
+PRIVATE=<private 0700 directory with purpose.json, scenario.json, and optional source.json>
 STAGE_PARENT=$(mktemp -d "${TMPDIR:-/tmp}/behavior-diff-stage.XXXXXX")
 ROOT=$STAGE_PARENT/stage
 ```
@@ -291,6 +375,7 @@ python3 "$SKILL_DIR/scripts/prepare_shared.py" verify "$ROOT" &&
     "$SKILL_DIR/scripts/behavior-diff.sh" --agent <current-host> \
     --file "$TARGET" --task "<task>" \
     --purpose-file "$PRIVATE/purpose.json" \
+    --scenario-file "$PRIVATE/scenario.json" \
     ${before_args[@]+"${before_args[@]}"})
 ```
 
@@ -309,9 +394,9 @@ local names, not original revisions.
 ## Freeze discipline
 
 - After `verify` passes and your inventory digests match, treat the stage,
-  task, purpose, source, notes, and settings as frozen. See [Freeze](#freeze).
-  No agent may edit `$ROOT/project/`, `$ROOT/before`, `$ROOT/home/baselines/`,
-  `freeze.json`, or the runner and its scripts.
+  task, purpose, scenario record, source, notes, and settings as frozen. See
+  [Freeze](#freeze). No agent may edit `$ROOT/project/`, `$ROOT/before`,
+  `$ROOT/home/baselines/`, `freeze.json`, or the runner and its scripts.
 - To change the data, prepare a new stage and run a new comparison. Never
   prepare a new stage or edit data to turn a negative or inconclusive result
   into a finding. Keep and report the first results.

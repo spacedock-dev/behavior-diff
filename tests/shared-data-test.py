@@ -38,6 +38,23 @@ PURPOSE = {
         }
     ]
 }
+SCENARIO = {
+    "summary": "Synthetic records include one negative amount.",
+    "rationale": "A negative row tests whether every row is still cited.",
+    "conditions": ["One synthetic record has a negative amount."],
+    "limitations": ["Only two synthetic records are included."],
+    "checks": [
+        {
+            "id": "cite-rows",
+            "goal": 1,
+            "text": "The answer cites each synthetic record row.",
+            "mode": "new",
+            "required_evidence": "The final answer names both synthetic rows.",
+            "evidence_kind": "output",
+        }
+    ],
+    "source_requirements": [],
+}
 SOURCE = {
     "forge": "github",
     "repository_url": "https://github.com/example-org/synthetic-skills",
@@ -59,6 +76,7 @@ COMMITTED = {
     "docs/status.md": b"Committed synthetic status.\n",
     "run.sh": (b"#!/bin/sh\necho synthetic\n", True),
     "notes/purpose.json": json.dumps(PURPOSE).encode(),
+    "notes/scenario.json": json.dumps(SCENARIO).encode(),
 }
 WORKING = {
     TARGET: AFTER,
@@ -71,7 +89,7 @@ SHARED = {
     "data/tool.sh": (b"#!/bin/sh\ncat data/records.csv\n", True),
     "docs/status.md": b"Shared synthetic status.\n",
 }
-PRIVATE = ["notes/purpose.json"]
+PRIVATE = ["notes/purpose.json", "notes/scenario.json"]
 TRIAL_MODEL = "synthetic-trial-model"
 EXTRACT_MODEL = "synthetic-extract-model"
 
@@ -1033,6 +1051,8 @@ class RunnerSmokeTests(Fixtures, unittest.TestCase):
             EXTRACT_MODEL,
             "--purpose-file",
             str(purpose),
+            "--scenario-file",
+            str(purpose.parent / "scenario.json"),
             "--source-file",
             str(self.source),
         ]
@@ -1068,6 +1088,7 @@ class RunnerSmokeTests(Fixtures, unittest.TestCase):
             text=True,
         ).stdout
         self.assertEqual(config["purpose"], json.loads(expected_purpose))
+        self.assertEqual(config["scenario_record"], SCENARIO)
         scratch = self.git(stage / "project", "rev-parse", "HEAD").decode().strip()
         for text in (config_text, report):
             self.assertNotIn(scratch, text)

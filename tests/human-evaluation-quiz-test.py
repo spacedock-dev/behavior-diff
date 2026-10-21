@@ -323,14 +323,10 @@ class ReportAndServerTests(unittest.TestCase):
         blind_root = quiz._ReportParser().finish(blinded)
         text = quiz._plain(blind_root)
         for name in (
-            "summary-headline",
-            "summary-context",
-            "summary-provenance",
             "summary-before",
             "summary-after",
             "summary-why",
             "summary-caution",
-            "summary-notices",
             "evidence-limits",
         ):
             for node in quiz._walk(panel):
@@ -344,6 +340,21 @@ class ReportAndServerTests(unittest.TestCase):
             "intent-heading",
             "scenario-context",
             "scenario-prompt",
+            "summary-checks",
+            "summary-status",
+            "summary-state",
+            "summary-diagnostics",
+            "summary-expect-observe",
+            "summary-change-scope",
+            "summary-change-sides",
+            "summary-change-note",
+            "summary-other-changes",
+            "summary-open",
+            "summary-method-grid",
+            "summary-method-caveats",
+            "summary-check-digest",
+            "summary-finding-meaning",
+            "summary-next-action",
         ):
             for node in nodes:
                 if node.has_class(name) and quiz._plain(node).strip():
@@ -470,87 +481,45 @@ class ReportAndServerTests(unittest.TestCase):
                     )
                 )
 
-                def headings(root):
-                    return [
-                        quiz._plain(
-                            next(node for node in quiz._walk(step) if node.tag == "h3")
-                        )
-                        for step in quiz._walk(root)
-                        if step.has_class("story-step")
-                    ]
-
-                # Evidence, attention and limits keep their order; the intent step is gone.
-                original_headings = headings(original)
-                self.assertEqual(headings(blinded), original_headings[1:])
-                self.assertNotIn(original_headings[0], quiz._plain(blinded))
-
-    def test_version_labels_survive_blinding_with_unchanged_text(self):
-        def labelled(roots):
-            """Each element that emphasizes a version name, with its full text."""
-            return sorted(
-                (node.tag, node.attrs.get("class", ""), quiz._plain(node), names)
-                for root in roots
-                for node in quiz._walk(root)
-                for names in [
-                    tuple(
-                        quiz._plain(child)
-                        for child in quiz._children(node)
-                        if child.tag == "strong" and child.has_class("version-label")
-                    )
-                ]
-                if names
-            )
-
-        exported = 0
-        for report in sorted(self.gallery.glob("*/report.html")):
-            with self.subTest(scenario=report.parent.name):
-                source = report.read_text()
-                nodes = list(quiz._walk(quiz._ReportParser().finish(source)))
-                panel = quiz._single(
-                    [node for node in nodes if node.attrs.get("id") == "panel-summary"],
-                    "summary panel",
-                )
-                summary = list(quiz._walk(panel))
-                steps = [node for node in summary if node.has_class("story-step")]
-                # Blinding drops the intended-change step but keeps its case context.
-                kept = steps[1:] + [
-                    node
-                    for node in summary
-                    if any(
-                        node.has_class(name)
-                        for name in (
-                            "summary-case-context",
-                            "summary-boundary",
-                            "evidence-limits",
-                        )
-                    )
-                ]
-                blinded = quiz._ReportParser().finish(quiz._blinded_report(source))
-                expected = labelled(kept)
-                self.assertEqual(labelled([blinded]), expected)
-                for *_, names in expected:
-                    self.assertTrue(set(names) <= {"Before", "After"})
-                    exported += len(names)
-        self.assertTrue(exported, "No saved Summary exported a version label.")
-        label = 'The <strong class="version-label">After</strong> draft'
-        source = (self.gallery / "target-additional/report.html").read_text()
-        self.assertIn(label, quiz._blinded_report(source))
-        hostile = source.replace(
-            label,
-            'The <strong class="version-label" style="font-size:40px" '
-            'onclick="leaked()">After</strong> draft',
-            1,
+    def test_assessment_setup_and_next_actions_do_not_reveal_quiz_key(self):
+        source = (self.gallery / "target-mixed/report.html").read_text()
+        root = quiz._ReportParser().finish(source)
+        hidden = (
+            "summary-headline",
+            "story-finding",
+            "story-expectation",
+            "story-method",
+            "story-next",
         )
-        self.assertNotEqual(source, hostile)
-        blinded = quiz._blinded_report(hostile)
-        self.assertIn(label, blinded)
-        self.assertNotIn("leaked", blinded)
-        self.assertNotIn("font-size:40px", blinded)
+        secrets = []
+        for index, name in enumerate(hidden):
+            node = quiz._single(
+                [node for node in quiz._walk(root) if node.has_class(name)],
+                name,
+            )
+            secret = f"PRIVATE-ANSWER-KEY-{index}"
+            secrets.append(secret)
+            if name == "summary-headline":
+                node.children.append(secret)
+            else:
+                body = quiz._children(node)[1]
+                body.children.append(quiz._Node("p", children=[secret]))
+        with patch.object(quiz._ReportParser, "finish", return_value=root):
+            blinded = quiz._blinded_report(source)
+        for secret in secrets:
+            self.assertNotIn(secret, blinded)
+        self.assertIn("summary-before", blinded)
+        self.assertIn("summary-after", blinded)
 
     def test_old_summary_shapes_and_wrapper_recovery_are_rejected(self):
         source = (self.gallery / "changed-result/report.html").read_text()
-        # v1 trees: no limits step, a target table in evidence, or extra disclosures.
-        for legacy in ("three-steps", "meaning-step", "target-table", "other-findings"):
+        # Unknown layouts must fail closed rather than exposing unreviewed sections.
+        for legacy in (
+            "missing-step",
+            "unknown-step",
+            "target-table",
+            "other-findings",
+        ):
             with self.subTest(legacy=legacy):
                 root = quiz._ReportParser().finish(source)
                 panel = quiz._single(
@@ -569,17 +538,24 @@ class ReportAndServerTests(unittest.TestCase):
                     ],
                     "story steps",
                 )
-                if legacy == "three-steps":
+                if legacy == "missing-step":
                     steps.children = [
                         child
                         for child in steps.children
                         if not isinstance(child, quiz._Node)
-                        or not child.has_class("story-attention")
+                        or not child.has_class("story-next")
                     ]
-                elif legacy == "meaning-step":
+                elif legacy == "unknown-step":
                     quiz._children(steps)[3].attrs["class"] = "story-step"
                 elif legacy == "target-table":
-                    evidence = quiz._children(quiz._children(steps)[1])[1]
+                    evidence = quiz._single(
+                        [
+                            node
+                            for node in quiz._walk(panel)
+                            if node.has_class("summary-observations")
+                        ],
+                        "observations",
+                    )
                     evidence.children.insert(
                         len(evidence.children) - 1,
                         quiz._Node("div", [("class", "target-checks")]),
@@ -602,6 +578,59 @@ class ReportAndServerTests(unittest.TestCase):
                 '<div class="short-story-summary"><p class="summary-boundary">'
                 "Boundary</p>"
             )
+
+    def test_whitelisted_presentation_nodes_are_validated_but_not_projected(self):
+        source = (self.gallery / "changed-result/report.html").read_text()
+
+        def decorated(extra=None):
+            root = quiz._ReportParser().finish(source)
+            nodes = list(quiz._walk(root))
+            story = quiz._single(
+                [n for n in nodes if n.has_class("short-story-summary")], "story"
+            )
+            body = quiz._children(
+                quiz._single(
+                    [n for n in nodes if n.has_class("story-evidence")], "evidence"
+                )
+            )[1]
+            status = quiz._children(story)[0]
+            self.assertTrue(status.has_class("summary-status"))
+            status.children = ["LEAKSTATUS verdict"]
+            parts = [
+                node
+                for node in quiz._children(body)
+                if not node.has_class("summary-check-digest")
+                and not node.has_class("summary-qualification")
+            ]
+            added = [
+                quiz._Node(
+                    "div",
+                    [("class", "summary-check-digest")],
+                    [quiz._Node("h4", children=["LEAKDIGEST checks"])],
+                ),
+                quiz._Node(
+                    "p",
+                    [("class", "summary-qualification")],
+                    ["LEAKQUALIFICATION note"],
+                ),
+            ]
+            if extra is not None:
+                added.insert(0, extra)
+            body.children = [parts[0], *added, *parts[1:]]
+            return root
+
+        with patch.object(quiz._ReportParser, "finish", return_value=decorated()):
+            blinded = quiz._blinded_report(source)
+        for leak in ("LEAKSTATUS", "LEAKDIGEST", "LEAKQUALIFICATION"):
+            self.assertNotIn(leak, blinded)
+        self.assertIn("summary-observations", blinded)
+        self.assertIn("evidence-limits", blinded)
+        unknown = quiz._Node("div", [("class", "summary-other-findings")])
+        with (
+            patch.object(quiz._ReportParser, "finish", return_value=decorated(unknown)),
+            self.assertRaises(ValueError),
+        ):
+            quiz._blinded_report(source)
 
     def test_blinding_retains_primary_result_beside_answer_detail_contrast(self):
         for scenario in ("answer-details", "non-outcome-narrative", "missing-primary"):
@@ -722,13 +751,11 @@ class ReportAndServerTests(unittest.TestCase):
                         ],
                     )
                 for name in (
-                    "summary-headline",
                     "summary-before",
                     "summary-after",
                     "summary-why",
                     "summary-interpretation-unavailable",
                     "summary-caution",
-                    "summary-notices",
                     "evidence-limits",
                     "attention-target-result",
                 ):
@@ -873,7 +900,7 @@ class ReportAndServerTests(unittest.TestCase):
             1,
         )
         self.assertNotEqual(source, provenance)
-        with self.assertRaisesRegex(ValueError, "Unknown intended-change step"):
+        with self.assertRaises(ValueError):
             quiz._blinded_report(provenance)
         linked = source.replace(
             '<p class="attention-target-result">',
@@ -899,12 +926,22 @@ class ReportAndServerTests(unittest.TestCase):
 
     def test_scripts_links_attributes_and_unknown_shapes(self):
         source = (self.gallery / "changed-result/report.html").read_text()
-        hostile = source.replace(
-            '<h2 class="summary-headline">',
-            '<h2 class="summary-headline" onclick="leaked()"><script>leaked()</script><a href="https://hostile.invalid">external secret</a>',
+        start = source.index("<p>", source.index('<div class="summary-why">')) + 3
+        hostile = (
+            source[:start] + '<strong class="version-label" style="color:red" '
+            'onclick="leaked()">After</strong><script>leaked()</script>'
+            '<a href="https://hostile.invalid">external secret</a>' + source[start:]
         )
+        self.assertNotEqual(source, hostile)
         blinded = quiz._blinded_report(hostile)
-        for secret in ("leaked", "onclick", "external secret", "hostile.invalid"):
+        self.assertIn('<strong class="version-label">After</strong>', blinded)
+        for secret in (
+            "leaked",
+            "onclick",
+            "color:red",
+            "external secret",
+            "hostile.invalid",
+        ):
             self.assertNotIn(secret, blinded)
         for altered in (
             source.replace('id="panel-summary"', 'id="unknown-panel"'),
