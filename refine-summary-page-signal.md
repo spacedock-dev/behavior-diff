@@ -6,7 +6,7 @@ started: 2026-10-21T10:11:41Z
 completed:
 verdict:
 score:
-worktree:
+worktree: .worktrees/spacedock-ensign-refine-summary-page-signal
 issue:
 linear:
 pr:
