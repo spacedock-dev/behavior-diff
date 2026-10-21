@@ -401,7 +401,7 @@ def _attention_shape(body):
     children = _children(body)
     if (
         len(children) < 3
-        or children[0].tag != "h3"
+        or children[0].tag != "h4"
         or _plain(children[0]) != "What needs your attention"
         or children[1].tag != "p"
         or not children[1].has_class("attention-assessment")
@@ -531,7 +531,7 @@ def _blinded_report(source):
     ):
         raise ValueError("Unknown summary story structure.")
     steps = _children(story_children[1])
-    names = ("finding", "expectation", "method", "evidence", "next")
+    names = ("evidence", "finding", "expectation", "method")
     if len(steps) != len(names) or any(
         step.tag != "li"
         or not step.has_class("story-step")
@@ -543,34 +543,59 @@ def _blinded_report(source):
         _shape(step, [("span", "story-number"), ("div", "story-body")])[1]
         for step in steps
     ]
-    # Check digest and qualification summarize the assessment; drop them but
-    # accept only these exact optional siblings before the observations.
-    evidence_shape = [("h3", None)]
-    for tag, optional in (
-        ("div", "summary-check-digest"),
-        ("p", "summary-qualification"),
-    ):
-        if any(node.has_class(optional) for node in _children(bodies[3])):
-            evidence_shape.append((tag, optional))
-    evidence_shape.extend([("div", "summary-observations"), ("nav", "evidence-nav")])
-    evidence_parts = _shape(bodies[3], evidence_shape)
-    evidence_heading, observations = evidence_parts[0], evidence_parts[-2]
+    evidence_heading, observations, _ = _shape(
+        bodies[0],
+        [("h3", None), ("div", "summary-observations"), ("div", "summary-expected")],
+    )
     children = _children(observations)
     shape = [("p", "summary-provenance"), ("div", "summary-pair")]
     if any(node.has_class("primary-result-context") for node in children):
         shape.append(("section", "primary-result-context"))
-    shape.append(
+    _shape(observations, shape)
+    scope_shape = [("h3", None)]
+    for tag, optional in (("p", "summary-qualification"), ("div", "summary-caution")):
+        if any(node.has_class(optional) for node in _children(bodies[1])):
+            scope_shape.append((tag, optional))
+    scope_shape.extend([("ul", "summary-notices"), ("div", "summary-attention")])
+    scope = _shape(bodies[1], scope_shape)
+    attention = scope[-1]
+    context = _shape(
+        bodies[3],
+        [("h3", None), ("details", "summary-context-details"), ("nav", "evidence-nav")],
+    )[1]
+    context_children = _children(context)
+    context_shape = [("summary", None), ("div", "summary-method-grid")]
+    context_shape.append(
         ("p", "summary-interpretation-unavailable")
         if any(
-            node.has_class("summary-interpretation-unavailable") for node in children
+            node.has_class("summary-interpretation-unavailable")
+            for node in context_children
         )
         else ("div", "summary-why")
     )
-    for optional in ("summary-case-context", "summary-caution"):
-        if any(node.has_class(optional) for node in children):
-            shape.append(("div", optional))
-    shape.append(("div", "summary-attention"))
-    _shape(observations, shape)
+    if any(node.has_class("summary-case-context") for node in context_children):
+        context_shape.append(("div", "summary-case-context"))
+    context_shape.append(("div", "summary-start-context"))
+    if any(node.has_class("summary-other-changes") for node in context_children):
+        context_shape.append(("p", "summary-other-changes"))
+    context_shape.append(("details", "summary-reading-help"))
+    _shape(context, context_shape)
+    retained = (
+        [
+            node
+            for node in context_children
+            if any(
+                node.has_class(name)
+                for name in (
+                    "summary-why",
+                    "summary-interpretation-unavailable",
+                    "summary-case-context",
+                )
+            )
+        ]
+        + [node for node in scope if node.has_class("summary-caution")]
+        + [attention]
+    )
     pair = children[1]
     cards = _shape(
         pair,
@@ -582,23 +607,30 @@ def _blinded_report(source):
     )
     for card in (cards[0], cards[2]):
         parts = _children(card)
-        start = bool(len(parts) > 1 and parts[1].has_class("summary-start"))
         empty = bool(parts and parts[-1].has_class("summary-empty"))
-        card_shape = [("h4", "summary-side-label")]
-        if start:
-            card_shape.append(("div", "summary-start"))
-        card_shape.extend(
+        _shape(
+            card,
             [
-                ("svg", "summary-picture"),
+                ("h4", "summary-side-label"),
                 ("p", "summary-empty") if empty else ("ul", "summary-choices"),
-            ]
+            ],
         )
-        _shape(card, card_shape)
-        if start:
-            start_shape = [("p", "summary-start-text"), ("p", "summary-start-source")]
-            if len(_children(parts[1])) == 3:
-                start_shape.append(("span", "summary-start-arrow"))
-            _shape(parts[1], start_shape)
+    starts = _single(
+        [node for node in context_children if node.has_class("summary-start-context")],
+        "comparison starts",
+    )
+    for start in _children(starts):
+        if start.tag != "div" or not start.has_class("summary-start"):
+            raise ValueError("Unknown comparison start.")
+        _shape(
+            start,
+            [
+                ("strong", None),
+                ("p", "summary-start-text"),
+                ("p", "summary-start-source"),
+            ],
+        )
+    retained.insert(0, starts)
     source_intents = [
         node
         for node in nodes
@@ -607,12 +639,17 @@ def _blinded_report(source):
             for name in ("purpose-goal-text", "edit-aim", "story-intent")
         )
     ]
-    for node in children:
+    for node in retained:
         if node.has_class("summary-case-context"):
             _case_context(node, source_intents)
         elif node.has_class("summary-why") or node.has_class("summary-caution"):
             _claim_shape(node)
-    _attention_shape(children[-1])
+    _attention_shape(attention)
+    observations = _Node(
+        observations.tag,
+        observations.attrs.items(),
+        [*observations.children, *retained],
+    )
     # Keep only the bounded observation section. Assessment verdicts, expected
     # criteria, preparation rationale and next actions can reveal the keyed edit.
     trimmed_story = _Node(
@@ -630,7 +667,7 @@ def _blinded_report(source):
                 [
                     _Node(
                         "li",
-                        steps[3].attrs.items(),
+                        steps[0].attrs.items(),
                         [
                             _Node(
                                 "div",

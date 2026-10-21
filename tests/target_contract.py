@@ -78,7 +78,9 @@ def _assert_presentation(reports):
         for side in ("before", "after"):
             card = markup.select(summary, class_name=f"summary-{side}")[0]
             value = getattr(report.summary, side)
-            assert value.start.text in _plain(card)
+            starts = markup.select(summary, class_name="summary-start-context")[0]
+            assert value.start.text in _plain(starts)
+            assert not markup.select(card, class_name="summary-start")
             for choice in value.choices:
                 assert choice.label in _plain(card)
                 assert f"{choice.count} of {value.total} trials" in _plain(card)

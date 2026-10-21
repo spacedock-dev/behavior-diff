@@ -489,8 +489,8 @@ def assert_scenario_record_contract(raw):
     page = render_artifact(frozen, "")
     markdown = render_markdown(frozen)
     expectation = _between(page, "story-expectation", "story-method")
-    method = _between(page, "story-method", "story-evidence")
-    evidence = _between(page, "story-evidence", "story-next")
+    method = _between(page, "story-method", "evidence-nav")
+    evidence = _between(page, "story-evidence", "story-finding")
     assert content.FROZEN_CHECKS_LABEL in expectation
     assert content.ASSESSOR_CHECKS_LABEL not in page
     assert content.FROZEN_UNASSESSED_MEANING not in page
@@ -503,7 +503,7 @@ def assert_scenario_record_contract(raw):
     ):
         assert heading in method and html.escape(text) in method, heading
         assert heading in markdown, heading
-        # The blinded quiz keeps Step 4; preparation text must stay outside it.
+        # Preparation text stays outside the observed comparison.
         assert html.escape(text) not in evidence, heading
     assert content.SCENARIO_UNRECORDED not in page
     assert content.FROZEN_CHECKS_LABEL in markdown
@@ -607,7 +607,7 @@ def assert_scenario_record_contract(raw):
     )
     assert content.FROZEN_CHECKS_LABEL not in page
     assert html.escape(content.SCENARIO_UNRECORDED) in _between(
-        page, "story-method", "story-evidence"
+        page, "story-method", "evidence-nav"
     )
     assert content.ASSESSOR_CHECKS_LABEL in render_markdown(legacy)
     unrecorded = ReportData.from_dict(raw)
@@ -1271,6 +1271,9 @@ def assert_derived_summary_claims(reports):
             assert_round_trip(value.to_dict())
         # Every export carries the same derived conclusion and per-check results.
         pages = (render_artifact(value, ""), render_markdown(value))
+        from presentation_contract import _assert_observation_first
+
+        _assert_observation_first(value, pages[0])
         for page in map(visible, pages):
             for text in (
                 summary.headline,
@@ -1333,7 +1336,7 @@ def _focus_markup(page):
     summary = markup.select(anchor="panel-summary")[0]
     status = markup.select(summary, class_name="summary-status")[0]
     heading = markup.select(summary, class_name="summary-headline")[0]
-    step = markup.select(summary, class_name="story-finding")[0]
+    step = markup.select(summary, class_name="story-expectation")[0]
     kinds = [
         entry["attrs"].get("data-kind")
         for listing in markup.select(step, class_name="summary-open-list")
@@ -1403,10 +1406,12 @@ def assert_goal_focus(report, assessed, uncovered, missing):
     assert summary.state == "unavailable" and not summary.checks
     assert content.decision_status(row) == "Changed"
     assert row.topic in heading and heading != summary.headline
-    change = content.summary_change(unavailable)
-    assert change is not None and row.topic in change.scope
-    for (_, side_text), side in zip(change.sides, (row.before, row.after)):
-        assert all(choice.choice in side_text for choice in side)
+    from attention_contract import _ReportMarkup, _plain
+
+    markup = _ReportMarkup(render_artifact(unavailable, ""))
+    cards = markup.select(class_name="summary-card")
+    for card, side in zip(cards, (summary.before, summary.after)):
+        assert all(choice.label in _plain(card) for choice in side.choices)
     assert diagnostic == summary.meaning and summary.meaning not in text
     assert items and {item.kind for item in items} == {"unchecked"}
     assert all(item.criterion is None for item in items)
@@ -1460,7 +1465,7 @@ def assert_goal_focus(report, assessed, uncovered, missing):
     summary, heading, text, diagnostic, items = check(bare)
     assert summary.state == "unavailable"
     assert heading == summary.headline
-    assert content.summary_change(bare) is None
+    assert content.summary_other_changes(bare) == ()
     assert [item.text for item in items] == [content.SUMMARY_AIM_UNCHECKED]
 
 
@@ -2420,14 +2425,12 @@ def assert_primary_result_context(reports):
             "</section>", 1
         )[0]
         markdown = render_markdown(report)
-        md_block = markdown.split(f"#### {context.heading}", 1)[1].split("### 3.", 1)[0]
+        md_block = markdown.split(f"#### {context.heading}", 1)[1].split("### 2.", 1)[0]
         assert expected_status in block and expected_status in md_block
         assert "<a " not in block, (
             "Primary-result context must not add a competing link."
         )
-        assert re.findall(r"\]\(#panel-explanation\)", md_block) == [
-            "](#panel-explanation)"
-        ], "The observed comparison opens the shared explanation destination."
+        assert "[Understand the change →](#panel-explanation)" in markdown
         if context.decision is None:
             assert not context.sides
         else:

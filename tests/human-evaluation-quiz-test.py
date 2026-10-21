@@ -486,10 +486,10 @@ class ReportAndServerTests(unittest.TestCase):
         root = quiz._ReportParser().finish(source)
         hidden = (
             "summary-headline",
-            "story-finding",
-            "story-expectation",
-            "story-method",
-            "story-next",
+            "summary-expected",
+            "summary-check-details",
+            "summary-method-grid",
+            "summary-next-action",
         )
         secrets = []
         for index, name in enumerate(hidden):
@@ -499,11 +499,7 @@ class ReportAndServerTests(unittest.TestCase):
             )
             secret = f"PRIVATE-ANSWER-KEY-{index}"
             secrets.append(secret)
-            if name == "summary-headline":
-                node.children.append(secret)
-            else:
-                body = quiz._children(node)[1]
-                body.children.append(quiz._Node("p", children=[secret]))
+            node.children.append(secret)
         with patch.object(quiz._ReportParser, "finish", return_value=root):
             blinded = quiz._blinded_report(source)
         for secret in secrets:
@@ -543,7 +539,7 @@ class ReportAndServerTests(unittest.TestCase):
                         child
                         for child in steps.children
                         if not isinstance(child, quiz._Node)
-                        or not child.has_class("story-next")
+                        or not child.has_class("story-method")
                     ]
                 elif legacy == "unknown-step":
                     quiz._children(steps)[3].attrs["class"] = "story-step"
@@ -590,7 +586,7 @@ class ReportAndServerTests(unittest.TestCase):
             )
             body = quiz._children(
                 quiz._single(
-                    [n for n in nodes if n.has_class("story-evidence")], "evidence"
+                    [n for n in nodes if n.has_class("story-finding")], "scope"
                 )
             )[1]
             status = quiz._children(story)[0]
@@ -599,15 +595,9 @@ class ReportAndServerTests(unittest.TestCase):
             parts = [
                 node
                 for node in quiz._children(body)
-                if not node.has_class("summary-check-digest")
-                and not node.has_class("summary-qualification")
+                if not node.has_class("summary-qualification")
             ]
             added = [
-                quiz._Node(
-                    "div",
-                    [("class", "summary-check-digest")],
-                    [quiz._Node("h4", children=["LEAKDIGEST checks"])],
-                ),
                 quiz._Node(
                     "p",
                     [("class", "summary-qualification")],
@@ -621,7 +611,7 @@ class ReportAndServerTests(unittest.TestCase):
 
         with patch.object(quiz._ReportParser, "finish", return_value=decorated()):
             blinded = quiz._blinded_report(source)
-        for leak in ("LEAKSTATUS", "LEAKDIGEST", "LEAKQUALIFICATION"):
+        for leak in ("LEAKSTATUS", "LEAKQUALIFICATION"):
             self.assertNotIn(leak, blinded)
         self.assertIn("summary-observations", blinded)
         self.assertIn("evidence-limits", blinded)
@@ -981,7 +971,7 @@ class ReportAndServerTests(unittest.TestCase):
                     1,
                 )
             )
-        picture_end = source.index("</svg>", source.index('class="summary-pair"'))
+        picture_end = source.index("</li>", source.index('class="summary-choice"'))
         for markup in (
             "<foreignObject><p>Arbitrary markup</p></foreignObject>",
             '<image href="https://hostile.invalid/picture.svg"></image>',
@@ -989,7 +979,11 @@ class ReportAndServerTests(unittest.TestCase):
         ):
             with self.subTest(markup=markup), self.assertRaises(ValueError):
                 quiz._blinded_report(
-                    source[:picture_end] + markup + source[picture_end:]
+                    source[:picture_end]
+                    + "<svg>"
+                    + markup
+                    + "</svg>"
+                    + source[picture_end:]
                 )
         for value in (
             "url(https://hostile.invalid/resource)",
