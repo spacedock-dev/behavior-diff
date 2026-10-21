@@ -1,6 +1,6 @@
 ---
 title: Refine the summary page to make the main result clear
-status: ideation
+status: implementation
 source: Captain-requested follow-up from case-01-auto-download-audio.md
 started: 2026-10-21T10:11:41Z
 completed:
@@ -52,7 +52,7 @@ gates:
                 reason: Captain approved the observation-first hierarchy and verification plan, including six proposed criteria replacing the two seed drafts; no acceptance outcome is inferred as passed.
               application:
                 target-stage: implementation
-                state: pending
+                state: consumed
 ---
 
 Help readers understand the main Before/After result at a glance without
