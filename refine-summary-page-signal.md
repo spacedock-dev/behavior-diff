@@ -53,6 +53,14 @@ gates:
               application:
                 target-stage: implementation
                 state: consumed
+        - id: gate:dmz5fz1edtpmyc9vx28ez15w:validation
+          stage: validation
+          attempts:
+            - id: gate-attempt:dmz5fz1edtpmyc9vx28ez15w-validation-1
+              briefing:
+                id: briefing:dmz5fz1edtpmyc9vx28ez15w:validation:attempt-1:revision-1
+                digest: sha256:6634113e2ea1fa2071d7abdc6b67707ca9c9b1194f0e3a39887dcebf75e3ccaa
+                room-ref: ./refine-summary-page-signal/review/validation/briefing-1
 ---
 
 Help readers understand the main Before/After result at a glance without
