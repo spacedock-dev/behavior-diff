@@ -139,6 +139,9 @@ push, PR, merge, or legacy-attention compatibility repair are authorized.
 No correction cycle yet. Design approval and the narrow exporter migration decision
 are recorded above; independent validation follows the implementation report.
 
+- captain-ruling[2026-10-21]: Captain replaced the proposed four-person AC-1 study with direct project-owner review: “No, just let me read the result and I will provide feedback.” No participant count, quiz, accuracy threshold, or timing threshold remains required for this task. This does not establish measured comprehension or speed improvements.
+- captain-ruling[2026-10-21]: After receiving the implemented candidate report and side-by-side comparison at local port 8795, Captain stated “Approve and agree the new layout”. Owner acceptance of the implemented layout at candidate `c0350114e29cead0ff3d319dee106cc1b7c53364` is recorded. This approval is not push, PR, or merge authorization; the separately disclosed size-tolerance and runtime-prerequisite issues are not silently waived.
+
 ## Out of scope
 
 A new simulator, repeated generator tuning, hiding material failures, claims of
