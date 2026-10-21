@@ -42,6 +42,17 @@ gates:
                 id: briefing:dmz5fz1edtpmyc9vx28ez15w:ideation:attempt-1:revision-1
                 digest: sha256:70462b0098d1bc3ca99bfb286713d68523d524a559f0dbfc350d64444face72f
                 room-ref: ./refine-summary-page-signal/review/ideation/briefing-1
+              resolution:
+                type: Resolution
+                id: resolution:spacedock:dmz5fz1edtpmyc9vx28ez15w:ideation:1
+                briefing: briefing:dmz5fz1edtpmyc9vx28ez15w:ideation:attempt-1:revision-1
+                by: person:captain
+                at: "2026-10-21T10:36:38.984122Z"
+                decision: approve
+                reason: Captain approved the observation-first hierarchy and verification plan, including six proposed criteria replacing the two seed drafts; no acceptance outcome is inferred as passed.
+              application:
+                target-stage: implementation
+                state: pending
 ---
 
 Help readers understand the main Before/After result at a glance without
