@@ -1,6 +1,6 @@
 ---
 title: Refine the summary page to make the main result clear
-status: implementation
+status: validation
 source: Captain-requested follow-up from case-01-auto-download-audio.md
 started: 2026-10-21T10:11:41Z
 completed:
