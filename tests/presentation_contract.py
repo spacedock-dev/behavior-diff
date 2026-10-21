@@ -13,34 +13,100 @@ WRAPPED = re.compile(r'<strong class="version-label">(Before|After)</strong>')
 
 
 def _summary_links(report):
-    """Expected per-step links: aim to the diff, open goals and checks to criteria,
-    other differing comparisons and evidence to detail tabs."""
+    """Observation links to instructions; coverage and context retain evidence."""
     from reporting import content
 
-    change = content.summary_change(report)
     return [
-        ["#instruction-diff"]
-        + (["#panel-decision"] if change is not None and change.others else [])
-        + [
-            f"#target-criterion-{item.criterion}"
-            for item in content.summary_open_items(report)
-            if item.criterion is not None
-        ],
-        [f"#target-criterion-{check.criterion}" for check in report.summary.checks],
-        [],
+        ["#instruction-diff"],
+        ["#attention-explanation"],
         [
             f"#target-criterion-{number}"
             for _, _, numbers in content.summary_check_groups(report)
             for number in numbers
         ]
+        + [f"#target-criterion-{check.criterion}" for check in report.summary.checks]
         + [
-            "#attention-explanation",
-            "#panel-explanation",
-            "#panel-decision",
-            "#panel-trials",
+            f"#target-criterion-{item.criterion}"
+            for item in content.summary_open_items(report)
+            if item.criterion is not None
         ],
-        [],
+        (["#panel-decision"] if content.summary_other_changes(report) else [])
+        + ["#panel-explanation", "#panel-decision", "#panel-trials"],
     ]
+
+
+def _assert_observation_first(report, page):
+    from reporting import content
+    from reporting.render_html import render_document
+    from reporting.render_markdown import render_markdown
+
+    stored = report.to_json()
+    markup = _ReportMarkup(page)
+    summary = markup.select(anchor="panel-summary")[0]
+    assert (
+        _ReportMarkup(render_document(page)).select(anchor="panel-summary")[0]
+        == summary
+    )
+    status = markup.select(summary, class_name="summary-status")[0]
+    assert status["attrs"]["data-state"] == report.summary.state
+    assert _plain(status) == content.summary_status(report)
+    steps = markup.select(summary, class_name="story-step")
+    assert [step["attrs"]["class"] for step in steps] == [
+        "story-step story-evidence",
+        "story-step story-finding",
+        "story-step story-expectation",
+        "story-step story-method",
+    ]
+    disclosures = markup.select(summary, tag="details")
+    hidden = {id(node) for detail in disclosures for node in markup.nodes(detail)}
+    cards = markup.select(steps[0], class_name="summary-card")
+    assert len(cards) == 2
+    assert all(not markup.select(card, tag="svg") for card in cards)
+    provenance = markup.select(steps[0], class_name="summary-provenance")[0]
+    assert _plain(provenance) == report.summary.evidence_label
+    for card, side in zip(cards, (report.summary.before, report.summary.after)):
+        assert id(card) not in hidden
+        choices = markup.select(card, class_name="summary-choice")
+        assert len(choices) == len(side.choices)
+        for node, choice in zip(choices, side.choices):
+            assert choice.label in _plain(node)
+            assert content.trial_count(choice.count, side.total) in _plain(node)
+    details = markup.select(summary, class_name="summary-check-details")[0]
+    assert "open" not in details["attrs"]
+    assert len(markup.select(details, class_name="summary-check")) == (
+        len(report.summary.checks) + len(content.expected_checks(report).unassessed)
+        if content.expected_checks(report)
+        else 0
+    )
+    digest = markup.select(summary, class_name="summary-check-digest")
+    for check in report.summary.checks:
+        if check.state == "not_met":
+            assert digest and id(digest[0]) not in hidden
+            assert check.text in _plain(digest[0])
+    for cls in (
+        "summary-caution",
+        "summary-qualification",
+        "summary-notices",
+        "story-attention",
+    ):
+        for node in markup.select(summary, class_name=cls):
+            assert id(node) not in hidden
+    qualification = content.summary_qualification(report)
+    if qualification:
+        assert _plain(summary).count(qualification) == 1
+    md = html.unescape(render_markdown(report)).replace("\\", "")
+    headings = [
+        content.SUMMARY_EVIDENCE_HEADING,
+        content.SUMMARY_FINDING_HEADING,
+        content.SUMMARY_EXPECTATION_HEADING,
+        content.SUMMARY_METHOD_HEADING,
+    ]
+    assert [
+        md.index(f"### {n}. {title}") for n, title in enumerate(headings, 1)
+    ] == sorted(md.index(f"### {n}. {title}") for n, title in enumerate(headings, 1))
+    assert report.summary.headline in md
+    assert report.summary.evidence_label in md
+    assert report.to_json() == stored
 
 
 # {B} and {A} mark the only words that name a compared version.
@@ -317,7 +383,9 @@ def assert_summary_detail_links(reports):
     from reporting.render_html import render_artifact
 
     for name, report in reports.items():
-        markup = _ReportMarkup(render_artifact(report, ""))
+        page = render_artifact(report, "")
+        _assert_observation_first(report, page)
+        markup = _ReportMarkup(page)
         summary = markup.select(anchor="panel-summary")[0]
         steps = markup.select(summary, class_name="story-step")
         expected = _summary_links(report)

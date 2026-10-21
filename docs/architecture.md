@@ -49,7 +49,7 @@ scripts handle execution, evidence, and reporting.
 +---------------------------------------------------------+
 | Presentation                                            |
 | render.py -> consistent HTML, Markdown, structured JSON |
-| Five-step Summary; detailed tabs retain evidence       |
+| Observation-first Summary; details retain evidence      |
 +----------------------------+----------------------------+
                              v
 +---------------------------------------------------------+
@@ -558,19 +558,26 @@ semantic truth, causal attribution, or live extractor adherence.
 | `report-data.json` | Structured, versioned report data. |
 | `report-artifact.html` | Embeddable HTML body. |
 
-The default Summary has five numbered steps in one main reading column:
-finding; expected versus observed behavior; how tested; supporting evidence;
-and next action. A separate validated-result badge precedes a concrete heading
-from the lead extracted comparison's topic and status. An unmet requirement keeps
-the canonical finding prominent; a missing comparison uses that finding as its
-fallback. The comparison heading is not a claim that the change's goal was met.
-The first step pairs the recorded aim with observed choices and counts, then
-identifies unmet, unresolved and uncovered requirements without inventing findings.
-Full checks and original observation detail remain below; technical rejection
-reasons stay in diagnostics rather than dominating the first screen.
-A compact header keeps source/PR links, compared revisions and the model visible
-without a hover. Reading help, complete task, raw setup limits and rejected-check
-diagnostics expand inline. The other five tabs retain their navigation roles.
+The default Summary has four numbered sections in one reading column:
+observed Before/After; scope and attention; what the tests establish; and
+expandable test context and interpretation. Compact cards retain every branch
+and count, without decorative illustrations. The recorded aim follows the cards.
+A separate validated-result badge precedes the existing comparison heading;
+an unmet requirement retains canonical finding precedence. Neither a changed
+comparison nor a missing assessment is a pass of the instruction's goals.
+Material cautions, report-wide qualifications, incomplete evidence, and attention
+findings stay visible. The canonical finding, grouped check states, and every
+unmet check's full title precede one disclosure containing the full check table,
+rejection diagnostics, and unresolved or uncovered requirements. Next-action
+guidance remains visible. Setup, full task, model interpretation, and comparison
+starts expand separately. HTML and Markdown use the same hierarchy and evidence
+destinations; the other five tabs retain their content and navigation roles.
+
+The blind human-evaluation exporter validates this four-section DOM and projects
+only observations, primary-result context, comparison starts, interpretation,
+cautions, and attention evidence. Aim, assessment, setup, and next-action
+guidance remain excluded. Unknown layouts fail closed rather than using a
+legacy-layout fallback; saved already-built quiz artifacts remain unchanged.
 
 The assessment conclusion is derived from validated target checks, not narrative prose.
 An unmet After requirement remains unmet when Before made the same mistake.
@@ -648,9 +655,8 @@ Explanation validation additionally checks bounded narrative, row citations,
 unchanged-row status, and exact example excerpts; it does not prove semantic
 interpretation truth. Legacy comparison ranking is only a fallback when no validated
 narrative selects an observed behavior.
-When target assessment is available, task-completion context stays in the detailed
-comparisons rather than adding another Summary block; mixed primary results still
-appear in the Summary's evidence-limit notices.
+When the selected lead differs from the canonical primary result, primary status
+and full distributions remain beside the cards even with a target assessment.
 Changed explanations, citations, or presentation must not be described as changed
 actions. When a fallback comparison lead is not the primary task result,
 `content.primary_result_context` exposes the primary status and full
@@ -658,7 +664,7 @@ distribution beside those cards in both formats. Missing or incomplete evidence
 cannot become an unchanged-result claim. The primary-result block remains
 derived presentation, not a separate serialized report field.
 The primary-result block is context, not a second navigation choice.
-**Understand the change**, under the Summary's evidence section, opens a new
+**Understand the change**, linked from the Summary's context section, opens the
 top-level explanation tab. This middle layer explains the specific distinction,
 its practical implications, important unchanged behavior, consistency and
 minorities, and concrete limits, with links to decision rows and named trials.
@@ -673,7 +679,7 @@ instead of inferring a no-difference claim or making a new model call.
 The general change explanation retains its completeness guard; incomplete
 records do not erase supported target assessments of other completed trials.
 Target coverage names unassessed records separately from observed failures.
-Plans are not presented as executions. The third Summary section gives concise
+Plans are not presented as executions. The second Summary section gives concise
 consequences, actions, and essential evidence limits with one section-level detail link.
 Findings linked to unmet After criteria come first. If no finding covers an
 unmet criterion, a deterministic item retains its outcome distribution and

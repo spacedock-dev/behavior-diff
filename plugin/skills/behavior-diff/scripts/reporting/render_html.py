@@ -766,16 +766,12 @@ def _summary_start(report, side: str) -> str:
     start = content.summary_start(report, side)
     if start is None:
         return ""
-    arrow = (
-        '<span class="summary-start-arrow" aria-hidden="true">↓</span>'
-        if start.ordered
-        else ""
-    )
     return (
         '<div class="summary-start">'
+        f"<strong>{side.capitalize()} observed start</strong>"
         f'<p class="summary-start-text">{version_name_html(start.text)}</p>'
         f'<p class="summary-start-source">{html.escape(start.source)}</p>'
-        f"{arrow}</div>"
+        "</div>"
     )
 
 
@@ -801,13 +797,13 @@ def _summary_side(report, side: str) -> str:
         f'<section class="summary-card summary-{side}" '
         f'aria-label="{label} observed behavior">'
         f'<h4 class="summary-side-label">{label}</h4>'
-        f"{_summary_start(report, side)}{illustration(data.icon)}{body}</section>"
+        f"{body}</section>"
     )
 
 
 def _primary_result_context(report) -> str:
     context = content.primary_result_context(report)
-    if context is None or report.decisions.target_assessment is not None:
+    if context is None:
         return ""
     sides = "".join(
         f"<p><strong>{html.escape(label)}:</strong> {html.escape(text)}</p>"
@@ -1127,30 +1123,15 @@ def _summary_step(number: int, css_class: str, heading: str, body: str) -> str:
     )
 
 
-def _summary_change(report) -> str:
-    change = content.summary_change(report)
-    if change is None:
-        return f'<p class="summary-change-scope">{html.escape(report.summary.evidence_label)}</p>'
-    sides = "".join(
-        f"<li><strong>{label}:</strong> {html.escape(text)}</li>"
-        for label, text in change.sides
-    )
-    note = (
-        f'<p class="note summary-change-note">{html.escape(change.note)}</p>'
-        if change.note
-        else ""
-    )
-    others = (
+def _summary_other_changes(report) -> str:
+    others = content.summary_other_changes(report)
+    return (
         '<p class="summary-other-changes">'
         f"<strong>{html.escape(content.SUMMARY_OTHER_CHANGES_LABEL)}:</strong> "
-        f"{html.escape(', '.join(change.others))} "
+        f"{html.escape(', '.join(others))} "
         '<a href="#panel-decision">Behavior diff <span aria-hidden="true">→</span></a></p>'
-        if change.others
+        if others
         else ""
-    )
-    return (
-        f'<p class="summary-change-scope">{html.escape(change.scope)}</p>'
-        f'<ul class="summary-change-sides">{sides}</ul>{note}{others}'
     )
 
 
@@ -1252,7 +1233,8 @@ def _short_story_summary(report: ReportData) -> str:
         + "".join(
             f'<li data-state="{html.escape(state)}"><strong>{html.escape(label)}</strong> '
             + ", ".join(
-                f'<a href="#{content.target_criterion_anchor(number)}">Check {number}</a>'
+                f'<a href="#{content.target_criterion_anchor(number)}">'
+                f"{html.escape(content.summary_check_link_label(report, state, number))}</a>"
                 for number in numbers
             )
             + "</li>"
@@ -1271,10 +1253,16 @@ def _short_story_summary(report: ReportData) -> str:
     steps = (
         _summary_step(
             1,
-            "story-finding",
-            content.SUMMARY_FINDING_HEADING,
-            f"{result_html}"
-            '<div class="summary-expect-observe"><div class="summary-expected">'
+            "story-evidence",
+            content.SUMMARY_EVIDENCE_HEADING,
+            '<div class="summary-observations">'
+            f'<p class="summary-provenance">{html.escape(summary.evidence_label)}</p>'
+            '<div class="summary-pair">'
+            f"{_summary_side(report, 'before')}"
+            '<span class="summary-arrow" aria-hidden="true">→</span>'
+            f"{_summary_side(report, 'after')}</div>"
+            f"{_primary_result_context(report)}</div>"
+            '<div class="summary-expected">'
             f'<p class="summary-panel-label">{html.escape(content.SUMMARY_AIM_LABEL)}</p>'
             '<div class="intent-heading">'
             f'<span class="intent-source">{html.escape(intent.badge)}</span>'
@@ -1282,56 +1270,45 @@ def _short_story_summary(report: ReportData) -> str:
             '<nav class="intent-evidence" aria-label="Instruction aim evidence">'
             '<a href="#instruction-diff">Instruction changes '
             '<span aria-hidden="true">→</span></a></nav></div>'
-            f'<p class="story-intent">{intent_text}</p></div>'
-            '<div class="summary-observed">'
-            f'<p class="summary-panel-label">{html.escape(content.SUMMARY_CHANGE_LABEL)}</p>'
-            f"{_summary_change(report)}</div></div>"
-            f"{_summary_open(report)}{diagnostic_html}",
+            f'<p class="story-intent">{intent_text}</p></div>',
         ),
         _summary_step(
             2,
-            "story-expectation",
-            content.SUMMARY_EXPECTATION_HEADING,
-            f'<p class="summary-implication"><strong>{html.escape(content.SUMMARY_IMPLICATION_LABEL)}'
-            f"</strong> {html.escape(content.summary_implication(report))}</p>"
-            f"{_summary_checks(report)}",
+            "story-finding",
+            content.SUMMARY_FINDING_HEADING,
+            f"{qualification}{caution}"
+            f'<ul class="summary-notices">{notices}</ul>'
+            '<div class="summary-attention story-attention">'
+            f"<h4>{html.escape(content.SUMMARY_ATTENTION_HEADING)}</h4>"
+            f"{_attention_summary(report)}</div>",
         ),
         _summary_step(
             3,
-            "story-method",
-            content.SUMMARY_METHOD_HEADING,
-            f'<div class="summary-method-grid">{"".join(method_parts)}</div>'
-            '<section class="summary-method-caveats">'
-            f"<h4>{html.escape(content.SUMMARY_CAVEATS_HEADING)}</h4>"
-            f'<ul class="summary-notices">{notices}</ul></section>{reading_help}',
+            "story-expectation",
+            content.SUMMARY_EXPECTATION_HEADING,
+            f"{result_html}{digest}"
+            '<details class="summary-check-details">'
+            f"<summary>{html.escape(content.SUMMARY_CHECK_DETAILS_LABEL)}</summary>"
+            f"{_summary_checks(report)}{_summary_open(report)}{diagnostic_html}</details>"
+            f'<p class="summary-next-action">{version_name_html(summary.next_action)}</p>'
+            f'<p class="note summary-gate-note">{html.escape(GATE_NOTE)}</p>',
         ),
         _summary_step(
             4,
-            "story-evidence",
-            content.SUMMARY_EVIDENCE_HEADING,
-            f"{digest}{qualification}"
-            '<div class="summary-observations">'
-            f'<p class="summary-provenance">{html.escape(summary.evidence_label)}</p>'
-            '<div class="summary-pair">'
-            f"{_summary_side(report, 'before')}"
-            '<span class="summary-arrow" aria-hidden="true">→</span>'
-            f"{_summary_side(report, 'after')}</div>"
-            f"{_primary_result_context(report)}{meaning}{case_context}{caution}"
-            '<div class="summary-attention story-attention">'
-            f"<h3>{html.escape(content.SUMMARY_ATTENTION_HEADING)}</h3>"
-            f"{_attention_summary(report)}</div></div>"
+            "story-method",
+            content.SUMMARY_METHOD_HEADING,
+            '<details class="summary-context-details">'
+            f"<summary>{html.escape(content.SUMMARY_CONTEXT_DETAILS_LABEL)}</summary>"
+            f'<div class="summary-method-grid">{"".join(method_parts)}</div>'
+            f"{meaning}{case_context}"
+            '<div class="summary-start-context">'
+            f"{_summary_start(report, 'before')}{_summary_start(report, 'after')}</div>"
+            f"{_summary_other_changes(report)}{reading_help}</details>"
             '<nav class="evidence-nav" aria-label="Summary evidence">'
             '<a class="summary-evidence-button" href="#panel-explanation">'
             'Understand the change <span aria-hidden="true">→</span></a>'
             '<a href="#panel-decision">Behavior diff <span aria-hidden="true">→</span></a>'
             '<a href="#panel-trials">Trial evidence <span aria-hidden="true">→</span></a></nav>',
-        ),
-        _summary_step(
-            5,
-            "story-next",
-            content.SUMMARY_NEXT_HEADING,
-            f'<p class="summary-next-action">{version_name_html(summary.next_action)}</p>'
-            f'<p class="note summary-gate-note">{html.escape(GATE_NOTE)}</p>',
         ),
     )
     return (
