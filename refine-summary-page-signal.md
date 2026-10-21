@@ -9,7 +9,7 @@ score:
 worktree: .worktrees/spacedock-ensign-refine-summary-page-signal
 issue:
 linear:
-pr: "#52"
+pr: pr-merge:52
 mod-block: merge:pr-merge
 id: dmz5fz1edtpmyc9vx28ez15w
 gates:
