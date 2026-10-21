@@ -7,5 +7,6 @@ __pycache__/
 
 .worktrees/
 docs/skill-history-replay/.spacedock-state/
+docs/feature-dev/.spacedock-state/
 .omp
 memo/
