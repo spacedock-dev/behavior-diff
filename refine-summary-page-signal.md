@@ -23,6 +23,17 @@ gates:
                 id: briefing:dmz5fz1edtpmyc9vx28ez15w:backlog:attempt-1:revision-1
                 digest: sha256:c15512c10bb7a53ce28bdec0a02f23d6d046244eef52d83ce23b5c038e6b3ee5
                 room-ref: ./refine-summary-page-signal/review/backlog/briefing-1
+              resolution:
+                type: Resolution
+                id: resolution:spacedock:dmz5fz1edtpmyc9vx28ez15w:backlog:1
+                briefing: briefing:dmz5fz1edtpmyc9vx28ez15w:backlog:attempt-1:revision-1
+                by: person:captain
+                at: "2026-10-21T10:11:26.688086Z"
+                decision: approve
+                reason: Captain approved the presented backlog gate to start ideation only.
+              application:
+                target-stage: ideation
+                state: pending
 ---
 
 Help readers understand the main Before/After result at a glance without
