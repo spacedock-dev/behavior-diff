@@ -1,0 +1,24 @@
+{
+  "type": "Briefing",
+  "version": "1",
+  "id": "briefing:dmz5fz1edtpmyc9vx28ez15w:backlog:attempt-1:revision-1",
+  "question": "Start ideation to make the summary main result clear while preserving material uncertainty?",
+  "artifacts": [
+    {
+      "id": "artifact:dmz5fz1edtpmyc9vx28ez15w:backlog:attempt-1:revision-1:item-1",
+      "uri": "git-root://state/0b7ee0ef507800277874bbbaa87481ec6b071caa/refine-summary-page-signal.md",
+      "rev": "sha256:cbd74da7404f709b293f7ada8f01b60e3e924148a848dcdf5f9ab1ba1bea262e",
+      "mediaType": "text/markdown",
+      "summary": "Recommend starting ideation only. Compare existing and proposed summaries with unchanged saved evidence; clarify the tested question and Before/After result, consolidate repeated caveats, and preserve material limits and reachable detail. No implementation, live model reruns, or delivery is authorized. Ideation must provide realistic previews, bounded affected surfaces, and falsifiable reader-comprehension criteria."
+    }
+  ],
+  "context": [
+    {
+      "type": "Reference",
+      "id": "reference:dmz5fz1edtpmyc9vx28ez15w:backlog:attempt-1:revision-1:item-2",
+      "uri": "git-root://main/9f5461805394ecfa6aa10388588b94355dbfe6e7/docs/feature-dev/README.md",
+      "mediaType": "text/markdown",
+      "rev": "sha256:120f0b36a2b0f310d5abbedf45fdbee3012e68e0d2d60fbab8d75c0664cc38ab"
+    }
+  ]
+}

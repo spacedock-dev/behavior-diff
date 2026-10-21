@@ -12,6 +12,17 @@ linear:
 pr:
 mod-block:
 id: dmz5fz1edtpmyc9vx28ez15w
+gates:
+    version: 1
+    records:
+        - id: gate:dmz5fz1edtpmyc9vx28ez15w:backlog
+          stage: backlog
+          attempts:
+            - id: gate-attempt:dmz5fz1edtpmyc9vx28ez15w-backlog-1
+              briefing:
+                id: briefing:dmz5fz1edtpmyc9vx28ez15w:backlog:attempt-1:revision-1
+                digest: sha256:c15512c10bb7a53ce28bdec0a02f23d6d046244eef52d83ce23b5c038e6b3ee5
+                room-ref: ./refine-summary-page-signal/review/backlog/briefing-1
 ---
 
 Help readers understand the main Before/After result at a glance without
