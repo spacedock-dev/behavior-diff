@@ -67,10 +67,10 @@ untested behavior is safe.
 
 ## Proposed approach
 
-Direction for later ideation, not an approved layout: lead with the tested
-question and observed Before/After result; consolidate repeated qualifications;
-keep important uncertainty visible once and retain access to supporting detail.
-Use the existing preview workflow and renderer with evidence held constant.
+Approved observation-first hierarchy: lead with the observed Before/After result;
+consolidate report-wide qualifications while keeping material uncertainty visible.
+Keep canonical check conclusions distinct and supporting detail reachable. Use
+the existing renderer with frozen evidence; no extraction or lead-selection change.
 
 ## Risk evidence
 
@@ -82,46 +82,69 @@ motivates this task; it does not prove additional product value or general safet
 
 ## Expected surface and tolerance
 
-Not estimated at backlog intake. Bound the summary/rendering surface and any
-necessary extraction-contract changes during ideation before implementation.
+See the approved implementation boundary and revised 8–11-file, 450–700-line
+estimate below; 35% tolerance, with further scope changes returning to ideation.
 
 ## Acceptance criteria
 
-Draft outcomes to refine with the Captain during ideation:
+Captain-approved criteria (the detailed falsifying checks and modes are retained
+in “Falsifiable acceptance and verification plan” below):
 
-**AC-1 — The main tested question and Before/After result are understandable from the summary.**
-Verified by: interactive comparison of current and proposed rendered summaries
-using unchanged evidence; ask the reader to identify the outcome and its scope.
-A reader still needing the detailed report to find the primary result fails.
-
-**AC-2 — Repeated caveats no longer crowd out the outcome, without losing material uncertainty.**
-Verified by: inspect rendered previews against the underlying evidence; show a
-consolidated qualification and a reachable detail path. A missing material limit,
-repeated equivalent warnings, or unsupported success claim fails.
+- **AC-1 — Result recognition:** four approved readers, counterbalanced across
+  four saved cases, two reports per version per reader and two readers per
+  case/version; proposed achieves at least 7/8 correct main-result answers,
+  no worse accuracy, and at least 25% lower median time (60-second cap, including
+  wrong answers). Any plan-as-execution or unqualified-all-pass answer fails safety.
+- **AC-2 — Unchanged evidence:** identical frozen inputs, serialized data and
+  non-summary panels; preserve counts, membership and outcome identity, including
+  minority branches, unchanged primary, interrupted/missing trials and no comparison.
+- **AC-3 — Visible material uncertainty:** exact supported/rejected/unsettled
+  states; accepted failures and incomplete/mixed evidence visible without expansion;
+  every frozen check and uncovered goal reachable; missing evidence is never success.
+- **AC-4 — One summary home:** each report-wide qualification appears once by
+  default, with every original check reason/link available and no distinct limit lost.
+- **AC-5 — Usable navigation and density:** desktop 1440 px and narrow 390 px;
+  compare/single views, reload, keyboard disclosures and evidence navigation work;
+  comparison offset at most 300 px and at least 50% below baseline on desktop;
+  both narrow cards complete without horizontal scrolling, table overflow contained.
+- **AC-6 — Output/host parity:** HTML, artifact HTML and Markdown preserve
+  observation/verdict distinction, failure precedence, counts and destinations;
+  captured-tool, self-reported and answer-only evidence is never upgraded.
 
 ## Test plan
 
-Preview before implementation using the repository-required cases. Separate
-presentation improvement from changes to evidence generation. Select relevant
-renderer/contract checks once the design is approved; no live rerun authorized
-by this backlog request.
+Exercise unchanged saved cases at desktop and narrow widths; run deterministic
+renderer, source/context, live-report-contract, blind-export, and formatting checks.
+Keep presentation fidelity separate from the still-unperformed four-reader test.
+No live model rerun is authorized.
 
 ## Decisions and dependencies
 
-Captain requested backlog capture only; no design, implementation, or delivery
-approval. Related task: `verify-overall-skill-behavior-value`; neither task is
-blocked on the other. Do not require a whole-skill feature to reduce report noise.
+2026-10-21: Captain approved the observation-first hierarchy, renderer-only scope,
+and all six ideation acceptance criteria, replacing the seed drafts above. This
+approval does not establish acceptance success; human comprehension remains untested.
+Related task: `verify-overall-skill-behavior-value` remains independent.
+
+2026-10-21: During implementation, the blind human-evaluation exporter was found
+to require the old five-step DOM. Captain explicitly selected “Approve narrow
+migration”, relayed by the FO through the worker channel. Scope now includes only
+`.agents/skills/run-behavior-diff-human-evaluation/scripts/quiz.py` DOM extraction
+and `tests/human-evaluation-quiz-test.py`: preserve blinding and fail-closed
+unknown-shape validation, with no questions, schema, evidence changes, or shims.
+This decision precedes consumer mutation. No model calls, human responses,
+push, PR, merge, or legacy-attention compatibility repair are authorized.
 
 ### Feedback Cycles
 
-None; design and review have not started.
+No correction cycle yet. Design approval and the narrow exporter migration decision
+are recorded above; independent validation follows the implementation report.
 
 ## Out of scope
 
 A new simulator, repeated generator tuning, hiding material failures, claims of
 full-workflow time savings, and treating this case as proven product success.
 
-## Ideation proposal — awaiting Captain decision
+## Ideation proposal — Captain-approved 2026-10-21
 
 ### Reader question and recommendation
 
@@ -244,11 +267,12 @@ product. Expected canonical files are `reporting/render_html.py`,
 HTML and Markdown must retain the same conclusions and evidence access even
 though native HTML disclosures have no identical Markdown interaction.
 
-[INFERENCE] Estimate: 6–9 files and approximately 300–500 changed lines, with
-35% tolerance. Revisit ideation if the work requires extraction/schema changes,
-lead-selection changes, additional production components, or more than 675
-changed lines. No new dependency, model approval, or permanent preview route
-is required. Use the existing renderer, native disclosures, and tab router.
+[INFERENCE] Original estimate: 6–9 files, approximately 300–500 changed lines,
+35% tolerance (675-line ceiling). Captain-approved narrow consumer migration
+adds the two paths named above; revised estimate: 8–11 files, 450–700 changed
+lines, same 35% tolerance (945-line ceiling). Extraction/schema, lead-selection,
+any further production component, or changes beyond that ceiling return to
+ideation. No new dependency, model approval, or permanent preview route.
 
 Implementation requires an assigned code worktree and Captain approval of the
 hierarchy. Copy only the accepted design into that worktree if a plan artifact is
@@ -277,16 +301,13 @@ than merely changing snapshots or checking that prose exists.
 Repeat the saved-case browser exercise; legacy attention rendering remains an
 explicit limit unless separately authorized evidence resolves it.
 
-### Captain decision needed
+### Captain decision recorded
 
-Approve the observation-first hierarchy or choose the simpler disclosure-only
-alternative. Specifically confirm that a clearly scoped observed change should
-lead while overall check coverage remains distinct, accepted failures stay
-visible, and full secondary detail is expandable. Acknowledge the legacy-attention
-and original-audio evidence limits; neither authorizes a model rerun.
-Approve the proposed reader-comprehension threshold before implementation.
-No design acceptance, implementation authorization, or product-value success
-has been inferred from this ideation exercise.
+Captain approved observation first, distinct canonical check coverage, visible
+accepted failures and material limits, expandable secondary detail, and all six
+criteria including the four-reader threshold. Legacy-attention and original-audio
+limits remain explicit. Approval is not a human-comprehension or product-value
+result. The later narrow blind-export migration authorization is recorded above.
 
 ## Stage Report: ideation
 
@@ -304,3 +325,40 @@ check coverage, with material limitations visible and full secondary checks
 expandable. The preview demonstrates reduced reading density, not improved human
 comprehension; Captain approval is still required, and saved-evidence compatibility
 limits are explicitly preserved rather than repaired or concealed.
+
+## Stage Report: implementation
+
+- DONE: Implement the Captain-approved observation-first summary hierarchy in the assigned worktree, preserving outcome identity, branches, counts, failure precedence, material uncertainty, and evidence destinations across HTML and Markdown; migrate callers and remove obsolete presentation paths.
+  Commit `c0350114e29cead0ff3d319dee106cc1b7c53364`; compact observations lead, primary result remains distinct, accepted failure titles stay visible, full checks/context expand, and obsolete summary derivations/styles are removed.
+- DONE: Exercise the implemented surface against the approved saved-case preview at desktop and narrow widths, run relevant deterministic checks and formatting after edits, update architecture documentation, and report exact revision and verification evidence without live model calls or private evidence commits.
+  Four frozen cases at 1440/390 px, final deterministic suite and formatting passed; `docs/architecture.md` describes the hierarchy and blind-export projection; private receipt directory is named below.
+- DONE: Replace the seed draft acceptance criteria with the approved six ideation criteria in the task record, map each to actual evidence or an explicit unmet requirement (including the four-reader human comprehension check), and commit a complete implementation stage report for independent validation.
+  The six criteria above replace the seed drafts; evidence and the unmet human requirement are mapped below without changing thresholds.
+
+- SKIPPED: AC-1 — Result recognition.
+  UNMET: no Captain-approved four-reader counterbalanced study or human responses exist; 7/8 accuracy, baseline non-inferiority, 25% timing improvement, and safety thresholds remain untested.
+- DONE: AC-2 — Unchanged evidence.
+  `fidelity.json`: all four serialized inputs remain equal and all five non-summary panels are structurally identical; schema/presentation contracts retain minority counts, missing/interrupted evidence, and primary identity, failing on changed card counts or state.
+- DONE: AC-3 — Visible material uncertainty.
+  Schema/target/presentation contracts exercise preservation failures and rejected/unsettled states; closed-disclosure assertions require failure titles, cautions, notices and attention to remain outside details, failing if a material result is hidden.
+- DONE: AC-4 — One summary home.
+  Qualification count and full-check-row contracts pass; the separate repeated implication/lead-distribution paths are removed, while exact check reasons, open goals and evidence links remain in the disclosure.
+- DONE: AC-5 — Usable navigation and density.
+  Desktop comparison offsets baseline→candidate: review 1441→255, notes 1420→206, routing 1420→206, audio 3996→206 px; every case meets ≤300 px and ≥50% reduction; both widths passed view/reload, keyboard, target-reveal and no-document-overflow checks.
+- DONE: AC-6 — Output/host parity.
+  HTML/document/Markdown contracts retain derived verdict and evidence level; `mutation-proof.json` rejects 12 synthetic pass/execution upgrades across planned, self-reported, answer-only and captured-tool cases; raw data is unchanged.
+
+- DONE: Captain-authorized blind-export consumer migration.
+  `quiz.py` and its tests now allowlist the four-section DOM while excluding aim/assessment/setup/next-action answers; 21 quiz and 12 hosted tests pass, failing on unknown shapes, leaked keys or altered saved receipts. No legacy-layout shim was added.
+- DONE: Final deterministic checks and static formatting.
+  Passed `report-schema-test.py`, `report-source-test.py`, `report-ci-context-test.py`, `live-report-contract.sh`, quiz/hosted tests, Python compilation, Ruff format check (147 files), Docker shfmt check, and `git diff --check`; report contracts reject malformed provenance and distinguish unavailable from assessed-empty attention.
+- DONE: Preserve scope and private evidence boundaries.
+  Ten code files, +380/−395 = 775 changed lines, within the revised 945-line ceiling; no extraction/schema/lead-selection change, new dependency, paid call, private artifact commit, push, PR or merge.
+- SKIPPED: Historical compatibility repair and original-audio reconstruction.
+  The three Recce schema-11 attention assessments still render unavailable; current-schema attention is covered synthetically. Supplemental audio is the later 15-check rerun, not the original 13-check reconstruction; neither proves external workflow success.
+
+### Summary
+
+Implemented the approved hierarchy and the separately Captain-authorized blind-export migration on `spacedock-ensign/refine-summary-page-signal` at `c0350114e29cead0ff3d319dee106cc1b7c53364`. Candidate evidence is ready for independent validation, but AC-1 remains explicitly unmet and no product-value or comprehension improvement is claimed.
+
+Private receipts, unchanged-input comparisons, mutation results and screenshots: `/var/folders/h_/tb6bynfj41g1dcvpb2472vrh0000gn/T/summary-signal-implementation-m51wk0hw/` (`receipt.json`, `fidelity.json`, `browser-layout.json`, `browser-wrapper.json`, `browser-final-interaction.json`, `mutation-proof.json`, `desktop-audio.png`, `narrow-notes.png`). The owned port-8795 verification service and browser tab were stopped; the earlier ideation service was not touched.
