@@ -1,16 +1,16 @@
 ---
 title: Refine the summary page to make the main result clear
-status: validation
+status: done
 source: Captain-requested follow-up from case-01-auto-download-audio.md
 started: 2026-10-21T10:11:41Z
-completed:
-verdict:
+completed: 2026-10-21T11:12:46Z
+verdict: PASSED
 score:
 worktree: .worktrees/spacedock-ensign-refine-summary-page-signal
 issue:
 linear:
 pr: pr-merge:52
-mod-block: merge:pr-merge
+mod-block:
 id: dmz5fz1edtpmyc9vx28ez15w
 gates:
     version: 1
@@ -71,7 +71,8 @@ gates:
                 reason: Captain reviewed implemented candidate and said Approve and agree the new layout, replaced the study with owner review, and explicitly said approve to creat PR after disclosed size. Both independent reviewers now APPROVE unchanged c0350114; no measured comprehension claim or merge permission.
               application:
                 target-stage: done
-                state: pending
+                state: consumed
+archived: 2026-10-21T11:12:46Z
 ---
 
 Help readers understand the main Before/After result at a glance without
