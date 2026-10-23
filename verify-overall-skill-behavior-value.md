@@ -6,7 +6,7 @@ started: 2026-10-23T14:17:49Z
 completed:
 verdict:
 score:
-worktree:
+worktree: .worktrees/spacedock-ensign-verify-overall-skill-behavior-value
 issue:
 linear:
 pr:
