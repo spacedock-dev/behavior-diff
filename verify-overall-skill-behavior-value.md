@@ -113,10 +113,11 @@ Define tests for any later code change separately from hypothesis evaluation.
 
 ## Decisions and dependencies
 
-Captain requested this hypothesis as a backlog task and subsequently approved
-ideation. Only the design is authorized, not product implementation, live model
-runs, or disclosure of private sources. Native omp execution is authorized for
-this task only; it does not establish general runtime-adapter support.
+Captain approved ideation and then the local saved-evidence audit and one reader
+session; the consumed gate records the latter authorization on 2026-10-23.
+Earlier ideation-only wording below is historical, not the current restriction.
+No product implementation, live model runs, or external disclosure is authorized.
+Native omp execution remains authorized for this task only, not generally verified.
 Keep accepted verification evidence in its existing private home and reference
 it here rather than copying source material or reports into tracked state.
 Related task: `refine-summary-page-signal`; summary clarity and added scenario
@@ -124,7 +125,8 @@ value are separate questions, with no assumed execution dependency.
 
 ### Feedback Cycles
 
-Initial ideation prepared on 2026-10-23; Captain review remains pending.
+Ideation approved on 2026-10-23. Implementation audit prepared; reader interaction
+is awaiting the Captain's baseline answers through the First Officer.
 
 ## Out of scope
 
@@ -368,3 +370,51 @@ The design and falsifiable reader-value criteria are ready for Captain review,
 while baseline reconciliation, reader evaluation, and any live work remain
 separately gated. Only safe task state is committed; no product change or
 external publication is part of this stage.
+
+## Saved-evidence audit and reader handoff
+
+The local audit is complete within its stated scope; acceptance is not complete.
+The described final demo could not be reconciled to the named saved runs. Their
+tasks, settings, tool semantics, source delivery and report origins differ.
+No matched comparison establishes the accepted overall-goal path, so the
+scenario-method hypothesis is inconclusive rather than supported or refuted.
+No missing steps were inferred from a completed host process or stitched across runs.
+
+For the separate reader-value exercise, the First Officer accepted using the
+explicitly identified saved narrow report, without relabeling it the final demo.
+The briefing discloses the provenance gap and asks about prior knowledge and
+familiarity. It provides the original readable report and exact baseline questions.
+Additional evidence remains withheld until the baseline answers are saved.
+
+Private handoff root, outside both repositories:
+`~/.behavior-diff/experiments/overall-skill-value-audit-20261023-pyjt2hqwf2/`.
+`baseline-briefing.md` is the only initial reader-facing artifact.
+`facilitator-only.md` contains the sequential reveal and unchanged result rules;
+`audit-private.md` contains the run identity matrix, minimal requirement-gap table,
+minority outcomes and audit limits; `frozen-inputs.json` records local input identity.
+Neither private source content, raw observations nor reader responses belong in state.
+
+AC-1: the offline audit distinguishes identified checkpoints from an unestablished
+matched overall-goal comparison. Its scenario-method result is inconclusive;
+the interactive component remains open. AC-2: awaiting actual reader answers,
+with no claimed understanding improvement, verification saving or acceptance.
+No product files, tests, builds, linters, formatters, live calls, new agents,
+services, code commits, PR or external disclosure were part of this assignment.
+Historical validation returns were inspected as evidence, not rerun.
+
+## Stage Report: implementation
+
+- DONE: Audit the saved source and run records named in the accepted ideation; reconcile baseline identity and compare supported scopes/settings. Keep private sources and transcripts out of committed state and external tools; no live calls or product edits.
+  Named archives and local raw evidence inspected; final-demo identity remains unresolved, explicitly preventing a matched scenario-method claim.
+- DONE: Prepare a minimal private evidence-gap table and sequential reader evaluation using the frozen supported/unsupported/inconclusive criteria. Return the baseline-only reader briefing and exact questions first; do not reveal added evidence before the Captain records the baseline decision. If matched scenario evidence is absent, distinguish that inconclusive hypothesis from the separate reader-value exercise.
+  Private handoff files above preserve original reports, fixed rules, prior-familiarity disclosure and the baseline-first reveal boundary.
+- DONE: Commit safe audit findings and Stage Report in split-root task state with DCO sign-off, retaining private artifacts outside both repositories. No code-tree deliverable or PR; worktree remains unused. Do not claim AC-2 complete before reader answers. Return reader-session handoff paths and concrete evidence limits.
+  Only this entity body is the state deliverable; path-scoped signed commit accompanies the handoff. No code-tree changes or PR.
+- SKIPPED: Conduct and score the reader interaction in this worker.
+  Parent owns the authorized interaction; no reader answers exist yet, so AC-2 and stage acceptance remain open.
+
+### Summary
+
+Prepared a private evidence audit and baseline-only reader handoff without new
+execution or product changes. The scenario-method claim is inconclusive; the
+separate reader-value outcome awaits real baseline and post-evidence answers.
