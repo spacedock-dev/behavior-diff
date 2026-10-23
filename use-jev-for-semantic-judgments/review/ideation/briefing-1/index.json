@@ -1,0 +1,15 @@
+{
+  "type": "Briefing",
+  "version": "1",
+  "id": "briefing:sd4j775gcwrmhxnd0rm84a36:ideation:attempt-1:revision-1",
+  "question": "Approve the optional shared Jev helper design for implementation, with live model verification separately approval-bound?",
+  "artifacts": [
+    {
+      "id": "artifact:sd4j775gcwrmhxnd0rm84a36:ideation:attempt-1:revision-1:item-1",
+      "uri": "git-root://state/217e46b1f5e05fb4cf6c09c5d46c30216ff7867b/use-jev-for-semantic-judgments.md",
+      "rev": "sha256:216a5a8eaaad90b5e465a80955a36494da6e3a07493ef7c96eca20e3483b9637",
+      "mediaType": "text/markdown",
+      "summary": "Recommend one stdlib Python helper shared by Claude Code and Codex, using documented TypeSafe credentials and official HTTPS endpoint for optional advisory judgments outside extraction. Three ideation checklist items are done. Offline loopback exercised grouping, state association and failures; live API acceptance, model usefulness and host behavior remain unverified. Proposed scope is 10 files and 600–900 changed lines with +25% tolerance. AC-1 through AC-5 have offline and approval-bound manual verification plans; no implementation or paid calls have run."
+    }
+  ]
+}
