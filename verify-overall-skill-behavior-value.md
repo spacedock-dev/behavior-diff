@@ -42,6 +42,17 @@ gates:
                 id: briefing:pyjt2hqwf2ncmfgdr9xhxk29:ideation:attempt-1:revision-1
                 digest: sha256:a00de97629ad05f6f151f617fa33136e73902c5c9564248432d881a2458b6965
                 room-ref: ./verify-overall-skill-behavior-value/review/ideation/briefing-1
+              resolution:
+                type: Resolution
+                id: resolution:spacedock:pyjt2hqwf2ncmfgdr9xhxk29:ideation:1
+                briefing: briefing:pyjt2hqwf2ncmfgdr9xhxk29:ideation:attempt-1:revision-1
+                by: person:captain
+                at: "2026-10-23T14:26:38.933452Z"
+                decision: approve
+                reason: Captain approved local saved-evidence audit and one interactive reader evaluation. Safe findings in task state; private evidence stays local. No product code, PR, live model calls, or external disclosure. Native omp execution remains task-authorized.
+              application:
+                target-stage: implementation
+                state: pending
 ---
 
 Test the hypothesis that users want to understand a skill's overall behavior
