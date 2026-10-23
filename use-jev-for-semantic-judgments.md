@@ -42,6 +42,17 @@ gates:
                 id: briefing:sd4j775gcwrmhxnd0rm84a36:ideation:attempt-1:revision-1
                 digest: sha256:b3208d3815c60228d225c7a93b836f626578208f738522e1d3d22334bd066cae
                 room-ref: ./use-jev-for-semantic-judgments/review/ideation/briefing-1
+              resolution:
+                type: Resolution
+                id: resolution:spacedock:sd4j775gcwrmhxnd0rm84a36:ideation:1
+                briefing: briefing:sd4j775gcwrmhxnd0rm84a36:ideation:attempt-1:revision-1
+                by: person:captain
+                at: "2026-10-23T08:47:49.904101Z"
+                decision: approve
+                reason: Captain approved the shared-helper design and implementation dispatch in chat. Paid runs, external data sends, product push/PR and merge remain unapproved.
+              application:
+                target-stage: implementation
+                state: pending
 ---
 
 Make Behavior Diff proactively use Jev for useful semantic judgments when the
