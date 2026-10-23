@@ -1,6 +1,6 @@
 ---
 title: Use Jev for semantic judgments when configured
-status: backlog
+status: ideation
 source: Captain request to proactively use Jev when the user has configured a token
 started:
 completed:
@@ -33,7 +33,7 @@ gates:
                 reason: Captain approved starting ideation in chat; implementation and paid model runs remain unapproved.
               application:
                 target-stage: ideation
-                state: pending
+                state: consumed
 ---
 
 Make Behavior Diff proactively use Jev for useful semantic judgments when the
