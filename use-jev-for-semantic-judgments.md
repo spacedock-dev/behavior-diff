@@ -455,3 +455,39 @@ The design adds optional advisory judgments outside the existing extraction
 call, with an identical supported path on Claude Code and Codex. The offline
 experiment established only HTTP/batch mechanics; model usefulness and host
 behavior remain approval-bound acceptance work, not claimed results.
+
+## Stage Report: implementation
+
+- DONE: Implement the approved optional shared Jev helper and both host skill integrations, preserving the existing extraction/report path, credential privacy, provider consent, batching association and honest failure handling; stay within the accepted scope and tolerance.
+  DCO commits `b2da73e288013a3f04178752864f852950d23c1b` (helper/tests) and `c9cbd1983cdb9cdc748ce65986dc16e3ba630127` (skills/contracts/docs/CI); 881 added lines across the planned 10 files, within 600–900 estimate/+25% tolerance.
+- DONE: Verify the actual shipped helper with hermetic behavioral checks and smoke execution, run required repository verification after edits, update affected docs/contracts, and record exact revision and results; no live model calls or external data sends are authorized.
+  Checks exercised the complete candidate bytes committed as `c9cbd1983cdb9cdc748ce65986dc16e3ba630127`; 19 commands exited zero, ShellCheck exited one as recorded below; no live model calls or private-data sends.
+- DONE: Map all five acceptance criteria to observed evidence versus unresolved live verification, commit the complete candidate with DCO sign-off in the assigned worktree and stage report in split-root state, and send findings needing disposition to the FO before corrective mutation or scope changes.
+  AC mapping and FO disposition below; both code commits are on `spacedock-ensign/use-jev-for-semantic-judgments`, state report committed path-scoped separately.
+
+### Observed evidence and acceptance limits
+
+- AC-1: `python3 tests/jev-test.py` passed 9 tests, including actual CLI subprocess smoke and typed classification/criterion/hypothesis results plus Score ranking. Removing answers fails validation/assertions. This proves plumbing, not semantic usefulness; the baseline/enabled exercise on both hosts remains unperformed.
+- AC-2: The injected transport observed one POST for four questions, nine keyed ranking states with exactly nine calls, out-of-order completion and maximum four workers. Per-question fan-out, dropped/swapped states, or excessive concurrency fails. Actual host operation choice remains live-unverified.
+- AC-3: Subprocess checks cover absent/blank/malformed synthetic keys, unsupported endpoint/model, configured success, 401/429/529, redirect, timeout, malformed/partial/non-Jev replies and mixed batch failure. Skips require zero attempts; failures require one attempt/no answers/nonzero exit; sentinel credential/evidence leakage fails. Actual credentials and host continuation remain unverified.
+- AC-4: An injected “supports” answer coexists with an unchanged recorded failed check and absent approval; mutating that input fails. This is preservation evidence only, not proof of agent compliance. Shared instructions prohibit judge-only proof/permission; live contradiction/action-recorder exercises remain unperformed.
+- AC-5: Both skills link the same contribution/skip disclosure contract; `bash tests/live-report-contract.sh` passed wiring/report checks. This is not observed final-response behavior: useful/no-opportunity/configuration/approval/provider-failure host outputs remain unverified.
+- SKIPPED: Live model/host and saved real-case semantic verification.
+  No provider/data/cost approval was supplied; no private saved cases were sent. The approved-bound manual procedure is in `e2e/README.md#optional-jev-manual-verification`; null value results must not be retuned.
+
+### Repository verification
+
+- DONE: Formatting and syntax.
+  `docker run --rm -v "$PWD:/mnt" -w /mnt mvdan/shfmt:v3.14.0 -d -i 2 -ci .`; `uvx ruff@0.16.5 format --check --diff .` (150 files); `bash -n .github/scripts/*.sh bin/behavior-diff plugin/scripts/*.sh plugin/skills/behavior-diff/scripts/*.sh tests/*.sh`; `python3 -m py_compile plugin/skills/behavior-diff/scripts/jev.py tests/jev-test.py`; `git diff --check` all exited zero.
+- DONE: Existing deterministic contracts.
+  Passed `bash tests/hooks-test.sh`, `python3 plugin/skills/behavior-diff/scripts/decisions.py --check`, `python3 tests/shared-data-test.py` (24 tests, one existing skip), and `bash tests/live-report-contract.sh`; these retain purpose/source isolation, extraction fallback and report provenance coverage.
+- DONE: Provenance, CI context, release and human-evaluation contracts.
+  Passed `python3 tests/{source-provenance,report-source,ci-context,report-ci-context}-test.py` individually, `bash tests/release-workflow-test.sh`, `python3 .agents/skills/release-behavior-diff/scripts/bump-version.py --check`, and `python3 tests/human-evaluation-{workflow,quiz,hosted}-test.py` individually.
+- FAILED: Repository ShellCheck gate.
+  `shellcheck .github/scripts/*.sh bin/behavior-diff plugin/scripts/*.sh plugin/skills/behavior-diff/scripts/*.sh tests/*.sh` exited 1: unchanged `plugin/skills/behavior-diff/scripts/make-spacedock-fixtures.sh:183`, SC2015: “A && B || C is not if-then-else. C may run when A is true.” Last file commit `03ccd6d`; not a green gate.
+- DONE: Finding disposition before corrective mutation.
+  Four fields sent to FO: released non-base Spacedock fixture workflow; observed lint-gate failure/no established runtime harm; `contract[CODING_GUIDELINES.md#verification-before-handoff]` required check; exact SC2015 trigger above. Proposed unrelated Polish/unobserved runtime risk; FO explicitly declined corrective mutation and required the gap remain visible. No fixture edit or confirming rerun occurred.
+
+### Summary
+
+The complete optional stdlib helper and both skill integrations are committed, with unchanged extraction/reporting and explicit provider/data/cost consent, safe configuration skips, typed results and stable batching. Deterministic helper and existing contract evidence passed except the unrelated existing ShellCheck warning; live usefulness, host instruction-following and final-response acceptance remain unresolved, not claimed as proven.
