@@ -12,6 +12,17 @@ linear:
 pr:
 mod-block:
 id: pyjt2hqwf2ncmfgdr9xhxk29
+gates:
+    version: 1
+    records:
+        - id: gate:pyjt2hqwf2ncmfgdr9xhxk29:backlog
+          stage: backlog
+          attempts:
+            - id: gate-attempt:pyjt2hqwf2ncmfgdr9xhxk29-backlog-1
+              briefing:
+                id: briefing:pyjt2hqwf2ncmfgdr9xhxk29:backlog:attempt-1:revision-1
+                digest: sha256:42ac9a3a5689289fb1bca66945bf1c6802527253b67cd5406a699a794ec45daf
+                room-ref: ./verify-overall-skill-behavior-value/review/backlog/briefing-1
 ---
 
 Test the hypothesis that users want to understand a skill's overall behavior

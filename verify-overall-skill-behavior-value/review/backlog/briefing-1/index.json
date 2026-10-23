@@ -1,0 +1,15 @@
+{
+  "type": "Briefing",
+  "version": "1",
+  "id": "briefing:pyjt2hqwf2ncmfgdr9xhxk29:backlog:attempt-1:revision-1",
+  "question": "Start ideation for a bounded test of overall-skill Before/After comparison value?",
+  "artifacts": [
+    {
+      "id": "artifact:pyjt2hqwf2ncmfgdr9xhxk29:backlog:attempt-1:revision-1:item-1",
+      "uri": "git-root://state/f69d746e17552d954bc32a6f56f814e724c11176/verify-overall-skill-behavior-value.md",
+      "rev": "sha256:fe639bca555a4427e364afc35ccda2c5817c46732cf14e39c4cb2fb0fe38f4a5",
+      "mediaType": "text/markdown",
+      "summary": "Recommend starting ideation only: define a user question and representative whole-skill task, compare added decision value against change-focused scenarios, reuse suitable saved evidence, and predeclare support/refutation criteria. No product feature, exhaustive simulator, live runs or private evidence publication is authorized. Supported, unsupported and inconclusive are all valid outcomes."
+    }
+  ]
+}
