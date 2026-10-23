@@ -1,6 +1,6 @@
 ---
 title: Use Jev for semantic judgments when configured
-status: implementation
+status: validation
 source: Captain request to proactively use Jev when the user has configured a token
 started: 2026-10-23T08:37:22Z
 completed:
