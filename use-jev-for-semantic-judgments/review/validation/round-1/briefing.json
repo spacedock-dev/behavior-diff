@@ -1,0 +1,27 @@
+{
+  "type": "Briefing",
+  "version": "1",
+  "id": "briefing:sd4j775gcwrmhxnd0rm84a36:validation:round-1",
+  "question": "What did the approved unchanged-candidate live exercise establish, and which acceptance gaps remain on hold?",
+  "artifacts": [
+    {
+      "id": "artifact:jev-validation-prior-report",
+      "uri": "git-root://state/d1995e55f9c8bc586784bd29f91364b3e14b8c20/use-jev-for-semantic-judgments.md",
+      "rev": "sha256:98a27cc02b61591d7c96f79c17d1bd821b33c42f8ac748c9930c094f6287a9d8",
+      "mediaType": "text/markdown"
+    },
+    {
+      "id": "artifact:jev-live-exercise-report",
+      "uri": "git-root://state/aa85a5cfc0e675f02b49b4fa1988160de5a0c943/use-jev-for-semantic-judgments.md",
+      "rev": "sha256:565afb89ef641bf76ba5829d6c52ef90a0fd7433095220e90b1fad1a07c18c29",
+      "mediaType": "text/markdown"
+    }
+  ],
+  "context": [
+    {
+      "type": "Reference",
+      "id": "reference:jev-unchanged-candidate",
+      "label": "Product candidate remains c9cbd1983cdb9cdc748ce65986dc16e3ba630127. This is a preparatory advisory round, not an immutable recorded round or acceptance decision."
+    }
+  ]
+}

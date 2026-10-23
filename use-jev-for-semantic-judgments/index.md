@@ -69,6 +69,14 @@ gates:
                 at: "2026-10-23T09:13:46.049673Z"
                 decision: revise
                 reason: 'Captain approved running the proposed live verification: four Claude Code/Codex sessions, at most six Jev requests, synthetic evidence only including transmission to TypeSafe, no retries to improve the result. Accept implementation direction; route to implementation to obtain missing AC-1 through AC-5 evidence, then independently revalidate. Pricing is not a concern per Captain. No PR, merge, unrelated ShellCheck correction, or product-scope changes authorized.'
+review-round:
+    id: round:sd4j775gcwrmhxnd0rm84a36:validation:1
+    stage: validation
+    cycle: 1
+    briefing:
+        id: briefing:sd4j775gcwrmhxnd0rm84a36:validation:round-1
+        digest: sha256:849b495d30b2b5d48bf98c906737f863acd21c41d00fcdd9b503a715c8cb274d
+        room-ref: ./review/validation/round-1
 ---
 
 Make Behavior Diff proactively use Jev for useful semantic judgments when the
