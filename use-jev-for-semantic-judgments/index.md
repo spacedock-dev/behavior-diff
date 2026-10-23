@@ -74,6 +74,17 @@ gates:
                 id: briefing:sd4j775gcwrmhxnd0rm84a36:validation:attempt-2:revision-1
                 digest: sha256:fda4fd63a8005398d1f6ef9a120ac92aa22c5ba8286a1564fd439762b44a02aa
                 room-ref: ./review/validation/briefing-2
+              resolution:
+                type: Resolution
+                id: resolution:spacedock:sd4j775gcwrmhxnd0rm84a36:validation:2
+                briefing: briefing:sd4j775gcwrmhxnd0rm84a36:validation:attempt-2:revision-1
+                by: person:captain
+                at: "2026-10-23T10:18:03.21414Z"
+                decision: approve
+                reason: 'Captain explicitly said ''approve to merge the PR'' after disclosure of validation HOLD, live value evidence limits and pre-existing ShellCheck failure. Authorizes delivery of PR #53 candidate c9cbd198; does not rewrite failed/unperformed evidence as passed. All seven remote checks observed successful.'
+              application:
+                target-stage: done
+                state: pending
 review-round:
     id: round:sd4j775gcwrmhxnd0rm84a36:validation:1
     stage: validation
