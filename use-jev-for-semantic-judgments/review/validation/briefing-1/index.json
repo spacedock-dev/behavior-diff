@@ -1,0 +1,15 @@
+{
+  "type": "Briefing",
+  "version": "1",
+  "id": "briefing:sd4j775gcwrmhxnd0rm84a36:validation:attempt-1:revision-1",
+  "question": "Hold final acceptance pending live host evidence and resolution of the failed ShellCheck gate?",
+  "artifacts": [
+    {
+      "id": "artifact:sd4j775gcwrmhxnd0rm84a36:validation:attempt-1:revision-1:item-1",
+      "uri": "git-root://state/d1995e55f9c8bc586784bd29f91364b3e14b8c20/use-jev-for-semantic-judgments.md",
+      "rev": "sha256:98a27cc02b61591d7c96f79c17d1bd821b33c42f8ac748c9930c094f6287a9d8",
+      "mediaType": "text/markdown",
+      "summary": "Both independent reviewers approve candidate c9cbd198 static implementation; nine hermetic tests and smoke passed. Recommend hold: AC-1 through AC-5 live evidence is incomplete and repository ShellCheck remains failed on an unchanged fixture. Proposed live scope is four host sessions and at most six Jev requests using synthetic evidence; pricing and an explicit dollar ceiling must be established before requesting paid-run approval. No delivery or paid-run authority is requested by this hold decision."
+    }
+  ]
+}

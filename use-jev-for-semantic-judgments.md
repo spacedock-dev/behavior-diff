@@ -53,6 +53,14 @@ gates:
               application:
                 target-stage: implementation
                 state: consumed
+        - id: gate:sd4j775gcwrmhxnd0rm84a36:validation
+          stage: validation
+          attempts:
+            - id: gate-attempt:sd4j775gcwrmhxnd0rm84a36-validation-1
+              briefing:
+                id: briefing:sd4j775gcwrmhxnd0rm84a36:validation:attempt-1:revision-1
+                digest: sha256:72f06fafd42663b8448ca6dba49f1f02a13e89693f8d90bc485cc068d0742744
+                room-ref: ./use-jev-for-semantic-judgments/review/validation/briefing-1
 ---
 
 Make Behavior Diff proactively use Jev for useful semantic judgments when the
