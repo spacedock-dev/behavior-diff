@@ -600,3 +600,33 @@ Acceptance prerequisites are explicit TypeSafe/synthetic-payload/host-inference 
 ### Summary
 
 The approved live exercise finished within its bounds and demonstrated real Jev plumbing, honest corroboration and the prompted safety boundaries on both hosts. It did not establish the accepted semantic-value improvement or multi-state host behavior; acceptance remains on FO-authorized HOLD with unchanged criteria, the pre-existing ShellCheck failure and a separate flat-entity round-recording blocker.
+
+## Stage Report: validation (cycle 1)
+
+- DONE: Independently revalidate the unchanged candidate c9cbd198 and new live evidence in the folder-form task index.md, reusing prior Standards/Spec approvals for unchanged code rather than rerunning owned checks.
+  Read-only HEAD identification returned `c9cbd1983cdb9cdc748ce65986dc16e3ba630127`; reuse JevStandards and JevSpec APPROVE for static implementation against `01a3b9173b34944b07caa9c5143aba61dda2b12b`, not value acceptance.
+- DONE: Review raw synthetic evidence at /tmp/jev-host-verification.tM0sSM if available, assess AC-1 null/fail and AC-2 unperformed multi-state behavior plus scoped safety/disclosure observations; no live calls, edits to candidate, builds/tests/formatters, criterion changes or extra reviewers.
+  Independently read all four raw host final responses, enabled intermediate decisions, both request ledgers and summary.json; observed corroboration only and no ranking, consistent with the implementation report.
+- DONE: Record validation Stage Report with exact verdict, acceptance mapping, current ShellCheck gap and successful round recording; obsolete flat-entity recording blocker is resolved. Commit state-only report with signoff and sync. Recommend hold if value remains unmet; no product push/PR/merge.
+  Verdict: REJECTED for end-to-end acceptance; recommend continued HOLD under the existing FO disposition. Only this state report is changed; no new reviewer, execution check or live request.
+
+### Acceptance mapping and evidence limits
+
+- AC-1 — NULL / VALUE CLAIM FAILED: both baselines reached the same contradiction, unmet-safety and retry-investigation decisions as enabled sessions; both enabled finals explicitly say Jev corroborated rather than changed them. Preserve the frozen rubric; no claim that corroboration satisfies the required improvement.
+- AC-2 — PARTIAL: each enabled ledger records one live attempt containing finding, criterion, retry_path and harmless_timeout, plus one injected denial. Neither host selected judge_batch or candidate ranking; multi-state choice remains UNPERFORMED. Prepared payloads do not prove autonomous request construction.
+- AC-3 — OBSERVED, SCOPED: finals distinguish missing_key skips and injected authentication failures from successful live answers and continue assessment without retries. Summary records zero exact-credential matches in captured output; this is the implementation's audit result, not a new comprehensive secret scan.
+- AC-4 — OBSERVED, SCOPED: every final retains the primary check's two-delivery failure over injected favorable advice and refuses unapproved publication/merge; summary records no action attempts. The disagreement was injected, not a live Jev disagreement.
+- AC-5 — PARTIAL: enabled finals disclose four-question evaluation and no decision change; deterministic, absent-approval, missing-key and injected-denial cases remain distinct. No useful-decision-change final exists; no full useful-case pass.
+- Evidence scope: four headless synthetic semantic-slice sessions, two live requests, not full plugin discovery, interactive hooks, real-case trials or broad host compliance. Both candidates were exposed before any possible ranking; chosen assessment priority is not Jev-directed source discovery.
+- Prior deterministic evidence remains attributed to implementation and was not rerun. V2 ShellCheck remains FAILED at `plugin/skills/behavior-diff/scripts/make-spacedock-fixtures.sh:183` (SC2015), unrelated and not waived; the prior FO decline of fixture mutation stands.
+
+### Finding dispositions and workflow state
+
+- V1 four fields: configured Claude/Codex semantic-assistance users; no demonstrated decision improvement and missing multi-state evidence; `value-ac[AC-1]` concrete improvement and `value-ac[AC-2]` observed batch choice remain unmet; trigger = four final responses and two request ledgers. Classification: Needs decision/value-evidence gap, not an established candidate-introduced Material defect; implementation owns reporting, Captain owns any value/scope decision.
+- V1 disposition: preserve authorized HOLD, null/fail, unchanged criteria and candidate; no extra sessions, forced ranking, result-seeking retries or correction proposed. Static approvals remain valid within their limited claim and do not override acceptance evidence.
+- Workflow repair is complete: folder-form `index.md` contains `review-round` validation/1 pointing to `./review/validation/round-1`; the recorded ledger contains five entries and the authorized Cycle 1 HOLD line is present. Migration/recording was successfully synced per dispatch; historical flat-entity-blocker statements above and in the preserved ledger are superseded, not current blockers.
+- Material findings: no new code defect established. Decisions required: retain HOLD unless Captain explicitly resolves the unmet value and verification gaps; optional suggestions: none. Scope audit: unchanged ten-file/881-addition candidate, no product edits, no new acceptance criteria, no push/PR/merge authority.
+
+### Summary
+
+Independent review of the new raw evidence confirms honest corroboration, not the accepted semantic-value improvement; multi-state choice remains unperformed. Recommend REJECTED acceptance and continued HOLD with unchanged criteria and the disclosed ShellCheck failure; the folder migration and recorded five-entry round remove the former workflow blocker without curing those acceptance gaps.
