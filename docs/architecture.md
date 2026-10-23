@@ -54,6 +54,7 @@ scripts handle execution, evidence, and reporting.
                              v
 +---------------------------------------------------------+
 | Skill result explanation (separate from the report)     |
+| Optional approved Jev advice -> primary-evidence check  |
 | Raw actions/returns/artifacts per private case:         |
 | reached / missed / unknown; intent supported /          |
 | contradicted / insufficient evidence; run health apart; |
@@ -176,6 +177,23 @@ Matching action flows do not imply matching final answers or a missed decision
 point. The skills inspect answers separately and distinguish unchanged behavior
 with the target situation reached, not reached, or unknown from the evidence.
 Only an evidenced missed situation warrants that explanation and a sharper task.
+
+Both host skills load the shared [Jev contract](../plugin/skills/behavior-diff/references/jev.md)
+before result assessment. The outer skill may send approved, sanitized observations
+to TypeSafe via `scripts/jev.py`, a standard-library helper shared by both hosts.
+`judge` groups independent questions in one POST; `judge_batch` submits keyed
+states under the same questions with at most four concurrent requests. It validates
+typed answers, returned Jev identity and usage, preserving per-state failures.
+The official HTTPS endpoint is fixed; configuration errors skip safely, provider
+failures are sanitized, and there are no redirects, retries, or provider fallbacks.
+Credentials stay in the named environment variable, not arguments or report config.
+
+This is separate from extraction: no new report artifact or extraction call.
+The skill owns provider/data/cost approval, minimum payload selection, checking
+judgments against primary evidence, and final-response disclosure. Advice cannot
+authorize actions or rewrite frozen inputs/reports. Missing configuration or
+failed assistance uses the existing assessment. Hermetic tests exercise helper
+plumbing; live host usefulness and instruction compliance require manual approval.
 
 ## 3. The execution layer produces comparable trials
 

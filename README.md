@@ -253,6 +253,26 @@ The host skill also invokes Humanizer when available for its own result summary,
 with the same plain-language fallback. It does not post-edit the HTML or other
 saved report artifacts.
 
+### Optional Jev assistance
+
+On Claude Code and Codex, the headless and live skills can use TypeSafe's Jev
+for evidence ranking, finding classification, criterion support, or hypothesis
+evaluation. Set `TYPESAFE_API_KEY` in the host process environment, never in
+task text or a committed file. `TYPESAFE_DEFAULT_MODEL` defaults to `jev-latest`.
+Only the official `https://api.typesafe.ai` endpoint is supported; a different
+`TYPESAFE_BASE_URL` safely skips assistance.
+
+Configuration is not consent. Before a new use scope, the skill asks approval
+for TypeSafe, the payload category, purpose, request/state count, and cost ceiling.
+Missing configuration, denied approval, or provider failure leaves the existing
+assessment available. No useful semantic opportunity means no call.
+
+Jev supplies advice, not proof, a verdict, or permission. The skill checks
+important conclusions against primary evidence and briefly names Jev's actual
+contribution or skip reason in conversation. Extraction and saved reports do not
+change. See the [shared contract](plugin/skills/behavior-diff/references/jev.md)
+and [approval-bound manual verification](e2e/README.md#optional-jev-manual-verification).
+
 ### Historical Git comparisons
 
 When the skill replays a past change in an isolated fixture, the Before and
