@@ -1,6 +1,6 @@
 ---
 title: Verify the value of overall-skill Before/After behavior comparison
-status: ideation
+status: implementation
 source: Captain-requested follow-up from case-01-auto-download-audio.md
 started: 2026-10-23T14:17:49Z
 completed:
@@ -52,7 +52,7 @@ gates:
                 reason: Captain approved local saved-evidence audit and one interactive reader evaluation. Safe findings in task state; private evidence stays local. No product code, PR, live model calls, or external disclosure. Native omp execution remains task-authorized.
               application:
                 target-stage: implementation
-                state: pending
+                state: consumed
 ---
 
 Test the hypothesis that users want to understand a skill's overall behavior
