@@ -6,7 +6,7 @@ started: 2026-10-23T08:37:22Z
 completed:
 verdict:
 score:
-worktree:
+worktree: .worktrees/spacedock-ensign-use-jev-for-semantic-judgments
 issue:
 linear:
 pr:
