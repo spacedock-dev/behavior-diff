@@ -1,0 +1,15 @@
+{
+  "type": "Briefing",
+  "version": "1",
+  "id": "briefing:sd4j775gcwrmhxnd0rm84a36:validation:attempt-2:revision-1",
+  "question": "Hold this feature because the live exercise did not demonstrate the accepted decision improvement?",
+  "artifacts": [
+    {
+      "id": "artifact:sd4j775gcwrmhxnd0rm84a36:validation:attempt-2:revision-1:item-1",
+      "uri": "git-root://state/861626ccb1e1e55016aea1997b13684fee757205/use-jev-for-semantic-judgments/index.md",
+      "rev": "sha256:29c7d640251bf5cd551f56fa7f3f8683ec5ce01ebaa0ff50cf8de2b70593c9f1",
+      "mediaType": "text/markdown",
+      "summary": "Independent revalidation confirms live corroboration only, no decision improvement: AC-1 null/fail, AC-2 multi-state choice unperformed, AC-5 partial. Scoped safety and configuration observations stand; unchanged candidate retains static approvals. Recommend hold without retries or narrowed criteria. Folder-form migration is valid and validation/1 round recorded, resolving the workflow blocker. Existing ShellCheck failure remains unwaived."
+    }
+  ]
+}
