@@ -2,7 +2,7 @@
 title: Verify the value of overall-skill Before/After behavior comparison
 status: ideation
 source: Captain-requested follow-up from case-01-auto-download-audio.md
-started:
+started: 2026-10-23T14:17:49Z
 completed:
 verdict:
 score:
