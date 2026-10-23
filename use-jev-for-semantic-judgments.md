@@ -12,6 +12,17 @@ linear:
 pr:
 mod-block:
 id: sd4j775gcwrmhxnd0rm84a36
+gates:
+    version: 1
+    records:
+        - id: gate:sd4j775gcwrmhxnd0rm84a36:backlog
+          stage: backlog
+          attempts:
+            - id: gate-attempt:sd4j775gcwrmhxnd0rm84a36-backlog-1
+              briefing:
+                id: briefing:sd4j775gcwrmhxnd0rm84a36:backlog:attempt-1:revision-1
+                digest: sha256:a0cab9b4000ceb7af934c4bca09c0bd39b56cf3e14d3ef83399ac8c81babfa04
+                room-ref: ./use-jev-for-semantic-judgments/review/backlog/briefing-1
 ---
 
 Make Behavior Diff proactively use Jev for useful semantic judgments when the

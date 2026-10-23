@@ -1,0 +1,15 @@
+{
+  "type": "Briefing",
+  "version": "1",
+  "id": "briefing:sd4j775gcwrmhxnd0rm84a36:backlog:attempt-1:revision-1",
+  "question": "Start ideation for optional Jev semantic judgments in Behavior Diff?",
+  "artifacts": [
+    {
+      "id": "artifact:sd4j775gcwrmhxnd0rm84a36:backlog:attempt-1:revision-1:item-1",
+      "uri": "git-root://state/021b864cb69d6cd8ab56d05d032f0f95f0f26984/use-jev-for-semantic-judgments.md",
+      "rev": "sha256:0b8e5275aa3bda095d6f12a3b46c46eccd478c8cfb40751783fd7bf5e95a2c6b",
+      "mediaType": "text/markdown",
+      "summary": "Design useful optional semantic judgments beyond search, preserving Claude Code and Codex equivalence, credential privacy, deterministic evidence, and user approval boundaries. Ideation must verify supported credential and host contracts, batching, unavailable-provider behavior, and the smallest user-facing disclosure. No implementation or paid model runs are authorized by this gate."
+    }
+  ]
+}
