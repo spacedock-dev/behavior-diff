@@ -23,6 +23,17 @@ gates:
                 id: briefing:sd4j775gcwrmhxnd0rm84a36:backlog:attempt-1:revision-1
                 digest: sha256:a0cab9b4000ceb7af934c4bca09c0bd39b56cf3e14d3ef83399ac8c81babfa04
                 room-ref: ./use-jev-for-semantic-judgments/review/backlog/briefing-1
+              resolution:
+                type: Resolution
+                id: resolution:spacedock:sd4j775gcwrmhxnd0rm84a36:backlog:1
+                briefing: briefing:sd4j775gcwrmhxnd0rm84a36:backlog:attempt-1:revision-1
+                by: person:captain
+                at: "2026-10-23T08:37:01.854168Z"
+                decision: approve
+                reason: Captain approved starting ideation in chat; implementation and paid model runs remain unapproved.
+              application:
+                target-stage: ideation
+                state: pending
 ---
 
 Make Behavior Diff proactively use Jev for useful semantic judgments when the
