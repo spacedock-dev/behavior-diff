@@ -61,6 +61,14 @@ gates:
                 id: briefing:sd4j775gcwrmhxnd0rm84a36:validation:attempt-1:revision-1
                 digest: sha256:72f06fafd42663b8448ca6dba49f1f02a13e89693f8d90bc485cc068d0742744
                 room-ref: ./use-jev-for-semantic-judgments/review/validation/briefing-1
+              resolution:
+                type: Resolution
+                id: resolution:spacedock:sd4j775gcwrmhxnd0rm84a36:validation:1
+                briefing: briefing:sd4j775gcwrmhxnd0rm84a36:validation:attempt-1:revision-1
+                by: person:captain
+                at: "2026-10-23T09:13:46.049673Z"
+                decision: revise
+                reason: 'Captain approved running the proposed live verification: four Claude Code/Codex sessions, at most six Jev requests, synthetic evidence only including transmission to TypeSafe, no retries to improve the result. Accept implementation direction; route to implementation to obtain missing AC-1 through AC-5 evidence, then independently revalidate. Pricing is not a concern per Captain. No PR, merge, unrelated ShellCheck correction, or product-scope changes authorized.'
 ---
 
 Make Behavior Diff proactively use Jev for useful semantic judgments when the
