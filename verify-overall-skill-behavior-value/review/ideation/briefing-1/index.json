@@ -1,0 +1,15 @@
+{
+  "type": "Briefing",
+  "version": "1",
+  "id": "briefing:pyjt2hqwf2ncmfgdr9xhxk29:ideation:attempt-1:revision-1",
+  "question": "Approve a local saved-evidence audit and one reader evaluation before considering new overall-goal trials?",
+  "artifacts": [
+    {
+      "id": "artifact:pyjt2hqwf2ncmfgdr9xhxk29:ideation:attempt-1:revision-1:item-1",
+      "uri": "git-root://state/950bfd72a4528f00d87834d1932c9ae7351f2c21/verify-overall-skill-behavior-value.md",
+      "rev": "sha256:33b9eb2f63fa6b6912109c859d395756e4fe3fdf5e523d06df783d9d6951c950",
+      "mediaType": "text/markdown",
+      "summary": "Recommend audit saved evidence and conduct one reader evaluation rather than build a feature or run new trials. Reconcile baseline identity first: existing records cover different scopes and cannot be pooled into a whole-skill success claim. Measure whether added evidence resolves a real uncertainty or justifies narrowing a named verification step. Supported, unsupported and inconclusive are valid outcomes. No product changes, new UI, paid runs or private evidence publication authorized."
+    }
+  ]
+}

@@ -34,6 +34,14 @@ gates:
               application:
                 target-stage: ideation
                 state: consumed
+        - id: gate:pyjt2hqwf2ncmfgdr9xhxk29:ideation
+          stage: ideation
+          attempts:
+            - id: gate-attempt:pyjt2hqwf2ncmfgdr9xhxk29-ideation-1
+              briefing:
+                id: briefing:pyjt2hqwf2ncmfgdr9xhxk29:ideation:attempt-1:revision-1
+                digest: sha256:a00de97629ad05f6f151f617fa33136e73902c5c9564248432d881a2458b6965
+                room-ref: ./verify-overall-skill-behavior-value/review/ideation/briefing-1
 ---
 
 Test the hypothesis that users want to understand a skill's overall behavior
