@@ -1,6 +1,6 @@
 ---
 title: Use Jev for semantic judgments when configured
-status: ideation
+status: implementation
 source: Captain request to proactively use Jev when the user has configured a token
 started: 2026-10-23T08:37:22Z
 completed:
@@ -52,7 +52,7 @@ gates:
                 reason: Captain approved the shared-helper design and implementation dispatch in chat. Paid runs, external data sends, product push/PR and merge remain unapproved.
               application:
                 target-stage: implementation
-                state: pending
+                state: consumed
 ---
 
 Make Behavior Diff proactively use Jev for useful semantic judgments when the
