@@ -9,7 +9,7 @@ score:
 worktree: .worktrees/spacedock-ensign-use-jev-for-semantic-judgments
 issue:
 linear:
-pr:
+pr: "#53"
 mod-block:
 id: sd4j775gcwrmhxnd0rm84a36
 gates:
