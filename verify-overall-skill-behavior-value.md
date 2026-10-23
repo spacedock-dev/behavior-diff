@@ -23,6 +23,17 @@ gates:
                 id: briefing:pyjt2hqwf2ncmfgdr9xhxk29:backlog:attempt-1:revision-1
                 digest: sha256:42ac9a3a5689289fb1bca66945bf1c6802527253b67cd5406a699a794ec45daf
                 room-ref: ./verify-overall-skill-behavior-value/review/backlog/briefing-1
+              resolution:
+                type: Resolution
+                id: resolution:spacedock:pyjt2hqwf2ncmfgdr9xhxk29:backlog:1
+                briefing: briefing:pyjt2hqwf2ncmfgdr9xhxk29:backlog:attempt-1:revision-1
+                by: person:captain
+                at: "2026-10-23T14:15:40.74238Z"
+                decision: approve
+                reason: 'Captain approved starting ideation. Approval recorded without consume: mandatory docs/feature-dev/runtime/omp.md preflight identifies no supported, disposable-smoke-verified adapter mapping for this omp session; preserve pending approval until dispatch is available in a supported runtime.'
+              application:
+                target-stage: ideation
+                state: pending
 ---
 
 Test the hypothesis that users want to understand a skill's overall behavior
