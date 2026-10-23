@@ -99,6 +99,16 @@ fail() {
   printf 'FAIL: %s\n' "$1" >&2
   exit 1
 }
+
+# Wiring only: behavioral/authority compliance needs the manual host exercise.
+require_output '[Optional Jev assistance](references/jev.md)' "$headless_skill" \
+  'headless skill does not load the shared Jev contract'
+require_output '[Optional Jev assistance](../behavior-diff/references/jev.md)' "$skill" \
+  'live skill does not load the shared Jev contract'
+[[ -f $here/../plugin/skills/behavior-diff/references/jev.md ]] ||
+  fail 'shared Jev contract is not bundled'
+[[ -f $here/../plugin/skills/behavior-diff/scripts/jev.py ]] ||
+  fail 'shared Jev helper is not bundled'
 progress() {
   printf '[report] %s\n' "$1"
 }

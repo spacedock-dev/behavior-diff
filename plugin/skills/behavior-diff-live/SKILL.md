@@ -231,6 +231,13 @@ the sibling skill's bundled `scripts/` directory.
    findings.
 
 7. **Summarize in conversation.**
+   Before assessing the evidence, read the shared
+   [Optional Jev assistance](../behavior-diff/references/jev.md) contract.
+   Proactively identify useful semantic decisions; use the sibling skill's helper
+   only within explicit TypeSafe provider/data/cost approval and valid configuration.
+   It is outer-skill advice, never a trial or extraction step. Preserve the
+   self-reported evidence limits and saved report; include the reference's
+   one-sentence contribution or actual skip reason in your final response.
    Orient the reader briefly: say what the agent was asked to do, the changed
    skill's role when relevant, and the decision point tested. Lead with the
    practical supported contrast, not an internal workflow label. At first use,

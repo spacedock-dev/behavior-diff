@@ -19,6 +19,7 @@ env:
   ANTHROPIC_API_KEY: ""
   CLAUDE_CODE_OAUTH_TOKEN: ""
   OPENAI_API_KEY: ""
+  TYPESAFE_API_KEY: ""
 
 jobs:
   format:
@@ -81,6 +82,7 @@ jobs:
             .agents/skills/run-behavior-diff-human-evaluation/scripts/*.py \
             plugin/skills/behavior-diff/scripts/codex_model.py \
             plugin/skills/behavior-diff/scripts/decisions.py \
+            plugin/skills/behavior-diff/scripts/jev.py \
             plugin/skills/behavior-diff/scripts/render.py \
             plugin/skills/behavior-diff/scripts/progress.py \
             plugin/skills/behavior-diff/scripts/status.py \
@@ -106,6 +108,9 @@ jobs:
 
       - name: Check shared-data preparation boundaries
         run: python3 tests/shared-data-test.py
+
+      - name: Check optional Jev helper without network
+        run: python3 tests/jev-test.py
 
       - name: Run decision unit check
         run: python3 plugin/skills/behavior-diff/scripts/decisions.py --check

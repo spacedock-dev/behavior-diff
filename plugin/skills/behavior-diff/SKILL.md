@@ -315,6 +315,12 @@ the single-role or two-agent path. Create the fixtures with
    automatic chat notification on hosts that do not provide one.
 
 4. **Present the result.** The runner already opened `report.html` itself — do NOT open it again (that produces a duplicate tab); just summarize.
+   Before assessing the evidence, read [Optional Jev assistance](references/jev.md).
+   Proactively identify useful semantic decisions; use its shared helper only
+   within explicit TypeSafe provider/data/cost approval and valid configuration.
+   This outer-skill advice never changes extraction or saved reports. Follow the
+   reference's failure handling and include its one-sentence contribution or
+   actual skip reason in your final response.
    Summarize the flow diff honestly:
    - Flows diverge → describe where, in one or two sentences.
    - Flows identical → report that no difference was observed in the
