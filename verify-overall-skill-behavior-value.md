@@ -1,6 +1,6 @@
 ---
 title: Verify the value of overall-skill Before/After behavior comparison
-status: backlog
+status: ideation
 source: Captain-requested follow-up from case-01-auto-download-audio.md
 started:
 completed:
@@ -33,7 +33,7 @@ gates:
                 reason: 'Captain approved starting ideation. Approval recorded without consume: mandatory docs/feature-dev/runtime/omp.md preflight identifies no supported, disposable-smoke-verified adapter mapping for this omp session; preserve pending approval until dispatch is available in a supported runtime.'
               application:
                 target-stage: ideation
-                state: pending
+                state: consumed
 ---
 
 Test the hypothesis that users want to understand a skill's overall behavior
