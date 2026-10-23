@@ -1,10 +1,10 @@
 ---
 title: Use Jev for semantic judgments when configured
-status: validation
+status: done
 source: Captain request to proactively use Jev when the user has configured a token
 started: 2026-10-23T08:37:22Z
-completed:
-verdict:
+completed: 2026-10-23T10:18:34Z
+verdict: PASSED
 score:
 worktree: .worktrees/spacedock-ensign-use-jev-for-semantic-judgments
 issue:
@@ -84,7 +84,7 @@ gates:
                 reason: 'Captain explicitly said ''approve to merge the PR'' after disclosure of validation HOLD, live value evidence limits and pre-existing ShellCheck failure. Authorizes delivery of PR #53 candidate c9cbd198; does not rewrite failed/unperformed evidence as passed. All seven remote checks observed successful.'
               application:
                 target-stage: done
-                state: pending
+                state: consumed
 review-round:
     id: round:sd4j775gcwrmhxnd0rm84a36:validation:1
     stage: validation
@@ -93,6 +93,7 @@ review-round:
         id: briefing:sd4j775gcwrmhxnd0rm84a36:validation:round-1
         digest: sha256:849b495d30b2b5d48bf98c906737f863acd21c41d00fcdd9b503a715c8cb274d
         room-ref: ./review/validation/round-1
+archived: 2026-10-23T10:18:35Z
 ---
 
 Make Behavior Diff proactively use Jev for useful semantic judgments when the
