@@ -220,10 +220,11 @@ parallel extraction, model substitution, outcome cache, or additional trial set.
 1. **Measured user value, not payload size — authorized bounded replay.**
    On an identical frozen assessment input with the exact same host/model and
    settings, report baseline and candidate subprocess seconds, pre-output
-   seconds and observable-generation interval. A candidate is an observed
-   improvement at the selected latency seam only when its elapsed seconds are
-   lower and assessment fidelity is retained. Distinguish measured subprocess
-   time from any inferred effect on the runner's serial critical path.
+   seconds and observable-generation interval. For this narrow OMP advisor
+   suppression candidate, acceptance requires lower observed elapsed seconds
+   with the semantic-fidelity and causal limitations explicitly accepted below,
+   not proof of semantic-fidelity preservation from one pair. Distinguish measured
+   subprocess time from any inferred effect on the runner's serial critical path.
    One pair cannot establish stable population latency or a complete skill
    speedup. Preparation and post-run audit remain unmeasured limitations, not
    mandatory new outer-agent studies or additional paid full-skill runs.
@@ -240,7 +241,9 @@ parallel extraction, model substitution, outcome cache, or additional trial set.
    exact excerpts, source requirements and rejection behavior. Use synthetic
    fixtures for deterministic assertions; missing-source or foreign-trial
    mutations must still fail closed. Deterministic tests alone do not prove a
-   model interprets the new formatting identically.
+   model interprets the supplied evidence identically. For this candidate,
+   structural/report contracts are verified; the live bounded-input support gap
+   is expressly accepted as a limitation, not proven fixed or semantically equivalent.
 4. **No safety or scope regression — offline and interactive where needed.**
    Preserve private raw notes, provider disclosure/consent, historical
    isolation, neutral tasks, capability preflight, freeze checks, default trial
@@ -248,10 +251,28 @@ parallel extraction, model substitution, outcome cache, or additional trial set.
    Do not publish private artifacts, excerpts, paths, or hashes. Inspection and
    later deterministic checks cover the candidate's unchanged boundaries;
    actual skill execution is necessary for behavior/timing claims.
+   Candidate-specific proof is zero advisor events and unchanged global settings.
+   The historical ancillary-provider incident and unknown cost are acknowledged
+   and accepted as disclosed limitations, not undone or retroactively reconciled.
 5. **Honest stopping condition.**
    No speedup claim from character counts, overlapping local timings, file
    mtimes, or a smaller saved decisions file. A null/noisy result stays null;
    no repeated reruns, weaker criteria, or silent narrowing to extraction.
+
+### Captain acceptance amendment — 2026-10-27
+
+Authority: Captain selected **"Accept limitation; review narrow fix"** in the
+parent's ask interaction, relayed by FO `Main` to this implementation worker.
+This explicitly changes AC-1's original semantic-fidelity conjunct to bounded
+measured seam improvement with accepted unknown semantic preservation/causal
+relation; AC-3 accepts structural proof plus the disclosed semantic support gap;
+AC-4 accepts the historical ancillary incident while requiring advisor-free
+candidate behavior and unchanged global settings. AC-2 remains conditional and
+not applicable without compaction; AC-5 still forbids result-seeking reruns.
+This is risk/acceptance authority, not new evidence or permission to claim all
+judgments are grounded in bounded input, noise is independent, or fidelity is proven.
+Scope remains only OMP extraction advisor suppression. Independent validation is
+authorized; code changes, additional paid calls, merge and publication are not.
 
 ## Verification and consent-gated next step
 
@@ -419,3 +440,28 @@ remain mandatory, and any claim must stay scoped to the measured latency seam.
 ### Summary
 
 The candidate removes an accidental OMP advisor review and its measured trailing wait without changing trials, extraction content, model, effort or the mandatory raw audit. This pair observed 28.516 seconds lower subprocess time, but output-length variability and unresolved bounded-evidence certainty prevent an unqualified fidelity or stable speedup claim. Preparation/post-run audit remain unmeasured; independent validation must disposition the explicit support gap.
+
+## Stage Report: implementation (cycle 2)
+
+- DONE: Before product edits, profile one unchanged extraction on a private read-only replay of the frozen saved evidence using the explicitly approved exact OMP provider/model; capture monotonic startup, reasoning/text event intervals, elapsed seconds, usage and assessment validity within the shared three-call/$3 ledger. Send the observed cause and bounded proposed fix to FO before changing product behavior.
+  DONE under Captain-accepted limit: historical profile and pre-mutation FO authorization remain in the prior report; original ancillary-provider usage/cost are unknown and explicitly acknowledged, never counted as zero or reconciled within $3.
+- DONE: After FO authorization, implement only the measured bottleneck refactor with migrated callers and unchanged evidence/privacy/report contracts; compare seconds and assessment fidelity on fixed inputs using only remaining authorized calls. Retain null/noisy/failure results; no fewer trials, changed criteria, model substitutions, or extra live calls.
+  DONE under Captain-accepted limit: code `83fafb201ce4348db23bace45ea0f94ae08ba89e` changes only the OMP extraction advisor overlay; the pair and full fidelity disagreement are retained, not relabeled as semantic equivalence.
+- DONE: Run smoke and relevant deterministic checks/formatters once after edits, update architecture/changelog, DCO-signoff implementation/report commits and record every AC with actual evidence and limits. No pushes/PR/merge/release and no permanent profiling infrastructure.
+  DONE under Captain-accepted limit: the prior report records final exact commands/results, smoke and architecture update; this signed-off state-only amendment changes no code, adds no tests or model calls, and does not advance status.
+
+### Acceptance dispositions and retained evidence
+
+- AC-1 — Accepted with limitation: elapsed 69.069 → 40.553 seconds, first text 7.376 → 9.148, text span 37.784 → 30.044. Semantic-fidelity preservation and the causal relation to judgment variation were NOT established; Captain accepted those unknowns for the narrow measured seam.
+- AC-2 — Not applicable: no compaction. Observable user content is identical; complete primary system/HTTP request byte equivalence remains unobserved.
+- AC-3 — Structural/report contracts verified; semantic support gap accepted, not fixed: both outputs retain five frozen checks/30 memberships and normalize/render, but 12 candidate judgments overstate bounded state evidence. Richer raw artifacts support the actual outcomes; advisor-caused regression and independent noise are neither established.
+- AC-4 — Candidate proof retained: zero advisor events, global settings unchanged, raw audit/privacy boundaries intact. Historical ancillary-provider incident and unknown cost remain disclosed and Captain-accepted; acceptance does not undo the incident.
+- AC-5 — No reruns: two extraction invocations total; third remains HOLD/unspent. No trials, new scenarios, retuning, extra provider calls or verification reruns were performed for this amendment.
+- Cost: original extraction $0.0215463 plus UNKNOWN historical ancillary spend; isolated candidate $0.0212528 under the separate Captain-approved $1 allowance. No total original-spend reconciliation is claimed.
+- Evidence unchanged: full native/artifact audit covers six trials; observed advisor tail followed baseline primary completion. Source inspection found separate advisor machinery, not wire-equivalence proof or a causal demonstration.
+- Authority/source: Captain's ask selection **"Accept limitation; review narrow fix"**, relayed by FO `Main`, explicitly amended AC-1/AC-3/AC-4 as recorded above. This decision permits independent validation only, not merge or publication.
+- Checklist accounting: 3 DONE under Captain-accepted limit, 0 SKIPPED, 0 FAILED in this current report. The historical FAILED implementation report remains unchanged as the record of the earlier acceptance terms.
+
+### Summary
+
+The same narrow candidate and measured results are complete under the Captain's newly accepted limitations; no semantic proof has been added or invented. Historical failures, unsupported bounded-input certainty and unknown ancillary cost remain visible for independent validation. Only this entity's acceptance terms and current implementation report were amended; code and workflow status are unchanged.
