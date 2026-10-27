@@ -1,0 +1,15 @@
+{
+  "type": "Briefing",
+  "version": "1",
+  "id": "briefing:n2m85xea3h2q75xk6gzjebwm:validation:attempt-1:revision-1",
+  "question": "Is the complete Behavior Diff skill speed refactor ready for delivery?",
+  "artifacts": [
+    {
+      "id": "artifact:n2m85xea3h2q75xk6gzjebwm:validation:attempt-1:revision-1:item-1",
+      "uri": "git-root://state/8b38356669e64648b64f5d0882bb0fe363d0421b/speed-up-canonical-skill/index.md",
+      "rev": "sha256:ddf0f48afe2cf3375e8b15cb8d1e782c84f665696a075b04ea477a25e9fcc4b4",
+      "mediaType": "text/markdown",
+      "summary": "Corrected signed code23c350 has independent Spec and Standards offline APPROVE with no material findings;36staging/runner smoke,25raw-evidence and related contracts/formatting pass. Full native timing,real-case preservation and live-host behavior remain unverified, so recommend holding delivery. Authorization of any further paid verification is separate from accepting this gate or granting push/PR/merge."
+    }
+  ]
+}
