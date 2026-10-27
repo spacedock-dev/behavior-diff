@@ -53,6 +53,14 @@ gates:
               application:
                 target-stage: implementation
                 state: consumed
+review-round:
+    id: round:n2m85xea3h2q75xk6gzjebwm:validation:1
+    stage: validation
+    cycle: 1
+    briefing:
+        id: briefing:n2m85xea3h2q75xk6gzjebwm:validation:correction-1
+        digest: sha256:71634735b08789189ce93de4065f6150b18107c2a43c51decfdacf6fa6901867
+        room-ref: ./review/validation/round-1
 ---
 
 Reduce elapsed time from a user's comparison request through the final evidence-audited response when the canonical Behavior Diff skill runs in Claude Code or Codex.
@@ -128,6 +136,8 @@ Captain explicitly requested this complete native-host refactor and selected sta
 Why: this targets the observed round-trip burden with the smallest shared change while preserving the evidence needed to reject a misleading speedup.
 
 ### Feedback Cycles
+
+- Cycle 1: REVISE — independent Spec and Standards; surface 7 files/1,269 changed lines vs estimate 7/740 ±35% (+71.5%); AC unchanged. F1/M1 Material/task-owned/FIX corrected in `23c350837d92cc9865298dcffa10b3a89756d90c` with staged/direct CLI red→green evidence; authorized streaming digest and isolated symlink fixture completed. Formatter-only estimate expansion and narrow corrections disclosed, not within tolerance. Native performance and live-case preservation remain unverified; all paid launches held.
 
 ## Out of scope
 

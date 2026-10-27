@@ -1,0 +1,15 @@
+{
+  "type": "Briefing",
+  "version": "1",
+  "id": "briefing:n2m85xea3h2q75xk6gzjebwm:validation:correction-1",
+  "question": "Correct the independently reviewed frozen-scenario handoff defect without changing approved scope or claiming native speed.",
+  "artifacts": [
+    {
+      "id": "artifact:2d2b78f4f296a5b8855078a39e849f209de58667:review",
+      "uri": "git-root://state/2d2b78f4f296a5b8855078a39e849f209de58667/speed-up-canonical-skill/index.md",
+      "rev": "sha256:121c58eeccb55d0d8cc0358851701a23ef6baeac2c2647b51f09f03f6aa14c19",
+      "mediaType": "text/markdown",
+      "summary": "Spec and Standards both REVISE c090d028 for one material null-scenario handoff bypass. Producer proposed Material/task-owned/FIX; FO separately authorized that narrow fix and two small in-scope optional corrections. No paid runs or native speed evidence; this neutral correction room is not Captain gate authority."
+    }
+  ]
+}
