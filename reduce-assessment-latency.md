@@ -527,3 +527,51 @@ SCOPE AUDIT
 ### Summary
 
 Recommend PASSED for independent validation of the exact narrow candidate under the recorded Captain amendment, not an unqualified fidelity pass. The diff removes inherited OMP advisor work without demonstrated new code defects; observed bounded-input overclaims, unknown historical ancillary cost and causal/end-to-end limits remain visible. This review neither authorizes delivery nor changes workflow status.
+
+## Stage Report: validation (cycle 2)
+
+- DONE: Record the new post-approval finding, Captain authority, four evidence fields, materiality, ownership and authorized disposition without changing the candidate or rerunning review.
+  FO `Main` supplied verified saved-trace counts and the Captain's fresh “Isolate OMP trials too” selection; this report records that package, not a new execution or independent remeasurement.
+- FAILED: The current candidate satisfies the newly expanded OMP trial-isolation scope.
+  Exact extraction-only candidate `83fafb201ce4348db23bace45ea0f94ae08ba89e` does not apply its advisor-disable overlay to OMP trial launches; scoped implementation and full independent re-review remain pending.
+- DONE: Preserve the earlier APPROVE as historical and commit only this current correction report with DCO sign-off; identify existing canonical records without inventing a schema.
+  Prior report and all accepted extraction evidence remain unchanged; no product mutation, builds/tests/formatters, provider calls, extra reviewers, push, PR, merge or release.
+
+### Reviewer verdict
+
+VERDICT: REVISE
+
+MATERIAL FINDINGS
+- High — OMP trial-launch boundary; authority `captain-ruling[2026-10-27]`: “Isolate OMP trials too” now requires invocation-scoped `advisor.enabled:false` for OMP trials as well as extraction, preserving the primary model, tools and all other settings/hosts. Extraction-only code is incomplete against this new requirement, not retroactively defective against the earlier narrow scope.
+
+### Four evidence fields and disposition
+
+- Released user and normal workflow: a user runs an ordinary Behavior Diff comparison using OMP trials with an inherited enabled advisor; both sides exercise the configured advisor-assisted stack.
+- Observable harm: an additional advisor participates in the tested stack and can introduce steering between primary turns, leaving the newly requested isolated-primary OMP trial behavior unmet. Ancillary work is observed; its exclusive latency, actual provider/model and cost are not established, and the comparison of that configured stack is not thereby invalidated.
+- Affected value or boundary: `captain-ruling[2026-10-27]` explicitly extends advisor isolation to OMP trials; `value-ac[AC-4]` preserves intended execution settings/provider boundaries. This is new authority, separate from the accepted extraction fidelity/cost limitations.
+- Trigger evidence: FO-verified saved native traces contain advisor-yield counts after-1=8, after-2=6, after-3=10, before-1=9, before-2=8, before-3=8 (49 total); each trace contains two advisor custom messages followed by subsequent message-start/turn-start events (12 messages total). These establish advisor participation and possible steering, not which outcomes it changed.
+- Materiality: Material against the new explicit trial-isolation requirement; task ownership: owned by the expanded commissioned implementation scope, not the read-only reviewer.
+- FO authorization/disposition: FIX only a shared invocation overlay, the OMP trial launcher, corresponding docs and relevant behavioral coverage; cleanly migrate the extraction-specific config filename/callers if needed. Least-cost remedy is reuse of the supported process-local advisor-disable mechanism for both OMP paths, with no global edit, other-host/model/tool/prompt change or unrelated cleanup.
+- Review gate: FO reports validation briefing-1 withdrawn and state committed before candidate mutation. This current REVISE supersedes the earlier APPROVE for proceeding under the expanded scope; implementation owns correction/checks, followed by full independent review of the corrected complete candidate.
+
+DECISIONS REQUIRED
+- none for the authorized correction: Captain selected trial isolation and FO issued FIX. No new paid runs are authorized; the third extraction call remains HOLD. Delivery permissions remain ungranted.
+
+OPTIONAL SUGGESTIONS
+- none.
+
+SCOPE AUDIT
+- Added/removed by this report: no product mechanism; shared-state report only. Authorized next surface is shared OMP overlay, OMP trial launch, docs and behavioral coverage; implementation remains pending.
+- No unauthorized decisions made. Historical extraction timing, accepted bounded-input uncertainty and unknown ancillary charge are retained without extending acceptance to the newly discovered trial risk.
+- Existing canonical Briefing: `reduce-assessment-latency/review/validation/briefing-1/index.json` in the state checkout, pointing to review state commit `2ac5e6ad5d059129bb46e45f947ec55a0b0a9138`. It is the withdrawn extraction-only presentation, not a new correction-round record.
+- The entity-scoped review inventory contains Briefing indexes only; no existing canonical correction-round log was found there. No replacement log/schema or Cycle line was invented; FO owns authorized round recording through workflow tooling.
+
+### Risk classifications and evidence limits
+
+- Material: owned trial-isolation gap above, correction authorized. Deferred risk: advisor-caused outcome changes, exclusive latency and provider/cost attribution remain unestablished; promote only on concrete supporting evidence, not event counts alone. Least-cost present remedy is precise disclosure and the scoped isolation correction.
+- Polish: none. Needs decision: none within the explicit correction scope; any additional scope, paid verification or delivery action requires its own authority.
+- AC status: prior AC-1 measured extraction benefit and AC-2 non-compaction remain historical; AC-3 does not establish advisor-free trial fidelity; expanded AC-4 is unmet until trial isolation is implemented and checked; AC-5 still forbids extra result-seeking calls. No old deterministic or extraction smoke result proves the pending trial launch.
+
+### Summary
+
+Current recommendation is REJECTED/REVISE pending the specifically authorized trial-isolation correction, with the earlier narrow APPROVE preserved as history. This is the required post-approval finding record before routing, not a rerun of the code review or a claim of new verification. Full independent re-review must cover the corrected candidate and implementation-owned evidence.
