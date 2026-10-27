@@ -145,3 +145,35 @@ OMP advisor configuration; changing models, trial counts or evidence standards a
 ### Summary
 
 Recommend extending shared preparation/freeze mechanics and indexing original raw evidence instead of reducing experiment scope or delegating judgment to another model. Native performance proof remains with the benchmark owner; the Captain must decide the review-case assembly fidelity limitation before that case can run, and no product implementation or new delivery authority is implied.
+
+## Stage Report: implementation
+
+- DONE: Implement the approved shared preparation/freeze and raw-evidence-navigation path in the assigned worktree, migrate canonical skill/reference callers and update concise architecture documentation, preserving all protected behavior.
+  Signed candidate `c090d028b9bf2c565dbf227d5b6eecbd443cca24` extends shared preparation/direct freeze with validated private context and runner arguments, indexes original raw evidence/artifacts, and migrates canonical callers and architecture; runner, models, trial count and report/extractor contracts remain unchanged.
+- DONE: Exercise the shipped helper CLIs and relevant negative privacy/staleness/raw-evidence boundaries, run applicable deterministic checks and formatting once after changes, fix owned failures, and record exact evidence without source-text or forwarding-only tests.
+  The commands and falsifiable claims below passed against the shipped helpers; new permanent tests use synthetic consumer-visible boundaries, not wording or forwarding assertions.
+- DONE: Deliver a DCO-signed exact candidate and complete criterion-mapped implementation report; coordinate frozen native baseline/candidate timing with the independent benchmark owner, with no unapproved models, hidden scope reduction or speed claim before valid paired evidence.
+  Candidate identity and offline evidence were handed to NativeCodexBaseline with paid launches explicitly held; that owner confirms zero valid complete native baselines and no independent candidate execution yet.
+
+### Exercised evidence
+
+- `python3 tests/shared-data-test.py --runner-smoke` — 35 passed: shipped prepare/freeze/verify plus fake Claude/Codex runner/adapters exercise complete handoffs, 3+3 delivery, private exclusions, stale context/settings/tools/references, invalid scenarios, archive/Git redirects, symlinks and absent Before. Removing mutation rejection or delivering excluded notes would fail these checks.
+- `python3 tests/recorded-evidence-test.py` — 25 passed: raw CLI reconstructs original adapter returns beyond assessment eligibility/budgets, retains duplicate/malformed/missing evidence and native failure despite progress text, and accesses ignored/untracked artifacts while rejecting link/path escape. Filtering raw returns or following the escape would fail.
+- `python3 tests/scenario-contract-test.py` — 10 passed; `python3 tests/purpose-handoff-test.py` — 4 passed; `python3 tests/source-provenance-test.py` — 9 passed: shared input contracts still reject invalid/mismatched records and preserve protected purpose/source behavior.
+- `python3 tests/report-source-test.py` and `bash tests/live-report-contract.sh` passed: source provenance, captured/self-reported prompt/report behavior and invalid-configuration handling remain compatible; no extractor schema or prompt changes.
+- `uvx ruff@0.16.5 format plugin/skills/behavior-diff/scripts/prepare_shared.py plugin/skills/behavior-diff/scripts/audit_evidence.py tests/shared-data-test.py tests/recorded-evidence-test.py` completed; `uvx ruff@0.16.5 format --check --diff .` passed for 154 files; `git diff --check` passed.
+- `docker run --rm -v /Users/kent/Dev/InfuseAI/Spacedock/behavior-diff/.worktrees/spacedock-ensign-speed-up-canonical-skill:/mnt -w /mnt mvdan/shfmt:v3.14.0 -d -i 2 -ci .` passed. All checks ran after implementation; no model-backed check or paid call ran.
+
+### Acceptance and limits
+
+- AC-1: UNVERIFIED. Zero valid complete native baselines and no candidate native run; no end-to-end timing comparison or speedup claim. Required native paired performance evidence remains an open gate, not a passing offline result.
+- AC-2: Offline preparation/privacy/reference delivery and default trial mechanics passed the synthetic checks; complete real-case frozen inputs and all-case semantic raw audits remain UNVERIFIED with the held native benchmark.
+- AC-3: Exercised shipped helper CLI boundaries and original-byte reconstruction passed as detailed above. Index presence is navigation, not a completion, attribution or requirement verdict.
+- AC-4: Canonical Claude/Codex callers and architecture use the shared path; fake-host smoke exercises both adapters. Actual changed-path Codex execution and live Claude instruction compliance remain UNVERIFIED; Spacedock-specific fixture delivery remains intentionally unchanged.
+- Surface: seven approved files, authored 979 changed lines before formatting; formatted +1002/-226 = 1,228 exceeds the 999-line estimate ceiling. FO explicitly authorized mechanical formatter expansion within unchanged behavior/file scope; no claim of staying within tolerance.
+- Sequencing: FO lifted its own baseline-before-edit hold after independently freezing the old archive; this was an FO-owned sequencing correction, not a new Captain ruling or a waiver of native performance evidence.
+- DCO: this candidate and this report use signed-off, path-scoped commits. Earlier already-pushed unsigned FO state history remains preserved; it was not repaired or represented as signed. No code push, PR, merge, release, provider switch or sandbox bypass was performed.
+
+### Summary
+
+Completed the shared mechanical refactor and its offline CLI, safety and formatting evidence without changing the approved models, trial counts, privacy boundaries or semantic audit ownership. The exact candidate is ready for independent review; native performance and real-case preservation remain explicitly unverified and must not be inferred from the passing synthetic checks.
