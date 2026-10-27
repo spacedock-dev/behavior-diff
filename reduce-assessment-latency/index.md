@@ -624,3 +624,51 @@ Current recommendation is REJECTED/REVISE pending the specifically authorized tr
 ### Summary
 
 The expanded requirement is implemented by sharing the existing supported isolation overlay across OMP trials and extraction, with clean filename/caller migration and no other host or execution-setting changes. Offline consumer/launcher smoke and final deterministic/format checks passed; actual new model-trial behavior, trial latency and semantic equivalence remain unmeasured. Historical reports, Captain-accepted risks and raw outcomes remain intact for independent re-review.
+
+## Stage Report: validation (cycle 3)
+
+- DONE: Independently inspect the complete expanded candidate2e3d915 and relevant untracked files against user-authorized advisor isolation for both OMP trials and extraction; verify clean config/caller/docs cutover and unchanged other host/tool/model/evidence contracts without product edits or rerunning owned checks.
+  Reviewed full base `8067a1cb10d7056226589020ffec83e506890045` to signed candidate `2e3d915542233a263c13d7f9d72c378452c20e01`; four files/21 additions, no staged, unstaged or untracked files. Both actual callers resolve the shared bundled overlay; no old config reference/file or compatibility alias remains.
+- DONE: Map five accepted AC plus expanded trial isolation to actual saved code, offline launcher/settings smoke, deterministic checks and historical extraction timing; retain unmeasured live-trial/semanticfidelity and accepted historical provider/cost limits, with disposition for every material finding.
+  Independently inspected saved timing/events, emitted user-content equality, normalized memberships, fidelity/raw-audit summaries and current smoke receipt; reused implementation-owned execution records without rerunning checks.
+- DONE: Commit the exact-stage independent validation report with DCO signoff and full repository review verdict/sections, safe aggregate evidence and current revision identity; no builds/tests/formatters/modelcalls, no gate/status/delivery action or additional workers.
+  Only this entity-body report is authored and path-scoped/DCO-signed; fresh independent reviewer, exposed model `openai-codex/gpt-6.1-sol`. Prior reports, frontmatter and canonical rejection-round history remain unchanged; state sync is not product delivery.
+
+### Reviewer verdict
+
+VERDICT: APPROVE
+
+MATERIAL FINDINGS
+- none outstanding against the current Captain-amended scope. The prior owned trial-isolation finding is corrected; accepted assessment-support and historical ancillary-cost findings remain limitations, not repaired findings or semantic passes.
+
+DECISIONS REQUIRED
+- none for this validation. The Captain's trial-isolation selection and earlier exact fidelity/cost acceptance supply current authority; no paid replay, product push, PR, merge or release is authorized by this verdict.
+
+OPTIONAL SUGGESTIONS
+- none; missing live-trial measurements do not create a new paid-study requirement, permanent test mechanism or CI gate.
+
+SCOPE AUDIT
+- Added: one five-line `omp-isolation.json` containing only `advisor.enabled:false`, three extraction argv lines, one OMP-trial argv line and 12 architecture lines. Correction removes the extraction-specific filename by clean migration; no alias, new dependency, persistent profiling mechanism or CI change.
+- `decisions.py:1131-1149` and `run-trial.sh:152-161` preserve primary model, normal trial tools, extraction tools-disabled mode, effort defaults, task/prompt, trial-local storage, normalization and failures; other hosts and all evidence/schema/consent/raw-audit contracts are untouched.
+- Actual complete surface is four files/21 added lines; the correction alone is four files/20 changed lines. The conditional whitespace preview estimated a different unselected design, so its percentage tolerance is not comparable; the observed advisor seam and later primary-only trial-stack change each received explicit authority. No unauthorized decisions found.
+
+### Acceptance and verification evidence
+
+- AC-1 — Accepted with limitation: historical extraction candidate `83fafb2` observed 69.069 → 40.553s elapsed, 7.376 → 9.148s first text and 37.784 → 30.044s text span. Saved baseline primary-end 45.728s precedes advisor-yield 68.411s by 22.683s; the entire 28.516s difference cannot be assigned to that tail. These are not new measurements of the renamed config/current trial launcher, stable latency or complete-skill speed.
+- AC-2 — Not applicable, not passed: no input compaction. Saved emitted user content matches; both actual primary replies identify `openai-codex/gpt-6-luna`, auto → low effort and 188028 input tokens. Complete system/HTTP request equivalence remains uncaptured.
+- AC-3 — Structural contracts supported; semantic limitation accepted: saved outputs retain five frozen checks/all 30 memberships without criterion rejection, and saved render receipt exits zero. Twelve candidate determinate judgments exceed bounded returned-state evidence; richer raw-artifact audit supports underlying outcomes, not adequacy of bounded citations. Baseline has its own support errors; neither advisor-caused regression nor independent noise is established.
+- AC-4 — Expanded isolation supported offline: current smoke receipt records inherited advisor=true, false through each shipped caller using the real installed settings consumer, unchanged global settings, trial launcher exit zero and normalized assistant/tool-result/final-result records; missing-overlay initialization exits 1. Disposable CLI-boundary shim/synthetic events exercise settings and adapter integration, NOT a live primary/advisor model trial. Unseeded optional status record caused a summary-read failure, not a launcher failure; status behavior is not claimed.
+- AC-4 — Historical extraction evidence is retained, not reattributed: saved old candidate events contain zero advisor events versus one baseline yield/custom message. Primary catalog costs are $0.0215463 baseline and $0.0212528 isolated candidate; baseline ancillary provider/model/usage/cost remain UNKNOWN and Captain-accepted, never zero or reconciled within the original grant. No private paths, source excerpts or digests are published here.
+- AC-5 — Supported within recorded authority: two extractor invocations total, third HOLD/unspent; no added trials/scenarios, retuning, weakened evidence, model substitution or result-seeking reruns. Trial speed, current live-trial advisor absence, whole-skill speed and semantic equivalence remain unmeasured; preparation/audit costs remain explicit limits.
+- Reused implementation verification after the complete correction: `bash tests/hooks-test.sh`, `decisions.py --check`, report-schema, scenario-contract, recorded-evidence, progress-assessment and live-report-contract checks passed; Bash syntax, ShellCheck, pinned shfmt 3.14.0, Ruff 0.16.5 and diff whitespace checks passed. Existing launcher/storage/other-host contracts supplement the new offline effective-settings smoke; no checks were rerun by this reviewer.
+- Falsifiability: inspected `tests/target_contract.py:764-780,895-904,972-1011` and `tests/recorded-evidence-test.py:666-703`; accepting foreign-trial references, missing/rewritten frozen criteria, wrong source evidence or invented excerpts breaks rejection assertions. Those deterministic contracts do not prove model judgment; the offline consumer smoke would distinguish ineffective suppression, but does not establish live-trial outcomes.
+
+### Finding dispositions and retained risk
+
+- Corrected Material/owned/FIX: ordinary OMP trials with inherited advisor enabled previously admitted extra advisor steering, violating `captain-ruling[2026-10-27]` and expanded `value-ac[AC-4]`; six saved traces had 49 yields/12 advisor messages with later primary events. Least-cost authorized remedy is the shared invocation overlay at `run-trial.sh:158` plus migrated extraction caller; code inspection/current offline consumption evidence close that requirement gap, without declaring historical comparisons invalid or measuring outcome effect.
+- Material/accepted: normal report readers can encounter unsupported certainty when omitted returns meet determinate judgments, affecting `value-ac[AC-3]`; exact 12-judgment support gap persists under the Captain's named acceptance, with mandatory raw audit/disclosure and no unauthorized prompt/validator repair. Historical advisor execution crossed the named consent boundary and left unknown charge, affecting `value-ac[AC-4]`; accepted disclosure preserves the incident rather than undoing it.
+- Deferred risk: exclusive advisor latency/provider/cost attribution for old trials, causal semantic changes, future runtime drift and population/end-to-end speed are unestablished; promote only on concrete supported-workflow evidence or claims exceeding these bounds. Least-cost present remedy is bounded wording and retained evidence, not extra model calls. Polish: none. Needs decision: none within this authorized validation.
+
+### Summary
+
+Recommend PASSED for independent validation of exact complete candidate `2e3d915542233a263c13d7f9d72c378452c20e01` under the actual Captain amendments, not an unqualified fidelity or live-trial pass. The clean shared overlay/caller/docs cutover corrects the expanded trial-isolation gap with reused implementation-owned offline proof; historical timings, accepted support/cost limits and prior rejection remain visible. This report makes no gate, workflow-status or delivery change.
