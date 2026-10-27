@@ -1,6 +1,6 @@
 ---
 title: Reduce Behavior Diff assessment latency without weakening evidence
-status: backlog
+status: ideation
 source: Captain request on 2026-10-27 to diagnose and refactor recent slowdown; Captain selected the Spacedock workflow.
 started:
 completed:
@@ -33,7 +33,7 @@ gates:
                 reason: Captain explicitly requested diagnosis and refactoring, selected the Spacedock workflow, and pre-approved the ideation gate into implementation.
               application:
                 target-stage: ideation
-                state: pending
+                state: consumed
 ---
 
 Make Behavior Diff comparisons faster by diagnosing and refactoring the measured bottleneck while preserving comparable trials and report evidence.
