@@ -22,7 +22,7 @@ gates:
               briefing:
                 id: briefing:vnaxvsdna9hvd5fgebv5fp5y:backlog:attempt-1:revision-1
                 digest: sha256:15dd9ace496c0ed91b9667f4846449cb7f178a709ce31f0050a98d6932fc5fac
-                room-ref: ./reduce-assessment-latency/review/backlog/briefing-1
+                room-ref: ./review/backlog/briefing-1
               resolution:
                 type: Resolution
                 id: resolution:spacedock:vnaxvsdna9hvd5fgebv5fp5y:backlog:1
@@ -41,7 +41,7 @@ gates:
               briefing:
                 id: briefing:vnaxvsdna9hvd5fgebv5fp5y:ideation:attempt-1:revision-1
                 digest: sha256:ac391a9d48e8e9c1f4a312ef7b1eee8961d11c20b102421bbf4e7a9ffaa97536
-                room-ref: ./reduce-assessment-latency/review/ideation/briefing-1
+                room-ref: ./review/ideation/briefing-1
               resolution:
                 type: Resolution
                 id: resolution:spacedock:vnaxvsdna9hvd5fgebv5fp5y:ideation:1
@@ -60,7 +60,7 @@ gates:
               briefing:
                 id: briefing:vnaxvsdna9hvd5fgebv5fp5y:validation:attempt-1:revision-1
                 digest: sha256:72536ff68006c46d7eccafea004f501ada833bacfdad619bd58df46efb73346f
-                room-ref: ./reduce-assessment-latency/review/validation/briefing-1
+                room-ref: ./review/validation/briefing-1
               withdrawal:
                 by: agent:first-officer
                 at: "2026-10-27T12:19:45.91402Z"
@@ -362,6 +362,10 @@ or product push is authorized. State report synchronization follows the
 commissioned split-root state protocol.
 Actual exposed ideation model: `openai-codex/gpt-6.1-sol`; the saved extractor
 model above is different and must not be substituted for it.
+
+### Feedback Cycles
+
+- Cycle 1: REJECTED — validation feedback; authorized trial-isolation correction completed at `2e3d915542233a263c13d7f9d72c378452c20e01`, 4 files/20 changed lines versus a conditional estimate for a different candidate (not comparable after Captain scope expansion); AC unchanged under the Captain's trial-isolation amendment and accepted limits. Independent re-review pending; canonical reviewer and implementation responses close this correction round, not the gate.
 
 ## Out of scope
 
