@@ -137,9 +137,8 @@ limit: isolation does not remove historical selection bias.
    Use plain text: no Markdown, links, or control characters. Generalize
    private detail as for purpose: no names, credentials, private URLs, source
    excerpts, raw notes, or later history. Never record outcomes, per-trial
-   results, or claims that a past problem was detected. Validate the record
-   against the frozen purpose with
-   `python3 <skill-base>/scripts/scenario.py <scenario-file> --purpose-file <purpose-file>`.
+   results, or claims that a past problem was detected. The complete handoff
+   validates this record against the frozen purpose using the shared readers.
    The runner validates it again before any model call and excludes the file
    from trial copies. The record, not the notes, goes to the assessment
    provider and appears in the report. The assessment fills outcomes for
@@ -183,17 +182,47 @@ modeled limitation is part of the scenario; an accidental harness failure is not
 
 ## Freeze
 
-Before launch, freeze privately: the task text, purpose, scenario record,
-source, data or stage, required references, tool behavior, private notes and
-criteria, the agent and model, extraction host and model, reasoning settings
-when known, `--fast` choice, and the preparation model. Record a readable
-inventory with digests (for example `shasum -a 256`) in the private directory.
-Do not infer reasoning effort from a model name.
+Freeze purpose before drafting, as `SKILL.md` requires. After semantic preflight,
+write one private `handoff.json` (0600 in a 0700 directory) naming the reviewed
+files and settings. All paths below are absolute except trial-relative
+`references` and trial-relative custom `tools`; external tools use absolute paths.
+Keep this descriptor and all context files outside the project, shared data and
+stage. They never enter trials. Example (synthetic paths; use your actual files):
 
-`prepare_shared.py verify` freezes only the staged project and Before. It does
-not hash the task, purpose, scenario record, source, notes, or tooling;
-recompute your inventory digests immediately before launch and stop if any
-differ.
+```json
+{
+  "task_file": "/private/scratch/task.txt",
+  "purpose_file": "/private/scratch/purpose.json",
+  "scenario_file": "/private/scratch/scenario.json",
+  "notes_file": "/private/scratch/notes.md",
+  "references": ["docs/guide.md"],
+  "tools": ["tools/read_records.py"],
+  "settings": {"agent": "codex", "reasoning": "unknown", "preparation_model": "current"}
+}
+```
+
+`source_file` is optional and only names verified historical provenance.
+Omit `scenario_file` for null purpose. Settings accept `agent`, optional
+`model`, `extract_agent`, `extract_model`, `vocab`, and boolean `fast`, plus
+descriptive `reasoning` and `preparation_model`. Preserve the current host;
+Pi and OMP need their exact model. Preserve model/extraction overrides; absent
+overrides retain the defaults in `SKILL.md`. Reasoning is recorded, not inferred
+or configured by this helper. Include every required reference and custom tool;
+the agent still reviews closure, privacy and actual capability probes. Hashing
+a probe record does not establish that a capability worked.
+
+For shared data/exclusions use `prepare --handoff` below. Otherwise use
+`freeze --project "$PROJECT" --file "$TARGET" --output "$ROOT" --handoff
+"$PRIVATE/handoff.json"`; this keeps the existing project path without staging.
+It freezes the effective Git archive plus selected After (not unrelated working
+edits), or the non-Git folder. Direct freeze cannot apply exclusions: use staging
+when private project files must be removed. Both operations validate existing
+purpose/scenario/source contracts and freeze context, notes, tools, settings and
+Before. Neither executes commands from JSON or launches models.
+
+Inspect `python3 "$SKILL_DIR/scripts/prepare_shared.py" verify "$ROOT" --json`
+once for the complete readable inventory and runner arguments. Reuse this handoff,
+not bespoke inventories or a second parent review. Any mismatch stops launch.
 
 Keep the default three trials per side, or `--fast` only when the user asked.
 More cases do not add runs; a richer scenario may still use more tokens per
@@ -202,6 +231,26 @@ change cases, data, criteria, or the scenario record after seeing outcomes, and
 do not rerun to produce a finding.
 
 ## Assess the result
+
+Use the local raw locator, never the assessment collector as the audit boundary:
+
+```bash
+python3 "$SKILL_DIR/scripts/audit_evidence.py" "$RUN_DIR"
+python3 "$SKILL_DIR/scripts/audit_evidence.py" "$RUN_DIR" \
+  --file before-1/trace.jsonl --offset 0 --length 65536
+```
+
+The inventory includes every expected trial, missing/unsafe/malformed states,
+every original JSONL event and tool part with line/byte/JSON-pointer locations,
+duplicate identities, native terminal/error events, stderr and all project
+artifacts, including ignored and untracked files. Artifact presence does not
+establish authorship; initial files are included too. Read original byte pages
+until the relevant return/artifact is complete; there is no assessment eligibility
+filter or total source budget. A bounded page is not the whole return. Preserve
+host truncation/error flags and missing returns as evidence limits. The index
+does not attribute ambiguous returns, infer completion from text or judge cases.
+Keep output private and local, outside trial projects; never send this unfiltered
+inventory or its raw pages to another provider without the applicable consent.
 
 After the run, read raw trial evidence: actions, tool returns, and produced
 artifacts, not only final answers. For every case in every trial, separately
@@ -231,7 +280,7 @@ file, every Before and After trial must receive the same files, and either the
 task needs files that are not in the project base or private context in the
 project base must be kept out of trials.
 
-If neither applies, use the normal step 3 command instead.
+If neither applies, use direct `freeze --handoff` instead.
 
 Do not use this path for:
 
@@ -282,7 +331,8 @@ Then prepare the stage:
 
 ```bash
 python3 "$SKILL_DIR/scripts/prepare_shared.py" prepare \
-  --project "$PROJECT" --file "$TARGET" --data "$DATA" --output "$ROOT"
+  --project "$PROJECT" --file "$TARGET" --data "$DATA" --output "$ROOT" \
+  --handoff "$PRIVATE/handoff.json"
 ```
 
 Optional arguments:
@@ -339,18 +389,14 @@ files in a stage by hand.
 
 ## Verify, then run
 
-Run `verify` immediately before launch:
+Verification immediately before launch compares the complete handoff:
 
-```bash
-python3 "$SKILL_DIR/scripts/prepare_shared.py" verify "$ROOT"
-```
-
-`verify` compares the scratch commit, the archived files, the working files,
-and the frozen Before file or absent marker with `freeze.json`. Its read-only
-Git checks use the launch environment, including ordinary global/system
+`verify` compares the effective project, Before or verified absence, context,
+notes, declared settings and tool implementations with `freeze.json`. Its
+read-only Git checks use the launch environment, including ordinary global/system
 configuration. Archive transformations such as `tar.umask` removing executable
-bits must fail verification, not silently change trial inputs. If `verify`
-exits with a nonzero status, do not launch. Prepare a new stage.
+bits must fail verification, not silently change trial inputs. A nonzero exit
+stops launch; correct inputs only before results and freeze a new private root.
 
 Run verification and launch in the same shell environment. The helper rejects
 Git repository, index, object-store, discovery and injected-config overrides
@@ -359,30 +405,32 @@ runner would inherit them. Remove those overrides before preparing or launching;
 do not bypass the failure. Ordinary user Git hooks/configuration remain existing
 runner behavior, not a safety guarantee provided by this helper.
 
-Run the existing runner from the scratch project, with `$ROOT/home` as Behavior
-Diff home. Use the same `--agent`, `--model`, and `--fast` choices as step 3.
-The last line adds `--before-file` only when `$ROOT/before` exists. It expands
-to nothing for an absent Before, in Bash and zsh:
+Use this fixed trusted runner invocation after inspecting the handoff. The helper
+provides the arguments, project and home; do not build a second argv recipe or
+execute a JSON-selected executable. Verification failure raises before launch.
+This works for both staged and direct projects on Claude Code and Codex:
 
 ```bash
-before_args=()
-if [ -f "$ROOT/before" ]; then
-  before_args=(--before-file "$ROOT/before")
-fi
-python3 "$SKILL_DIR/scripts/prepare_shared.py" verify "$ROOT" &&
-(cd "$ROOT/project" &&
-  BEHAVIOR_DIFF_HOME="$ROOT/home" \
-    "$SKILL_DIR/scripts/behavior-diff.sh" --agent <current-host> \
-    --file "$TARGET" --task "<task>" \
-    --purpose-file "$PRIVATE/purpose.json" \
-    --scenario-file "$PRIVATE/scenario.json" \
-    ${before_args[@]+"${before_args[@]}"})
+python3 - "$SKILL_DIR" "$ROOT" <<'PY'
+import os, subprocess, sys
+from pathlib import Path
+scripts = Path(sys.argv[1]) / "scripts"
+sys.path.insert(0, str(scripts))
+from prepare_shared import verify
+handoff = verify(sys.argv[2], as_json=True)
+raise SystemExit(subprocess.call(
+    [str(scripts / "behavior-diff.sh"), *handoff["argv"]],
+    cwd=handoff["project"],
+    env={**os.environ, "BEHAVIOR_DIFF_HOME": handoff["home"]}))
+PY
 ```
 
-Pass only `$ROOT/before` as `--before-file`, and only when it exists. Never
-pass the original Before path or a hook-store entry to a staged run. For a
-historical comparison with verified provenance, also append
-`--source-file "$PRIVATE/source.json"`.
+The handoff includes only the frozen `$ROOT/before` when Before exists; absent
+Before keeps the verified hook marker. Purpose/scenario go only to assessment
+and reports, source only to report configuration, notes to neither. The runner
+also validates and excludes its specified context files. Invocations outside
+this skill without purpose retain labeled diff-only inference; without a
+scenario record the assessment authors its criteria and labels that origin.
 
 Source provenance must name the original repository and the original Before
 and After commits. Verify it in the original checkout as step 1 describes.
@@ -393,7 +441,7 @@ local names, not original revisions.
 
 ## Freeze discipline
 
-- After `verify` passes and your inventory digests match, treat the stage,
+- After `verify` passes, treat the complete handoff as frozen: the stage,
   task, purpose, scenario record, source, notes, and settings as frozen. See
   [Freeze](#freeze). No agent may edit `$ROOT/project/`, `$ROOT/before`,
   `$ROOT/home/baselines/`, `freeze.json`, or the runner and its scripts.

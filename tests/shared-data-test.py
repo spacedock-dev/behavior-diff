@@ -228,7 +228,15 @@ class Fixtures:
         return entry
 
     def prepare(
-        self, project, data, output=None, file=TARGET, before=None, exclude=(), env=None
+        self,
+        project,
+        data,
+        output=None,
+        file=TARGET,
+        before=None,
+        exclude=(),
+        env=None,
+        handoff=None,
     ):
         if output is None:
             self.stages += 1
@@ -246,6 +254,8 @@ class Fixtures:
             "--output",
             str(output),
         ]
+        if handoff is not None:
+            argv += ["--handoff", str(handoff)]
         if before is not None:
             argv += ["--before-file", str(before)]
         for name in exclude:
@@ -320,6 +330,164 @@ class Fixtures:
 
     def standard(self):
         return self.git_project(), self.folder("data", SHARED)
+
+    def handoff_file(self, settings=None):
+        context = self.tmp / "private"
+        context.mkdir(mode=0o700, exist_ok=True)
+        values = {
+            "purpose.json": PURPOSE,
+            "scenario.json": SCENARIO,
+            "source.json": SOURCE,
+        }
+        for name, value in values.items():
+            path = context / name
+            path.write_text(json.dumps(value))
+            path.chmod(0o600)
+        for name, text in (
+            (
+                "task.txt",
+                "Read every project file, then summarize the records using the rules.",
+            ),
+            ("notes.md", "Synthetic private case criteria."),
+            ("tool.py", "print('synthetic')\n"),
+        ):
+            path = context / name
+            path.write_text(text)
+            path.chmod(0o600)
+        record = {
+            key + "_file": str(context / name)
+            for key, name in (
+                ("task", "task.txt"),
+                ("purpose", "purpose.json"),
+                ("scenario", "scenario.json"),
+                ("source", "source.json"),
+                ("notes", "notes.md"),
+            )
+        }
+        record.update(
+            references=["docs/guide.md"],
+            tools=[str(context / "tool.py")],
+            settings=settings or {"agent": "codex", "model": TRIAL_MODEL},
+        )
+        path = context / "handoff.json"
+        path.write_text(json.dumps(record))
+        path.chmod(0o600)
+        return path
+
+
+class HandoffTests(Fixtures, unittest.TestCase):
+    def frozen(self, project, descriptor, **options):
+        output = self.tmp / "direct"
+        result = subprocess.run(
+            [
+                sys.executable,
+                str(HELPER),
+                "freeze",
+                "--project",
+                str(project),
+                "--file",
+                TARGET,
+                "--output",
+                str(output),
+                "--handoff",
+                str(descriptor),
+                *options.get("args", []),
+            ],
+            env=self.env,
+            capture_output=True,
+            text=True,
+        )
+        return result, output
+
+    def test_complete_staged_handoff_rejects_every_context_and_settings_mutation(self):
+        project, data = self.standard()
+        descriptor = self.handoff_file()
+        stage = self.staged(project, data, handoff=descriptor, exclude=PRIVATE)
+        record = json.loads(descriptor.read_text())
+        for key in (
+            "task_file",
+            "purpose_file",
+            "scenario_file",
+            "source_file",
+            "notes_file",
+        ):
+            path = Path(record[key])
+            original = path.read_bytes()
+            path.write_bytes(original + b" ")
+            self.assertNotEqual(self.verify(stage).returncode, 0, key)
+            path.write_bytes(original)
+        for path in (
+            descriptor,
+            descriptor.parent / "tool.py",
+            stage / "project/docs/guide.md",
+        ):
+            original = path.read_bytes()
+            path.unlink()
+            self.assertNotEqual(self.verify(stage).returncode, 0)
+            path.write_bytes(original + b" ")
+            path.chmod(0o600)
+            self.assertNotEqual(self.verify(stage).returncode, 0)
+            path.write_bytes(original)
+        Path(record["notes_file"]).chmod(0o644)
+        self.assertNotEqual(self.verify(stage).returncode, 0)
+
+    def test_direct_freeze_uses_archive_not_unrelated_work_and_rejects_stale_after(
+        self,
+    ):
+        project = self.git_project(
+            committed={k: v for k, v in COMMITTED.items() if k not in PRIVATE}
+        )
+        original = self.original_state(project)
+        result, root = self.frozen(project, self.handoff_file())
+        self.assertEqual(result.returncode, 0, result.stderr)
+        (project / "scratch.txt").write_text("Unrelated later synthetic work")
+        self.assertEqual(self.verify(root).returncode, 0)
+        (project / TARGET).write_bytes(b"stale")
+        self.assertNotEqual(self.verify(root).returncode, 0)
+        (project / TARGET).write_bytes(AFTER)
+        (project / "scratch.txt").write_bytes(WORKING["scratch.txt"])
+        self.assertEqual(self.original_state(project), original)
+
+    def test_invalid_private_or_incomplete_handoffs_fail_before_output(self):
+        project, data = self.standard()
+        descriptor = self.handoff_file()
+        original = descriptor.read_text()
+        for change in (
+            {"references": ["missing.md"]},
+            {"references": ["../outside"]},
+            {"purpose_file": str(descriptor.parent / "notes.md")},
+            {"settings": {"agent": "codex", "command": "touch unwanted"}},
+            {"notes_file": str(project / "notes/purpose.json")},
+        ):
+            descriptor.write_text(json.dumps({**json.loads(original), **change}))
+            result, root = self.prepare(
+                project, data, handoff=descriptor, exclude=PRIVATE
+            )
+            self.assert_rejected(result, root)
+        descriptor.write_text(original)
+        scenario = descriptor.parent / "scenario.json"
+        record = json.loads(scenario.read_text())
+        record["checks"][0]["goal"] = 2
+        scenario.write_text(json.dumps(record))
+        result, root = self.prepare(project, data, handoff=descriptor, exclude=PRIVATE)
+        self.assert_rejected(result, root)
+
+    def test_direct_absent_before_is_verified_and_context_symlinks_rejected(self):
+        project = self.git_project(
+            committed={"docs/guide.md": b"Synthetic reference\n"},
+            working={TARGET: AFTER},
+        )
+        self.store_entry(project / TARGET, "1-ABSENT", b"", 1000)
+        descriptor = self.handoff_file()
+        result, root = self.frozen(project, descriptor)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertFalse((root / "before").exists())
+        self.store_entry(project / TARGET, "2", BEFORE, 2000)
+        self.assertNotEqual(self.verify(root).returncode, 0)
+        notes = descriptor.parent / "notes.md"
+        notes.unlink()
+        notes.symlink_to(descriptor.parent / "task.txt")
+        self.assertNotEqual(self.verify(root).returncode, 0)
 
 
 class SharedDataBoundaryTests(Fixtures, unittest.TestCase):
@@ -1034,37 +1202,19 @@ class RunnerSmokeTests(Fixtures, unittest.TestCase):
         self.source = context / "source.json"
         self.source.write_text(json.dumps(SOURCE), encoding="utf-8")
 
-    def run_stage(self, stage, agent, purpose, fast):
-        self.assertEqual(self.verify(stage).returncode, 0)
-        argv = [
-            "bash",
-            str(RUNNER),
-            "--file",
-            TARGET,
-            "--task",
-            "Read every project file, then summarize the records using the rules.",
-            "--agent",
-            agent,
-            "--model",
-            TRIAL_MODEL,
-            "--extract-model",
-            EXTRACT_MODEL,
-            "--purpose-file",
-            str(purpose),
-            "--scenario-file",
-            str(purpose.parent / "scenario.json"),
-            "--source-file",
-            str(self.source),
-        ]
-        if (stage / "before").exists():
-            argv += ["--before-file", str(stage / "before")]
-        if fast:
-            argv.append("--fast")
-        env = dict(self.env, BEHAVIOR_DIFF_HOME=str(stage / "home"))
+    def run_stage(self, stage):
         result = subprocess.run(
-            argv,
-            cwd=stage / "project",
-            env=env,
+            [sys.executable, str(HELPER), "verify", str(stage), "--json"],
+            env=self.env,
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        handoff = json.loads(result.stdout)
+        result = subprocess.run(
+            [str(RUNNER), *handoff["argv"]],
+            cwd=handoff["project"],
+            env={**self.env, "BEHAVIOR_DIFF_HOME": handoff["home"]},
             capture_output=True,
             text=True,
             timeout=900,
@@ -1163,9 +1313,19 @@ class RunnerSmokeTests(Fixtures, unittest.TestCase):
         if absent:
             self.store_entry(project / TARGET, "20260101-000000-ABSENT", b"", 1000)
         original = self.original_state(project, data, self.store_home)
-        stage = self.staged(project, data, before=before_file, exclude=PRIVATE)
-        purpose = project / "notes/purpose.json"
-        self.run_stage(stage, agent, purpose, fast=trials == 1)
+        descriptor = self.handoff_file(
+            {
+                "agent": agent,
+                "model": TRIAL_MODEL,
+                "extract_model": EXTRACT_MODEL,
+                "fast": trials == 1,
+            }
+        )
+        stage = self.staged(
+            project, data, before=before_file, exclude=PRIVATE, handoff=descriptor
+        )
+        purpose = descriptor.parent / "purpose.json"
+        self.run_stage(stage)
         before = (
             None if absent else (before_file.read_bytes() if before_file else BEFORE)
         )

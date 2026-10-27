@@ -205,29 +205,12 @@ the single-role or two-agent path. Create the fixtures with
 
 2. **Prepare the scenario and data.** Before drafting anything, read
    `references/scenario-and-test-data.md` inside this skill's base directory
-   and follow its preparation recipe. In short:
-   - From the frozen goals and the selected diff, list the new and preserved
-     behavior, the observable capabilities it needs, and the environment
-     premises those capabilities depend on.
-   - Write a neutral `--task`: a natural request that starts before the tested
-     work and reaches the changed rule. It must not state the expected answer,
-     the rule, or a historical mistake; the changed instruction is the only
-     place the guidance exists.
-   - Reuse project data when it already exercises the capabilities. Otherwise
-     prepare one coherent dataset of ordinary inputs plus a bounded set of
-     compatible edge cases that challenge the goal's assumptions.
-   - Keep per-case criteria, mappings, and omissions in private notes, never
-     in the task or trial files.
-   - From those notes, write the sanitized scenario record the reference
-     describes, in the private directory with mode `0600`. Give every goal at
-     least one check, and give each check exactly one evidence kind: split a
-     required code read, the reported output, and its agreement with the read
-     source into separate checks. Bind every agreement check to the source
-     patterns that must ground it, derived before trials from the prepared
-     data and that check, never from trial outcomes; keep these frozen source
-     requirements separate from the check definitions. The raw notes never go
-     to trials or the assessment. Omit the record only when the purpose is
-     `null`.
+   and follow its preparation recipe once. From the frozen goals, author a
+   neutral task, sufficient shared data, private per-case criteria, and the
+   sanitized scenario with frozen checks and required recorded sources.
+   Keep private context outside every trial input. The helper validates and
+   inventories your reviewed files; it never authors their meaning or proves
+   that a required capability works.
 
    Do not require an incident, a real past request, or an existing eval from
    the user. Ask only when a material requirement cannot be reached from the
@@ -245,55 +228,20 @@ the single-role or two-agent path. Create the fixtures with
    before launch, and keep the first result: no retuning or reruns to manufacture
    a finding after seeing outcomes.
 
-   Under Claude Code or Codex, preserve the current stack:
+   Use the reference's complete private handoff for both hosts:
+   `prepare_shared.py prepare --handoff` for staged data or exclusions;
+   `prepare_shared.py freeze --handoff` for an existing direct project.
+   Inspect its single inventory and verified runner arguments, then use the
+   reference's fixed-runner launch in the same shell environment. Do not
+   reconstruct validators, inventories, or commands. Spacedock fixture delivery
+   remains on its own reference path.
 
-       behavior-diff.sh --agent <current-host> --file <file> --task "<task>" --purpose-file <private-purpose.json> --scenario-file <private-scenario.json>
-
-   Under upstream Pi, preserve the exact current model:
-
-       behavior-diff.sh --agent pi --model <exact-current-pi-model> --file <file> --task "<task>" --purpose-file <private-purpose.json> --scenario-file <private-scenario.json>
-
-   Under OMP, preserve the exact current model:
-
-       behavior-diff.sh --agent omp --model <exact-current-omp-model> --file <file> --task "<task>" --purpose-file <private-purpose.json> --scenario-file <private-scenario.json>
-
-   Only add `--fast` when the user explicitly requested it in the current
-   request with `fast`, `--fast`, `two runs`, or `one trial per side`:
-
-       behavior-diff.sh --agent <current-host> --file <file> --task "<task>" --purpose-file <private-purpose.json> --scenario-file <private-scenario.json> --fast
-
-   For Pi or OMP, append `--fast` to its model-pinned command.
-   Pass the frozen purpose only through `--purpose-file` and the frozen
-   scenario record only through `--scenario-file`; drop `--scenario-file` when
-   the purpose is `null`. The runner validates both and copies them to report
-   configuration before trials, and it removes both files from trial copies.
-   Never put either in `--task`, a trial prompt, a sandbox file, or other trial
-   inputs. If invoking the runner without this skill and without purpose,
-   assessment uses labeled diff-only inference; there is no implied session
-   context. Without a scenario record, the assessment writes its own criteria,
-   and the report labels them as such.
-
-   For a historical comparison with verified provenance from step 1, append
-   `--source-file <private-source.json>` to the command prepared for that
-   comparison, including any `--before-file` or `--fast` it already uses:
-
-       behavior-diff.sh --agent <current-host> --file <file> --task "<task>" --purpose-file <private-purpose.json> --scenario-file <private-scenario.json> --source-file <private-source.json>
-
-   The runner validates the source before trials, excludes the file from trial
-   copies, and freezes it in report configuration for the report header. It
-   does not look anything up. Never put source details in `--task`, a trial
-   prompt, or a sandbox file.
-
-   **Shared data.** When step 2 prepared new shared data, or private context
-   in the checkout cannot otherwise be kept from trials, do not run the
-   commands above from the user's checkout. Prepare and verify the stage with
-   `references/scenario-and-test-data.md`, then run the same runner command
-   from `$ROOT/project` with `$ROOT/home` as `BEHAVIOR_DIFF_HOME`, exactly
-   as that reference shows. Keep the same agent, model, `--fast`, purpose,
-   scenario record, and source choices. Pass `--before-file` only as the
-   stage's frozen `before` file, and only when it exists; never pass the
-   original Before path. If preparation or verification fails, stop and report
-   the reason; do not launch the run.
+   Preserve the current host and model choices above. Keep three trials per
+   side; select `fast:true` only for an explicit current request for `fast`,
+   `--fast`, `two runs`, or `one trial per side`. Never put purpose, scenario,
+   source metadata, or private notes in the task or trial project. For a null
+   purpose omit the scenario; include source only for verified historical
+   provenance. Preparation or verification failure stops launch.
 
    **Keep the run handle.** Use the host's background-execution facility when
    available so other work can continue. Retain the exact run directory printed
@@ -335,8 +283,9 @@ the single-role or two-agent path. Create the fixtures with
        whether the situation was reached.
      Do not infer a missed situation from identical behavior alone,
      or claim that the rule generally works or fails.
-   Then assess each private case from raw evidence (actions, tool returns,
-   artifacts), not only final answers, as the reference describes. Separately
+   Use `audit_evidence.py <run-directory>` and its original-byte pages as the
+   reference describes. Assess every private case in every trial from raw
+   actions, returns and artifacts, not only final answers or report excerpts. Separately
    record whether its condition was reached, missed, or unknown and whether its
    intended outcome was supported, contradicted, or lacked sufficient evidence.
    Summarize each goal without hiding missed cases. Report interrupted or

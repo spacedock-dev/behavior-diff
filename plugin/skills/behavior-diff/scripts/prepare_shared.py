@@ -18,6 +18,130 @@ import sys
 import tarfile
 import unicodedata
 
+from purpose import read_purpose, unique_object
+from scenario import read_scenario
+from source import read_source
+
+
+def private_file(path):
+    path = Path(path).absolute()
+    if ".." in path.parts:
+        raise PreparationError("private paths must not contain parent traversal")
+    safe_file(Path(path.anchor), path.relative_to(path.anchor).as_posix())
+    if path.stat().st_mode & 0o077 or path.parent.stat().st_mode & 0o077:
+        raise PreparationError(
+            "handoff files need private files and parent directories"
+        )
+    return path
+
+
+def handoff(path, project, working, root, data=None):
+    path = private_file(path)
+    trial_roots = [p for p in (project, root, data) if p is not None]
+    if any(within(path, p) for p in trial_roots):
+        raise PreparationError(
+            "private descriptor must be outside trial projects and data"
+        )
+    record = json.loads(path.read_text(), object_pairs_hook=unique_object)
+    required = {
+        "task_file",
+        "purpose_file",
+        "notes_file",
+        "references",
+        "tools",
+        "settings",
+    }
+    if type(record) is not dict or not required <= record.keys() <= required | {
+        "scenario_file",
+        "source_file",
+    }:
+        raise PreparationError("invalid handoff fields")
+    files = {str(path): regular_file(path)}
+    for key in (
+        "task_file",
+        "purpose_file",
+        "notes_file",
+        "scenario_file",
+        "source_file",
+    ):
+        if key not in record:
+            continue
+        value = private_file(record[key])
+        if any(within(value, p) for p in trial_roots):
+            raise PreparationError(
+                "private handoff context must be outside trial projects"
+            )
+        record[key] = str(value)
+        files[str(value)] = regular_file(value)
+    private_paths = list(files)
+    purpose = read_purpose(record["purpose_file"])
+    if purpose is not None and "scenario_file" not in record:
+        raise PreparationError("a non-null purpose needs its reviewed scenario")
+    if "scenario_file" in record:
+        read_scenario(record["scenario_file"], record["purpose_file"])
+    if "source_file" in record:
+        read_source(record["source_file"])
+    task = Path(record["task_file"]).read_text().rstrip("\n")
+    if not task.strip() or "\0" in task:
+        raise PreparationError("task must be nonempty text without NUL")
+    for key in ("references", "tools"):
+        if type(record[key]) is not list or any(
+            type(x) is not str for x in record[key]
+        ):
+            raise PreparationError("references and tools must be path lists")
+    for name in record["references"]:
+        if relative(name) not in working:
+            raise PreparationError("required reference is absent from the trial base")
+    for name in record["tools"]:
+        tool = Path(name)
+        if not tool.is_absolute():
+            if relative(name) not in working:
+                raise PreparationError(
+                    "tool implementation is absent from the trial base"
+                )
+            continue
+        safe_file(Path(tool.anchor), tool.relative_to(tool.anchor).as_posix())
+        files[str(tool)] = regular_file(tool)
+    settings = record["settings"]
+    flags = ("agent", "model", "extract_agent", "extract_model", "vocab")
+    if type(settings) is not dict or not {"agent"} <= settings.keys() <= set(flags) | {
+        "fast",
+        "reasoning",
+        "preparation_model",
+    }:
+        raise PreparationError("invalid handoff settings")
+    if settings["agent"] not in ("claude", "codex", "pi", "omp"):
+        raise PreparationError("invalid trial host")
+    if settings["agent"] in ("pi", "omp") and not settings.get("model"):
+        raise PreparationError("Pi and OMP require an exact model")
+    argv = ["--task", task]
+    for key in flags:
+        if key in settings:
+            if (
+                type(settings[key]) is not str
+                or not settings[key]
+                or "\0" in settings[key]
+            ):
+                raise PreparationError("runner settings must be nonempty strings")
+            argv += ["--" + key.replace("_", "-"), settings[key]]
+    if "fast" in settings and type(settings["fast"]) is not bool:
+        raise PreparationError("fast must be a boolean")
+    if settings.get("fast"):
+        argv.append("--fast")
+    for key in ("purpose_file", "scenario_file", "source_file"):
+        if key in record:
+            argv += ["--" + key.replace("_", "-"), record[key]]
+    # Freeze shipped mechanics as well as custom tools, without caches or data.
+    for tool in sorted(Path(__file__).parent.rglob("*")):
+        if tool.is_file() and tool.suffix in (".py", ".sh"):
+            files[str(tool)] = regular_file(tool)
+    return {
+        "files": inventory(files),
+        "private": private_paths,
+        "settings": settings,
+        "argv": argv,
+    }
+
 
 class PreparationError(ValueError):
     pass
@@ -243,20 +367,27 @@ def write_files(root, files):
 def prepare(args):
     check_git_environment()
     project = Path(args.project).resolve(strict=True)
-    data_path = Path(args.data)
-    if data_path.is_symlink():
-        raise PreparationError("shared-data directory must not be a symlink")
-    data_path = data_path.resolve(strict=True)
+    direct = args.command == "freeze"
+    data_path = None
+    if not direct:
+        data_path = Path(args.data)
+        if data_path.is_symlink():
+            raise PreparationError("shared-data directory must not be a symlink")
+        data_path = data_path.resolve(strict=True)
     output_arg = Path(args.output).absolute()
     if output_arg.exists() or output_arg.is_symlink():
         raise PreparationError("output must be a new private directory")
     output = output_arg.parent.resolve(strict=True) / output_arg.name
-    if not project.is_dir() or not data_path.is_dir():
+    if not project.is_dir() or (data_path is not None and not data_path.is_dir()):
         raise PreparationError("project and shared-data inputs must be directories")
-    if within(data_path, project) or within(project, data_path):
+    if data_path is not None and (
+        within(data_path, project) or within(project, data_path)
+    ):
         raise PreparationError("shared data must be outside the original project")
     if any(
-        within(output, root) or within(root, output) for root in (project, data_path)
+        within(output, root) or within(root, output)
+        for root in (project, data_path)
+        if root is not None
     ):
         raise PreparationError("output must be outside the project and shared data")
     target = relative(args.file)
@@ -303,8 +434,8 @@ def prepare(args):
         )
     if before is not None and before[1] != after[1]:
         raise PreparationError("instruction executable-mode changes are not supported")
-    shared = tree(data_path)
-    if not shared:
+    shared = tree(data_path) if data_path is not None else {}
+    if data_path is not None and not shared:
         raise PreparationError("shared-data directory contains no files")
     for name in shared:
         if (
@@ -323,6 +454,13 @@ def prepare(args):
         base[target] = before
     working = {**base, target: after}
     validate_files(working)
+    context = (
+        handoff(args.handoff, project, working, output, data_path)
+        if args.handoff
+        else None
+    )
+    if direct and exclusions:
+        raise PreparationError("direct freeze cannot exclude files; use prepare")
     cap = int(os.environ.get("BEHAVIOR_DIFF_COPY_CAP_KB", "204800")) * 1024
     if (
         cap <= 0
@@ -333,47 +471,60 @@ def prepare(args):
         raise PreparationError("prepared project exceeds BEHAVIOR_DIFF_COPY_CAP_KB")
     output.mkdir(mode=0o700)
     try:
-        scratch = output / "project"
-        scratch.mkdir(mode=0o700)
-        (output / "home").mkdir(mode=0o700)
-        write_files(scratch, base)
-        git(scratch, "init", "-q", "--template=")
-        for key, value in (
-            ("user.name", "Behavior Diff"),
-            ("user.email", "behavior-diff@example.invalid"),
-            ("core.hooksPath", os.devnull),
-            ("commit.gpgSign", "false"),
-            ("core.autocrlf", "false"),
-            ("core.attributesFile", os.devnull),
-        ):
-            git(scratch, "config", key, value)
-        git(scratch, "add", "--force", "--all")
-        git(
-            scratch,
-            "commit",
-            "--quiet",
-            "--allow-empty",
-            "--signoff",
-            "-m",
-            "Shared scenario baseline",
+        scratch = project if direct else output / "project"
+        if not direct:
+            scratch.mkdir(mode=0o700)
+            (output / "home").mkdir(mode=0o700)
+            write_files(scratch, base)
+            git(scratch, "init", "-q", "--template=")
+            for key, value in (
+                ("user.name", "Behavior Diff"),
+                ("user.email", "behavior-diff@example.invalid"),
+                ("core.hooksPath", os.devnull),
+                ("commit.gpgSign", "false"),
+                ("core.autocrlf", "false"),
+                ("core.attributesFile", os.devnull),
+            ):
+                git(scratch, "config", key, value)
+            git(scratch, "add", "--force", "--all")
+            git(
+                scratch,
+                "commit",
+                "--quiet",
+                "--allow-empty",
+                "--signoff",
+                "-m",
+                "Shared scenario baseline",
+            )
+        scratch_commit = (
+            git(scratch, "rev-parse", "HEAD").stdout.decode().strip()
+            if not direct
+            else commit
         )
-        scratch_commit = git(scratch, "rev-parse", "HEAD").stdout.decode().strip()
-        expected_archive = inventory(base)
-        if inventory(archive(scratch, scratch_commit)) != expected_archive:
+        expected_archive = inventory(
+            base
+            if not direct
+            else {name: content for name, content in base.items() if name != target}
+        )
+        if (
+            not direct
+            and inventory(archive(scratch, scratch_commit)) != expected_archive
+        ):
             raise PreparationError(
                 "Git attributes alter prepared files; this setup cannot be delivered faithfully"
             )
         target_path = scratch / target
-        target_path.parent.mkdir(parents=True, exist_ok=True)
-        target_path.write_bytes(after[0])
-        target_path.chmod(0o755 if after[1] else 0o644)
+        if not direct:
+            target_path.parent.mkdir(parents=True, exist_ok=True)
+            target_path.write_bytes(after[0])
+            target_path.chmod(0o755 if after[1] else 0o644)
         marker = None
-        if mode == "absent":
+        if mode == "absent" and not direct:
             marker = "home/baselines/" + encode(scratch / target) + "/frozen-ABSENT"
             marker_path = output / marker
             marker_path.parent.mkdir(parents=True, mode=0o700)
             marker_path.touch(mode=0o600)
-        else:
+        elif before is not None:
             before_path = output / "before"
             before_path.write_bytes(before[0])
             before_path.chmod(0o700 if before[1] else 0o600)
@@ -388,6 +539,10 @@ def prepare(args):
             "working": inventory(working),
             "absent_marker": marker,
             "before": inventory({"before": before}) if before is not None else None,
+            "direct": direct,
+            "home": str(home if direct else output / "home"),
+            "context": context,
+            "before_source": str(before_file) if before_file else None,
         }
         record = output / "freeze.json"
         with record.open("x") as stream:
@@ -401,59 +556,129 @@ def prepare(args):
     return output
 
 
-def verify(root):
+def verify(root, as_json=False):
     check_git_environment()
     root = Path(root).resolve(strict=True)
     record = root / "freeze.json"
     regular_file(record)
     frozen = json.loads(record.read_text())
-    scratch = root / "project"
+    direct = frozen.get("direct", False)
+    scratch = Path(frozen["original_project"]) if direct else root / "project"
     if scratch.is_symlink() or (scratch / ".git").is_symlink():
         raise PreparationError("frozen project must not be redirected")
-    top = (
-        git(scratch, "rev-parse", "--show-toplevel", launch=True)
-        .stdout.decode()
-        .strip()
-    )
-    if Path(top).resolve() != scratch:
-        raise PreparationError("frozen project must not be redirected")
-    current = git(scratch, "rev-parse", "HEAD", launch=True).stdout.decode().strip()
+    head = git(scratch, "rev-parse", "--verify", "HEAD", check=False, launch=True)
+    current = head.stdout.decode().strip() if head.returncode == 0 else None
+    if current is not None:
+        top = (
+            git(scratch, "rev-parse", "--show-toplevel", launch=True)
+            .stdout.decode()
+            .strip()
+        )
+        if Path(top).resolve() != scratch:
+            raise PreparationError("frozen project must not be redirected")
     if current != frozen["scratch_commit"]:
         raise PreparationError("prepared baseline changed after freeze")
-    if inventory(tree(scratch, skip_git=True)) != frozen["working"]:
+    if direct:
+        files = (
+            archive(scratch, current, launch=True)
+            if current
+            else tree(
+                scratch,
+                [str(Path(frozen["home"]).relative_to(scratch))]
+                if within(Path(frozen["home"]), scratch)
+                else (),
+                skip_git=True,
+            )
+        )
+        files.pop(frozen["target"], None)
+        if inventory(files) != frozen["archive"]:
+            raise PreparationError("direct project base changed after freeze")
+        files[frozen["target"]] = safe_file(scratch, frozen["target"])
+        mode, before = baseline(
+            scratch,
+            frozen["target"],
+            current,
+            Path(frozen["before_source"]) if frozen["before_source"] else None,
+            Path(frozen["home"]),
+        )
+        if (
+            mode != frozen["before_mode"]
+            or (inventory({"before": before}) if before is not None else None)
+            != frozen["before"]
+        ):
+            raise PreparationError("direct Before source changed after freeze")
+    else:
+        files = tree(scratch, skip_git=True)
+        if inventory(archive(scratch, current, launch=True)) != frozen["archive"]:
+            raise PreparationError(
+                "launch Git configuration or prepared archive changed"
+            )
+    if inventory(files) != frozen["working"]:
         raise PreparationError("prepared files changed after freeze")
-    if inventory(archive(scratch, current, launch=True)) != frozen["archive"]:
-        raise PreparationError("launch Git configuration or prepared archive changed")
+    context = frozen.get("context")
+    if context:
+        for name in context["private"]:
+            private_file(name)
+        for name, expected in context["files"].items():
+            path = Path(name)
+            safe_file(Path(path.anchor), path.relative_to(path.anchor).as_posix())
+            if inventory({name: regular_file(path)})[name] != expected:
+                raise PreparationError(
+                    "handoff context, settings or tools changed after freeze"
+                )
     if frozen["before_mode"] == "absent":
         if (root / "before").exists() or (root / "before").is_symlink():
             raise PreparationError("absent Before must not have a frozen content file")
-        marker = root / frozen["absent_marker"]
-        if marker.parent.is_symlink() or marker.is_symlink() or not marker.is_file():
-            raise PreparationError("frozen absent-file baseline is unavailable")
-        if sorted(path.name for path in marker.parent.iterdir()) != [marker.name]:
-            raise PreparationError("frozen absent-file baseline changed")
+        if not direct:
+            marker = root / frozen["absent_marker"]
+            safe_file(root, frozen["absent_marker"])
+            if sorted(path.name for path in marker.parent.iterdir()) != [marker.name]:
+                raise PreparationError("frozen absent-file baseline changed")
     elif inventory({"before": regular_file(root / "before")}) != frozen["before"]:
         raise PreparationError("frozen Before instruction changed")
+    if as_json:
+        if not context:
+            raise PreparationError(
+                "a complete handoff is required for JSON runner arguments"
+            )
+        argv = ["--file", frozen["target"], *context["argv"]]
+        if frozen["before"] is not None:
+            argv += ["--before-file", str(root / "before")]
+        return {
+            "project": str(scratch),
+            "home": frozen["home"],
+            "argv": argv,
+            "inventory": frozen,
+        }
     return root
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
-    stage = commands.add_parser(
-        "prepare", help="freeze reviewed shared files; never launch trials"
-    )
-    for name in ("project", "file", "data", "output"):
-        stage.add_argument("--" + name, required=True)
-    stage.add_argument("--before-file")
-    stage.add_argument("--exclude", action="append", default=[])
+    for command in ("prepare", "freeze"):
+        stage = commands.add_parser(
+            command, help="freeze reviewed inputs; never launch trials"
+        )
+        for name in ("project", "file", "output"):
+            stage.add_argument("--" + name, required=True)
+        if command == "prepare":
+            stage.add_argument("--data", required=True)
+        stage.add_argument("--handoff", required=command == "freeze")
+        stage.add_argument("--before-file")
+        stage.add_argument("--exclude", action="append", default=[])
     check = commands.add_parser(
         "verify", help="reject changed inputs before using the existing runner"
     )
     check.add_argument("root")
+    check.add_argument(
+        "--json", action="store_true", help="return verified runner arguments"
+    )
     args = parser.parse_args()
     try:
-        result = prepare(args) if args.command == "prepare" else verify(args.root)
+        result = (
+            prepare(args) if args.command != "verify" else verify(args.root, args.json)
+        )
     except (OSError, ValueError, KeyError, TypeError, tarfile.TarError) as exc:
         message = (
             str(exc)
@@ -462,7 +687,11 @@ def main():
         )
         print("prepare-shared: " + message, file=sys.stderr)
         return 2
-    print(result)
+    print(
+        json.dumps(result, indent=2, sort_keys=True)
+        if isinstance(result, dict)
+        else result
+    )
     return 0
 
 
