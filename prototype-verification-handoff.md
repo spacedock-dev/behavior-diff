@@ -9,7 +9,7 @@ score:
 worktree: .worktrees/spacedock-ensign-prototype-verification-handoff
 issue:
 linear:
-pr:
+pr: "#54"
 mod-block: merge:pr-merge
 id: yxy4v1m92t2daz68kmmykqqh
 gates:
