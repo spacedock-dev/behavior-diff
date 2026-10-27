@@ -23,6 +23,17 @@ gates:
                 id: briefing:yxy4v1m92t2daz68kmmykqqh:backlog:attempt-1:revision-1
                 digest: sha256:8a1a3aca394669d7ee4004ec6816ba1fa445dcaec04f20a049057849a32460f2
                 room-ref: ./prototype-verification-handoff/review/backlog/briefing-1
+              resolution:
+                type: Resolution
+                id: resolution:spacedock:yxy4v1m92t2daz68kmmykqqh:backlog:1
+                briefing: briefing:yxy4v1m92t2daz68kmmykqqh:backlog:attempt-1:revision-1
+                by: person:captain
+                at: "2026-10-27T04:58:37.931753Z"
+                decision: approve
+                reason: Captain explicitly requested dispatch yxy4v1m92t2daz68kmmykqqh again after committing the seed; accepts starting ideation, not an unknown implementation design, paid runs, PR, or merge.
+              application:
+                target-stage: ideation
+                state: pending
 ---
 
 Build an operable conversational prototype of handing post-change verification
