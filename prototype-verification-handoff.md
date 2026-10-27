@@ -193,6 +193,30 @@ data disclosure need their own applicable approval. No model calls in CI.
 - Private evidence availability and user walkthrough are explicit dependencies.
   Select the local case and verify availability during ideation.
 
+### Captain direction recorded on 2026-10-27
+
+- Merge PR #54 as the repository-local maintainer prototype. The installed
+  `behavior-diff` skill and its existing user journey remain unchanged.
+- The approved future direction is an opt-in `verification-handoff-prototype`
+  wrapper: receive a change or PR, propose intent and verification goals, accept
+  owner confirmation or correction, invoke the existing `behavior-diff` skill,
+  then explain its findings, evidence and limits for the owner's decision.
+- Invoke Behavior Diff after the handoff and goals are ready, before presenting
+  verification findings. The existing skill owns scenario preparation, frozen
+  inputs, trial execution, assessment and report generation; do not build a
+  second execution pipeline in the wrapper.
+- Preserve applicable data/privacy consent and explicit model-cost approval
+  before trials. Historical comparisons require fresh-context purpose and input
+  preparation when the wrapper already knows outcomes. A later goal correction
+  must not rewrite a completed run's frozen purpose; propose new verification
+  when needed and obtain applicable approval.
+- Delegation is future implementation work, not functionality delivered by
+  PR #54. This note does not silently expand the current candidate's scope or
+  authorize another trial, automatic adoption, merge of a compared PR, or release.
+- The Captain explicitly authorized merging PR #54 after the disclosed limits.
+  Retain the incomplete owner-correction and comparative-value evidence; merge
+  approval does not turn unperformed observations into passed criteria.
+
 ### Feedback Cycles
 
 No review rounds yet.
