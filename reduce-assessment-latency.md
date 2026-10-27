@@ -373,3 +373,41 @@ catalog supports a conservative US$1.7736 three-invocation bound under the state
 cost-trigger/runtime assumptions, below the approved US$3; no invocation was
 spent here. Same-input seconds comparison and all evidence/safety obligations
 remain mandatory, and any claim must stay scoped to the measured latency seam.
+
+## Stage Report: implementation
+
+- DONE: Before product edits, profile one unchanged extraction on a private read-only replay of the frozen saved evidence using the explicitly approved exact OMP provider/model; capture monotonic startup, reasoning/text event intervals, elapsed seconds, usage and assessment validity within the shared three-call/$3 ledger. Send the observed cause and bounded proposed fix to FO before changing product behavior.
+  Profile #1 exposed a trailing inherited advisor; FO authorized extraction-only suppression before mutation. Original aggregate spend is unknown because the ancillary advisor emitted no usage receipt; it is not claimed within $3.
+- FAILED: After FO authorization, implement only the measured bottleneck refactor with migrated callers and unchanged evidence/privacy/report contracts; compare seconds and assessment fidelity on fixed inputs using only remaining authorized calls. Retain null/noisy/failure results; no fewer trials, changed criteria, model substitutions, or extra live calls.
+  Code `83fafb2` adds only an OMP process-local advisor-disable overlay and architecture explanation; elapsed time fell, but bounded-input uncertainty preservation remains a live assessment support gap, not verified fidelity.
+- DONE: Run smoke and relevant deterministic checks/formatters once after edits, update architecture/changelog, DCO-signoff implementation/report commits and record every AC with actual evidence and limits. No pushes/PR/merge/release and no permanent profiling infrastructure.
+  Final verification after FO-authorized removal of incidental wiring assertions passed; code/report commits are path-scoped and signed off. Architecture follows the existing documentation convention; no changelog exists.
+
+- FAILED: AC-1 — Measured user value, not payload size — authorized bounded replay.
+  Subprocess elapsed 69.069 → 40.553 seconds, first text 7.376 → 9.148, observable text span 37.784 → 30.044; lower elapsed is observed, but the fidelity conjunct is not established.
+- SKIPPED: AC-2 — Lossless inputs — offline, if preparing the compact candidate.
+  No compact candidate was prepared. Actual emitted user-message content is identical across replays; complete primary system/HTTP request byte equivalence was not captured.
+- FAILED: AC-3 — Assessment/report contracts survive — offline plus approved live replay.
+  Both responses normalize all five exact frozen checks and 30 memberships without rejection and the candidate renders; 12 candidate `met` judgments exceed the bounded state evidence, so normalization is not semantic fidelity proof.
+- FAILED: AC-4 — No safety or scope regression — offline and interactive where needed.
+  Unchanged baseline unexpectedly inherited an ancillary advisor outside the named model grant; actual ancillary provider/model/usage remain unverified. Captain acknowledged this incident and separately authorized advisor-disabled calls; candidate emitted zero advisor events and kept all other gates.
+- DONE: AC-5 — Honest stopping condition.
+  Two extraction invocations total, no new trials/scenarios or full outer run; third invocation remains unspent under FO HOLD. Raw results/disagreements were retained without prompt retuning, weaker criteria or a whole-skill speed claim.
+
+### Evidence and limits
+
+- Baseline events: session 0.866s, agent start 3.576s, first/last text 7.376/45.160s, text end 45.498s, primary agent end 45.728s, advisor card/yield 68.411s, exit 69.069s.
+- Candidate events: session 0.913s, agent start 3.260s, first/last text 9.148/39.192s, text end 39.524s, primary agent end 39.781s, exit 40.553s; no advisor events. Both exited zero and exposed no reasoning deltas, not proof of zero hidden reasoning.
+- Exact extraction provider/model: `openai-codex/gpt-6-luna`; auto resolved low in both, unchanged prompt/context/evidence. Baseline input/output 188028/5487 tokens, primary catalog cost $0.0215463; candidate 188028/4900, $0.0212528.
+- Original ancillary spend is UNKNOWN, not zero. Captain's fresh separate $1 allowance covered at most two remaining isolated invocations with `--max-cost 0.25`; only one used ($0.0212528). Verified pricing/limits imply at most $0.6824 for that pair under the one-in-flight-overrun assumption; this does not reconcile the original $3 grant.
+- Actual offline settings smoke: inherited advisor true → process overlay false → inherited true, all exits zero, without provider calls/global edits. Actual product `_omp` launcher was exercised with disposable event/cost instrumentation; private persistence and HTML/data rendering also exited zero.
+- Final deterministic checks passed: `decisions.py --check`, `report-schema-test.py`, `scenario-contract-test.py`, `recorded-evidence-test.py`, `progress-assessment-test.py`, `live-report-contract.sh`, pinned Ruff formatting and `git diff --check`. These reject foreign/missing trial or frozen-check mutations and invalid source/excerpt contracts; they do not prove model judgment.
+- The earlier pre-correction suite passed its deterministic tests but Ruff rejected formatting in added wiring assertions; FO directed removal of those assertions, not repinning. The complete final check chain then passed. No permanent regression test was added at a mock-only seam; real effective-settings and live consumer smoke supply the behavior evidence.
+- Full raw audit covered all six original native traces, observation returns, final workspace/action journals and tracker reads: all support the actual intended conditions. Candidate classifications agree with richer raw artifacts; they overstate support available in its bounded extractor input. Baseline also overstates readable observation and incorrectly says draft arguments were absent; those defects are retained separately.
+- Causal limits: tagged upstream OMP v18.13.1 hooks construct a separate advisor Agent at primary turn end; no direct primary-prompt mutation was found in inspected hooks. Baseline's advisor card arrived after primary completion; observable user content matches, but no full request capture establishes wire equivalence or rules out other runtime effects.
+- Finding for independent validation: released user/workflow = owner reading a normal comparison; observable risk = unsupported certainty in 12 per-trial judgments; authority = value-ac[AC-3], preserving evidence/uncertainty obligations; trigger = candidate raw judgments versus frozen state requirements and omitted returns. Actual wrong underlying outcomes and advisor-caused regression were not demonstrated; FO held reruns and prompt/validator repair.
+- Source artifacts stayed read-only; private ledger, raw replies/events, rendered copy and audits remain private for FO/reviewer access. No private excerpts, paths or digests enter this report. Implementation model exposed as `openai-codex/gpt-6.1-sol`; parent owns independent validation.
+
+### Summary
+
+The candidate removes an accidental OMP advisor review and its measured trailing wait without changing trials, extraction content, model, effort or the mandatory raw audit. This pair observed 28.516 seconds lower subprocess time, but output-length variability and unresolved bounded-evidence certainty prevent an unqualified fidelity or stable speedup claim. Preparation/post-run audit remain unmeasured; independent validation must disposition the explicit support gap.
