@@ -445,3 +445,49 @@ Implemented an isolated, host-operated conversational replay with private revisi
 - `docker run --rm -v "$PWD:/mnt" -w /mnt mvdan/shfmt:v3.14.0 -d -i 2 -ci .` completed with no output; used the canonical single trailing path.
 - Both root-wide checks ran once, read-only, on candidate `aadbcc06ea98b3d74a42e9791ef5061d6630bede`; no candidate edits, smoke rerun or unrelated-failure suppression.
 - Exact private packet/walkthrough coordinates were sent directly to Main, not copied into tracked state. Owner walkthrough remains unperformed.
+
+## Stage Report: validation
+
+- DONE: Independently review the exact complete candidate against the accepted six-file design and repository policy; inspect correction invalidation, read-only citation boundaries, private state, consent, host parity and scope without edits or running checks.
+  Spec reviewer PrototypeValidation inspected the complete base-to-candidate diff and all six files against AGENTS, coding/reviewer guides, local review-by-subagent and workflow disposition; no candidate mutation or reviewer-run checks.
+- DONE: Map every acceptance criterion to implementation evidence, distinguish deterministic/saved-case mechanics from actual owner interaction and value, and record any material finding with authority, reachable trigger, harm and least-cost remedy.
+  Criterion mapping and evidence limits below preserve all three unchanged ACs; no demonstrated material finding, fabricated owner response or unsupported coverage claim.
+- DONE: Incorporate the independent Standards reviewer result for the same revision and write a privacy-safe validation stage report with explicit review verdicts and remaining owner walkthrough; recommend only supported readiness, never fabricate acceptance or gate approval.
+  PrototypeStandards independently returned APPROVE on the same candidate; its full review was delivered to Main and PrototypeValidation, and its findings/scope/limits are incorporated below.
+
+### VERDICT
+
+- Spec: APPROVE; Standards: APPROVE. Both are independent AI code-review verdicts for candidate `aadbcc06ea98b3d74a42e9791ef5061d6630bede` against base `9e807d2139f689d494b7e68ccc521bdfff8a1aad`, not owner acceptance or a workflow gate decision.
+- Recommendation: ready for the already-required actual owner walkthrough; overall AC acceptance remains unestablished. No adoption, paid trial, code push, PR, merge or release is authorized.
+
+### MATERIAL FINDINGS
+
+- none from either reviewer. No supported-workflow violation requiring an authority/trigger/harm/remedy package was found; hypothetical concerns are not promoted to Material. No corrective disposition or candidate rerun is requested.
+- Prior implementation F1/F2: read-only revision-free `show` permits stale-session recovery; resolved snapshot paths inside the evidence root are rejected before writes. Static review agrees with the recorded authorized remedies; test/smoke evidence belongs to implementation.
+
+### Criterion evidence and limits
+
+- AC-1: `replay.py:147-166,189-203` invalidates corrected-goal support/confirmation/result/decision, retains independent bindings and requires the current confirmed revision; the skill assigns exact correction and continuation to the host. Implementation's six-test receipt and private saved-case smoke exercise this machinery; stale acceptance, lost independent support or ignored exact correction would falsify it. Actual owner handoff/correction/continuation remains UNPERFORMED.
+- AC-2: `replay.py:39-99,167-188,209-210` scopes citations, labels reused/synthetic support, hashes cited excerpts and returns missing/changed evidence as unverified with next steps. Implementation receipts cover support, contradiction, recovery, evidence viewing and an empty-root gap; changed/missing citations passing or a nonexistent citation being accepted would falsify the mechanics. Actual owner inspection and distinction between reused support and fresh execution remain UNPERFORMED; one saved slice is not whole-flow or real-service proof.
+- AC-3: skill Conversation steps 2/7 and the prepared private walkthrough specify baseline, actual takeovers, necessary choice versus avoidable agent work, grounded decision and next experiment. No actual owner responses or comparative value observations exist: wholly UNPERFORMED and Captain-dependent. Praise, helper success or artifact existence cannot satisfy it; negative/inconclusive value remains valid.
+- Verification reused, not rerun: implementation reports `python3 tests/verification-handoff-prototype-test.py` exit 0 (six tests), actual private helper smoke and `git diff --check` exit 0. Tests exercise shipped CLI outputs/state rather than skill-wording presence; the smoke does not establish host compliance or usability.
+- Supplemental receipt, unchanged candidate: root-wide `uvx ruff@0.16.5 format --check --diff .` passed with `153 files already formatted`; canonical Docker shfmt `-d -i 2 -ci .` passed with no output. Main confirmed these implementation-owner receipts in state commit `fcd3121`; neither reviewer ran checks.
+
+### DECISIONS REQUIRED
+
+- none for the reviewed code/design scope. The existing acceptance dependency is the actual owner walkthrough on this prototype, not a new study, threshold or scope decision. FO must retain that dependency and present only supported readiness; reviewers cannot supply owner answers or waive AC-1/AC-2/AC-3.
+
+### OPTIONAL SUGGESTIONS
+
+- none from either reviewer; no additional standing infrastructure, reader study or verification obligation proposed.
+
+### SCOPE AUDIT
+
+- Added: approved isolated maintainer skill, standard-library helper, explicitly synthetic fixture, one file of six behavioral tests, local entry instructions and architecture flow. Six files / 622 insertions versus 490 ±150 (340–640): within approved surface and tolerance.
+- Removed: none; no production contract replaced, obsolete caller or compatibility shim introduced. Actual implementation matches the accepted conversational replay, not a standalone UI or second renderer.
+- Unauthorized decisions found: none. Production skills/renderers, manifests, hooks, CI and model/external-operation paths remain unchanged; both supported hosts share instructions/helper. Explicit OMP source loading is not a built-in adapter claim.
+- Privacy/safety: private snapshots require 0700 parent/0600 unlinked files outside Git and the case root; citations reject traversal/absolute/resolved symlink escape; evidence/show do not write; accept records a choice only. Semantic evidence review and actual consent remain host responsibilities, not helper guarantees. No private case contents or personal evidence coordinates are reproduced here.
+
+### Summary
+
+Both independent reviewers approve the exact complete candidate within the accepted implementation scope, with no material finding or new scope decision. Existing deterministic and saved-case receipts support replay mechanics only; proceed to the already-required owner conversation and retain all interactive/value acceptance gaps until actual observations exist.
