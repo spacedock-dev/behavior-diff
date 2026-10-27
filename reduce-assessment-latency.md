@@ -6,7 +6,7 @@ started: 2026-10-27T08:40:55Z
 completed:
 verdict:
 score: 0.9
-worktree:
+worktree: .worktrees/spacedock-ensign-reduce-assessment-latency
 issue:
 linear:
 pr:
