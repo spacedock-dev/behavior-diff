@@ -23,6 +23,17 @@ gates:
                 id: briefing:vnaxvsdna9hvd5fgebv5fp5y:backlog:attempt-1:revision-1
                 digest: sha256:15dd9ace496c0ed91b9667f4846449cb7f178a709ce31f0050a98d6932fc5fac
                 room-ref: ./reduce-assessment-latency/review/backlog/briefing-1
+              resolution:
+                type: Resolution
+                id: resolution:spacedock:vnaxvsdna9hvd5fgebv5fp5y:backlog:1
+                briefing: briefing:vnaxvsdna9hvd5fgebv5fp5y:backlog:attempt-1:revision-1
+                by: person:captain
+                at: "2026-10-27T08:40:25.393614Z"
+                decision: approve
+                reason: Captain explicitly requested diagnosis and refactoring, selected the Spacedock workflow, and pre-approved the ideation gate into implementation.
+              application:
+                target-stage: ideation
+                state: pending
 ---
 
 Make Behavior Diff comparisons faster by diagnosing and refactoring the measured bottleneck while preserving comparable trials and report evidence.
