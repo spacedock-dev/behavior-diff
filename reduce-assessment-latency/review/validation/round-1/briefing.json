@@ -1,0 +1,15 @@
+{
+  "type": "Briefing",
+  "version": "1",
+  "id": "briefing:vnaxvsdna9hvd5fgebv5fp5y:validation:attempt-1:revision-1",
+  "question": "Approve the independently reviewed OMP extraction advisor-suppression candidate under the accepted limits?",
+  "artifacts": [
+    {
+      "id": "artifact:vnaxvsdna9hvd5fgebv5fp5y:validation:attempt-1:revision-1:item-1",
+      "uri": "git-root://state/2ac5e6ad5d059129bb46e45f947ec55a0b0a9138/reduce-assessment-latency.md",
+      "rev": "sha256:d05458e191a0b45150d1302061bc369ca762854f3cafc1e2e012700fb8fbadda",
+      "mediaType": "text/markdown",
+      "summary": "Independent read-only review APPROVE/PASSED for code83fafb201ce4348db23bace45ea0f94ae08ba89e;3done,0skipped,0failed. Three files/15 additions suppress inherited advisor only for OMP extraction. Same-input pair69.069 to40.553 seconds, with22.683 seconds baseline trailing advisor observed; stable speed and semantic fidelity unproven. Six deterministic checks, formatting and actual effective-settings/launcher/render smoke passed. Captain-accepted support/uncertainty gap and unknown historical ancillary cost remain disclosed. Approval does not authorize push/PR/merge/release."
+    }
+  ]
+}
