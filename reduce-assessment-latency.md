@@ -53,6 +53,14 @@ gates:
               application:
                 target-stage: implementation
                 state: consumed
+        - id: gate:vnaxvsdna9hvd5fgebv5fp5y:validation
+          stage: validation
+          attempts:
+            - id: gate-attempt:vnaxvsdna9hvd5fgebv5fp5y-validation-1
+              briefing:
+                id: briefing:vnaxvsdna9hvd5fgebv5fp5y:validation:attempt-1:revision-1
+                digest: sha256:72536ff68006c46d7eccafea004f501ada833bacfdad619bd58df46efb73346f
+                room-ref: ./reduce-assessment-latency/review/validation/briefing-1
 ---
 
 Make the complete Behavior Diff skill faster without weakening trials, privacy,
