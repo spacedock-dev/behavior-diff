@@ -465,3 +465,53 @@ The candidate removes an accidental OMP advisor review and its measured trailing
 ### Summary
 
 The same narrow candidate and measured results are complete under the Captain's newly accepted limitations; no semantic proof has been added or invented. Historical failures, unsupported bounded-input certainty and unknown ancillary cost remain visible for independent validation. Only this entity's acceptance terms and current implementation report were amended; code and workflow status are unchanged.
+
+## Stage Report: validation
+
+- DONE: Independently review the complete narrow OMP extraction-only advisor-disable candidate and all changed/untracked relevant files under repository reviewer guidelines; remain read-only and run no builds/tests/formatters/provider calls.
+  Reviewed base `8067a1cb10d7056226589020ffec83e506890045` through exact signed-off candidate `83fafb201ce4348db23bace45ea0f94ae08ba89e`: three files, 15 additions, no deletions or staged/unstaged/untracked additions; only this shared-state report is written.
+- DONE: Map all five accepted AC to actual implementation, deterministic checks, effective-settings smoke and measured same-input latency; audit both live assessments and raw-source support/uncertainty findings without attributing model variability to the fix or treating normalization counts as semantic proof.
+  Independently inspected saved paired events/replies/normalized evidence and all six native traces/workspace journals/final states/tracker returns; reused final implementation check receipts without rerunning commands.
+- DONE: Commit the exact validation report in shared state with DCO signoff, full required reviewer verdict/sections and explicit Material/Deferred risk/Polish/Needs decision classifications with authority/trigger/harm/least-cost remedy; no product edits, push/PR/merge/release or extra workers.
+  This path-scoped signed-off state commit is the sole deliverable; one independent reviewer, exposed model `openai-codex/gpt-6.1-sol`; no workflow-status/frontmatter change or delivery authorization.
+
+### Reviewer verdict
+
+VERDICT: APPROVE
+
+MATERIAL FINDINGS
+- none outstanding against the current Captain-amended narrow acceptance; the observed assessment-support defect remains disclosed and accepted, not repaired or disproved.
+
+DECISIONS REQUIRED
+- none for this validation; Captain's 2026-10-27 “Accept limitation; review narrow fix” supersedes the earlier unresolved fidelity/cost acceptance. Push, PR, merge, release and publication remain separate ungranted decisions.
+
+OPTIONAL SUGGESTIONS
+- none; no new test mechanism, paid study, prompt repair or unrelated cleanup is imposed.
+
+SCOPE AUDIT
+- Added: one bundled five-line JSON overlay and three `_omp` argv lines (`decisions.py:1141-1143`); removed: no permanent mechanisms. Architecture (`docs/architecture.md:430-436`) explains OMP-only behavior and retained raw audit.
+- No unauthorized decisions found: other extraction hosts, trial runners, prompts/models/effort, evidence budgets, schema/rendering, consent gates and global configuration are unchanged by the diff; both plugin manifests remain at 0.4.7.
+- Actual surface is 3 files/15 added lines. The conditional whitespace-preview estimate described a different, unselected candidate; the observed advisor cause received explicit bounded FO authorization before mutation. No compaction, profiling framework, new dependency or CI/provider gate landed.
+
+### Acceptance and verification evidence
+
+- AC-1 — Accepted with limitation: saved monotonic ledger/events show elapsed 69.069 → 40.553s (28.516s lower), first text 7.376 → 9.148s, text interval 37.784 → 30.044s; baseline primary end 45.728s precedes advisor yield 68.411s by 22.683s. Total savings cannot all be attributed to the advisor; stable latency, semantic equivalence and whole-skill speedup are unproven.
+- AC-2 — Not applicable, not passed: no compaction. Actual emitted user content and bounded recorded evidence compare equal; five frozen checks and all 30 memberships retain their exact fields/identities. Complete system/HTTP request byte equivalence was not captured.
+- AC-3 — Structural contracts supported; semantic support gap accepted: both replies normalize five exact frozen checks/30 memberships without target rejection; candidate persistence/render smoke exits zero. Eighteen judgments differ: six metadata judgments have visible argv support, while 12 candidate file-present/task-boundary judgments overstate bounded evidence; both replies also overstate readable observation, and baseline misstates missing draft arguments.
+- AC-3 raw truth — All six retained native traces show observe/draft/observe, an initially present file, submitted metadata agreeing with actual tracker returns, final observation equal to on-disk state, draft equal to journal arguments, and no transfers/submissions/other operations. Richer artifacts support actual outcomes, not the adequacy of bounded-input citations or causal independence of model variation.
+- AC-4 — Candidate boundary supported: overlay contains only `advisor.enabled:false`; saved effective-settings smoke is inherited true → invocation false → inherited true, all exits zero. Actual `_omp` launcher smoke uses the bundled overlay and exact `openai-codex/gpt-6-luna`; saved events resolve auto → low in both and show zero candidate advisor events. No global edit or trial change is introduced.
+- AC-4 cost/consent — Historical primary extraction cost $0.0215463 plus UNKNOWN ancillary cost/model/usage is retained, not treated as zero or reconciled within the original $3. Candidate primary cost $0.0212528 falls under the separate Captain-approved $1 allowance; prior exposure is accepted, not undone.
+- AC-5 — Supported by retained ledger/history: two extraction invocations total, zero new trials/scenarios, no retuning/result-seeking retries; third call remains HOLD/unspent. Preparation/audit durations and causal fidelity remain explicit limits, not silently narrowed or replaced by payload-size claims.
+- Reused final check chain — `decisions.py --check`, `tests/report-schema-test.py`, `tests/scenario-contract-test.py` (10), `tests/recorded-evidence-test.py` (23), `tests/progress-assessment-test.py` (8), and `tests/live-report-contract.sh` completed successfully in implementation; final Ruff 0.16.5 reports already formatted and final `git diff --check` is clean. Earlier wiring-assertion formatting failure remains historical; those assertions were removed before the final chain/candidate commit.
+- Falsifiability — Inspected `tests/target_contract.py:764-780,972-1011` and `tests/recorded-evidence-test.py:666-703`: accepting foreign-trial refs, missing/rewritten frozen checks or absent source evidence would break rejection assertions; accepting invented excerpts would break the independent-row rejection contract (`target_contract.py:895-904`). These checks do not prove model judgment or the new overlay's runtime effect; the saved effective-settings/live consumer smoke covers that seam.
+
+### Risk dispositions
+
+- Material, accepted/not owned — Normal comparison readers can receive unsupported certainty: observed omitted state returns coexist with 12 determinate candidate judgments. Authority: `value-ac[AC-3]` evidence sufficiency and `contract[plugin/skills/behavior-diff/scripts/decisions.py#PROMPT]` call-versus-return distinction; harm is overstated evidentiary support, not demonstrated wrong underlying outcome. Least-cost current disposition is exact disclosure plus mandatory raw audit under `captain-ruling[2026-10-27]`; prompt/validator repair is outside this authorization.
+- Material, historical/accepted — Advisor-active baseline crossed the named provider boundary and incurred unknown ancillary charge; authority: `value-ac[AC-4]` consent. Trigger was inherited advisor=true, observed trailing advisor execution; remedy for future scoped extraction is the reviewed invocation overlay, while historical exposure/cost remains irrecoverable from available receipts.
+- Deferred risk — `value-ac[AC-1]` causal fidelity/population latency: one pair and uncaptured system/wire payloads cannot exclude runtime effects or establish stable savings. Harm would be misleading equivalence/speed claims; promote if new evidence demonstrates a supported-workflow regression or claims exceed these bounds. Least-cost remedy now is bounded wording, retained evidence and no unauthorized replay.
+- Polish: none. Needs decision: none within the accepted narrow scope; any new supported-workflow harm or expansion re-enters FO finding disposition and Captain authority, not automatic mutation.
+
+### Summary
+
+Recommend PASSED for independent validation of the exact narrow candidate under the recorded Captain amendment, not an unqualified fidelity pass. The diff removes inherited OMP advisor work without demonstrated new code defects; observed bounded-input overclaims, unknown historical ancillary cost and causal/end-to-end limits remain visible. This review neither authorizes delivery nor changes workflow status.
