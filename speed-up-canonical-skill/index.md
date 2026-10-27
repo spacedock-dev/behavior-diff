@@ -1,6 +1,6 @@
 ---
 title: Reduce full Behavior Diff skill execution time on Claude Code and Codex
-status: backlog
+status: ideation
 source: Captain request to improve the complete native-host skill rather than OMP advisor configuration
 started:
 completed:
@@ -33,7 +33,7 @@ gates:
                 reason: The Captain explicitly requests refactoring the complete Behavior Diff skill to reduce execution time under Claude Code or Codex; this accepts starting design, not an unknown design or merge.
               application:
                 target-stage: ideation
-                state: pending
+                state: consumed
 ---
 
 Reduce elapsed time from a user's comparison request through the final evidence-audited response when the canonical Behavior Diff skill runs in Claude Code or Codex.
