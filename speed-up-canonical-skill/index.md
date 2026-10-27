@@ -177,3 +177,51 @@ Recommend extending shared preparation/freeze mechanics and indexing original ra
 ### Summary
 
 Completed the shared mechanical refactor and its offline CLI, safety and formatting evidence without changing the approved models, trial counts, privacy boundaries or semantic audit ownership. The exact candidate is ready for independent review; native performance and real-case preservation remain explicitly unverified and must not be inferred from the passing synthetic checks.
+
+## Stage Report: validation
+
+- DONE: Review the complete signed candidate against the approved shared preparation/freeze and raw-evidence-navigation behavior, including direct/staged paths, privacy, staleness, exact evidence access and all canonical callers; give concrete material findings or an explicit code-quality verdict.
+  Spec reviewed all seven files and direct runner/input/status/trace/reference consumers at `c090d028b9bf2c565dbf227d5b6eecbd443cca24` versus `8067a1cb10d7056226589020ffec83e506890045`; one material invalid-handoff finding below.
+- DONE: Map every acceptance criterion to the implementation's exercised evidence and actual limitations; native speed, real-case preservation and live-host instruction behavior remain unverified and must not be called passed.
+  AC mapping below reuses the signed implementation report (`d85e5c9`); reviewers ran no tests, builds, formatters, helper smoke or model journeys.
+- DONE: Combine the independent Standards review of this exact candidate with your Spec review in a committed, read-only validation report; do not edit product code or run tests, builds, formatters or paid journeys.
+  Independent `SpeedRefactorStandards` reviewed the same full revision and independently confirmed F1; its amended REVISE supersedes the earlier offline approval and preliminary Python-compatibility material classification. Only this report is changed.
+
+VERDICT: REVISE
+
+- Spec: REVISE for F1. Standards: amended REVISE for the independently confirmed same F1, deduplicated below; native acceptance also remains a decision.
+- Workflow recommendation: REJECTED; preserve candidate bytes pending producer investigation and a distinct FO disposition. No reviewer authorizes corrections or changes workflow status.
+
+### MATERIAL FINDINGS
+
+- F1 — medium; `plugin/skills/behavior-diff/scripts/prepare_shared.py:77-81`: a non-null purpose only requires the `scenario_file` key; the helper discards the validated result.
+  Authority: `value-ac[AC-3]` requires invalid preparation rejection; canonical `SKILL.md:208-210,242-244` and `references/scenario-and-test-data.md:71-74,140-146` require reviewed frozen checks for non-null purpose, reserving omission for null purpose.
+  Trigger evidence: an otherwise valid complete handoff with non-null purpose and a scenario file containing JSON `null`; `scenario.py:30-31` calls `reporting/scenario.py:72-75`, which returns `None`, so preparation and verification accept the unrecorded scenario.
+  Observable harm: the normal canonical runner accepts that null record and assessment authors criteria instead of answering frozen checks, allowing paid trials without the required pre-result scenario/check boundary. This is static control-flow evidence, not an executed reproduction.
+  Least-cost remedy: reject a `None` scenario-reader result when purpose is non-null and add an isolated invalid-handoff CLI regression; preserve the runner's existing optional-record contract for invocations outside the skill. Observation only; producer/FO own classification, task ownership and authorization.
+
+### DECISIONS REQUIRED
+
+- Native acceptance remains held: zero valid complete baselines and no candidate timing. Keep the candidate parked, or separately authorize a bounded native route after resolving host/consent; no provider switch, sandbox bypass or new infrastructure is authorized.
+  Holding adds no model cost; resumption needs explicit purpose/count/cost authority with variable cost not estimated here, and no recurring mechanism. The old-code nested Codex sandbox failure is not attributed to this candidate.
+- 🧠 Kent's brain recommends: route F1 through the existing correction checkpoint and retain the paid-run hold (confidence: high).
+  Why: a small owned correction protects frozen evidence semantics without turning offline success into an unsupported speed claim.
+
+### OPTIONAL SUGGESTIONS
+
+- Standards: `audit_evidence.py:151-154` uses `hashlib.file_digest`, new in Python 3.11 (https://docs.python.org/3.11/library/hashlib.html#hashlib.file_digest); on Python 3.10 a regular artifact causes uncaught `AttributeError`. Streaming `sha256().update()` is a small compatibility improvement; nonblocking because no plugin-wide pre-3.11 support commitment was found (`README.md:564` covers the gallery only). No runtime reproduction ran.
+- Standards: `tests/shared-data-test.py:475-491` leaves a newer baseline in place before the notes-symlink assertion, so verification fails before reaching the symlink guard. Restore a valid baseline or isolate that assertion; small test cost, nonblocking because production symlink rejection is present and no production escape was demonstrated.
+
+### SCOPE AUDIT
+
+- Added only approved complete-handoff/direct-freeze mechanics, runner-argument data, local original-byte navigation and synthetic coverage; removed duplicate command/inventory recipes. Seven approved files, +1002/-226 = 1,228 changed lines versus 740 ±35% (481–999); formatter-only overrun is disclosed/authorized, not within tolerance.
+- No unauthorized decision demonstrated: runner/trial adapters, extraction/report contracts, models/counts, manifests, dependencies and CI are unchanged. Semantic authorship, capability/privacy review, all-case raw audit, Jev consent, Humanizer and Spacedock-specific delivery remain outside the new mechanics. No private source or benchmark artifact enters this diff.
+- AC-1: UNVERIFIED; no complete three-case native before/after timing pairs or aggregate speed reduction. Offline checks cannot establish this value.
+- AC-2: synthetic preparation/privacy/reference and 3+3 mechanics have prior passing evidence; real-case frozen inputs, approved assembled-source mapping and every-case/every-trial raw semantic preservation remain UNVERIFIED.
+- AC-3: prior `shared-data-test.py --runner-smoke` (35) and `recorded-evidence-test.py` (25) exercise shipped CLIs, mutation/path/privacy rejection, original-byte reconstruction, missing/duplicate/malformed events, native failure despite text and ignored/untracked artifacts; removing those guards or filtering raw returns would fail. F1 remains an uncovered invalid-input boundary, so this criterion is not fully accepted.
+- AC-4: full consumer review finds shared Claude/Codex routing and concise architecture aligned; fake hosts exercise runner/adapters, not model compliance. Actual changed-path Codex and live Claude behavior remain UNVERIFIED.
+- Reused additional evidence: scenario (10), purpose (4), source (9), report-source/live-report contracts and Ruff/shfmt/whitespace passed in implementation; invalid/mismatched public inputs or incompatible report handoff would falsify those contract claims. No reviewer reran them; no live execution is claimed.
+
+### Summary
+
+Both independent reviews cover the exact signed candidate and recommend REVISE for one deduplicated frozen-scenario validation defect; Standards also retained two nonblocking suggestions. Recommend correction through the authorized checkpoint and independent review of the corrected complete candidate; native speed, real-case preservation and live-host compliance remain open acceptance gates, not completion claims.
