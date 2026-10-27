@@ -1,6 +1,6 @@
 ---
 title: Reduce full Behavior Diff skill execution time on Claude Code and Codex
-status: ideation
+status: implementation
 source: Captain request to improve the complete native-host skill rather than OMP advisor configuration
 started: 2026-10-27T13:28:15Z
 completed:
@@ -52,7 +52,7 @@ gates:
                 reason: 'Captain approved the bounded shared refactor and accepted the complete assembled-instruction projection for the review benchmark, explicitly not original filesystem reference-loading fidelity; AC-1/AC-2 review evidence is scoped to that projection. Captain separately authorized one direct startup trial, then two replacement outer executions only after it succeeds, within the existing US$20 working budget: maximum eight outer sessions,49 trial launches including12 failed startups andone diagnostic, andsix extractions total; no automatic retries or push/PR/merge authority.'
               application:
                 target-stage: implementation
-                state: pending
+                state: consumed
 ---
 
 Reduce elapsed time from a user's comparison request through the final evidence-audited response when the canonical Behavior Diff skill runs in Claude Code or Codex.
