@@ -8,7 +8,7 @@ verdict:
 score: 0.95
 worktree:
 issue:
-linear:
+linear: https://linear.app/recce/issue/DRC-5000/reduce-end-to-end-behavior-diff-skill-execution-time-on-claude-code
 pr:
 mod-block:
 id: n2m85xea3h2q75xk6gzjebwm
@@ -44,15 +44,30 @@ The previous OMP-only advisor change does not satisfy the requested end-to-end s
 
 ## Proposed approach
 
-Measure the existing canonical skill under native Codex, then remove avoidable shared preparation, freeze/handoff and audit round trips using the smallest deterministic helpers and progressive instructions justified by that evidence. Keep scenario design and semantic judgment with the agent. Prefer extending existing mechanics to a second orchestrator; do not add a permanent benchmark framework or another standing gate.
+Recommend one shared mechanical path, not an OMP advisor change: extend `prepare_shared.py` to freeze the complete reviewed handoff and add a small local raw-evidence locator. The outer Claude Code or Codex skill still authors purpose, task, scenario, data and checks, exercises required capabilities, reviews privacy/reference closure, and judges every case. The runner, extraction, report format, default trials and models remain unchanged.
+
+1. **Author once.** Freeze purpose before scenario drafting as today. Write the existing task/purpose/scenario/source/notes files and reviewed shared files once; do not introduce another scenario schema or generate their meaning in Python. A private path/settings descriptor names those files, required references, custom tool files and the intended existing runner arguments.
+2. **Materialize and freeze together.** Reuse `prepare_shared.py` staging, archive comparison, exclusions, Before resolution and permission guards. An optional private input descriptor lets preparation also validate purpose/scenario/source through their existing Python readers, hash the complete handoff and return one readable inventory plus structured runner-argument handoff. A freeze-only operation supports the existing direct-project path without forcing shared-data staging. The descriptor and inventory stay outside trial projects; nothing launches models or executes commands from JSON.
+3. **Verify once immediately before launch.** Extend verification to compare task, purpose, scenario, optional source, notes/criteria, required references, tool implementations and settings as well as the existing project/Before freeze. For a direct Git project, inventory the effective archive plus selected After, not unrelated uncommitted work. Reject mutation/missing inputs, preserve verified absence, and hand the unchanged runner arguments to the existing launch in the same shell environment. Keep semantic capability probes in disposable scratch copies; hashing a probe record does not establish that the capability worked. Avoid a second parent-authored validator or a second scenario review by merely repeating the same reads.
+4. **Collect locations, not conclusions.** A private `audit_evidence.py <run-directory>` reads existing trial/status/native logs and produces a navigable inventory of raw calls, returns, terminal events and produced/changed artifacts, with exact file/line or byte locators and omission/error states. It must not use the assessment collector's eligible-read/content budgets as the audit boundary. Index every expected trial, including missing/interrupted ones; preserve duplicate identities and malformed events without inventing attribution. Paginated original-return access and artifact locations let the outer skill inspect every private case in every trial without regenerating extraction scripts. Reuse `read_trial_trace`, `trial_interruption` and progress readers where their contracts fit; do not turn report-ready final text into terminal proof. Raw bytes remain authoritative and private; the helper makes no support/reach verdict, uploads nothing and never rewrites reports.
+
+Make the canonical skill a short ordered handoff to the existing detailed preparation/audit reference, removing duplicate command construction and ad hoc inventory instructions. Keep privacy/consent, early-purpose freeze and historical-isolation stops visible before their affected reads or writes. Detailed source provenance is loaded only for historical comparisons; Jev and Humanizer behavior is preserved, not used as a speed shortcut.
+
+**Simplest alternative:** shorten and deduplicate instructions only, retaining current helper boundaries. This has less code risk, but leaves the task/scenario/notes/tooling inventory and raw-return navigation as repeated model-authored work. Prefer the bounded helper extension because those mechanical gaps are present in the current implementation; native savings remain unproven.
 
 ## Risk evidence
 
 Native Codex baselines must precede product changes. Capture phases, agent/tool turns, actual attempts and final raw-evidence audit, not only report rendering or extraction duration. No speed claim from OMP-only measurements.
 
+Existing mechanisms to reuse: `prepare_shared.py:172-176,243-437` inventories content/mode, stages without modifying originals, validates archives and verifies launch inputs; `purpose.read_purpose`, `scenario.read_scenario` and `source.read_source` already enforce the public input contracts. Existing `tests/shared-data-test.py` contains isolated CLI boundary coverage and a manual `--runner-smoke` path with fake Claude/Codex binaries. These are inspected implementation/test mechanisms, not test results from this stage.
+
+One throwaway deterministic exercise ran here against shipped evidence readers using synthetic data only: a `python3 tools/read_state.py` return of 26,029 characters was omitted by `collect_run_evidence` as `not an eligible recorded read`; `read_trial_trace` retained no returned content. A line/byte locator recovered the entire original return exactly, while a separate synthetic native `turn.failed` event remained available independently of normalized final text. This falsifies the report-only/bounded-collector shortcut and supports an unfiltered local locator; it does not prove the proposed production helper, semantic audit quality or native speed. The temporary fixture was automatically removed; no suite, model call or product edit ran.
+
 ## Expected surface and tolerance
 
-Ideation must bound the canonical skill, shared references/helpers, relevant deterministic boundary tests and architecture documentation. PR #55 remains separate and is not the base or deliverable.
+Bound the implementation to seven files: `plugin/skills/behavior-diff/SKILL.md`, its `references/scenario-and-test-data.md`, `scripts/prepare_shared.py`, new `scripts/audit_evidence.py`, `tests/shared-data-test.py`, `tests/recorded-evidence-test.py`, and `docs/architecture.md`. Reuse validators/status readers without changing their contracts; manifests, runner/trial adapters, extraction prompts, report schemas and CI stay untouched. Update the architecture flow and responsibilities in the same change.
+
+Estimate [INFERENCE]: about 740 changed lines (+600/-140; net +460), tolerance ±35% in changed-line volume (481–999) and one file (6–8 files). Exceeding that surface or changing protected semantics returns to the ideation gate, not silent expansion. One independent product PR based on main `8067a1cb10d7056226589020ffec83e506890045`, after baseline capture and design acceptance; PR #55 remains separate. No additional infrastructure PR or permanent benchmark artifact.
 
 ## Acceptance criteria
 
@@ -63,14 +78,49 @@ Ideation must bound the canonical skill, shared references/helpers, relevant det
 
 ## Test plan
 
-Use the three default real cases in e2e/README.md under the historical isolation rules and matching companion-file delivery. Six outer Codex skill executions, 36 trials and six extractions total, no automatic retries, pinned sol trial/outer and luna extraction IDs. Same neutral requests and historical source inputs per paired version; no later corrections or evaluator answer keys in agent context. Distinguish generated-case variation from mechanical savings. Keep all sessions and benchmark scaffolds private/outside Git; deterministic CI only. Implementation owns checks and fixes, independent reviewer remains read-only and does not duplicate them.
+**Native user-value evidence (manual, benchmark owner only).** Use the three default real cases in `e2e/README.md`, not synthetic substitutes or saved reports. Pair main `8067a1cb10d7056226589020ffec83e506890045` with the exact candidate revision: six complete fresh outer Codex skill executions, 36 trials and six extractions, no retries. Pin outer/trials to `gpt-6.1-sol`, extraction to `gpt-6-luna`, and hold host configuration, reasoning settings when available, neutral case requests, contemporary instruction sources and sanitized environment premises constant. The outer skill performs its complete preparation, launch and final raw audit; do not pre-supply a finished scenario to hide preparation time.
+
+For each pair, record native session start through final evidence-audited response, preparation/preflight/runner/audit phases, tool/model turns, attempted/completed trials and cost. Report each duration and candidate-minus-baseline delta plus aggregate totals; preserve slower, failed and inconclusive cases. Independent scenario generation can differ across the two outer executions: retain frozen input digests and coverage mappings per execution, disclose those differences, and distinguish model/data variation from mechanical savings. One pair per case cannot establish causality or a general speed distribution. No all-three-case value acceptance while a required case is held or missing; no promise of a percentage speedup.
+
+**Historical cases and delivery.** Use runbook pins: review `72aa54640948d19932252518a7396643b7064c37` → `eea5e28a41489c24df5e47a61cb07e63c997928b`; TDD `b91299d649932278954985024f82e5654b7e2bef` → `a15d7e0df2fb99f5aecf788e35b9d67745b84b08`; decision `a15d7e0df2fb99f5aecf788e35b9d67745b84b08` → `ceb846c086d0729a0002b79b08c2abb197f571ce`. Fresh agents get only contemporary sources/required references, neutral requests and sanitized fixtures, never this evaluator runbook, later corrections, old results or conversations. Historical selection bias remains disclosed; this is performance verification, not a claim of detected historical defects.
+
+TDD and decision retain matching reference closure with unrelated changed skills absent or constant. Review requires both historical `SKILL.md` and `reference/operations.md` plus `pr-review-response` and its required references. The existing runner stages one varying file and cannot silently replay those two files. Recommend a complete content-preserving assembly into its one selected instruction, with exact original-path/revision/fragment mapping, all matching source content and unchanged reference closure, identical assembly recipe across benchmark versions, and a demonstrated usable reference path. This is a source-content projection, not exact original filesystem delivery; inlining or reference rewriting must be disclosed and requires the Captain's ideation-gate acceptance. Do not keep an old standalone operations file that contradicts the assembly, silently replace it with a redirect, or omit required content.
+
+The prior paired-fixture/`rule.md` extraction route can preserve a two-file layout, but it bypasses the canonical runner path and cannot replace a complete native outer-skill measurement. If assembly cannot exercise reference closure without changing the tested question, hold review and report that exact prerequisite; do not expand production into multi-file delivery solely for this benchmark. The benchmark owner may capture valid single-file baselines meanwhile. Review remains held pending that representation decision; no baseline outcomes are claimed here.
+
+**AC mapping and concrete falsifiers.**
+
+- **AC-1 — manual/native:** the private timing ledger and full native traces must show all three complete pairs through final audit with lower aggregate wall time. Excluding preparation/audit, hiding a slower case, using a different stack or a non-improving aggregate fails this value check.
+- **AC-2 — offline plus manual/native:** compare actual project snapshots, inventories, source-path mapping, statuses and case-by-trial audit coverage with frozen inputs and approved delivery. A leaked private notes file, stale companion, missing case, changed model/count, post-result input change or outcome inferred only from an answer invalidates acceptance. This checks preservation within each run; independently generated paired scenarios are not falsely called byte-identical.
+- **AC-3 — offline:** extend existing isolated helper tests and run the shipped CLI, including the manual fake-host `--runner-smoke` path for both hosts. Exercise each context-file/settings/tool mutation, missing reference, purpose/scenario mismatch, symlink/path escape, Git redirect/archive transformation and absent-Before boundary. For the audit CLI, exercise an adapter return excluded from assessment, long/truncated return, duplicate IDs, missing/malformed logs, native failure with nonempty progress text, ignored/untracked output and symlink escape. Require original-byte locators or explicit missing/unsafe states, not invented successful evidence. Removing mutation rejection, applying assessment budgets to raw navigation, or treating that failed turn as complete must fail these checks.
+- **AC-4 — offline consumer review plus manual/native:** inspect the entire canonical workflow/direct references and exercise the changed path in actual Codex, preserving the existing direct-project, staged-data and Spacedock-specific routes. Fake-host exercises cover mechanical Claude argument delivery, not live Claude instruction compliance; disclose that live Claude is unexercised within the approved Codex scope. A stale caller, duplicate inventory recipe or host-only shortcut fails compatibility acceptance.
+
+Implementation owns the relevant checks from repository policy after changes land, including shared-data/recorded-evidence/scenario/purpose/source contracts, selected fake-host smoke, existing live-report contracts, Bash/Python formatting and Markdown whitespace checks as applicable. The independent reviewer remains read-only and does not duplicate execution. Keep all benchmark scripts/data/traces/results outside Git; no CI/model gate, new provider or report rewrite.
 
 ## Decisions and dependencies
 
 Captain explicitly requested this complete native-host refactor and selected starting implementation in the original request; this supplies backlog selection, not an unknown design or merge approval. Fresh US$20 working benchmark budget approved, with token-derived monitoring and in-flight-request cap limitation disclosed. Captain separately approved only the pinned private Recce-Team skill files and necessary historical references to OpenAI through Codex plus fresh sanitized fixtures; no private conversations, customer data, credentials, later corrections or historical reports. No OMP or Jev benchmark calls. No authority to push, create/update PR, merge or release this new change.
+
+**Ideation decision requested:** accept the bounded shared-helper/progressive-instruction design and its estimate, and separately accept or reject review-case content assembly with its explicit filesystem-fidelity limitation before that live case starts. No implementation approval, performance result, review acceptance or delivery permission is inferred from this report. Baseline evidence is pending with the separate benchmark owner.
+
+🧠 Kent's brain recommends: keep scenario and evidence judgment with the outer skill, and package only repeated freeze/handoff and raw-navigation mechanics (confidence: high).
+Why: this targets the observed round-trip burden with the smallest shared change while preserving the evidence needed to reject a misleading speedup.
 
 ### Feedback Cycles
 
 ## Out of scope
 
 OMP advisor configuration; changing models, trial counts or evidence standards as a speedup; report presentation redesign; source-purpose hindsight; new CI lanes, standing gates, permanent benchmark infrastructure; unrelated workflow repair; automatically modifying PR #55.
+
+## Stage Report: ideation
+
+- DONE: Recommend the smallest shared refactor that removes native-host preparation/preflight/audit round trips while preserving every privacy, purpose, coverage and raw-evidence boundary; no OMP-only substitute.
+  Proposed approach bounds the existing helper extension and local raw locator; models, trial count, semantic preflight/audit, consent and historical isolation remain unchanged. Savings are a hypothesis, not a measured result.
+- DONE: Give bounded affected files, user-value AC mapping, concrete falsifiers and a native Codex paired benchmark plan across the three required real cases, resolving companion-file delivery honestly.
+  Seven-file estimate with ±35% changed-line tolerance; AC-1–4 map to external offline/native evidence. Review assembly is explicitly a source-content projection requiring gate acceptance; review live case stays held, not omitted.
+- DONE: Exercise only the riskiest deterministic helper mechanism if needed; cite proven existing mechanisms otherwise. Return a concise committed ideation report and no product edits or model-backed benchmark calls.
+  Synthetic locator exercise recovered 26,029 returned characters absent from both assessment excerpts and report trace reader; existing staging/parsers/tests are cited without claiming a suite pass. Only this state entity is changed and committed.
+
+### Summary
+
+Recommend extending shared preparation/freeze mechanics and indexing original raw evidence instead of reducing experiment scope or delegating judgment to another model. Native performance proof remains with the benchmark owner; the Captain must decide the review-case assembly fidelity limitation before that case can run, and no product implementation or new delivery authority is implied.
