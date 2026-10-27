@@ -61,6 +61,10 @@ gates:
                 id: briefing:n2m85xea3h2q75xk6gzjebwm:validation:attempt-1:revision-1
                 digest: sha256:00e0f5f9e954f0bdcb407df7fabc85ee2e2aa16069d95080d68790d105b98dd5
                 room-ref: ./review/validation/briefing-1
+              withdrawal:
+                by: agent:first-officer
+                at: "2026-10-27T16:58:57.243169Z"
+                reason: Captain selected Stop paid verification. Further native model calls and retries are not authorized; the proposed extra allowance and count extension were declined. Offline code-quality approval of candidate23c350837d92cc9865298dcffa10b3a89756d90c is unchanged, but no valid native before/after pair exists and speed, real-case preservation and live candidate compliance remain unverified. Withdraw the old open briefing rather than infer delivery approval or waive acceptance. Keep the task in validation; no product push, PR, merge or release.
 review-round:
     id: round:n2m85xea3h2q75xk6gzjebwm:validation:1
     stage: validation
