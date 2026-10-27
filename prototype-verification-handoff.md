@@ -491,3 +491,30 @@ Implemented an isolated, host-operated conversational replay with private revisi
 ### Summary
 
 Both independent reviewers approve the exact complete candidate within the accepted implementation scope, with no material finding or new scope decision. Existing deterministic and saved-case receipts support replay mechanics only; proceed to the already-required owner conversation and retain all interactive/value acceptance gaps until actual observations exist.
+
+### Validation supplement: subsequent owner interaction
+
+Source: Main's subsequent-interaction and experiment receipt on 2026-10-27. These are reported owner/operator observations, not validator-run trials or an independent raw-data audit; private source coordinates and contents remain outside tracked state. This supplement updates the earlier unperformed-interaction statements without rewriting their historical record.
+
+#### Actual interaction and experimental evidence
+
+- The owner selected an external PR example, confirmed six proposed goals, received evidence-review findings and gaps, and requested fresh verification of the current change rather than only the saved-case replay.
+- The owner separately approved a bounded six-trial direct-agent comparison, then received its generated report and a separate raw audit. The existing runner was operated manually: the prototype did not launch these trials or acquire autonomous execution capability.
+- In the first comparison, all three Before trials and all three After trials followed the same local observe → unsaved draft → observe path. No added benefit was observed in that slice; this is not evidence of improved handoff value or efficacy across the full PR.
+- The automated report leaves the preservation check unassessable because script-return capture eligibility omitted decisive returns. The separate raw audit inspected complete logs/state; its observations are a different evidence layer and do not make the automated report's missing assessment complete.
+- Both versions loaded installed first-officer instructions outside the frozen fixture, limiting attribution. Do not claim isolated rule efficacy, complete PR verification, real-service compatibility or whole-workflow coverage from this comparison.
+- After the disclosed limits, the owner explicitly instructed “approve the gate”. That is an actual human delivery decision, not a predicted response or evidence that every acceptance criterion was exercised.
+
+#### Updated acceptance map
+
+- AC-1 — PARTIAL: actual example selection, goal confirmation, result/gap delivery and a further-verification choice occurred. The owner supplied NO correction, so the required actual-owner correction-to-result path remains UNPERFORMED; operator tests/smoke establish only its mechanism. Confirmation must not be relabeled correction.
+- AC-2 — evidence presentation and actionable uncertainty observed: the owner received supported findings, gaps, the fresh comparison report and raw-audit account, and selected further verification. Keep saved replay, separately approved fresh execution, automated assessment and raw audit distinct. The receipt does not establish an actual owner follow-through on a cited source coordinate; do not invent that observation or promote the unassessable preservation check to pass.
+- AC-3 — NOT PROVEN: the owner chose further verification and then directly approved the gate, but no explicit usual-workflow baseline or full takeover/value interview was captured. The manual runner and separate raw audit are actual operator interventions, not demonstrated autonomous handoff. No comparative burden reduction, complete takeover classification or baseline-grounded value outcome can be claimed.
+- No new study, threshold or acceptance requirement is added; existing AC-1–AC-3 and their evidence obligations remain unchanged.
+
+#### Verdict and recordability
+
+- Code-review verdicts remain Spec APPROVE / Standards APPROVE for unchanged candidate `aadbcc06ea98b3d74a42e9791ef5061d6630bede` against base `9e807d2139f689d494b7e68ccc521bdfff8a1aad`. No new candidate defect is established by the reported experiment; the runner/report and attribution limits are preserved rather than silently attributed to this patch or dismissed.
+- The owner's explicit approval may be recorded as the human decision actually given. It does not supply missing observations, silently waive criteria, or justify an evidence-complete validation/PASSED claim: AC-1's owner correction and AC-3's value proof remain missing, with AC-2's observation limits stated above. A gate record asserting all ACs satisfied would conflict with this task's accepted Acceptance criteria and Acceptance evidence sections and the repository's evidence-level distinction.
+- FO must preserve that distinction in any validation room/approval record and must not infer a scope or acceptance-criteria change from the approval wording alone. This validator records no frontmatter, gate, status or criteria decision.
+- No code changed and no tests, formatters, models or trials were run by this validator. Existing same-revision review/check receipts stand. No code push, PR, merge or release was authorized by the owner.
