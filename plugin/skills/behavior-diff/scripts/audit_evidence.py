@@ -149,9 +149,10 @@ def artifacts(root, name):
                         raise ValueError("unsafe file type")
                     entry.update(status="available", **location(root, path))
                     with path.open("rb") as stream:
-                        entry["sha256"] = hashlib.file_digest(
-                            stream, "sha256"
-                        ).hexdigest()
+                        digest = hashlib.sha256()
+                        for block in iter(lambda: stream.read(65536), b""):
+                            digest.update(block)
+                        entry["sha256"] = digest.hexdigest()
                 except (OSError, ValueError):
                     entry["status"] = "unsafe_or_unreadable"
                 result.append(entry)

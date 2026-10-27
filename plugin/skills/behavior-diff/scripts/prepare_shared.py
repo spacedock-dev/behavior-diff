@@ -75,10 +75,13 @@ def handoff(path, project, working, root, data=None):
         files[str(value)] = regular_file(value)
     private_paths = list(files)
     purpose = read_purpose(record["purpose_file"])
-    if purpose is not None and "scenario_file" not in record:
-        raise PreparationError("a non-null purpose needs its reviewed scenario")
-    if "scenario_file" in record:
+    scenario = (
         read_scenario(record["scenario_file"], record["purpose_file"])
+        if "scenario_file" in record
+        else None
+    )
+    if purpose is not None and scenario is None:
+        raise PreparationError("a non-null purpose needs its reviewed scenario")
     if "source_file" in record:
         read_source(record["source_file"])
     task = Path(record["task_file"]).read_text().rstrip("\n")

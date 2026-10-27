@@ -399,6 +399,40 @@ class HandoffTests(Fixtures, unittest.TestCase):
         )
         return result, output
 
+    def test_non_null_purpose_rejects_null_scenario_before_freezing(self):
+        project = self.git_project(
+            committed={k: v for k, v in COMMITTED.items() if k not in PRIVATE}
+        )
+        data = self.folder("data", SHARED)
+        descriptor = self.handoff_file()
+        scenario = descriptor.parent / "scenario.json"
+        scenario.write_text("null")
+        # General nullable-reader behavior is unchanged outside the new handoff.
+        reader = subprocess.run(
+            [
+                sys.executable,
+                str(SCRIPTS / "scenario.py"),
+                str(scenario),
+                "--purpose-file",
+                str(descriptor.parent / "purpose.json"),
+            ],
+            env=self.env,
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(reader.returncode, 0, reader.stderr)
+        self.assertIsNone(json.loads(reader.stdout))
+        for mode in ("staged", "direct"):
+            with self.subTest(mode=mode):
+                result, root = (
+                    self.prepare(project, data, handoff=descriptor)
+                    if mode == "staged"
+                    else self.frozen(project, descriptor)
+                )
+                self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+                self.assertTrue(result.stderr.strip())
+                self.assertFalse(root.exists())
+
     def test_complete_staged_handoff_rejects_every_context_and_settings_mutation(self):
         project, data = self.standard()
         descriptor = self.handoff_file()
@@ -482,8 +516,11 @@ class HandoffTests(Fixtures, unittest.TestCase):
         result, root = self.frozen(project, descriptor)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertFalse((root / "before").exists())
-        self.store_entry(project / TARGET, "2", BEFORE, 2000)
+        newer = self.store_entry(project / TARGET, "2", BEFORE, 2000)
         self.assertNotEqual(self.verify(root).returncode, 0)
+        newer.unlink()
+        valid = self.verify(root)
+        self.assertEqual(valid.returncode, 0, valid.stderr)
         notes = descriptor.parent / "notes.md"
         notes.unlink()
         notes.symlink_to(descriptor.parent / "task.txt")
