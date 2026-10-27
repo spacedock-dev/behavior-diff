@@ -1,6 +1,6 @@
 ---
 title: Prototype the verification handoff journey
-status: ideation
+status: implementation
 source: Captain request to create a dev-workflow prototype task after journey feedback
 started: 2026-10-27T06:19:44Z
 completed:
@@ -52,7 +52,7 @@ gates:
                 reason: 'Captain approved the presented ideation design: isolated repository-local conversational replay skill and Python helper, six-file scope around 490 changed lines with plus/minus 150 tolerance, private real-case evidence packet dependency, direct owner walkthrough, no production skill change, paid trials, code push, PR or merge.'
               application:
                 target-stage: implementation
-                state: pending
+                state: consumed
 ---
 
 Build an operable conversational prototype of handing post-change verification
