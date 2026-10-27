@@ -1,0 +1,15 @@
+{
+  "type": "Briefing",
+  "version": "1",
+  "id": "briefing:yxy4v1m92t2daz68kmmykqqh:ideation:attempt-1:revision-1",
+  "question": "Approve the isolated local conversational replay prototype for implementation?",
+  "artifacts": [
+    {
+      "id": "artifact:yxy4v1m92t2daz68kmmykqqh:ideation:attempt-1:revision-1:item-1",
+      "uri": "git-root://state/d16985bfb44db7eb0c2e1b6feb50a8c38c1b1a7f/prototype-verification-handoff.md",
+      "rev": "sha256:6fbc1dfd064c6e93a215ee8c532c3f84b1a3501e0d972a7bb344dce05e6dc814",
+      "mediaType": "text/markdown",
+      "summary": "Recommend a repository-local maintainer skill and small Python replay helper, not a production behavior-diff skill change. A 13-action disposable synthetic probe exercised correction invalidation, stale revision refusal, evidence-gap handling and decision recording; local case evidence is available. Three ideation checklist items done. Implementation surface: six files, about 490 changed lines with plus/minus 150 tolerance. Actual owner walkthrough, semantic evidence mapping and user-value acceptance remain unverified. No paid trials or automatic external actions."
+    }
+  ]
+}

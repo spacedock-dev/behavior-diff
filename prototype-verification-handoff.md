@@ -34,6 +34,14 @@ gates:
               application:
                 target-stage: ideation
                 state: consumed
+        - id: gate:yxy4v1m92t2daz68kmmykqqh:ideation
+          stage: ideation
+          attempts:
+            - id: gate-attempt:yxy4v1m92t2daz68kmmykqqh-ideation-1
+              briefing:
+                id: briefing:yxy4v1m92t2daz68kmmykqqh:ideation:attempt-1:revision-1
+                digest: sha256:ef7e6a29ab1e9fe99ad79f09881fe3f54bdc26d30e35e60a4584ef6951d52446
+                room-ref: ./prototype-verification-handoff/review/ideation/briefing-1
 ---
 
 Build an operable conversational prototype of handing post-change verification
