@@ -42,6 +42,17 @@ gates:
                 id: briefing:n2m85xea3h2q75xk6gzjebwm:ideation:attempt-1:revision-1
                 digest: sha256:fe91f070491e9fc4b2e75f44d27e20ca43dbe9f244c284057511e7869141c5d4
                 room-ref: ./review/ideation/briefing-1
+              resolution:
+                type: Resolution
+                id: resolution:spacedock:n2m85xea3h2q75xk6gzjebwm:ideation:1
+                briefing: briefing:n2m85xea3h2q75xk6gzjebwm:ideation:attempt-1:revision-1
+                by: person:captain
+                at: "2026-10-27T14:00:52.680365Z"
+                decision: approve
+                reason: 'Captain approved the bounded shared refactor and accepted the complete assembled-instruction projection for the review benchmark, explicitly not original filesystem reference-loading fidelity; AC-1/AC-2 review evidence is scoped to that projection. Captain separately authorized one direct startup trial, then two replacement outer executions only after it succeeds, within the existing US$20 working budget: maximum eight outer sessions,49 trial launches including12 failed startups andone diagnostic, andsix extractions total; no automatic retries or push/PR/merge authority.'
+              application:
+                target-stage: implementation
+                state: pending
 ---
 
 Reduce elapsed time from a user's comparison request through the final evidence-audited response when the canonical Behavior Diff skill runs in Claude Code or Codex.
