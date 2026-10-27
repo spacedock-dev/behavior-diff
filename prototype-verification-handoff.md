@@ -1,6 +1,6 @@
 ---
 title: Prototype the verification handoff journey
-status: implementation
+status: validation
 source: Captain request to create a dev-workflow prototype task after journey feedback
 started: 2026-10-27T06:19:44Z
 completed:
@@ -438,3 +438,10 @@ not establish usability or authorize implementation.
 ### Summary
 
 Implemented an isolated, host-operated conversational replay with private revision-bound state and read-only evidence projection; architecture and local entry instructions are updated. Deterministic checks and real-case helper smoke support mechanics only, not owner acceptance or reduced verification burden. Candidate is ready for Main's validation dispatch and the actual owner walkthrough; no validation or gate decision was self-started.
+
+### Supplemental repository-wide formatting evidence
+
+- At Main's request, `uvx ruff@0.16.5 format --check --diff .` completed; output: `153 files already formatted`.
+- `docker run --rm -v "$PWD:/mnt" -w /mnt mvdan/shfmt:v3.14.0 -d -i 2 -ci .` completed with no output; used the canonical single trailing path.
+- Both root-wide checks ran once, read-only, on candidate `aadbcc06ea98b3d74a42e9791ef5061d6630bede`; no candidate edits, smoke rerun or unrelated-failure suppression.
+- Exact private packet/walkthrough coordinates were sent directly to Main, not copied into tracked state. Owner walkthrough remains unperformed.
