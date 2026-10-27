@@ -196,8 +196,6 @@ explicit/inferred provenance, accepts free correction, and presents a result
 bound to the confirmed goals. This is an executable, evidence-backed replay,
 not a second runner, a static conversation script, or a shipped product feature.
 
-🧠 Kent's brain recommends: approve the local conversational replay prototype
-(confidence: medium).
 Why: it exercises handing work off in the existing conversation with the smallest
 external effect, while keeping missing evidence and owner decisions explicit.
 
@@ -409,3 +407,34 @@ Recommend an isolated maintainer conversation with revision-bound replay state,
 not a change to the automatic production skill. Permitted local evidence and a
 disposable correction probe support taking this design to owner review; they do
 not establish usability or authorize implementation.
+
+## Stage Report: implementation
+
+- DONE: Implement the approved local maintainer skill, revision-bound replay helper and synthetic fixture: carry exact corrections into confirmed results, invalidate changed-goal bindings and prior decisions, reject stale revisions, preserve unchanged support, and expose actionable evidence gaps with read-only scoped citations.
+  Signed-off candidate `aadbcc06ea98b3d74a42e9791ef5061d6630bede`; six approved files, 622 insertions versus 490 ±150 (within 340–640); production skill/renderer unchanged.
+- DONE: Prepare the private real-case evidence packet from permitted local sources, with provenance and scope limits; prove actual runnable correction, evidence-viewing and missing-evidence paths plus relevant deterministic checks, then update architecture and entry instructions within approved scope.
+  Eight exact local source copies plus provenance/packet, private walkthrough and command receipt retained under local private alias `verification-handoff-tr_4r1ei`; directories 0700/files 0600, outside tracked trees.
+- DONE: Commit the complete minimal candidate with sign-off and a privacy-safe stage report mapping AC-1–AC-3 honestly, including exact code revision, evidence and remaining owner walkthrough; do not fabricate owner acceptance, launch paid runs, or publish code.
+  Code committed on assigned branch with `--signoff`; no code push, PR, merge, release, paid run, external disclosure, new CI lane or standing enforcement.
+
+### Evidence and acceptance limits
+
+- `python3 tests/verification-handoff-prototype-test.py`: exit 0, six behavior tests; changed-goal support retention, stale/unconfirmed results or stale binding acceptance, lost unchanged support, or unknown promoted to pass would fail.
+- Root/privacy tests reject traversal, absolute/symlink escape, changed roots, missing citations, unsafe snapshot permissions and state inside evidence root; permitting source/root writes or returning support after citation loss would fail.
+- `uvx ruff@0.16.5 format --check --diff` on helper/test: exit 0, both formatted; `git diff --check`: exit 0. Formatter ran once after authoring; checks/smoke ran once after completed implementation.
+- Actual helper smoke on the private reused case: exact operator-authored correction reached revision 2, invalidated its binding/decision, retained independent support, refused stale/unconfirmed calls, and required explicit re-review before rebound support.
+- The evidence command exposed the inspected raw action/return slice; strict order was contradicted while eventual checks were supported, retaining early failure and recovery. Real-service and sandbox-commit requirements stayed unverified with next steps.
+- Fresh empty-root negative: nonexistent citation refused, confirmed result remained unverified; state-inside-root attempt refused without writes. Packet and selected original-source hashes remained unchanged; disposable negative directory removed.
+- AC-1: helper correction-to-result mechanics exercised; actual owner handoff, correction and continuation remain unperformed, so no acceptance claim.
+- AC-2: reused support, contradiction, evidence entry and actionable gaps exercised by the operator; actual owner evidence inspection remains unperformed. Review scope is one saved raw trial slice, not whole-workflow or real-service validation.
+- AC-3: wholly unperformed and Captain-dependent. Private walkthrough handle is prepared to capture actual baseline, takeovers and grounded decision; no user responses, value, latency or next-experiment result fabricated.
+
+### Authorized finding dispositions
+
+- F1, Material/owned, FO authorized fix: read-only `show` is revision-free for stale-session recovery; all other non-init calls remain revision-guarded. Regression and actual smoke exercise recovery.
+- F2, Material/owned, FO authorized fix: resolved state paths inside case root are refused before writes; negative test/smoke preserve root bytes. Neither fix changes scope or AC.
+- Removed only the persona advisory line from ideation prose as dispatched; substantive recommendation and original accepted scope remain.
+
+### Summary
+
+Implemented an isolated, host-operated conversational replay with private revision-bound state and read-only evidence projection; architecture and local entry instructions are updated. Deterministic checks and real-case helper smoke support mechanics only, not owner acceptance or reduced verification burden. Candidate is ready for Main's validation dispatch and the actual owner walkthrough; no validation or gate decision was self-started.
