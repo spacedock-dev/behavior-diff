@@ -1,0 +1,15 @@
+{
+  "type": "Briefing",
+  "version": "1",
+  "id": "briefing:vnaxvsdna9hvd5fgebv5fp5y:ideation:attempt-1:revision-1",
+  "question": "Proceed with the pre-approved profiling-first bottleneck refactor?",
+  "artifacts": [
+    {
+      "id": "artifact:vnaxvsdna9hvd5fgebv5fp5y:ideation:attempt-1:revision-1:item-1",
+      "uri": "git-root://state/83851c171f896cfddf336bdd755bd3cbfc70a728/reduce-assessment-latency.md",
+      "rev": "sha256:07955afb178e96bf0b1d8a79302fc2377742acdc2867bd1fa28657f90622b08b",
+      "mediaType": "text/markdown",
+      "summary": "Ideation complete: 3 done, 0 skipped, 0 failed. Profile one unchanged extractor before selecting the smallest evidence-preserving fix; compare actual seconds and assessment fidelity on the same frozen inputs. Captain pre-approved implementation and separately authorized at most three extraction invocations/$3 total. Preserve all trial, evidence, privacy and report obligations; no delivery authority."
+    }
+  ]
+}
