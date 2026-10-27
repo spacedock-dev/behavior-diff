@@ -61,6 +61,17 @@ gates:
                 id: briefing:yxy4v1m92t2daz68kmmykqqh:validation:attempt-1:revision-1
                 digest: sha256:e9144e9076dcb76f39b49349756d38d63498e68a6d8fe85c3a9b56c140859a39
                 room-ref: ./prototype-verification-handoff/review/validation/briefing-1
+              resolution:
+                type: Resolution
+                id: resolution:spacedock:yxy4v1m92t2daz68kmmykqqh:validation:1
+                briefing: briefing:yxy4v1m92t2daz68kmmykqqh:validation:attempt-1:revision-1
+                by: person:captain
+                at: "2026-10-27T07:58:29.896237Z"
+                decision: approve
+                reason: Captain explicitly instructed approve the gate after reviewing delivered prototype and disclosed example limitations. Applies to unchanged reviewed candidate aadbcc06 for delivery review. Preserves partial AC-1 owner correction, AC-2 citation follow-through and missing AC-3 baseline/value evidence; no missing observation is claimed satisfied and no criteria waiver is inferred. No code push, PR creation, merge or podcast PR approval is granted.
+              application:
+                target-stage: done
+                state: pending
 ---
 
 Build an operable conversational prototype of handing post-change verification
