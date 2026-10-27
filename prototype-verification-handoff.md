@@ -1,6 +1,6 @@
 ---
 title: Prototype the verification handoff journey
-status: backlog
+status: ideation
 source: Captain request to create a dev-workflow prototype task after journey feedback
 started:
 completed:
@@ -33,7 +33,7 @@ gates:
                 reason: Captain explicitly requested dispatch yxy4v1m92t2daz68kmmykqqh again after committing the seed; accepts starting ideation, not an unknown implementation design, paid runs, PR, or merge.
               application:
                 target-stage: ideation
-                state: pending
+                state: consumed
 ---
 
 Build an operable conversational prototype of handing post-change verification
