@@ -1,0 +1,15 @@
+{
+  "type": "Briefing",
+  "version": "1",
+  "id": "briefing:vnaxvsdna9hvd5fgebv5fp5y:validation:attempt-2:revision-1",
+  "question": "Approve the independently reviewed shared OMP trial-and-extraction advisor-isolation candidate?",
+  "artifacts": [
+    {
+      "id": "artifact:vnaxvsdna9hvd5fgebv5fp5y:validation:attempt-2:revision-1:item-1",
+      "uri": "git-root://state/4bd57dd1d872ef08512b81c414903e2b243d3748/reduce-assessment-latency/index.md",
+      "rev": "sha256:476436f713acd01ce3bc0cc95df0d01e207e0cc639e63386883c5cd2b4254a03",
+      "mediaType": "text/markdown",
+      "summary": "Fresh independent review APPROVE/PASSED for complete code2e3d915542233a263c13d7f9d72c378452c20e01;3done,0skipped,0failed. Shared process-local advisor-disable config now covers OMP trials and extraction with clean old-name removal, other settings/hosts preserved. Current offline launcher/real-settings smoke and seven deterministic checks plus formatting/syntax/ShellCheck pass. Historical extraction pair69.069 to40.553 seconds supports bounded diagnosis only, not new trial speed or semantic equivalence. Trial runtime/latency unmeasured; accepted bounded-input support gap and unknown historical ancillary cost remain disclosed. Previous gate withdrawn and correction round recorded. No delivery authority."
+    }
+  ]
+}

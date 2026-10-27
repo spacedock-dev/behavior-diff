@@ -65,6 +65,11 @@ gates:
                 by: agent:first-officer
                 at: "2026-10-27T12:19:45.91402Z"
                 reason: New saved-trace evidence confirms advisor events and steering messages inside all six OMP trials; extraction-only candidate leaves this separate latency/tested-stack risk unchanged. Prior presentation omitted this newly verified risk and must be superseded before decision.
+            - id: gate-attempt:vnaxvsdna9hvd5fgebv5fp5y-validation-2
+              briefing:
+                id: briefing:vnaxvsdna9hvd5fgebv5fp5y:validation:attempt-2:revision-1
+                digest: sha256:c96faad1335202939d8da39a696c13dc79202508bf110c14e5c60b49706878b0
+                room-ref: ./review/validation/briefing-2
 review-round:
     id: round:vnaxvsdna9hvd5fgebv5fp5y:validation:1
     stage: validation
