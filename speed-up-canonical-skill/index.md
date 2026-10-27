@@ -2,7 +2,7 @@
 title: Reduce full Behavior Diff skill execution time on Claude Code and Codex
 status: ideation
 source: Captain request to improve the complete native-host skill rather than OMP advisor configuration
-started:
+started: 2026-10-27T13:28:15Z
 completed:
 verdict:
 score: 0.95
