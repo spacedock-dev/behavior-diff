@@ -61,6 +61,10 @@ gates:
                 id: briefing:vnaxvsdna9hvd5fgebv5fp5y:validation:attempt-1:revision-1
                 digest: sha256:72536ff68006c46d7eccafea004f501ada833bacfdad619bd58df46efb73346f
                 room-ref: ./reduce-assessment-latency/review/validation/briefing-1
+              withdrawal:
+                by: agent:first-officer
+                at: "2026-10-27T12:19:45.91402Z"
+                reason: New saved-trace evidence confirms advisor events and steering messages inside all six OMP trials; extraction-only candidate leaves this separate latency/tested-stack risk unchanged. Prior presentation omitted this newly verified risk and must be superseded before decision.
 ---
 
 Make the complete Behavior Diff skill faster without weakening trials, privacy,
