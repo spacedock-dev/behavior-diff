@@ -890,6 +890,27 @@ synthetic local emulators only. An explicit publication-policy update and review
 of actual outgoing content remain required before uploading any private session;
 blinding and private repository visibility are not publication permission.
 
+## Local verification handoff prototype
+
+The repository-local [maintainer skill](../.agents/skills/verification-handoff-prototype/SKILL.md)
+is an explicitly loaded conversation, separate from the plugin and trial pipeline:
+
+```text
+Supplied change/context + fixed local evidence
+  -> host proposes goals -> owner confirms/corrects
+  -> host reviews scoped evidence -> revision-bound helper result
+  -> owner inspects support/gaps -> recorded choice only
+```
+
+The host owns meaning, evidence mapping and the conversational summary; `replay.py`
+owns private snapshots, correction invalidation, confirmed revisions and read-only
+root-scoped citations. Unchanged support survives correction; missing/changed
+citations become unverified gaps. No model, trial, renderer or adoption runs here.
+Private packets/snapshots stay outside Git trees; synthetic fixtures exercise the
+mechanics. Owner walkthrough/value evidence remains separate from deterministic
+checks. Replay goals never rewrite historical purpose or the production skill's
+automatic-launch/frozen-purpose contract.
+
 ## Local state and system boundaries
 
 State lives under `${BEHAVIOR_DIFF_HOME:-~/.behavior-diff}/`:

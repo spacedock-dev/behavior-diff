@@ -30,6 +30,31 @@ Keep private sources, trials, reports, and temporary comparisons outside this
 checkout. No model-backed verification runs in CI. Synthetic fixtures remain
 the deterministic test set and supplemental edge-case examples.
 
+## Local verification handoff prototype
+
+For the isolated, conversational handoff-to-decision replay, explicitly load
+[the maintainer skill source](../.agents/skills/verification-handoff-prototype/SKILL.md)
+in Claude Code or Codex, then supply the change, permitted context and case root.
+OMP can load that same path; this is not an installed-plugin or runtime-adapter claim.
+The host operates the helper; the owner should not have to choose evidence IDs.
+
+Python 3.10+ is sufficient. The skill includes the one-command helper invocation
+and `fixtures/synthetic.json` for an offline, invented demonstration. Run its
+deterministic behavior checks separately with:
+
+```sh
+python3 tests/verification-handoff-prototype-test.py
+```
+
+Use a mode-0700 directory outside all Git trees for mode-0600 session/packet files.
+Real-case packets are privately prepared from permitted local sources, not shipped
+with the repository; a fresh checkout can run only the synthetic demonstration.
+Replay corrections invalidate changed-goal support and require current confirmation;
+missing evidence remains actionable and unverified. No trials or external actions run.
+An actual owner conversation must still exercise correction, evidence inspection
+and a gap, and record real takeover points versus their baseline privately.
+Helper checks alone do not establish acceptance, handoff value or live latency.
+
 ## Optional Jev manual verification
 
 Run `python3 tests/jev-test.py` first. Its injected transport and subprocess
