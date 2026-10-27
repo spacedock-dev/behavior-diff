@@ -42,6 +42,17 @@ gates:
                 id: briefing:vnaxvsdna9hvd5fgebv5fp5y:ideation:attempt-1:revision-1
                 digest: sha256:ac391a9d48e8e9c1f4a312ef7b1eee8961d11c20b102421bbf4e7a9ffaa97536
                 room-ref: ./reduce-assessment-latency/review/ideation/briefing-1
+              resolution:
+                type: Resolution
+                id: resolution:spacedock:vnaxvsdna9hvd5fgebv5fp5y:ideation:1
+                briefing: briefing:vnaxvsdna9hvd5fgebv5fp5y:ideation:attempt-1:revision-1
+                by: person:captain
+                at: "2026-10-27T11:05:05.021632Z"
+                decision: approve
+                reason: 'Captain said: pre approve the identify gate, let us start implementation with pre-approval; Captain separately authorized at most three timed extraction calls/$3 total on the same saved evidence/provider/model. Accept profiling-first design with bounded latency/fidelity acceptance.'
+              application:
+                target-stage: implementation
+                state: pending
 ---
 
 Make the complete Behavior Diff skill faster without weakening trials, privacy,
