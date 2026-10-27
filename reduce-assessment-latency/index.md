@@ -70,6 +70,17 @@ gates:
                 id: briefing:vnaxvsdna9hvd5fgebv5fp5y:validation:attempt-2:revision-1
                 digest: sha256:c96faad1335202939d8da39a696c13dc79202508bf110c14e5c60b49706878b0
                 room-ref: ./review/validation/briefing-2
+              resolution:
+                type: Resolution
+                id: resolution:spacedock:vnaxvsdna9hvd5fgebv5fp5y:validation:2
+                briefing: briefing:vnaxvsdna9hvd5fgebv5fp5y:validation:attempt-2:revision-1
+                by: person:captain
+                at: "2026-10-27T12:45:23.718509Z"
+                decision: approve
+                reason: Captain approved the presented validation/briefing-2 for independently reviewed shared OMP trial-and-extraction advisor isolation, candidate 2e3d915542233a263c13d7f9d72c378452c20e01, with disclosed and accepted evidence limits. Push, PR, merge and release remain separately ungranted.
+              application:
+                target-stage: done
+                state: pending
 review-round:
     id: round:vnaxvsdna9hvd5fgebv5fp5y:validation:1
     stage: validation
