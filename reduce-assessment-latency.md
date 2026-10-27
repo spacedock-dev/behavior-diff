@@ -575,3 +575,40 @@ SCOPE AUDIT
 ### Summary
 
 Current recommendation is REJECTED/REVISE pending the specifically authorized trial-isolation correction, with the earlier narrow APPROVE preserved as history. This is the required post-approval finding record before routing, not a rerun of the code review or a claim of new verification. Full independent re-review must cover the corrected candidate and implementation-owned evidence.
+
+## Stage Report: implementation (cycle 3)
+
+- DONE: Implement Captain-authorized advisor isolation for OMP trials and extraction through one process-local config, preserving other settings/hosts/contracts and cleanly migrating any config rename.
+  Signed candidate `2e3d915542233a263c13d7f9d72c378452c20e01` renames the unchanged overlay to `omp-isolation.json`, migrates extraction, adds it to OMP trial launch and updates architecture; four files, 13 additions/7 deletions, no alias or old file.
+- DONE: Exercise changed trial launcher/config-loading path offline and run relevant deterministic/format checks after edits; no additional paid calls and no trial-latency or semantic-equivalence claim from old extraction timing.
+  Both actual callers exercised through a disposable offline CLI-boundary shim using real installed OMP settings consumption; inherited advisor=true resolves false through each caller, global settings stay unchanged, trial events normalize, missing overlay initialization exits 1.
+- DONE: Commit candidate/docs and exact implementation correction report with DCO signoff, preserve prior evidence/accepted risks, and close the canonical correction response for parent-owned round recording and independent re-review.
+  Code and entity report are path-scoped/DCO-signed; own advisory Resolution uses the signed candidate identity in the FO-supplied canonical room, with parent retaining neutral recording, gate authority and independent re-review.
+
+### Authority, finding and scope
+
+- Captain's fresh selection **"Isolate OMP trials too"**, relayed by FO `Main`, expands AC-4; FO disposition FIX covers shared config, extraction reference, OMP trial argument, architecture and appropriate behavioral proof. This is a new requirement, not a retroactive defect against the earlier accepted extraction-only scope.
+- Four evidence fields retained: ordinary OMP comparison with inherited advisor; extra advisor can steer between primary turns, violating newly requested primary-only trials; `captain-ruling[2026-10-27]` and expanded `value-ac[AC-4]`; FO-verified six saved traces with 49 yield events/12 advisor messages followed by primary events. Material/owned/FIX is unchanged; outcome causation and exclusive latency/provider/cost attribution remain deferred/unestablished.
+- Both OMP callers now use one process-local `advisor.enabled:false` overlay; primary model, effort, normal trial tools, storage isolation, prompts, native normalization and every other host are unchanged. No global configuration edit, new dependency, permanent test mechanism, wiring/mock-echo assertion or unrelated cleanup.
+
+### Verification and limits
+
+- Offline smoke ran shipped `run-trial.sh` and `decisions._omp` with synthetic input and a disposable CLI-boundary shim. The shim reads each caller's config through the real OMP settings loader using documented overlay semantics; the control without the overlay remains true, both callers resolve false, and inherited global settings are equal before/after.
+- Trial launcher exited zero and produced normalized assistant/tool-result/final-result records from synthetic native events. Real missing-overlay initialization returned nonzero. This proves settings consumption and adapter integration offline, not execution of an actual primary/advisor model runtime.
+- Smoke-harness limitation: its optional caller-owned status record was not seeded; an initial evidence-summary read failed on that missing record. Successful launcher/settings commands were not repeated, and this smoke makes no status-record claim; existing deterministic checks cover progress handling.
+- Passed after complete correction: `bash tests/hooks-test.sh` (existing trial/other-host/storage/source contracts), `python3 plugin/skills/behavior-diff/scripts/decisions.py --check`, `python3 tests/report-schema-test.py`, `python3 tests/scenario-contract-test.py`, `python3 tests/recorded-evidence-test.py`, `python3 tests/progress-assessment-test.py`, `bash tests/live-report-contract.sh`.
+- Passed: `bash -n plugin/skills/behavior-diff/scripts/run-trial.sh`, `shellcheck plugin/skills/behavior-diff/scripts/run-trial.sh`, pinned Docker `mvdan/shfmt:v3.14.0 -d -i 2 -ci plugin/skills/behavior-diff/scripts/run-trial.sh`, `uvx ruff@0.16.5 format --check --diff plugin/skills/behavior-diff/scripts/decisions.py`, and `git diff --check`. Removing calls/returns or corrupting source/frozen-membership data fails existing behavioral contracts; the real settings smoke distinguishes a missing advisor override from effective suppression.
+- No live calls or new latency measurements: prior extraction pair 69.069 → 40.553 seconds remains historical evidence for extraction only; it establishes neither trial speedup nor semantic equivalence. Two original extraction invocations total; the third remains HOLD/unspent. Historical ancillary provider/model/cost remain unknown, with previous Captain-accepted limitations intact.
+- Disposable shim/fixtures were removed. Private smoke evidence remains private; no saved trial/report was changed and no private source paths, excerpts or digests are committed. No product push, PR, merge, release, workflow-status or gate manipulation.
+
+### Acceptance dispositions
+
+- AC-1: previously accepted bounded extraction observation is retained; no claim extends it to trial latency or stable/end-to-end improvement.
+- AC-2: not applicable; no compaction, prompt rewrite or evidence reduction.
+- AC-3: deterministic source/report contracts pass; accepted bounded-input uncertainty/support gap and unknown causal relation remain disclosed, not fixed or relabeled semantic proof.
+- AC-4: expanded shared trial/extraction overlay is implemented and effective settings verified offline; no new live advisor-free trial execution was authorized or claimed. The earlier extraction-only gate was withdrawn before mutation, and historical exposure/cost acceptance does not erase the incident.
+- AC-5: no paid reruns, trial reduction, changed model/effort, retuning or weaker evidence criteria. All three current correction checklist items are DONE; parent owns independent review and neutral round publication.
+
+### Summary
+
+The expanded requirement is implemented by sharing the existing supported isolation overlay across OMP trials and extraction, with clean filename/caller migration and no other host or execution-setting changes. Offline consumer/launcher smoke and final deterministic/format checks passed; actual new model-trial behavior, trial latency and semantic equivalence remain unmeasured. Historical reports, Captain-accepted risks and raw outcomes remain intact for independent re-review.
