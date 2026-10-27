@@ -1,0 +1,15 @@
+{
+  "type": "Briefing",
+  "version": "1",
+  "id": "briefing:vnaxvsdna9hvd5fgebv5fp5y:backlog:attempt-1:revision-1",
+  "question": "Start diagnosis-backed design for the Behavior Diff assessment bottleneck?",
+  "artifacts": [
+    {
+      "id": "artifact:vnaxvsdna9hvd5fgebv5fp5y:backlog:attempt-1:revision-1:item-1",
+      "uri": "git-root://state/8610ccf2de42db0fb76ee0287504a93c60e58ab2/reduce-assessment-latency.md",
+      "rev": "sha256:9b83c4cd9ce7c1f06b86b4553d86d762e892968b652cad55b34bc7f1c52a3b58",
+      "mediaType": "text/markdown",
+      "summary": "Diagnose assessment latency across output volume, CLI startup/context, and input redundancy; select and verify the smallest evidence-preserving refactor. Captain requested this work and pre-approved ideation into implementation. No paid verification or product delivery authority."
+    }
+  ]
+}

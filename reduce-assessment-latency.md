@@ -12,6 +12,17 @@ linear:
 pr:
 mod-block:
 id: vnaxvsdna9hvd5fgebv5fp5y
+gates:
+    version: 1
+    records:
+        - id: gate:vnaxvsdna9hvd5fgebv5fp5y:backlog
+          stage: backlog
+          attempts:
+            - id: gate-attempt:vnaxvsdna9hvd5fgebv5fp5y-backlog-1
+              briefing:
+                id: briefing:vnaxvsdna9hvd5fgebv5fp5y:backlog:attempt-1:revision-1
+                digest: sha256:15dd9ace496c0ed91b9667f4846449cb7f178a709ce31f0050a98d6932fc5fac
+                room-ref: ./reduce-assessment-latency/review/backlog/briefing-1
 ---
 
 Make Behavior Diff comparisons faster by diagnosing and refactoring the measured bottleneck while preserving comparable trials and report evidence.
