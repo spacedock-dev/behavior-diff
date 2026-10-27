@@ -155,6 +155,7 @@ elif [ "$agent" = omp ]; then
     --mode json --no-session --no-title --cwd "$dir" \
     --model "$model" --tools read,bash,grep,glob \
     --approval-mode yolo \
+    --config "$scripts/omp-isolation.json" \
     >"$trace_dir/omp-raw.jsonl" 2>"$trace_dir/stderr.log" || cli_exit=${PIPESTATUS[1]}
   record_status "{\"phase\":\"normalizing\",\"cli_exit_code\":$cli_exit}"
   normalize_pi_omp_json "$trace_dir/omp-raw.jsonl"
