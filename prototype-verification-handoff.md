@@ -42,6 +42,17 @@ gates:
                 id: briefing:yxy4v1m92t2daz68kmmykqqh:ideation:attempt-1:revision-1
                 digest: sha256:ef7e6a29ab1e9fe99ad79f09881fe3f54bdc26d30e35e60a4584ef6951d52446
                 room-ref: ./prototype-verification-handoff/review/ideation/briefing-1
+              resolution:
+                type: Resolution
+                id: resolution:spacedock:yxy4v1m92t2daz68kmmykqqh:ideation:1
+                briefing: briefing:yxy4v1m92t2daz68kmmykqqh:ideation:attempt-1:revision-1
+                by: person:captain
+                at: "2026-10-27T06:40:46.116104Z"
+                decision: approve
+                reason: 'Captain approved the presented ideation design: isolated repository-local conversational replay skill and Python helper, six-file scope around 490 changed lines with plus/minus 150 tolerance, private real-case evidence packet dependency, direct owner walkthrough, no production skill change, paid trials, code push, PR or merge.'
+              application:
+                target-stage: implementation
+                state: pending
 ---
 
 Build an operable conversational prototype of handing post-change verification
