@@ -1,0 +1,15 @@
+{
+  "type": "Briefing",
+  "version": "1",
+  "id": "briefing:yxy4v1m92t2daz68kmmykqqh:backlog:attempt-1:revision-1",
+  "question": "Start ideation for the operable verification handoff prototype?",
+  "artifacts": [
+    {
+      "id": "artifact:yxy4v1m92t2daz68kmmykqqh:backlog:attempt-1:revision-1:item-1",
+      "uri": "git-root://state/3a23c7438cf4e964ba8dabd331345e649d5a9e8e/prototype-verification-handoff.md",
+      "rev": "sha256:8e2b98361e0e80318511250722e5218d7886818411ab8b6b777c8814f6863189",
+      "mediaType": "text/markdown",
+      "summary": "Design the smallest executable handoff-to-decision prototype, with user corrections carried into evidence-bound results. Reused evidence is allowed and labeled; no paid runs, automatic merge, or new study requirements. Ideation must verify local evidence availability and demonstrate the riskiest interaction before implementation approval."
+    }
+  ]
+}

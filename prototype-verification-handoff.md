@@ -12,6 +12,17 @@ linear:
 pr:
 mod-block:
 id: yxy4v1m92t2daz68kmmykqqh
+gates:
+    version: 1
+    records:
+        - id: gate:yxy4v1m92t2daz68kmmykqqh:backlog
+          stage: backlog
+          attempts:
+            - id: gate-attempt:yxy4v1m92t2daz68kmmykqqh-backlog-1
+              briefing:
+                id: briefing:yxy4v1m92t2daz68kmmykqqh:backlog:attempt-1:revision-1
+                digest: sha256:8a1a3aca394669d7ee4004ec6816ba1fa445dcaec04f20a049057849a32460f2
+                room-ref: ./prototype-verification-handoff/review/backlog/briefing-1
 ---
 
 Build an operable conversational prototype of handing post-change verification
