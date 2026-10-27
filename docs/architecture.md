@@ -427,6 +427,13 @@ The modules below live in the skill's [`scripts/`](../plugin/skills/behavior-dif
   and plans from recorded actions. The inferred aim cites instruction hunks
   independently of trial outcomes. The script validates references and exact
   choice coverage; invalid interpretation does not discard valid observations.
+  OMP extraction supplies the bundled `omp-extraction.json` as a process-local
+  `--config` overlay with `advisor.enabled: false`. An inherited OMP advisor
+  otherwise adds a separate model/provider review and headless shutdown wait.
+  The override preserves the extraction prompt, model, reasoning settings,
+  inherited context, and validation; it does not edit user configuration or
+  change trials. Claude, Codex, and Pi extraction do not use this OMP subsystem.
+  This is not a replacement for the skill's required raw-evidence audit.
   Report narrative uses installed Humanizer prose guidance in the same
   extraction call, with concise, natural technical prose as the fallback.
   The extractor receives the guidance in its prompt; it does not invoke skill

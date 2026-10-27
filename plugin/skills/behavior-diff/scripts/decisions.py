@@ -1138,6 +1138,9 @@ def _omp(prompt, model):
             "--no-title",
             "--model",
             model,
+            # Extraction is one model call, not an inherited advisor review.
+            "--config",
+            str(Path(__file__).resolve().with_name("omp-extraction.json")),
         ],
         input=prompt,
         capture_output=True,
