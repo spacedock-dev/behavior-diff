@@ -1,0 +1,15 @@
+{
+  "type": "Briefing",
+  "version": "1",
+  "id": "briefing:n2m85xea3h2q75xk6gzjebwm:ideation:attempt-1:revision-1",
+  "question": "Approve the bounded shared-helper skill speed refactor and explicitly scoped review benchmark projection?",
+  "artifacts": [
+    {
+      "id": "artifact:n2m85xea3h2q75xk6gzjebwm:ideation:attempt-1:revision-1:item-1",
+      "uri": "git-root://state/4aa8e85c00f7ffc4d65e7f94c024844e9ea76913/speed-up-canonical-skill/index.md",
+      "rev": "sha256:31f9f54e4fa20540231b8ae87b6567964fcfcd1a484928c0de74029f6ec07b9e",
+      "mediaType": "text/markdown",
+      "summary": "Package complete freeze/handoff validation and unfiltered raw-evidence navigation for both hosts; keep scenario and evidence judgment with the agent. Seven-file bounded change, no model/count or audit shortcuts. Review benchmark requires a disclosed assembled-source projection, not original filesystem delivery. Native speed remains unverified; the first decision baseline was harness-incomplete before trial inference."
+    }
+  ]
+}

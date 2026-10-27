@@ -34,6 +34,14 @@ gates:
               application:
                 target-stage: ideation
                 state: consumed
+        - id: gate:n2m85xea3h2q75xk6gzjebwm:ideation
+          stage: ideation
+          attempts:
+            - id: gate-attempt:n2m85xea3h2q75xk6gzjebwm-ideation-1
+              briefing:
+                id: briefing:n2m85xea3h2q75xk6gzjebwm:ideation:attempt-1:revision-1
+                digest: sha256:fe91f070491e9fc4b2e75f44d27e20ca43dbe9f244c284057511e7869141c5d4
+                room-ref: ./review/ideation/briefing-1
 ---
 
 Reduce elapsed time from a user's comparison request through the final evidence-audited response when the canonical Behavior Diff skill runs in Claude Code or Codex.
