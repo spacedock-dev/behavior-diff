@@ -6,7 +6,7 @@ started: 2026-10-27T06:19:44Z
 completed:
 verdict:
 score:
-worktree:
+worktree: .worktrees/spacedock-ensign-prototype-verification-handoff
 issue:
 linear:
 pr:
