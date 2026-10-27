@@ -225,3 +225,38 @@ VERDICT: REVISE
 ### Summary
 
 Both independent reviews cover the exact signed candidate and recommend REVISE for one deduplicated frozen-scenario validation defect; Standards also retained two nonblocking suggestions. Recommend correction through the authorized checkpoint and independent review of the corrected complete candidate; native speed, real-case preservation and live-host compliance remain open acceptance gates, not completion claims.
+
+## Stage Report: implementation (cycle 1)
+
+- DONE: Fix the one material null-scenario handoff bypass for non-null purpose while preserving the general nullable validator; prove the actual failure before and rejection after through the shipped CLI on staged and direct handoffs.
+  Signed corrected candidate `23c350837d92cc9865298dcffa10b3a89756d90c` rejects parsed None only in the complete handoff when purpose is non-null; the new CLI regression exercises both delivery paths and confirms the unchanged public scenario reader still accepts null.
+- DONE: Apply the separately authorized small streaming-hash implementation and isolate the masked symlink fixture, with no new runtime promise, provider, dependency, CI, benchmark or file scope; run relevant checks and offline smoke after corrections.
+  Artifact SHA-256 now streams blocks with sha256.update; the fixture removes its newer Before baseline and proves valid verification before installing the notes symlink. All post-correction results are recorded below.
+- DONE: Commit the corrected candidate and owned state response with DCO sign-off, append the worker closing Resolution to the provided neutral correction log, and report exact evidence; no paid calls or native speed claims.
+  This report is committed path-scoped with --signoff and synchronized through the clean-path state helper; the worker closing Resolution records exact code/report commits and exercised evidence in the provided neutral room, not Captain or independent-review approval.
+
+### Preserved findings and authorized dispositions
+
+- F1/M1: Material; task-owned; FIX. Valid non-null purpose plus a named JSON-null scenario bypassed frozen checks because the parsed None was discarded; this harms canonical preparation under value-ac[AC-3], value-ac[AC-2] and the canonical frozen-check requirement. Source reviewer observation remains in signed review `2d2b78f4f296a5b8855078a39e849f209de58667`; FO separately authorized the handoff-only guard and staged/direct regression.
+- Python digest: Deferred risk; task-owned; no pre-3.11 support authority or exercised supported-runtime failure was established. FO authorized the small streaming replacement as an existing implementation choice, not a new runtime promise; promotion condition remains an actual older-runtime support contract or supported-host requirement.
+- Masked symlink assertion: Polish/test-evidence weakness; task-owned; FIX. A stale newer Before caused rejection before the symlink guard, so the old assertion did not isolate that guard. FO authorized restoring valid baseline state first; no production escape was demonstrated or claimed.
+
+### Exercised correction evidence
+
+- Before product correction, `python3 tests/shared-data-test.py HandoffTests.test_non_null_purpose_rejects_null_scenario_before_freezing` exited 1 with two failing subtests: shipped staged prepare and direct freeze each returned 0 rather than required rejection 2 for non-null purpose plus JSON-null scenario.
+- After correction, the identical focused command passed (1 test, both paths); each helper returned 2 without creating an output root. The same test invokes shipped scenario.py and observes exit 0 / JSON null, proving the general nullable-reader contract remains unchanged.
+- `python3 tests/shared-data-test.py --runner-smoke` — 36 passed, including the isolated valid-Before-then-context-symlink test and fake Claude/Codex adapters/default 3+3 delivery. Removing null rejection or accepting the symlink would fail these consumer-visible boundaries.
+- `python3 tests/recorded-evidence-test.py` — 25 passed: complete original-byte navigation, duplicate/missing/malformed evidence, native failure despite text, and ignored/untracked artifacts remain exercised with the streaming digest implementation.
+- `python3 tests/scenario-contract-test.py` — 10 passed; `python3 tests/purpose-handoff-test.py` — 4 passed; `python3 tests/source-provenance-test.py` — 9 passed; `python3 tests/report-source-test.py` and `bash tests/live-report-contract.sh` passed. Invalid/mismatched input or incompatible report handoff would falsify these contract claims.
+- `uvx ruff@0.16.5 format plugin/skills/behavior-diff/scripts/prepare_shared.py plugin/skills/behavior-diff/scripts/audit_evidence.py tests/shared-data-test.py` completed; `uvx ruff@0.16.5 format --check --diff .` passed for 154 files; `git diff --check` passed.
+- `docker run --rm -v /Users/kent/Dev/InfuseAI/Spacedock/behavior-diff/.worktrees/spacedock-ensign-speed-up-canonical-skill:/mnt -w /mnt mvdan/shfmt:v3.14.0 -d -i 2 -ci .` passed. Full suites/formatting ran after all authorized corrections; no real host/model call ran.
+
+### Scope and remaining acceptance
+
+- Correction changes only three existing approved files (+48/-7); complete candidate remains seven files, +1043/-226 = 1,269 changed lines versus original 740 ±35% estimate (481–999), not within tolerance. Prior mechanical expansion and these narrow corrections were separately FO-authorized; no additional file or semantic scope was introduced.
+- Canonical instructions, reference and architecture intentionally remain unchanged in this correction: they already require reviewed frozen checks for non-null purpose; the helper now enforces that published contract. Shared reader, runner/report/extractor contracts, models/counts and provider/CI behavior are unchanged.
+- AC-3's identified invalid-handoff bypass now has executed red/green proof. AC-1 native timing/speed, AC-2 real-case semantic preservation and AC-4 actual changed-path Codex/live Claude behavior remain UNVERIFIED with paid launches held. This worker response is not independent validation or Captain approval.
+
+### Summary
+
+Completed the three transported, separately authorized corrections with a signed exact candidate and exercised offline evidence, preserving the reviewer observations and classifications without re-triage. Native performance and live-case acceptance remain open; no paid calls, product push, PR, merge or release occurred.
