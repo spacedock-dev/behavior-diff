@@ -270,3 +270,49 @@ Both independent reviews cover the exact signed candidate and recommend REVISE f
 ### Summary
 
 Completed the three transported, separately authorized corrections with a signed exact candidate and exercised offline evidence, preserving the reviewer observations and classifications without re-triage. Native performance and live-case acceptance remain open; no paid calls, product push, PR, merge or release occurred.
+
+## Stage Report: validation (cycle 1)
+
+- DONE: Review the complete signed candidate against the approved shared preparation/freeze and raw-evidence-navigation behavior, including direct/staged paths, privacy, staleness, exact evidence access and all canonical callers; give concrete material findings or an explicit code-quality verdict.
+  Fresh Spec reviewer examined all seven files at `23c350837d92cc9865298dcffa10b3a89756d90c` versus `8067a1cb10d7056226589020ffec83e506890045`, the complete helpers, canonical references, runner delivery and shared input/status/trace consumers; offline code-quality APPROVE.
+- DONE: Map every acceptance criterion to the implementation's exercised evidence and actual limitations; native speed, real-case preservation and live-host instruction behavior remain unverified and must not be called passed.
+  AC mapping below reuses signed author evidence in `d97b20fa7c78e9a657a3e435424554e38572bfe5`; neither reviewer reran checks or inferred native behavior from synthetic results.
+- DONE: Combine the independent Standards review of this exact candidate with your Spec review in a committed, read-only validation report; do not edit product code or run tests, builds, formatters or paid journeys.
+  Current `SpeedRefactorStandards` independently reviewed the complete same candidate and returned offline APPROVE / overall NEEDS DECISION; this report supersedes the prior candidate's verdict without republishing neutral validation/1.
+
+VERDICT: NEEDS DECISION
+
+Both current independent reviewers APPROVE bounded offline code quality; overall native acceptance cannot pass. No material code finding remains identified.
+
+### MATERIAL FINDINGS
+
+- none outstanding. F1/M1 is resolved at `plugin/skills/behavior-diff/scripts/prepare_shared.py:77-84`: parsed scenario None is rejected for non-null purpose before output creation in both staged and direct modes; general nullable scenario-reader behavior is unchanged.
+- `tests/shared-data-test.py:402-435` invokes shipped CLIs for both rejection paths and the general nullable reader; author-observed RED was exit 0 on both paths, GREEN is exit 2 with no output root, while the reader still returns exit 0/null. Removing the handoff guard falsifies this regression.
+
+### DECISIONS REQUIRED
+
+- Native value gate remains held: zero valid complete baselines and no candidate native timing. Keep this candidate parked or separately authorize a bounded native route after resolving host/consent; ordinary Claude auth is not an Anthropic historical-source/model-run grant.
+- Holding has no model cost or recurring mechanism; resumption needs explicit source/provider/purpose/count/cost authority. No provider switch, sandbox bypass, broker, extra trial count or permanent benchmark infrastructure is authorized; old-code nested Codex failures are not attributed to this candidate.
+- Recommendation: retain the native-evidence hold, not full speed acceptance. No push, PR, merge or release permission follows from offline approval.
+
+### OPTIONAL SUGGESTIONS
+
+- none outstanding. The prior nonblocking/deferred Python-version observation is addressed by streaming SHA-256 at `audit_evidence.py:151-155`, without a new runtime promise; it is not reclassified as a demonstrated production defect.
+- The prior Polish/test-evidence weakness is addressed at `shared-data-test.py:519-527`: remove the newer Before baseline, assert valid verification, then install the notes symlink, so staleness cannot mask that guard.
+
+### SCOPE AUDIT
+
+- Added only approved complete private handoff/direct freeze, structured runner arguments, local raw-evidence navigation and synthetic coverage; removed duplicate canonical command construction and ad hoc inventories. Semantic scenario/data authorship, capability/privacy review and every-case raw assessment remain with the outer agent.
+- Both reviewers found no unauthorized decision: seven approved files, +1043/-226 = 1,269 changed lines versus 740 ±35% (481–999). Disclosed formatter expansion and narrow authorized corrections are outside tolerance, not a claimed estimate pass.
+- Runner/adapters, extraction/report schemas, models/counts, providers, manifests, dependencies and CI are unchanged. Fixed trusted runner selection, Jev/Humanizer consent and Spacedock fixture delivery remain intact; no private benchmark artifacts enter the candidate.
+
+### Acceptance and exercised evidence
+
+- AC-1 — UNVERIFIED: no complete native paired timing or final-audit comparison; offline approval establishes no speedup.
+- AC-2 — offline mechanics supported, real-case preservation UNVERIFIED: author `python3 tests/shared-data-test.py --runner-smoke` passed 36 checks, including frozen context/settings/tools/references, exclusions, absent Before and fake Claude/Codex 3+3 delivery; leaking notes, accepting mutation or changing delivered inputs/counts would falsify these checks. No real-case semantic audit or pinned native preservation is claimed.
+- AC-3 — supported by author-executed CLI/boundary evidence: recorded-evidence 25 checks reconstruct original returns beyond assessment budgets, preserve duplicate/malformed/missing records and failed-turn evidence, include ignored/untracked artifacts and reject escape; filtering raw returns, treating progress text as completion or following the symlink would falsify these claims. Scenario 10, purpose 4, source 9, report-source/live-report contracts also passed; invalid/mismatched context or incompatible report handoff would fail them.
+- AC-4 — complete offline consumer review agrees across canonical skill/reference/architecture and fixed runner handoff; actual changed-path Codex and live Claude compliance remain UNVERIFIED. Fake-host delivery is not live instruction behavior. Author Ruff (154 files), shfmt and whitespace checks passed; no reviewer builds/tests/formatters/product helpers/model calls ran.
+
+### Summary
+
+Both current independent reviews approve the corrected candidate's offline mechanics, including the resolved null-scenario bypass and separately authorized nonblocking improvements. Overall validation remains NEEDS DECISION because native speed, real-case preservation and live-host behavior have no valid acceptance evidence; no workflow status, frontmatter or product bytes were changed.
