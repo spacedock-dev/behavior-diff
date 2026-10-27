@@ -60,15 +60,17 @@ because the extractor prompt becomes smaller.
 
 **Measure one unchanged extractor replay before selecting a latency fix.**
 Offline work has not isolated an avoidable delay that explains the observed
-seconds. The smallest justified next effect is a separately authorized profiling
+seconds. The smallest justified next effect is the now-authorized profiling
 replay, followed by a narrowly chosen implementation and one before/after pair.
 Do not spend the pre-approved implementation stage on whitespace-only compaction
 as if it were demonstrated user value.
 
-Captain pre-approved ideation into implementation, not provider calls,
-validation/delivery, push, PR, merge, or release. Implementation can prepare a
-low-risk candidate offline, but actual latency acceptance remains open until the
-specific provider/data/cost grant below. No paid calls were made in ideation.
+Captain pre-approved ideation into implementation and subsequently authorized
+at most three extraction invocations, US$3 total, on the same saved evidence
+with the same configured OMP provider/model. This does not authorize new trials,
+scenarios, publication, validation/delivery, product push, PR, merge, or release.
+The implementation worker owns the entire replay ledger; this ideation worker
+must not spend any of those invocations. No paid calls were made in ideation.
 
 ## Evidence and competing hypotheses
 
@@ -186,24 +188,26 @@ if the FO elects to prepare it before the live gate, is one focused PR:
   saved report schema, evidence collector budgets, skill preparation recipe,
   or raw-audit obligations for this candidate.
 
-Retain the end-to-end investigation in this task rather than closing the request
-when that PR compiles or its prompt shrinks. A different profiled cause changes
-the implementation surface and must receive a concrete bounded design first.
+Do not close the refactor because its prompt shrinks or its code compiles.
+A demonstrated seconds-based improvement at the selected real latency seam,
+with preserved assessment fidelity, suffices for a bounded bottleneck claim.
+A different profiled cause changes the implementation surface and must receive
+a concrete bounded design first.
 No new permanent timing infrastructure, benchmark service, CI provider call,
 parallel extraction, model substitution, outcome cache, or additional trial set.
 
 ## Acceptance criteria
 
-1. **Measured user value, not payload size — interactive/consent-gated.**
+1. **Measured user value, not payload size — authorized bounded replay.**
    On an identical frozen assessment input with the exact same host/model and
    settings, report baseline and candidate subprocess seconds, pre-output
-   seconds, observable-generation interval, and full runner critical-path
-   effect. A candidate is an observed extractor improvement only when its
-   elapsed seconds are lower and assessment fidelity is retained. One pair
-   cannot establish stable population latency or a complete skill speedup.
-   To close the user-facing request, measure preparation → runner → raw audit
-   → final response on matched outer requests as well, without trading away
-   obligations. Missing end-to-end measurement remains an explicit open gate.
+   seconds and observable-generation interval. A candidate is an observed
+   improvement at the selected latency seam only when its elapsed seconds are
+   lower and assessment fidelity is retained. Distinguish measured subprocess
+   time from any inferred effect on the runner's serial critical path.
+   One pair cannot establish stable population latency or a complete skill
+   speedup. Preparation and post-run audit remain unmeasured limitations, not
+   mandatory new outer-agent studies or additional paid full-skill runs.
 2. **Lossless inputs — offline, if preparing the compact candidate.**
    Decode every structured prompt block on synthetic boundary runs and compare
    exact objects, order, trial identities, sources, ranges, statuses, reasons,
@@ -240,28 +244,38 @@ stage: `python3 plugin/skills/behavior-diff/scripts/decisions.py --check`,
 Use repository-required formatting and Markdown checks after implementation;
 these commands were not run in ideation. Real saved inputs stay read-only.
 
-**Smallest live grant to request, not authorization already held:**
+**Captain-authorized live scope, superseding the earlier US$5 proposal:**
 
 - Purpose: distinguish pre-output/session work from observable generation on
   the slow assessment, then assess one evidence-preserving latency candidate.
-- First authorize **one unchanged extractor replay**. Only after reviewing
-  that profile, select a concrete candidate and use at most **two further
-  extractor invocations**, baseline then candidate: at most three total,
-  zero trial invocations, zero full comparison reruns, zero Jev calls.
+- The implementation worker may execute **one unchanged extractor replay**.
+  Only after reviewing that profile, select a concrete candidate and use at
+  most **two further extractor invocations**, baseline then candidate: at most
+  three total, zero trial invocations, zero new scenarios, zero full comparison
+  reruns, zero Jev calls. Failed attempts count toward the same three-call cap.
 - Pin OMP and the saved extractor selector `openai-codex/gpt-6-luna`; record
   the actual resolved provider/model and stop on mismatch. Use the same current
   frozen saved prompt/task, installed style guidance, evidence and invocation
   context for baseline and candidate; only the named candidate may differ.
-  OMP's OpenAI-Codex provider receives private saved instruction/task content,
-  derived purpose/scenario and bounded trial evidence. Require specific
-  approval for that provider and payload; earlier run consent is not this grant.
-- Proposed combined spend ceiling: **US$5 for all three extractor invocations**,
-  subject to the Captain's explicit approval. Before any call, establish an
-  enforceable request/output bound and current provider pricing or quota
-  accounting that fits the remaining allowance. OMP's `--max-cost` may finish
-  an in-flight request above its trigger and is not by itself a hard ceiling.
-  If a hard currency bound is unavailable for this provider, disclose that and
-  obtain a named quota/token allowance instead; do not claim US$5 is enforced.
+  The approved `openai-codex` provider receives the same private saved
+  instruction/task content, derived purpose/scenario and bounded trial evidence.
+  Captain specifically approved this saved-evidence/provider/model handoff;
+  neither a different provider nor additional private content is authorized.
+- Approved combined spend ceiling: **US$3 total for all three invocations**.
+  FO verified the current catalog using `omp models find gpt-6-luna --json`:
+  provider `openai-codex`, selector `openai-codex/gpt-6-luna`, context window
+  272,000, maximum output 128,000, fixed per-million-token pricing of US$0.10
+  input, US$0.50 output, US$0.01 cache read, US$0 cache write.
+  Verify the actual exposed provider/model and current catalog before replay;
+  stop on a price/model mismatch, without silently substituting or spending.
+  At these prices, a conservative full-window/full-output request costs at most
+  272,000 × 0.10 / 1,000,000 + 128,000 × 0.50 / 1,000,000 = US$0.0912.
+  Set `--max-cost 0.50` per invocation. This trigger is not itself a hard cap:
+  assuming the runtime starts no request after the threshold and permits at most
+  one in-flight overrun, each invocation is bounded by US$0.5912 and all three
+  by US$1.7736, below the approved US$3. Preserve this pricing/runtime caveat,
+  record actual usage and cumulative cost, and do not treat unused allowance as
+  authorization for more calls. No new budget prompt is needed within this grant.
 - Use a disposable private timer/event capture, not committed infrastructure.
   Capture monotonic subprocess spawn/exit and timestamps of observable model
   text events, actual usage and exit status. OMP's JSON mode is documented by
@@ -274,23 +288,26 @@ these commands were not run in ideation. Real saved inputs stay read-only.
   If profiling is inconclusive or an invocation fails, report it within the
   three-call cap rather than silently retrying.
 
-This small grant does **not** authorize outer-skill agent execution or prove
-end-to-end skill latency. If preparation/audit remains the suspected bottleneck,
-bring a separate bounded same-request outer-stage timing proposal with its own
-session/request limits, provider/data disclosure and cost grant. Do not spend a
-full six-trial comparison merely to time preparation or audit.
+This grant does **not** authorize outer-skill agent execution or prove end-to-end
+skill latency. Unmeasured preparation/audit costs remain explicit limits on the
+claim, not a mandatory additional study or a blocker to a demonstrated
+bottleneck improvement. Any later outer-stage experiment requires separate
+authority; do not spend a full six-trial comparison merely to time those stages.
 
 ## Decisions and dependencies
 
-Recommendation: take the one-replay profiling gate before choosing a latency fix
-(confidence: high). Why: the smallest verifiable action avoids busywork while
+Recommendation: use the authorized one-replay profile before choosing a latency
+fix (confidence: high). Why: the smallest verifiable action avoids busywork while
 preserving the evidence the user needs. The exact avoidable cause remains
 unknown; no stronger causal outer-session trace was available in scoped history.
 
-Captain's workflow and ideation-to-implementation preapproval stands. The FO
-must surface the separate provider/data/budget decision; preapproval cannot
-manufacture it. No Linear publication or product push is authorized. State
-report synchronization follows the commissioned split-root state protocol.
+Captain's workflow and ideation-to-implementation preapproval stands, and the
+explicit three-invocation/US$3 saved-evidence grant now resolves the live replay
+prerequisite. Only the implementation worker may consume that ledger. A bounded
+measured improvement at the selected seam is sufficient; full outer preparation
+and audit timings are not a newly imposed acceptance gate. No Linear publication
+or product push is authorized. State report synchronization follows the
+commissioned split-root state protocol.
 Actual exposed ideation model: `openai-codex/gpt-6.1-sol`; the saved extractor
 model above is different and must not be substituted for it.
 
@@ -319,3 +336,21 @@ saved decisions file is mostly deterministic evidence. The next justified step
 is specific consent for one timed extractor replay, with at most two follow-up
 invocations; implementation preapproval remains valid but does not grant paid
 execution or establish user-value acceptance.
+
+## Stage Report: ideation (cycle 2)
+
+- DONE: Identify the assessment-latency bottleneck from actual local evidence, comparing input size, output-generation work and CLI startup/context without substituting payload reduction for measured seconds.
+  Existing offline evidence is unchanged; selected-seam timing and fidelity remain the required proof, with unmeasured outer preparation/audit retained as limitations.
+- DONE: Recommend the smallest evidence-preserving refactor and alternative, including affected files, size/tolerance, preserved contracts, risks, concrete AC and seconds-based verification; identify separately consent-gated live proof if needed.
+  Captain authorized at most three extraction invocations and US$3 total; AC1 now permits a bounded demonstrated seam improvement without imposing a new full-skill study.
+- DONE: Commit the exact ideation report and design/acceptance criteria in the task state with DCO sign-off; no product edits and no builds/tests/lint/formatters or paid Behavior Diff calls.
+  Amendment changes only this task body/report; implementation owns all three replay attempts, actual usage/cost accounting, and model/provider verification.
+
+### Summary
+
+This correction supersedes the earlier proposed US$5 grant and any requirement
+for a new matched outer-agent preparation-to-audit study. The current fixed-price
+catalog supports a conservative US$1.7736 three-invocation bound under the stated
+cost-trigger/runtime assumptions, below the approved US$3; no invocation was
+spent here. Same-input seconds comparison and all evidence/safety obligations
+remain mandatory, and any claim must stay scoped to the measured latency seam.
