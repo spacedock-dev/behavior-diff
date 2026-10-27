@@ -12,6 +12,17 @@ linear:
 pr:
 mod-block:
 id: n2m85xea3h2q75xk6gzjebwm
+gates:
+    version: 1
+    records:
+        - id: gate:n2m85xea3h2q75xk6gzjebwm:backlog
+          stage: backlog
+          attempts:
+            - id: gate-attempt:n2m85xea3h2q75xk6gzjebwm-backlog-1
+              briefing:
+                id: briefing:n2m85xea3h2q75xk6gzjebwm:backlog:attempt-1:revision-1
+                digest: sha256:75e0a81279bf5edea45629dd0d61689ef0564c3cd24c8f31994d034d7fcf7be2
+                room-ref: ./review/backlog/briefing-1
 ---
 
 Reduce elapsed time from a user's comparison request through the final evidence-audited response when the canonical Behavior Diff skill runs in Claude Code or Codex.

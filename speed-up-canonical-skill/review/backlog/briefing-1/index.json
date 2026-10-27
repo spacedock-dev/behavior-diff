@@ -1,0 +1,15 @@
+{
+  "type": "Briefing",
+  "version": "1",
+  "id": "briefing:n2m85xea3h2q75xk6gzjebwm:backlog:attempt-1:revision-1",
+  "question": "Start design for complete native-host skill execution speed?",
+  "artifacts": [
+    {
+      "id": "artifact:n2m85xea3h2q75xk6gzjebwm:backlog:attempt-1:revision-1:item-1",
+      "uri": "git-root://state/4166c12b45f494b3272ea9ed85faab06aaae0692/speed-up-canonical-skill/index.md",
+      "rev": "sha256:84cc456fc26e1751b982c973b0237a985e68ab624014fe10dcd18c8b53fee1af",
+      "mediaType": "text/markdown",
+      "summary": "The Captain requests end-to-end Claude Code or Codex speed, not OMP-only settings. Preserve default trials, privacy, frozen inputs and full raw audit; measure native Codex before and after across the three required real cases."
+    }
+  ]
+}
