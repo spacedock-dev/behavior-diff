@@ -23,6 +23,17 @@ gates:
                 id: briefing:n2m85xea3h2q75xk6gzjebwm:backlog:attempt-1:revision-1
                 digest: sha256:75e0a81279bf5edea45629dd0d61689ef0564c3cd24c8f31994d034d7fcf7be2
                 room-ref: ./review/backlog/briefing-1
+              resolution:
+                type: Resolution
+                id: resolution:spacedock:n2m85xea3h2q75xk6gzjebwm:backlog:1
+                briefing: briefing:n2m85xea3h2q75xk6gzjebwm:backlog:attempt-1:revision-1
+                by: person:captain
+                at: "2026-10-27T13:27:52.697425Z"
+                decision: approve
+                reason: The Captain explicitly requests refactoring the complete Behavior Diff skill to reduce execution time under Claude Code or Codex; this accepts starting design, not an unknown design or merge.
+              application:
+                target-stage: ideation
+                state: pending
 ---
 
 Reduce elapsed time from a user's comparison request through the final evidence-audited response when the canonical Behavior Diff skill runs in Claude Code or Codex.
