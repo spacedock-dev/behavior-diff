@@ -1,6 +1,6 @@
 ---
 title: Reduce Behavior Diff assessment latency without weakening evidence
-status: implementation
+status: validation
 source: Captain request on 2026-10-27 to diagnose and refactor recent slowdown; Captain selected the Spacedock workflow.
 started: 2026-10-27T08:40:55Z
 completed:
