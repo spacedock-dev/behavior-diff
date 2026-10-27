@@ -1,0 +1,15 @@
+{
+  "type": "Briefing",
+  "version": "1",
+  "id": "briefing:yxy4v1m92t2daz68kmmykqqh:validation:attempt-1:revision-1",
+  "question": "Approve the reviewed prototype candidate for delivery review, retaining the documented incomplete acceptance evidence?",
+  "artifacts": [
+    {
+      "id": "artifact:yxy4v1m92t2daz68kmmykqqh:validation:attempt-1:revision-1:item-1",
+      "uri": "git-root://state/de34be007183cf7a7c3b373e867459421138665b/prototype-verification-handoff.md",
+      "rev": "sha256:9f88e9412d762fb390075085efb74a53fb31d254e016025c1bd0527ef4c0a990",
+      "mediaType": "text/markdown",
+      "summary": "Owner explicitly approved the gate after receiving prototype and external-example evidence limits. Exact candidate aadbcc06 has independent Spec and Standards APPROVE, six behavior tests, actual helper smoke and root-wide format checks. Owner selected a case, confirmed goals, reviewed findings/gaps and requested separately approved verification. This is not evidence-complete acceptance: actual owner correction for AC-1 remains unperformed; AC-2 owner citation follow-through is not established; AC-3 lacks baseline/takeover/value evidence. No criteria waiver or PASSED completion is inferred. No code push, PR or merge is authorized."
+    }
+  ]
+}
