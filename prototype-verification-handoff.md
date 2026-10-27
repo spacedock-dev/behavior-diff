@@ -2,7 +2,7 @@
 title: Prototype the verification handoff journey
 status: ideation
 source: Captain request to create a dev-workflow prototype task after journey feedback
-started:
+started: 2026-10-27T06:19:44Z
 completed:
 verdict:
 score:
