@@ -1,0 +1,28 @@
+{
+  "origin": "synthetic; invented local archive workflow, not a real run",
+  "change": "Automatically copy a prepared archive; retain checksum and human review.",
+  "context": "The owner wants evidence before deciding whether to adopt the change.",
+  "goals": [
+    {"id": "copy", "text": "Copy the prepared archive after preparation finishes.", "basis": "inferred", "reference": "Synthetic change description", "next": "Inspect a preparation-completion return and subsequent copy action."},
+    {"id": "checksum", "text": "Check the copied archive checksum.", "basis": "explicit", "reference": "Synthetic preservation requirement", "next": "Inspect checksum command and return for the copied archive."},
+    {"id": "review", "text": "Stop for human review before adoption.", "basis": "explicit", "reference": "Synthetic preservation requirement", "next": "Inspect the final stop and absence of adoption actions in the scoped trace."},
+    {"id": "service", "text": "Work with the real archive service.", "basis": "inferred", "reference": "Synthetic environmental question", "next": "Propose a separately authorized compatibility check against the real service."}
+  ],
+  "trace": [
+    "1 tool: prepare archive -> status In progress",
+    "2 tool: copy ready.zip -> error: source does not exist",
+    "3 tool: wait for preparation -> status Done, ready.zip exists",
+    "4 tool: copy ready.zip to review/ready.zip -> copied",
+    "5 tool: checksum review/ready.zip -> expected checksum matches",
+    "6 final: Archive is ready for human review; no adoption performed"
+  ],
+  "scope": "Authored synthetic slice only; real service compatibility is unverified.",
+  "observations": [
+    {"goal": "copy", "status": "contradicted", "reason": "Copy was attempted before preparation finished, then recovered.", "citation": {"path": "synthetic.json", "start": 12, "end": 15}},
+    {"goal": "checksum", "status": "supported", "reason": "The copied archive checksum matched.", "citation": {"path": "synthetic.json", "start": 15, "end": 16}},
+    {"goal": "review", "status": "supported", "reason": "The scoped trace stops at human review.", "citation": {"path": "synthetic.json", "start": 17, "end": 17}},
+    {"goal": "service", "status": "unverified", "reason": "There is no real-service execution in this packet."}
+  ],
+  "correction_example": "Copy the prepared archive eventually; an early failed attempt is acceptable if recovery is explicit.",
+  "correction_scope": "A host may re-review lines 12–16 for this correction, but must not carry the old binding automatically."
+}
