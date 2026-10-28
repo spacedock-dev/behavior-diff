@@ -1,16 +1,16 @@
 ---
 title: Reduce Behavior Diff assessment latency without weakening evidence
-status: validation
+status: done
 source: Captain request on 2026-10-27 to diagnose and refactor recent slowdown; Captain selected the Spacedock workflow.
 started: 2026-10-27T08:40:55Z
-completed:
-verdict:
+completed: 2026-10-28T00:23:49Z
+verdict: PASSED
 score: 0.9
 worktree: .worktrees/spacedock-ensign-reduce-assessment-latency
 issue:
 linear:
 pr: pr-merge:55
-mod-block: merge:pr-merge
+mod-block:
 id: vnaxvsdna9hvd5fgebv5fp5y
 gates:
     version: 1
@@ -80,7 +80,7 @@ gates:
                 reason: Captain approved the presented validation/briefing-2 for independently reviewed shared OMP trial-and-extraction advisor isolation, candidate 2e3d915542233a263c13d7f9d72c378452c20e01, with disclosed and accepted evidence limits. Push, PR, merge and release remain separately ungranted.
               application:
                 target-stage: done
-                state: pending
+                state: consumed
 review-round:
     id: round:vnaxvsdna9hvd5fgebv5fp5y:validation:1
     stage: validation
@@ -89,6 +89,7 @@ review-round:
         id: briefing:vnaxvsdna9hvd5fgebv5fp5y:validation:attempt-1:revision-1
         digest: sha256:72536ff68006c46d7eccafea004f501ada833bacfdad619bd58df46efb73346f
         room-ref: ./review/validation/round-1
+archived: 2026-10-28T00:23:49Z
 ---
 
 Make the complete Behavior Diff skill faster without weakening trials, privacy,
