@@ -132,6 +132,22 @@ project data instead of generating more. It asks the user only when a material
 requirement cannot be reached otherwise. The task must not reveal the expected
 behavior. The instruction change must remain the only source of that guidance.
 
+Input selection starts with the user's requested source: PR/Git revisions, then
+explicit Before/After files, then local-edit discovery. Only local-edit discovery
+requires an uncommitted change. Historical comparisons pin revisions and prepare
+exact instruction snapshots outside the user's checkout, using the existing
+`--before-file` mechanism. A clean checkout is valid. The surrounding project
+context stays common to both variants; multi-file PR coverage must be established,
+not inferred from a single instruction swap.
+
+```text
+Requested comparison
+  -> PR/revisions: pin versions -> exact private historical inputs
+  -> Before/After files: use supplied inputs
+  -> local edit: discover changed instruction or report none
+  -> shared purpose/scenario/preflight/freeze/launch procedure
+```
+
 Before launch, the skill preflights the real host environment and freezes the
 task, data, criteria, purpose, source revisions, and execution settings. It then
 runs the existing runner with the default trial counts; more edge cases add

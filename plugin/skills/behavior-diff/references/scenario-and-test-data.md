@@ -294,6 +294,36 @@ narrower experiment silently.
 Never write, stage, stash, or commit files in the user's checkout to make data
 reach the trials.
 
+## Historical comparison inputs
+
+A PR or commit request supplies the comparison source; it does not require an
+uncommitted edit. Resolve the source repository, exact revisions and selected
+instruction path before local-edit discovery. Follow the source-isolation rule
+above before deriving purpose or designing a scenario.
+
+Prepare a private scratch project from the pinned After revision, not the user's
+working tree. Materialize the selected Before instruction from the pinned Before
+revision into a separate file outside that project. Preserve exact bytes; pass it
+as `--before-file` to the preparation helper. The scratch project's selected
+instruction is After. Keep the original checkout, index, branch and unrelated
+modifications untouched. Obtain source provenance from the original repository,
+not the scratch project. No dedicated PR flag or synthetic local edit is needed.
+
+The ordinary runner compares one instruction while holding the surrounding
+project constant. Retain references needed by either version and document the
+common project context and any reviewed shared-file replacements. If companion
+instructions also changed, do not claim that swapping one file tests the entire
+PR. Use a supported content-preserving assembly or replay fixture with explicit
+mapping and scope; if it cannot represent the requested comparison, report that
+specific limitation rather than silently dropping changes. Do not substitute an
+empty file for an absent historical instruction; use a supported absence fixture
+or report that prerequisite. Missing revisions, ambiguous baselines and unsupported
+capabilities are real blockers; a clean working tree is not.
+
+After resolving the inputs, continue the same purpose, scenario, preflight,
+freeze, authorization and launch procedure. Historical preparation does not
+authorize extra runs, private-data disclosure, source changes or PR operations.
+
 ## Prepare the inputs
 
 1. **Shared data.** Put the trial inputs in a data directory outside the
@@ -337,11 +367,11 @@ python3 "$SKILL_DIR/scripts/prepare_shared.py" prepare \
 
 Optional arguments:
 
-- `--before-file <file>` supplies the Before content: a user-supplied original,
-  user-given before/after files, or one entry that you selected from the hook
-  baseline store. The helper always reads this file as content, even if its
-  name ends in `-ABSENT`. If the file is inside the project, the helper excludes
-  it from the stage automatically.
+- `--before-file <file>` supplies the Before content: an exact file extracted
+  from the selected historical revision, a user-supplied original, explicit
+  Before/After files, or a selected hook baseline. The helper reads it as content,
+  even if its name ends in `-ABSENT`. If it is inside the project, the helper
+  excludes it from the stage automatically.
 - `--exclude <relative-path>` keeps one project path out of the stage. Repeat
   the option for each path.
 
