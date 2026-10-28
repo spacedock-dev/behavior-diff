@@ -24,8 +24,8 @@ scripts handle execution, evidence, and reporting.
 | case criteria; reuse sufficient project data            |
 | Review scenario, checks and required recorded sources; |
 | freeze task, data, purpose, record, sources + settings   |
-| Shared files or exclusions: prepare_shared.py stages    |
-| and verifies; otherwise runner uses user's project      |
+| prepare_shared.py freezes one complete private handoff  |
+| Staged data or direct project -> verify -> runner args  |
 +----------------------------+----------------------------+
                              v
 +---------------------------------------------------------+
@@ -55,7 +55,7 @@ scripts handle execution, evidence, and reporting.
 +---------------------------------------------------------+
 | Skill result explanation (separate from the report)     |
 | Optional approved Jev advice -> primary-evidence check  |
-| Raw actions/returns/artifacts per private case:         |
+| audit_evidence.py -> original calls/returns/artifacts   |
 | reached / missed / unknown; intent supported /          |
 | contradicted / insufficient evidence; run health apart; |
 | report agreement or gap disclosed; user decides         |
@@ -334,8 +334,12 @@ The private helper
 delivers a reviewed data directory to every trial without changing the user's
 checkout or adding runner options. It only delivers and verifies: the skill
 designs the data, and the helper does not generate data, launch models, or infer
-provenance. Its freeze covers the stage, not the private task, purpose, scenario
-record, source metadata, or tooling; the skill checks those separately before launch.
+provenance. The optional private `--handoff` descriptor names task, purpose,
+scenario, optional source, notes, required references, custom tools and settings.
+It reuses the existing input readers and freezes those inputs plus shipped
+mechanics; no executable is selected or run from JSON. Direct `freeze` requires
+this descriptor and keeps the original project path, inventorying the effective
+Git archive plus selected After, not unrelated working edits.
 
 ```text
 Project base (Git HEAD or folder copy) --+
@@ -344,10 +348,12 @@ Selected Before (HEAD, file, or absent) -+     + After in the working tree
    minus --exclude paths                       stage/before: present Before
                                                stage/home: ABSENT marker
                                                stage/freeze.json
+Private handoff + context --------------------> complete context/tool inventory
                                                        |
                        verify, then behavior-diff.sh from stage/project
                        with BEHAVIOR_DIFF_HOME=stage/home
                        and --before-file stage/before when present
+Direct project ------------------------> freeze -> same verify/runner handoff
 ```
 
 `prepare` resolves Before in the runner's order: an explicit file, the target
@@ -378,6 +384,22 @@ launch. The freeze detects changes. It is not a sandbox, and the stage files
 are not read-only. Source provenance still names the original repository and
 revisions, never scratch commits. Runs and reports stay under the stage's
 `home/runs/`.
+
+`verify --json` returns the complete inventory and validated runner arguments,
+project and home. The skill inspects that handoff once and launches the fixed
+existing runner only after re-verification in the same environment. Semantic
+capability probes, source closure and privacy review remain with the agent;
+digests cannot prove that a probe ran or succeeded.
+
+The local [`audit_evidence.py`](../plugin/skills/behavior-diff/scripts/audit_evidence.py)
+indexes every expected trial and every original normalized/native JSONL event
+with exact line, byte and tool-part pointers, preserving duplicate identities,
+missing/malformed/unsafe states, native errors, stderr and artifact locations.
+Ignored/untracked artifacts are included without following links; their presence
+does not establish authorship. Original byte pages have no assessment eligibility
+filter or total source budget. This private navigation path neither changes
+report/extractor contracts nor judges completion or any private case. The outer
+agent still audits all cases in all trials against raw returns and artifacts.
 
 ### Trial execution sequence
 

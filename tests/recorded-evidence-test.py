@@ -20,6 +20,7 @@ from reporting.evidence import (  # noqa: E402
 )
 from reporting.scenario import parse_scenario  # noqa: E402
 from reporting.target import check_target, evidence_records, parse_purpose  # noqa: E402
+import progress  # noqa: E402
 
 
 def call(identity, path="facts.txt", text="Recorded cap: 500.", **result_fields):
@@ -774,6 +775,118 @@ class TargetEvidenceTests(unittest.TestCase):
                 self.assertIsNone(rejection)
                 self.assertIsNone(target.criteria[0].rejection)
                 self.assertEqual(target.criteria[0].after[0].outcome, "met")
+
+
+class RawNavigationTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name).resolve()
+        progress.update(
+            self.root / "status.json",
+            "run",
+            {
+                "run_id": "synthetic",
+                "trials": 3,
+                "phase": "finished",
+                "state": "completed",
+            },
+        )
+        self.trial = self.root / "before-1"
+        self.trial.mkdir()
+
+    def cli(self, *args):
+        return subprocess.run(
+            [
+                sys.executable,
+                str(SCRIPTS / "audit_evidence.py"),
+                str(self.root),
+                *map(str, args),
+            ],
+            capture_output=True,
+        )
+
+    def test_all_trials_original_adapter_returns_duplicates_and_malformed_events(self):
+        events = command("duplicate", "python3 tools/read_state.py", "z" * 26029)
+        raw = (
+            b"".join((json.dumps(event) + "\n").encode() for event in events + events)
+            + b"{damaged\n"
+        )
+        (self.trial / "trace.jsonl").write_bytes(raw)
+        self.assertTrue(
+            all(
+                record["status"] == "unavailable"
+                for record in collect_run_evidence(self.root)["trials"]["before-1"]
+            )
+        )
+        result = self.cli()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        trials = json.loads(result.stdout)["trials"]
+        self.assertEqual(len(trials), 6)
+        self.assertEqual(
+            trials["after-3"]["streams"]["trace.jsonl"]["status"], "missing"
+        )
+        stream = trials["before-1"]["streams"]["trace.jsonl"]
+        self.assertEqual(len(stream["identities"]["duplicate"]), 4)
+        self.assertEqual(stream["events"][-1]["status"], "malformed")
+        rebuilt = b"".join(
+            self.cli(
+                "--file", stream["file"], "--offset", offset, "--length", 10000
+            ).stdout
+            for offset in range(0, len(raw), 10000)
+        )
+        self.assertEqual(rebuilt, raw)
+        event = stream["events"][1]
+        page = self.cli(
+            "--file",
+            stream["file"],
+            "--offset",
+            event["offset"],
+            "--length",
+            event["length"],
+        )
+        self.assertEqual(
+            json.loads(page.stdout)["message"]["content"][0]["content"], "z" * 26029
+        )
+
+    def test_native_failure_with_progress_is_not_completion_and_artifacts_stay_local(
+        self,
+    ):
+        (self.trial / "trace.jsonl").write_text(
+            '{"type":"result","result":"Working on it"}\n'
+        )
+        (self.trial / "codex-raw.jsonl").write_text(
+            '{"type":"turn.failed","error":{"message":"Synthetic failure"}}\n'
+        )
+        progress.update(
+            self.trial / "status.json",
+            "trial",
+            {"phase": "finished", "state": "failed", "cli_exit_code": 1},
+        )
+        project = self.trial / "project"
+        project.mkdir()
+        (project / ".gitignore").write_text("ignored.bin\n")
+        (project / "ignored.bin").write_bytes(b"\0synthetic")
+        (project / "untracked.txt").write_text("Synthetic artifact")
+        outside = self.root.parent / (self.root.name + "-outside")
+        outside.write_text("Must not follow")
+        self.addCleanup(outside.unlink)
+        (project / "escape").symlink_to(outside)
+        result = json.loads(self.cli().stdout)["trials"]["before-1"]
+        self.assertEqual(result["interruption"], "agent CLI exited 1")
+        self.assertTrue(result["normalized"]["nonempty_text"])
+        self.assertEqual(
+            result["streams"]["codex-raw.jsonl"]["events"][0]["type"], "turn.failed"
+        )
+        artifacts = {Path(item["file"]).name: item for item in result["artifacts"]}
+        self.assertEqual(artifacts["escape"]["status"], "unsafe_or_unreadable")
+        for name in ("ignored.bin", "untracked.txt"):
+            self.assertEqual(artifacts[name]["status"], "available")
+        self.assertNotEqual(self.cli("--file", "before-1/project/escape").returncode, 0)
+        self.assertNotEqual(self.cli("--file", "../" + outside.name).returncode, 0)
+        self.assertEqual(
+            self.cli("--file", "before-1/project/ignored.bin").stdout, b"\0synthetic"
+        )
 
 
 if __name__ == "__main__":
