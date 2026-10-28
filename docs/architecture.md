@@ -216,6 +216,11 @@ fresh agent process inside one copy. The default comparison runs three trials
 per side concurrently, with the same task and model. The adapter supports
 Claude, Codex, Pi, and OMP. It suppresses recursive plugin hooks and converts
 host events into a common `trace.jsonl` format.
+OMP trials apply the shared `omp-isolation.json` process-local config overlay
+with `advisor.enabled: false`, so inherited advisors cannot join or steer them.
+Normal trial tools, the primary model and reasoning settings, trial-local storage,
+and native trace normalization are unchanged; user configuration is not edited.
+Claude, Codex, and Pi do not use this OMP advisor subsystem.
 
 The trace contains paired tool actions and recorded returns plus a final answer.
 Claude's stream is retained; Codex command output and Pi/OMP tool results keep
@@ -449,6 +454,13 @@ The modules below live in the skill's [`scripts/`](../plugin/skills/behavior-dif
   and plans from recorded actions. The inferred aim cites instruction hunks
   independently of trial outcomes. The script validates references and exact
   choice coverage; invalid interpretation does not discard valid observations.
+  OMP extraction uses the same bundled `omp-isolation.json` process-local
+  `--config` overlay as OMP trials, with `advisor.enabled: false`. An inherited
+  OMP advisor otherwise adds a separate model/provider review and headless
+  shutdown wait. The override preserves the extraction prompt, model, reasoning
+  settings, inherited context, and validation without editing user configuration.
+  Claude, Codex, and Pi extraction do not use this OMP subsystem.
+  This is not a replacement for the skill's required raw-evidence audit.
   Report narrative uses installed Humanizer prose guidance in the same
   extraction call, with concise, natural technical prose as the fallback.
   The extractor receives the guidance in its prompt; it does not invoke skill
