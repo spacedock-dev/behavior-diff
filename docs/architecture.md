@@ -35,8 +35,8 @@ scripts handle execution, evidence, and reporting.
 +----------------------------+----------------------------+
                              v
 +---------------------------------------------------------+
-| Saved evidence                                          |
-| Snapshots, calls + returned content, answers, grades     |
+| Saved evidence + posttrial pipeline                     |
+| Traces/returns/answers -> posttrial.py registry -> grades|
 +----------------------------+----------------------------+
                              v
 +---------------------------------------------------------+
@@ -63,8 +63,10 @@ scripts handle execution, evidence, and reporting.
 ```
 
 ```text
-Runner -----------------> status.json
+Runner -----------------> status.json (terminal state + owner)
 Trial workers ----------> before-N/status.json, after-N/status.json
+Posttrial adapter ------> coordinator-status.json (phase + report)
+Pipeline stages --------> stages/<stage>.json (terminal results)
 Assessment producer ----> assessment-status.json
                                   |
                                   v
@@ -74,6 +76,38 @@ Assessment producer ----> assessment-status.json
 
 Trial execution and decision extraction call models through agent CLIs.
 Report assembly and rendering run locally without model calls.
+
+### Current mechanical pipeline increment
+
+The Bash front door retains snapshot preparation, concurrent trial workers,
+collection, guarded console capture, and run terminal/interrupt handling.
+After collection it invokes `posttrial.py`, which registers the existing
+grading, combined extraction, and rendering operations with `pipeline.py`.
+Their dependency declarations are the sole owner of posttrial ordering; Bash
+does not retain a second grading/extraction/render sequence.
+
+Grading is required by extraction and rendering. Extraction is optional for
+rendering: an unavailable or skipped assessment still permits the existing
+evidence-only report. The adapter preserves renderer exit codes, and report
+availability still requires both successful rendering and a nonempty HTML file.
+The registry validates unknown dependencies, cycles, and duplicate output
+ownership before callbacks. Each stage persists its own terminal result in
+`stages/`; this operational result is not a goal outcome or an assessment.
+
+The adapter alone writes `coordinator-status.json`; Bash alone writes
+`status.json`. The status reader overlays the adapter's phase and report
+availability while retaining Bash's owner and terminal state as authoritative.
+This avoids parent/child status-write races during interruptions. Trial workers
+and the combined extractor retain their existing independent records.
+
+This is an incremental mechanical integration, not the approved architecture's
+completed semantic cutover. Trial launch/collection ownership has not moved into
+the registry. A shared evidence inventory, isolated observation, separate
+assessment, persisted correction history, and the complete caller migration
+remain pending. `decisions.py`, existing model inputs/defaults, report schemas,
+and live mode remain unchanged. See the
+[approved refactoring plan](behavior-diff-refactoring.html) for those later steps.
+
 
 Purpose and the reviewed scenario record travel in run configuration directly to
 analysis, never in the trial task or project copies. Raw preparation notes remain

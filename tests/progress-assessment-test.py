@@ -15,6 +15,7 @@ SCRIPTS = Path(__file__).resolve().parents[1] / "plugin/skills/behavior-diff/scr
 sys.path.insert(0, str(SCRIPTS))
 import decisions  # noqa: E402
 import progress  # noqa: E402
+import posttrial  # noqa: E402
 from reporting.load import load_report  # noqa: E402
 from reporting.render_html import render_artifact  # noqa: E402
 from reporting.render_markdown import render_markdown  # noqa: E402
@@ -243,6 +244,100 @@ class NativeTrialFailureTests(unittest.TestCase):
         )
         _, completed, _ = decisions.build_prompt(self.run, include_style=False)
         self.assertEqual(completed["after"], ["after-1", "after-2"])
+
+
+class PosttrialPipelineTests(unittest.TestCase):
+    def test_extraction_failure_still_renders_and_preserves_renderer_exit(self):
+        for render_exit in (0, 9, -15):
+            with (
+                self.subTest(render_exit=render_exit),
+                tempfile.TemporaryDirectory() as tmp,
+            ):
+                run = Path(tmp)
+                commands = []
+
+                def execute(command, **kwargs):
+                    commands.append(command)
+                    if command[0] == "jq":
+                        code = 0
+                    elif command[1].endswith("decisions.py"):
+                        code = 7
+                    else:
+                        self.assertTrue(command[1].endswith("render.py"))
+                        code = render_exit
+                        if code == 0:
+                            (run / "report.html").write_text("synthetic report")
+                    return posttrial.subprocess.CompletedProcess(command, code)
+
+                records = []
+                with (
+                    patch.object(posttrial.subprocess, "run", side_effect=execute),
+                    patch.object(
+                        posttrial,
+                        "record_run",
+                        side_effect=lambda _, fields: records.append(fields),
+                    ),
+                    contextlib.redirect_stdout(io.StringIO()),
+                ):
+                    code = posttrial.run_posttrial(run, 1, "trial", "codex", "extract")
+                self.assertEqual(code, 143 if render_exit == -15 else render_exit)
+                self.assertEqual(len(commands), 4)
+                self.assertEqual(
+                    commands[2][-4:], ["--agent", "codex", "--model", "extract"]
+                )
+                extraction = json.loads((run / "stages/extraction.json").read_text())
+                rendering = json.loads((run / "stages/rendering.json").read_text())
+                self.assertEqual(extraction["state"], "failed")
+                self.assertEqual(
+                    rendering["state"], "completed" if render_exit == 0 else "failed"
+                )
+                self.assertEqual(
+                    records[-1]["report"]["state"],
+                    "available" if render_exit == 0 else "failed",
+                )
+                self.assertEqual(
+                    (run / "grades.tsv").read_text(),
+                    "before-1\tREVIEW\t-\nafter-1\tREVIEW\t-\n",
+                )
+
+    def test_skipped_extraction_and_missing_report_keep_distinct_states(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            run = Path(tmp)
+
+            def execute(command, **kwargs):
+                if len(command) > 1 and command[1].endswith("decisions.py"):
+                    (run / "assessment-status.json").write_text(
+                        json.dumps({"state": "skipped"})
+                    )
+                return posttrial.subprocess.CompletedProcess(
+                    command, 2 if command[0] == "jq" else 0
+                )
+
+            records = []
+            with (
+                patch.object(posttrial.subprocess, "run", side_effect=execute),
+                patch.object(
+                    posttrial,
+                    "record_run",
+                    side_effect=lambda _, fields: records.append(fields),
+                ),
+                contextlib.redirect_stdout(io.StringIO()),
+            ):
+                code = posttrial.run_posttrial(run, 1, "trial", "", "")
+            self.assertEqual(code, 0)
+            self.assertEqual(
+                json.loads((run / "stages/extraction.json").read_text())["state"],
+                "skipped",
+            )
+            self.assertEqual(
+                json.loads((run / "stages/rendering.json").read_text())["state"],
+                "failed",
+            )
+            self.assertEqual(records[-1]["report"]["state"], "failed")
+            self.assertEqual(
+                (run / "grades.tsv").read_text(),
+                "before-1\tBLOCKED\t-\nafter-1\tBLOCKED\t-\n",
+            )
 
 
 if __name__ == "__main__":
