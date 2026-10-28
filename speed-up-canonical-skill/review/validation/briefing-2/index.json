@@ -1,0 +1,24 @@
+{
+  "type": "Briefing",
+  "version": "1",
+  "id": "briefing:n2m85xea3h2q75xk6gzjebwm:validation:attempt-2:revision-1",
+  "question": "Accept the reviewed shared-skill refactor for PR56 merge with native speed and live semantic preservation explicitly unverified?",
+  "artifacts": [
+    {
+      "id": "artifact:n2m85xea3h2q75xk6gzjebwm:validation:attempt-2:revision-1:item-1",
+      "uri": "git-root://state/920b74cbc87ba32d51dce8fe399bddc63db6ccde/speed-up-canonical-skill/index.md",
+      "rev": "sha256:606b0eab4c0cbddfcf71256c92bcd29122ca88a76636be0af7d5eb2ecbb55644",
+      "mediaType": "text/markdown",
+      "summary": "Captain explicitly requested merging PR56 and completing this task after disclosure that no speed saving is measured. Candidate23c350 has two independent offline code-quality approvals and passing Format/Unit GitHub CI plus deterministic CLI smoke. Native speed, real-case preservation and live candidate compliance remain unverified; the existing ShellCheck finding in an unchanged file remains disclosed. Acceptance is delivery with these known limits, not fabricated performance evidence. Paid verification remains stopped."
+    }
+  ],
+  "context": [
+    {
+      "type": "Reference",
+      "id": "reference:n2m85xea3h2q75xk6gzjebwm:validation:attempt-2:revision-1:item-2",
+      "uri": "git-root://main/8067a1cb10d7056226589020ffec83e506890045/docs/feature-dev/README.md",
+      "mediaType": "text/markdown",
+      "rev": "sha256:120f0b36a2b0f310d5abbedf45fdbee3012e68e0d2d60fbab8d75c0664cc38ab"
+    }
+  ]
+}

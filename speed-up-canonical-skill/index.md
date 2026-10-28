@@ -65,6 +65,11 @@ gates:
                 by: agent:first-officer
                 at: "2026-10-27T16:58:57.243169Z"
                 reason: Captain selected Stop paid verification. Further native model calls and retries are not authorized; the proposed extra allowance and count extension were declined. Offline code-quality approval of candidate23c350837d92cc9865298dcffa10b3a89756d90c is unchanged, but no valid native before/after pair exists and speed, real-case preservation and live candidate compliance remain unverified. Withdraw the old open briefing rather than infer delivery approval or waive acceptance. Keep the task in validation; no product push, PR, merge or release.
+            - id: gate-attempt:n2m85xea3h2q75xk6gzjebwm-validation-2
+              briefing:
+                id: briefing:n2m85xea3h2q75xk6gzjebwm:validation:attempt-2:revision-1
+                digest: sha256:29f3442ef9fafe9415acc12a43d3681d9ea49f5b6b43789af4e45968516c0c20
+                room-ref: ./review/validation/briefing-2
 review-round:
     id: round:n2m85xea3h2q75xk6gzjebwm:validation:1
     stage: validation
