@@ -1,10 +1,10 @@
 ---
 title: Reduce full Behavior Diff skill execution time on Claude Code and Codex
-status: validation
+status: done
 source: Captain request to improve the complete native-host skill rather than OMP advisor configuration
 started: 2026-10-27T13:28:15Z
-completed:
-verdict:
+completed: 2026-10-28T00:22:22Z
+verdict: PASSED
 score: 0.95
 worktree: .worktrees/spacedock-ensign-speed-up-canonical-skill
 issue:
@@ -80,7 +80,7 @@ gates:
                 reason: Captain explicitly requested merging PR56 and completing n2m85xea3h2q75xk6gzjebwm after the disclosed absence of measured speed savings. Accept delivery of reviewed23c350 with native speed, real-case preservation and live candidate compliance unverified; offline mechanical evidence and CI pass, and existing unchanged ShellCheck finding remains disclosed. This approval does not claim all native AC passed, authorize more paid runs or a release.
               application:
                 target-stage: done
-                state: pending
+                state: consumed
 review-round:
     id: round:n2m85xea3h2q75xk6gzjebwm:validation:1
     stage: validation
@@ -89,6 +89,7 @@ review-round:
         id: briefing:n2m85xea3h2q75xk6gzjebwm:validation:correction-1
         digest: sha256:71634735b08789189ce93de4065f6150b18107c2a43c51decfdacf6fa6901867
         room-ref: ./review/validation/round-1
+archived: 2026-10-28T00:22:22Z
 ---
 
 Reduce elapsed time from a user's comparison request through the final evidence-audited response when the canonical Behavior Diff skill runs in Claude Code or Codex.
