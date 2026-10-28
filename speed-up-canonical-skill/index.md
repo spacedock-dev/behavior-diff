@@ -9,7 +9,7 @@ score: 0.95
 worktree: .worktrees/spacedock-ensign-speed-up-canonical-skill
 issue:
 linear: https://linear.app/recce/issue/DRC-5000/reduce-end-to-end-behavior-diff-skill-execution-time-on-claude-code
-pr: https://github.com/spacedock-dev/behavior-diff/pull/56
+pr: "#56"
 mod-block:
 id: n2m85xea3h2q75xk6gzjebwm
 gates:
