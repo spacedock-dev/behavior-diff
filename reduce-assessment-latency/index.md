@@ -9,7 +9,7 @@ score: 0.9
 worktree: .worktrees/spacedock-ensign-reduce-assessment-latency
 issue:
 linear:
-pr: "#55"
+pr: pr-merge:55
 mod-block: merge:pr-merge
 id: vnaxvsdna9hvd5fgebv5fp5y
 gates:
