@@ -1,9 +1,11 @@
 # Spacedock workflow rules — shared module for the behavior-diff skills
 
-Load this whenever the change under test is a spacedock workflow rule:
-the changed file is a workflow doc (e.g. `docs/dev/README.md`) in a repo
-containing `cmd/spacedock`, or the user says spacedock / FO / first
-officer / ensign / gate / dispatch.
+Load this when the requested comparison exercises actual Spacedock role
+decisions, engine state or worker handoffs, supported by repository
+configuration/state or an explicit user requirement. Mentions of Spacedock,
+FO, first officer, ensign, gate or dispatch alone are not sufficient.
+Ordinary application-runbook decisions use ordinary-agent scenarios and do
+not require Spacedock or Go. Never simulate away a real worker handoff.
 
 ## 1. Decide the shape: single-role or handoff
 
