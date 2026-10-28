@@ -70,6 +70,17 @@ gates:
                 id: briefing:n2m85xea3h2q75xk6gzjebwm:validation:attempt-2:revision-1
                 digest: sha256:29f3442ef9fafe9415acc12a43d3681d9ea49f5b6b43789af4e45968516c0c20
                 room-ref: ./review/validation/briefing-2
+              resolution:
+                type: Resolution
+                id: resolution:spacedock:n2m85xea3h2q75xk6gzjebwm:validation:2
+                briefing: briefing:n2m85xea3h2q75xk6gzjebwm:validation:attempt-2:revision-1
+                by: person:captain
+                at: "2026-10-28T00:21:34.241904Z"
+                decision: approve
+                reason: Captain explicitly requested merging PR56 and completing n2m85xea3h2q75xk6gzjebwm after the disclosed absence of measured speed savings. Accept delivery of reviewed23c350 with native speed, real-case preservation and live candidate compliance unverified; offline mechanical evidence and CI pass, and existing unchanged ShellCheck finding remains disclosed. This approval does not claim all native AC passed, authorize more paid runs or a release.
+              application:
+                target-stage: done
+                state: pending
 review-round:
     id: round:n2m85xea3h2q75xk6gzjebwm:validation:1
     stage: validation
