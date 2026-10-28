@@ -927,23 +927,33 @@ blinding and private repository visibility are not publication permission.
 ## Local verification handoff prototype
 
 The repository-local [maintainer skill](../.agents/skills/verification-handoff-prototype/SKILL.md)
-is an explicitly loaded conversation, separate from the plugin and trial pipeline:
+owns the verification handoff, separate from the installed plugin:
 
 ```text
-Supplied change/context + fixed local evidence
-  -> host proposes goals -> owner confirms/corrects
-  -> host reviews scoped evidence -> revision-bound helper result
-  -> owner inspects support/gaps -> recorded choice only
+Selected change + project context
+  -> host proposes goals -> owner confirms/corrects material scope
+  -> instruction and saved-evidence review
+  -> Behavior Diff preparation + compatibility/isolation preflight
+  -> bounded live-run approval if missing -> execute + audit evidence
+  -> decision-ready recommendation -> owner adoption decision (no automatic merge)
 ```
 
-The host owns meaning, evidence mapping and the conversational summary; `replay.py`
-owns private snapshots, correction invalidation, confirmed revisions and read-only
-root-scoped citations. Unchanged support survives correction; missing/changed
-citations become unverified gaps. No model, trial, renderer or adoption runs here.
-Private packets/snapshots stay outside Git trees; synthetic fixtures exercise the
-mechanics. Owner walkthrough/value evidence remains separate from deterministic
-checks. Replay goals never rewrite historical purpose or the production skill's
-automatic-launch/frozen-purpose contract.
+The host owns planning, preparation, bounded recovery and interpretation, without
+requiring owner reminders between stages. It delegates comparison mechanics to
+Behavior Diff's existing contracts, not a second runner. It checks fixture fit,
+scenario reach and environment confounds before launch; unsupported capabilities
+remain blockers rather than silently reduced scope. Paid runs and private-data
+handoffs need explicit bounded authority. Global configuration is not a write target.
+Evaluation responses never authorize PR operations.
+
+Explicit replay-only requests use saved evidence without new trials. Optional
+`replay.py` owns private snapshots, correction invalidation, confirmed revisions
+and read-only root-scoped citations for that subset. Its fixed-evidence mode is
+not a fresh-run status. Unchanged support survives correction; missing/changed
+citations become gaps. Private packets stay outside Git trees; synthetic fixtures
+exercise helper mechanics only. No helper schema or production runner changed.
+Owner effort reduction requires an actual walkthrough, not deterministic checks;
+feedback is optional after delivery. Historical experimental purpose stays frozen.
 
 ## Local state and system boundaries
 
