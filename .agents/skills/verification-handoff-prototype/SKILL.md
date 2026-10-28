@@ -1,6 +1,6 @@
 ---
 name: verification-handoff-prototype
-description: Carries an instruction change from owner-confirmed goals through review and authorized Behavior Diff verification to a decision-ready recommendation. Use when the owner wants to hand off verification of a change or PR without coordinating the agent's next steps.
+description: Carries an instruction change from one owner-approved handoff proposal through review and Behavior Diff verification to a decision-ready recommendation. Use when the owner wants to hand off verification of a change or PR without coordinating the agent's next steps.
 ---
 
 # Verification handoff prototype
@@ -13,16 +13,26 @@ Resolve bundled files relative to this loaded skill, never the target repository
 
 ## Ownership and authority
 
+- The owner has three touchpoints: the request, one handoff proposal, and the
+  adoption decision. Skip the proposal when the request already confirms the
+  question and authorizes every run term. Any other owner input is an exception.
 - Own discovery, planning, tool selection, preflight, execution, bounded recovery
   and interpretation. Never ask the owner to select evidence IDs, design tests,
-  debug the harness or remind you to take the next agreed step.
-- Ask only for material goal corrections, unavailable domain facts, or missing
-  authority. Each interruption states the concrete decision, recommendation and
-  consequence. Continue useful independent work while awaiting that answer.
-- Before paid trials, obtain approval covering purpose, trial count, model/provider,
-  cost estimate or explicit budget, and outgoing data. Reuse approval within that
-  scope; changes to scope or budget need new approval. Editing this skill is not
-  run approval. Do not send private evidence to a new provider without consent.
+  debug the harness, choose a fallback model, ask what a report means or remind
+  you to take the next agreed step.
+- Ask outside the proposal only for material goal corrections, unavailable domain
+  facts, or authority beyond approved terms. Each interruption states the concrete
+  decision, recommendation and consequence. Never end a turn by asking what to do
+  next or by giving the owner a phrase to type.
+- Model-backed preparation, trials and assessment need approval of these terms:
+  purpose, trials per side, retry allowance, preparation/trial/assessment models
+  with named fallbacks, provider and account, cost estimate or quota boundary, and
+  outgoing data. An approval given before the terms were stated covers only the
+  terms the owner named. Put the remaining terms in the proposal and wait for
+  approval before any model-backed step. Within approved terms, continue without
+  further prompts. Switch only to a named fallback; changes outside the terms need
+  new approval. Editing this skill is not run approval. Do not send private
+  evidence to a new provider without consent.
 - No source edits, global configuration writes, publication, adoption or merge are
   implied. Accepting findings or answering a study question records a decision
   only. A separate explicit operational request must name the action and target;
@@ -33,45 +43,63 @@ Resolve bundled files relative to this loaded skill, never the target repository
 
 ## Workflow
 
-1. **Understand the change.** Inspect the selected diff, relevant unchanged rules
-   and available discussion. Pin revisions and source paths; prepare historical
-   inputs through Behavior Diff's supported provenance and isolation procedure.
-   Do not require the owner to assemble an evidence packet.
-2. **Confirm the question once.** Propose concise intended outcomes, preserved
-   requirements and bounded scope with explicit/inferred sources. Distinguish
-   added rule value from reliability in the owner's current environment. Reuse
-   prior confirmation; ask only about material uncertainty. Keep study questions
-   out of this gate. Goal corrections require reassessing affected evidence.
+1. **Understand the change and route it without model calls.** Load the
+   available `behavior-diff` skill. Inspect the selected diff, relevant unchanged
+   rules and available discussion. Pin revisions and source paths. Then settle the
+   route with deterministic checks: fixture fit, file mapping, host
+   authentication, model availability and isolation, as
+   [execution handoff](references/execution.md) describes. Do not require the
+   owner to assemble an evidence packet or confirm a route the repository answers.
+2. **Send one handoff proposal.** In one message, propose the intended outcomes,
+   preserved requirements, tested scope and route, plus the run terms above, with
+   explicit/inferred sources and a recommendation. Distinguish added rule value
+   from reliability in the owner's current environment. Keep study questions out.
+   Reuse confirmation and authorization already given. A goal correction requires
+   reassessing affected evidence and resending only the changed terms.
 3. **Review, then prepare verification.** Inspect instructions and saved evidence.
    Review completion is not verification completion. For changed agent behavior,
-   proceed directly to preparing a Behavior Diff comparison; do not wait for
-   “now run Behavior Diff.” Existing evidence can satisfy the question only when
-   revisions, conditions and coverage match; explain that conclusion. Report a
-   material ambiguity without editing the source or silently testing a repaired
-   version. Preserve the agreed question unless the owner explicitly changes it.
-4. **Preflight before spending.** Load the available `behavior-diff` skill and
-   follow [execution handoff](references/execution.md). Own fixture preparation,
-   host compatibility, scenario reach and confound checks. Present any missing
-   run authorization as one concrete bounded proposal, not an open-ended menu.
-5. **Run and assess.** Once preflight and authorization are satisfied, launch and
-   follow through to raw actions, returns and artifacts. Separate setup failures,
-   missed cases and unavailable assessment from behavioral failures. Recover
-   within the approved boundary; never rerun merely to obtain a difference.
-6. **Return a decision-ready result.** Lead with retain/revise/hold and why. State
-   what changed versus Before, what stayed intact, what remains unknown, and
-   whether additional instructions showed added value. Link inspectable evidence
+   proceed directly to preparing the Behavior Diff comparison. Existing evidence
+   can satisfy the question only when revisions, conditions and coverage match;
+   explain that conclusion. Report a material ambiguity without editing the source
+   or silently testing a repaired version. Keep the agreed question.
+4. **Preflight before spending.** Follow the execution handoff. Own fixture
+   preparation, host compatibility, isolation, scenario reach and confound checks.
+   A blocker with an in-scope route is work to do, not a stopping point. Ask again
+   only when preflight needs terms outside the approval.
+5. **Run and assess.** After approval, launch and follow through to raw actions,
+   returns and artifacts. Monitor status after each launch and handle failed runs
+   as the execution handoff describes. Separate setup failures, missed cases and
+   unavailable assessment from behavioral failures. Never rerun merely to obtain
+   a difference.
+6. **Return a decision-ready result.** Lead with retain, revise or hold and why.
+   State what changed versus Before, what stayed intact, what remains unknown, and
+   whether additional instructions showed added value. Disclose how files were
+   mapped and any generated-report claim you corrected. Link inspectable evidence
    after the conclusion. Equal outcomes mean no observed added benefit under
    these conditions, not proof that a rule is universally unnecessary. Simulated
    behavior does not prove real-service reliability. Do not wait for the owner
-   to ask what the report means. Do not merge.
+   to ask what the report means.
+
+## Adoption questions
+
+Merge is the owner's decision, not a verification outcome. When asked whether to
+merge, restate the retain/revise/hold result and name the merge-readiness checks
+that did and did not run, such as code review, CI and mergeability. A summary of
+intended changes is not a code review. Do not upgrade the recommendation under a
+leading question. Do not merge.
+
+When the owner asks whether the journey needed them, answer from the session:
+list each owner input and whether it was necessary, without agreeing to a framing
+the record contradicts.
 
 ## Completion and blockers
 
 Finish with the bounded question answered, or an evidence-backed blocker naming
 what failed, what was tried, what remains unverified and the smallest recommended
-resolution. Missing capability is not permission to fake a worker or shrink scope.
-An intermediate review, helper result or successful process exit is not completion.
-Keep the exact run handle and private continuation context for interrupted work.
+resolution. Stop only when no in-scope route exists. Missing capability is not
+permission to fake a worker or shrink scope. An intermediate review, helper
+result or successful process exit is not completion. Keep the exact run handle
+and private continuation context for interrupted work.
 
 After delivery, optional feedback may ask what coordination the owner still had
 to do. Do not require an interview to finish. Distinguish necessary owner choices

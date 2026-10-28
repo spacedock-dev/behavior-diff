@@ -59,11 +59,15 @@ agent. Your job is to prepare `--file` and `--task` well. Runs land under
 `${BEHAVIOR_DIFF_HOME:-~/.behavior-diff}/runs/`.
 
 
-**Spacedock workflow rule?** If the changed file is a spacedock workflow
-doc (the repo contains `cmd/spacedock`, or the user says spacedock / FO /
-ensign / gate), use Spacedock fixtures.
+**Spacedock behavior under test?**
 Spacedock fixtures are isolated before/after test repos. The real Spacedock
-binary creates their workflow state. Do not create this state by editing files.
+binary creates their workflow state; do not create this state by editing files.
+Use these fixtures only when the requested comparison exercises actual Spacedock
+role decisions, engine state or worker handoffs, supported by repository
+configuration/state or an explicit user requirement. Mentions of Spacedock, FO,
+ensign, gate or dispatch alone are not sufficient. Ordinary application-runbook
+decisions use ordinary-agent scenarios without requiring Spacedock or Go.
+Never simulate away a real worker handoff.
 Before designing the run, read
 `references/spacedock-duo.md` inside this skill's base directory. It chooses
 the single-role or two-agent path. Create the fixtures with

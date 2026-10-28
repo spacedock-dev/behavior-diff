@@ -18,11 +18,15 @@ one sample. Report what happened, never say "consistently", and treat the
 decision diff as a sketch until the headless 3+3 confirms it.
 
 
-**Spacedock workflow rule?** If the changed file is a spacedock workflow
-doc (the repo contains `cmd/spacedock`, or the user says spacedock / FO /
-ensign / gate), use Spacedock fixtures.
+**Spacedock behavior under test?**
 Spacedock fixtures are isolated before/after test repos. The real Spacedock
-binary creates their workflow state. Do not create this state by editing files.
+binary creates their workflow state; do not create this state by editing files.
+Use these fixtures only when the requested comparison exercises actual Spacedock
+role decisions, engine state or worker handoffs, supported by repository
+configuration/state or an explicit user requirement. Mentions of Spacedock, FO,
+ensign, gate or dispatch alone are not sufficient. Ordinary application-runbook
+decisions use ordinary-agent scenarios without requiring Spacedock or Go.
+Never simulate away a real worker handoff.
 Before designing the run, read
 `references/spacedock-duo.md` in the sibling `behavior-diff` skill's
 directory (both skills install together). It chooses the single-role or
