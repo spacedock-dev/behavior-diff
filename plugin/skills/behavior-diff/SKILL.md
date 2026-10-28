@@ -1,14 +1,15 @@
 ---
 name: behavior-diff
-description: Compare agent behavior before/after an uncommitted change to CLAUDE.md, AGENTS.md, or a skill file. Use for "behavior diff", "test my CLAUDE.md change", "did my rule change the agent's behavior", "before/after check on my rule edit".
+description: Compare agent behavior before/after an instruction-file change from a local edit, PR, Git revisions, or explicit Before/After files. Use for "behavior diff", "test my CLAUDE.md change", "compare this PR", or "did my rule change the agent's behavior".
 ---
 
 # Behavior diff
 
-Runs Behavior Diff on a local uncommitted instruction-file change. It starts
-fresh headless agent trials with and without the change. The report shows the
-git diff, a flow diff, and every trial's commands and final answer. There is
-no automatic verdict. The user judges the evidence.
+Compares local uncommitted edits, committed changes identified by a PR or Git
+revisions, and explicit Before/After instruction files. It starts fresh headless
+agent trials with each version. The report shows the instruction diff, a flow
+diff, and every trial's commands and final answer. There is no automatic verdict.
+The user judges the evidence. Preparation never modifies the user's checkout.
 
 ## Ownership
 
@@ -70,16 +71,32 @@ the single-role or two-agent path. Create the fixtures with
 
 ## Steps
 
-1. **Find the change.** In the user's current git repo, run
-   `git status --porcelain` and keep only modified instruction files
-   (CLAUDE.md, AGENTS.md, SKILL.md, agent-facing README.md). Exactly one
-   candidate: use it. Several: ask the user which one. None: explain that
-   the change must exist as an uncommitted edit first, and stop.
-   Then read `git diff -- <file>` so you understand what rule changed.
-   Read the selected instruction and its relevant unchanged references before
-   deriving the intent; a diff alone may omit behavior that must be preserved.
+1. **Resolve the requested comparison first.** Do not use working-tree status
+   as an eligibility check for every request. Select inputs in this order:
+   - **PR or Git revisions:** Resolve and pin the exact Before/After commits and
+     selected instruction path from Git or the forge. Honor an explicit baseline;
+     otherwise use the PR's merge base with its pinned head, or a single ordinary
+     commit's parent and that commit. Ask only if a material ambiguity remains
+     (such as which parent of a merge commit or which instruction to compare).
+     Read the historical preparation section in
+     `references/scenario-and-test-data.md` before preparing exact snapshots.
+     Use the existing `--before-file` route. **A clean working tree is valid.**
+     Never require an uncommitted edit or substitute unrelated working-tree files.
+   - **Explicit Before/After files:** Use the supplied versions with
+     `--file <after> --before-file <before>`, regardless of Git status.
+   - **Local edit:** Only when neither source above was requested, inspect
+     `git status --porcelain` for changed instruction files (CLAUDE.md, AGENTS.md,
+     SKILL.md, agent-facing README.md). Use one candidate; ask which if several.
+     If none exists and no explicit file/baseline applies below, report that no
+     local instruction change was found and stop. This stop applies only to
+     local-edit discovery, never to an explicitly requested historical comparison.
 
-   Three cases have no git "before", and each still works:
+   Read the selected instruction, its diff and relevant unchanged references
+   before deriving intent; the diff alone can omit behavior to preserve.
+   For explicit files, use `diff <before> <after>`; for historical inputs use the
+   selected revisions, not the current working-tree diff.
+
+   Additional file/baseline cases:
    - **Untracked file** (git does not know it — e.g. `~/.claude/CLAUDE.md`):
      the plugin's backup hook saved the pre-edit original under
      `${BEHAVIOR_DIFF_HOME:-~/.behavior-diff}/baselines/`, and the runner
@@ -89,8 +106,6 @@ the single-role or two-agent path. Create the fixtures with
      right entry from that store and pass it as `--before-file`.
      If the runner exits saying no baseline exists, ask the user for the
      original content and pass it as `--before-file <path>`.
-   - **User-given before/after files** ("compare A.md and B.md"):
-     run with `--file B.md --before-file A.md`.
    - **Non-git folder**: the runner builds both sandboxes from a plain
      copy of the working folder instead of a HEAD snapshot. Every trial
      copies the whole folder, so run from the smallest folder that holds
@@ -114,11 +129,11 @@ the single-role or two-agent path. Create the fixtures with
    stores, resume other sessions, or infer access to missing turns. The same
    rule applies when orchestrating Pi or OMP.
 
-   For an already-supported historical comparison prepared with
-   `--before-file` or isolated replay fixtures, use the relevant selected commit
-   message and diff instead of the current session's motives. Do not use later
-   commits or trial results to invent the original reason. This does not add a
-   committed-edit invocation mode.
+   Historical comparisons use the relevant selected commit message and diff
+   instead of the current session's motives. Do not use later commits or trial
+   results to invent the original reason. There is no dedicated PR runner flag:
+   the agent resolves the requested PR into exact Before/After inputs using
+   `--before-file` or supported isolated replay fixtures.
 
    Write only the derived goals to a private scratch JSON file outside the
    project. Create the scratch directory with mode `0700` and the JSON file
@@ -321,5 +336,8 @@ the single-role or two-agent path. Create the fixtures with
 - Never write, stage, stash, or commit shared data in the user's checkout.
 - The report quotes the user's real code. Never publish it anywhere
   without the user reviewing it first.
-- Do not edit the user's instruction file yourself — this skill only
-  measures a change the user already made.
+- Do not author, repair or alter the instruction change under test, or modify
+  the user's checkout to manufacture an uncommitted edit. Reading committed
+  versions and materializing byte-preserving copies in private scratch space
+  is permitted preparation. Preserve required companion files and record the
+  selected revisions; never weaken Before or silently repair After.
