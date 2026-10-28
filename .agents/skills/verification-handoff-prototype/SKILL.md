@@ -1,91 +1,87 @@
 ---
 name: verification-handoff-prototype
-description: Operates a local conversational handoff-to-decision replay with corrected goals and scoped evidence. Use when an owner explicitly requests the verification handoff prototype with a supplied change, context and local evidence packet; not for ordinary Behavior Diff trials.
+description: Carries an instruction change from owner-confirmed goals through review and authorized Behavior Diff verification to a decision-ready recommendation. Use when the owner wants to hand off verification of a change or PR without coordinating the agent's next steps.
 ---
 
 # Verification handoff prototype
 
-Answer whether the owner can hand off verification work and decide from credible
-evidence. This is a maintainer prototype, not the installed Behavior Diff skill.
-Use these same instructions on Claude Code and Codex; OMP may load this source
-path explicitly. Do not infer installed discovery or Spacedock adapter support.
+Own verification through a decision-ready result. Success means less owner
+coordination, not completion of a checklist. This maintainer skill orchestrates
+Behavior Diff; it does not replace its preparation, runner or evidence contracts.
+Use the same workflow on Claude Code and Codex. OMP may load this source explicitly.
+Resolve bundled files relative to this loaded skill, never the target repository.
 
-## Prerequisites and boundaries
+## Ownership and authority
 
-Use Python 3.10+ and the bundled `scripts/replay.py`; no dependencies or service.
-Read only the supplied change, discussion/documents and explicit case root.
-Do not search transcript stores, unrelated archives or the related reader study.
-Read private evidence only with permission; never send it to a new model/service,
-copy it into a tracked tree, launch a trial, change source evidence or publish it.
-Explain: fixed-evidence replay, not fresh verification, latency measurement or
-first-time intent inference. Disclose familiarity with the known case. Historical
-purpose remains frozen: corrected replay goals do not rewrite experimental intent.
-The production skill's automatic-launch and frozen-purpose contracts are unchanged.
+- Own discovery, planning, tool selection, preflight, execution, bounded recovery
+  and interpretation. Never ask the owner to select evidence IDs, design tests,
+  debug the harness or remind you to take the next agreed step.
+- Ask only for material goal corrections, unavailable domain facts, or missing
+  authority. Each interruption states the concrete decision, recommendation and
+  consequence. Continue useful independent work while awaiting that answer.
+- Before paid trials, obtain approval covering purpose, trial count, model/provider,
+  cost estimate or explicit budget, and outgoing data. Reuse approval within that
+  scope; changes to scope or budget need new approval. Editing this skill is not
+  run approval. Do not send private evidence to a new provider without consent.
+- No source edits, global configuration writes, publication, adoption or merge are
+  implied. Accepting findings or answering a study question records a decision
+  only. A separate explicit operational request must name the action and target;
+  clarify ambiguous replies in an evaluation context before external action.
+- Keep private inputs/results outside Git trees. Do not search transcript stores
+  or unrelated studies unless explicitly requested. Do not persist raw owner
+  responses by default. Familiarity and reused evidence must be disclosed.
 
-For an offline demonstration use `fixtures/synthetic.json`, explicitly invented.
-For the real walkthrough prepare the private packet yourself from permitted local
-sources, with source coordinates, reused labels, provenance and limits. If missing,
-report that prerequisite; never substitute synthetic findings for the real case.
+## Workflow
 
-## Conversation
+1. **Understand the change.** Inspect the selected diff, relevant unchanged rules
+   and available discussion. Pin revisions and source paths; prepare historical
+   inputs through Behavior Diff's supported provenance and isolation procedure.
+   Do not require the owner to assemble an evidence packet.
+2. **Confirm the question once.** Propose concise intended outcomes, preserved
+   requirements and bounded scope with explicit/inferred sources. Distinguish
+   added rule value from reliability in the owner's current environment. Reuse
+   prior confirmation; ask only about material uncertainty. Keep study questions
+   out of this gate. Goal corrections require reassessing affected evidence.
+3. **Review, then prepare verification.** Inspect instructions and saved evidence.
+   Review completion is not verification completion. For changed agent behavior,
+   proceed directly to preparing a Behavior Diff comparison; do not wait for
+   “now run Behavior Diff.” Existing evidence can satisfy the question only when
+   revisions, conditions and coverage match; explain that conclusion. Report a
+   material ambiguity without editing the source or silently testing a repaired
+   version. Preserve the agreed question unless the owner explicitly changes it.
+4. **Preflight before spending.** Load the available `behavior-diff` skill and
+   follow [execution handoff](references/execution.md). Own fixture preparation,
+   host compatibility, scenario reach and confound checks. Present any missing
+   run authorization as one concrete bounded proposal, not an open-ended menu.
+5. **Run and assess.** Once preflight and authorization are satisfied, launch and
+   follow through to raw actions, returns and artifacts. Separate setup failures,
+   missed cases and unavailable assessment from behavioral failures. Recover
+   within the approved boundary; never rerun merely to obtain a difference.
+6. **Return a decision-ready result.** Lead with retain/revise/hold and why. State
+   what changed versus Before, what stayed intact, what remains unknown, and
+   whether additional instructions showed added value. Link inspectable evidence
+   after the conclusion. Equal outcomes mean no observed added benefit under
+   these conditions, not proof that a rule is universally unnecessary. Simulated
+   behavior does not prove real-service reliability. Do not wait for the owner
+   to ask what the report means. Do not merge.
 
-1. Before showing results, use the supplied context to propose the modification
-   intent, preserved requirements, bounded evidence-review plan and limits. Label
-   each goal explicit or inferred with its source. Ask only about material
-   uncertainty: recommend a bounded option, allow none-of-the-above/free correction.
-   Do not ask the owner to select evidence IDs, design tests or repair mappings.
-2. Capture the owner's usual verification approach and remaining question in their
-   own words during this same walkthrough. Do not assume their bottleneck or invent
-   a response. Record observations privately only with consent; no raw transcript
-   persistence by default. The helper stores only goals, reviewed bindings and choice.
-3. Initialize the snapshot with your proposed goals. Apply exact owner corrections,
-   then confirm the current revision only after actual confirmation. Do not treat
-   a helper success as owner consent. Continue directly to evidence review/results
-   without requiring another “please continue”. A correction clears that goal's
-   support, confirmation and prior decision; unchanged goals retain their support.
-4. Review records against each *current exact requirement*. Bind supported or
-   contradicted observations only with scoped citations, a reason and scope.
-   Matching words do not establish semantic equivalence. Missing support stays
-   unverified with a concrete next verification step; do this mapping yourself.
-5. Request the confirmed result. Lead with findings, reasons, limits and decision
-   consequences, then offer exact read-only evidence entries. Distinguish
-   preservation, case reach, environmental blockers and recovery. Name reused versus
-   synthetic evidence; distinguish saved authors' interpretations from inspected
-   action/return/artifact slices. Do not claim whole-flow/service coverage from a slice.
-6. Let the owner inspect evidence, correct again, accept the stated limits, revise,
-   or request a bounded additional-verification proposal. Record only that choice;
-   “accept” never adopts, merges, changes files, runs models or contacts a service.
-7. With consent, privately record each actual takeover, trigger, work, observable
-   attention/wait burden, and necessary owner choice versus avoidable agent work.
-   Ask what decision is now possible, what still needs checking and which remaining
-   burden is most costly versus their baseline. Select the next experiment from
-   that answer. Negative/inconclusive value is valid; praise is not value evidence.
+## Completion and blockers
 
-## Helper protocol (host-operated, not owner homework)
+Finish with the bounded question answered, or an evidence-backed blocker naming
+what failed, what was tried, what remains unverified and the smallest recommended
+resolution. Missing capability is not permission to fake a worker or shrink scope.
+An intermediate review, helper result or successful process exit is not completion.
+Keep the exact run handle and private continuation context for interrupted work.
 
-Create a private directory outside **all** Git trees (mode 0700); snapshot files
-are mode 0600. Keep private packets there too. Run from the repository root:
+After delivery, optional feedback may ask what coordination the owner still had
+to do. Do not require an interview to finish. Distinguish necessary owner choices
+from avoidable reminders, debugging and interpretation. Never invent time saved.
 
-```sh
-python3 .agents/skills/verification-handoff-prototype/scripts/replay.py \
-  --state "$PRIVATE/session.json" --root "$CASE_ROOT" <<'JSON'
-{"action":"init","goals":[{"id":"review","text":"Stop for human review.","basis":"inferred","reference":"Supplied change","next":"Inspect the final stop and adoption actions."}]}
-JSON
-```
+## Explicit saved-evidence replay
 
-One JSON action on stdin per invocation, one JSON result on stdout; errors go to
-stderr with exit 1. Every action except `init` and read-only `show` requires `revision`.
-Use `show` to recover it; stale calls fail rather than silently rebase. Commands:
-
-- `correct`: `id`, exact `text`; `replace`: complete `goals` list, clears all support.
-- `bind`: `id`, `status` (`supported`/`contradicted`), `origin` (`reused`/`synthetic`),
-  nonblank `reason`, `scope`, and `citations` list of `{path,start,end}` objects.
-  Paths are relative to the supplied root; line ranges inclusive, at most 120.
-- `confirm`, then `result`: no extra fields. Changed/missing citations become gaps.
-- `evidence`: `citation` object; prints numbered source lines without execution.
-- `decide`: `choice` (`accept`/`revise`/`request-verification`); requires the current
-  result. Any correction returns to confirmation/review; never relabel old results.
-
-Keep the runnable private packet and a concise walkthrough handle for gate review,
-not a fabricated owner transcript. Helper smoke/tests establish mechanics only;
-AC-1/AC-2 need actual owner interaction and AC-3 remains owner-dependent.
+When the owner asks only for replay or forbids new runs, review the supplied
+evidence and identify gaps without launching trials. Use the optional
+[replay helper](references/replay.md) for revision-bound evidence mapping.
+Its fixed-evidence result describes that subset, not the whole verification
+journey. `fixtures/synthetic.json` is an invented helper demonstration, never
+real verification evidence. The helper is not a prerequisite for live comparison.
