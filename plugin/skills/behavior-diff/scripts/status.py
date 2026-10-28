@@ -298,6 +298,26 @@ def build_view(run_dir, local_host, now):
                 }
             )
         return view
+    # The foreground posttrial adapter writes its own coordinator record.
+    # Bash remains the sole authority for run ownership and terminal state.
+    coordinator_name = "coordinator-status.json"
+    try:
+        coordinator = progress.read_record(run_dir / coordinator_name, "run")
+        if coordinator is not None:
+            if (
+                coordinator["run_id"] != run["run_id"]
+                or coordinator["trials"] != run["trials"]
+                or coordinator["phase"]
+                not in ("checking_results", "comparing_evidence", "rendering")
+            ):
+                raise progress.ProgressError("coordinator metadata does not match run")
+            run = dict(run)
+            if run["phase"] != "finished":
+                run["phase"] = coordinator["phase"]
+            if "report" in coordinator:
+                run["report"] = coordinator["report"]
+    except progress.ProgressError as error:
+        view["diagnostics"].append(diagnostic(coordinator_name, error))
 
     status, owner = run_status(run, local_host)
     live = status in LIVE_STATUSES

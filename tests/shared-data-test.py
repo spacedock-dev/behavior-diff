@@ -1257,7 +1257,8 @@ class RunnerSmokeTests(Fixtures, unittest.TestCase):
             timeout=900,
         )
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        self.assertEqual(self.verify(stage).returncode, 0)
+        verified = self.verify(stage)
+        self.assertEqual(verified.returncode, 0, verified.stdout + verified.stderr)
 
     def check_run(self, stage, agent, trials, before, purpose):
         runs = sorted((stage / "home/runs").iterdir())
@@ -1326,6 +1327,18 @@ class RunnerSmokeTests(Fixtures, unittest.TestCase):
         grades = (run / "grades.tsv").read_text().splitlines()
         self.assertEqual(len(grades), 2 * trials)
         self.assertTrue(all(line.split("\t")[1] == "REVIEW" for line in grades))
+        for name in ("grading", "extraction", "rendering"):
+            stage = json.loads((run / "stages" / f"{name}.json").read_text())
+            self.assertEqual(stage["stage"], name)
+            self.assertEqual(
+                stage["state"], "failed" if name == "extraction" else "completed"
+            )
+        coordinator = json.loads((run / "coordinator-status.json").read_text())
+        self.assertEqual(coordinator["phase"], "rendering")
+        self.assertEqual(coordinator["report"]["state"], "available")
+        self.assertEqual(
+            json.loads((run / "status.json").read_text())["state"], "completed"
+        )
 
         calls = [json.loads(line) for line in self.log.read_text().splitlines()]
         launched = [call for call in calls if call["kind"] == "trial"]

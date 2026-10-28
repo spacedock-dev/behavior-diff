@@ -982,6 +982,56 @@ def assert_watch():
             assert status_json(stopped)["status"] == "running"
 
 
+def assert_posttrial_coordinator_overlay():
+    with sandbox() as root:
+        run_dir = root / "diff-coordinator"
+        base = run_record(owner=live_identity())
+        write_record(run_dir / "status.json", base)
+        report = run_dir / "report.html"
+        report.write_text("synthetic report")
+        coordinator = run_record(
+            phase="rendering", report={"state": "available", "path": str(report)}
+        )
+        write_record(run_dir / "coordinator-status.json", coordinator)
+        view = status_json(run_dir)
+        assert view["run"]["phase"] == "rendering", view
+        assert view["status"] == "running", view
+        assert view["report"]["state"] == "available", view
+        assert view["run"]["owner"]["pid"] == base["owner"]["pid"], view
+        for state, phase, code in (
+            ("completed", "finished", 0),
+            ("interrupted", "running_trials", 143),
+        ):
+            write_record(
+                run_dir / "status.json",
+                {
+                    **base,
+                    "state": state,
+                    "phase": phase,
+                    "exit_code": code,
+                    "ended_at": timestamp(),
+                },
+            )
+            view = status_json(run_dir)
+            assert view["status"] == state, view
+            assert view["run"]["exit_code"] == code, view
+            assert view["run"]["phase"] == (
+                "finished" if state == "completed" else "rendering"
+            ), view
+        write_record(
+            run_dir / "coordinator-status.json",
+            {
+                **coordinator,
+                "run_id": "different-run",
+            },
+        )
+        view = status_json(run_dir)
+        assert any(
+            item["record"] == "coordinator-status.json" for item in view["diagnostics"]
+        ), view
+        assert view["report"]["state"] == "pending", view
+
+
 def main():
     assert_writer_contract()
     assert_owner_is_the_calling_subshell()
@@ -989,6 +1039,7 @@ def main():
     assert_counts_and_problems()
     assert_pending_and_quiet_workers()
     assert_assessment_and_report_outcomes()
+    assert_posttrial_coordinator_overlay()
     assert_owner_liveness()
     assert_workers_outlive_controller()
     assert_invalid_and_legacy_metadata()

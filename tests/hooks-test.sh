@@ -536,7 +536,7 @@ mkdir -p "$capture_bin"
 cat >"$capture_bin/python3" <<'SH'
 #!/bin/sh
 case "$1" in
-  */purpose.py | */scenario.py | */ci_context.py) exec "$REAL_PYTHON" "$@" ;;
+  */purpose.py | */scenario.py | */ci_context.py | */posttrial.py) exec "$REAL_PYTHON" "$@" ;;
   */progress.py) exit 0 ;;
 esac
 {

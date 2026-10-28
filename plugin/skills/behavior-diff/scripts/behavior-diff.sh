@@ -355,7 +355,8 @@ record_status() { # $1 record, $2 kind, $3 JSON fields, [--owner]
 }
 
 # The runner owns RUN_DIR/status.json. Each trial worker owns its trial
-# directory's status.json, and decisions.py owns assessment-status.json.
+# status.json; decisions.py owns assessment-status.json. The foreground
+# posttrial adapter owns coordinator-status.json and its per-stage records.
 record_status "$run/status.json" run "$(jq -cn --arg run_id "$run_id" \
   --arg project "$repo" --arg target "$rel" --arg agent "$agent" \
   --arg model "$model" --arg trials "$trials" \
@@ -568,22 +569,6 @@ for v in before after; do
 done
 wait || true
 
-record_status "$run/status.json" run '{"phase":"checking_results"}'
-milestone "all trials ended; checking trial results"
-
-# Review mode: BLOCKED for runs without a final answer, neutral REVIEW otherwise.
-# Report loading also blocks a trial whose status record shows a native failure.
-for v in before after; do
-  for t in $(seq 1 "$trials"); do
-    verdict=REVIEW
-    has_final_result "$run/$v-$t/trace.jsonl" || verdict=BLOCKED
-    printf '%s\t%s\t-\n' "$v-$t" "$verdict"
-  done
-done >"$run/grades.tsv"
-
-say
-# Decision diff: one model pass over the final answers. Best-effort — if it
-# fails, render.py falls back to the command-derived flow diff alone.
 if [ -z "$extract_agent" ]; then
   case "$extract_model" in
     sol | luna) extract_agent=codex ;;
@@ -599,21 +584,9 @@ case "$agent" in
     esac
     ;;
 esac
-record_status "$run/status.json" run '{"phase":"comparing_evidence"}'
-milestone "comparing evidence"
-guarded_step python3 "$scripts/decisions.py" "$run" ${extract_agent:+--agent "$extract_agent"} ${extract_model:+--model "$extract_model"} || true
-record_status "$run/status.json" run '{"phase":"rendering"}'
-milestone "rendering report"
-render_code=0
-guarded_step python3 "$scripts/render.py" "$run" "$run" "$model" "$run/config.json" || render_code=$?
-# Availability needs the renderer's success, not only a file left behind.
-if [ "$render_code" -eq 0 ] && [ -s "$run/report.html" ]; then
-  record_status "$run/status.json" run \
-    "$(jq -cn --arg path "$run/report.html" '{report:{state:"available", path:$path}}')"
-  milestone "report ready: $run/report.html"
-else
-  record_status "$run/status.json" run '{"report":{"state":"failed","path":null}}'
-  milestone "report not produced (renderer exit $render_code)"
-fi
-[ "$render_code" -eq 0 ] || exit "$render_code"
+# The adapter owns posttrial dependency ordering and its separate status record.
+# Retain guarded output capture and the runner's terminal/interrupt traps.
+guarded_step python3 "$scripts/posttrial.py" "$run" --trials "$trials" \
+  --model "$model" ${extract_agent:+--extract-agent "$extract_agent"} \
+  ${extract_model:+--extract-model "$extract_model"}
 open "$run/report.html" 2>/dev/null || true
