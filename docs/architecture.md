@@ -981,20 +981,26 @@ owns the verification handoff, separate from the installed plugin:
 
 ```text
 Selected change + project context
-  -> host proposes goals -> owner confirms/corrects material scope
+  -> no-model route checks (fixture fit, file mapping, host, models, isolation)
+  -> one handoff proposal: goals + route + run terms with named model fallbacks
+     (skipped when the request already authorizes them)
   -> instruction and saved-evidence review
   -> Behavior Diff preparation + compatibility/isolation preflight
-  -> bounded live-run approval if missing -> execute + audit evidence
-  -> decision-ready recommendation -> owner adoption decision (no automatic merge)
+  -> execute, check status, recover within terms -> audit evidence
+  -> retain/revise/hold recommendation -> owner adoption decision (no merge)
 ```
 
+The owner's touchpoints are the request, one proposal and the adoption decision.
 The host owns planning, preparation, bounded recovery and interpretation, without
-requiring owner reminders between stages. It delegates comparison mechanics to
-Behavior Diff's existing contracts, not a second runner. It checks fixture fit,
-scenario reach and environment confounds before launch; unsupported capabilities
-remain blockers rather than silently reduced scope. Paid runs and private-data
-handoffs need explicit bounded authority. Global configuration is not a write target.
-Evaluation responses never authorize PR operations.
+requiring owner reminders between stages. It decides whether a workflow engine is
+under test from the target repository, not instruction wording. It normally runs
+the fresh preparer as an isolated host subprocess, using a disposable private
+launcher when Behavior Diff has no host isolation. It delegates comparison
+mechanics to Behavior Diff's existing contracts, not a second runner. Unsupported
+capabilities remain blockers rather than silently reduced scope. Paid runs and
+private-data handoffs need explicit bounded authority; model switches are limited
+to named fallbacks. Global configuration is not a write target. Evaluation
+responses and merge questions never authorize PR operations.
 
 Explicit replay-only requests use saved evidence without new trials. Optional
 `replay.py` owns private snapshots, correction invalidation, confirmed revisions
