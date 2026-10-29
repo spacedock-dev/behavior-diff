@@ -1,15 +1,16 @@
 ---
-name: verification-handoff-prototype
-description: Carries an instruction change from one owner-approved handoff proposal through review and Behavior Diff verification to a decision-ready recommendation. Use when the owner wants to hand off verification of a change or PR without coordinating the agent's next steps.
+name: behavior-rehearse
+description: Reviews an instruction change or PR and carries one bounded owner-approved verification through Behavior Diff to an action-first recommendation. Use when the owner wants to know whether to merge, revise, or hold a behavior change without coordinating the verification steps.
 ---
 
-# Verification handoff prototype
+# Behavior Rehearsal
 
 Own verification through a decision-ready result. Success means less owner
-coordination, not completion of a checklist. The handoff owns the journey;
+coordination, not completion of a checklist. Behavior Rehearsal owns the journey;
 Behavior Diff owns the comparison; the existing runner owns execution.
-Use the same workflow on Claude Code and Codex. OMP may load this source explicitly.
-Resolve bundled files relative to this loaded skill, never the target repository.
+Use the same workflow on Claude Code and Codex. Other hosts may load this skill.
+Resolve bundled files relative to this loaded skill's physical directory, never
+the target repository or an original source checkout.
 
 ## Ownership and authority
 
@@ -51,11 +52,26 @@ subject. Explain what benefit was observed, what risk remains, and whether that
 risk changes the recommendation. The owner must not need to open a report to
 understand the decision.
 
-Use short, natural paragraphs. Translate retain/revise/hold into a concrete action:
-"keep these instructions", "change this rule", or "wait for evidence about this
-behavior". Name what is on hold; a failed test is not a reason by itself to reject
-the PR. Distinguish intended benefits from demonstrated benefits. Do not turn
-missing evidence into reassurance.
+Use short, natural paragraphs. Name the adoption decision and the concrete action
+the owner should take; "keep the instructions" alone does not answer whether to
+merge a PR. A failed test is not a reason by itself to reject the PR. Distinguish
+intended benefits from demonstrated benefits, and do not turn missing evidence
+into reassurance.
+
+The first post-verification conclusion must give the action without waiting for
+the owner to ask: **"Recommend merging <PR>"**, **"Recommend revising <named rule>
+to <specific change>"**, or **"Hold <named adoption/merge decision>: <concrete
+blocker>"**. For a change without a PR, name the equivalent keep/revise/hold
+decision for that change. Give the reason immediately, then the observed benefit,
+preserved safeguards and any uncertainty that changes the decision. Do not lead
+with a verification-status label or defer the recommendation to a follow-up.
+
+State supported confidence in the owner's actual safeguards: name which checks,
+approval stops or other protections remained intact in the inspected evidence.
+Do not promise guarantees or turn a missing observation into reassurance. Do not
+append default "only simulation" or "not E2E" boilerplate. Explain a method limit
+in the answer when its practical consequence changes the decision; otherwise put
+the accurate scope and methodology in linked evidence.
 
 Keep commands, trace formats, sandbox details, source mappings and diagnostic
 history in linked evidence unless they change the owner's decision. Explain
@@ -70,22 +86,32 @@ Humanizer guidance in embedded mode without installing it or changing evidence.
 1. **Understand the decision without model calls.** Resolve and load the canonical
    `behavior-diff` skill using the source-selection rule in
    [execution handoff](references/execution.md). Inspect the selected diff,
-   relevant unchanged rules and available discussion. Give Behavior Diff the
-   owner's question and source context; use its method to resolve inputs,
-   requirements, capabilities, tested scope and claim limits. Do not require the
-   owner to assemble an evidence packet or confirm facts the repository answers.
-   By default, answer whether the change helps in the supported current
-   environment; do not ask the owner to choose a technical comparison mode.
-2. **Settle authority once.** If needed, send one proposal with the intended
-   outcomes, preserved requirements, tested scope, important limits and missing
-   run terms, with explicit/inferred sources and a recommendation. Behavior Diff
-   supplies comparison-specific terms; communicate them, not a design exercise.
-   Skip renewed consent for terms already authorized. Keep study questions out.
-   A goal correction requires reassessing affected evidence and resending only
-   changed terms.
+   relevant unchanged rules and available discussion before asking about the goal.
+   If the request leaves materially different verification goals open, offer 2–4
+   concrete, outcome-based options derived from that change. Mark one recommended
+   and explain why; usually check both the intended new behavior and preservation
+   of existing safeguards. Allow the owner to name a different concern. Do not
+   ask only "What do you want to verify?" or present model, fixture or execution
+   mode choices as goals. If the goal is already clear, skip the options.
+   Give Behavior Diff the proposed or explicit question and source context; use
+   its method to resolve inputs, capabilities, tested scope and run terms. Do not
+   require the owner to assemble evidence or confirm repository-provided facts.
+2. **Settle goal and authority together.** Put any goal options and their
+   recommendation in the same handoff proposal as the applicable bounded run
+   terms, following [execution handoff](references/execution.md#handoff-proposal).
+   State which option each set of terms covers. Explicitly say that "approve"
+   accepts the recommended goal and its stated run terms; choosing a goal alone
+   is not run authorization. Do not add separate scope and execution approval
+   rounds when one proposal can settle both. Reuse existing authorization and
+   skip renewed consent for covered terms. A different goal requires reassessing
+   affected scope and resending only terms not already authorized. Keep study
+   questions out; the owner chooses the outcome, not the comparison design.
 3. **Review, then prepare verification.** Inspect instructions and saved evidence.
-   Review completion is not verification completion. For changed agent behavior,
-   continue directly through Behavior Diff's canonical preparation and preflight.
+   For a PR, independently gather the relevant normal code-review findings, CI
+   results and mergeability through read-only repository/forge tools; do not ask
+   the owner to assemble them. Review completion is not verification completion.
+   For changed agent behavior, continue directly through Behavior Diff's canonical
+   preparation and preflight.
    Existing evidence can satisfy the question only when revisions, conditions and
    coverage match; explain that conclusion. Report a material ambiguity without
    editing the source or silently testing a repaired version.
@@ -102,23 +128,30 @@ Humanizer guidance in embedded mode without installing it or changing evidence.
    supported route is work to do, not owner homework. Ask again only for a
    material goal correction, unavailable fact or authority beyond approved terms.
    Never rerun merely to obtain a difference.
-6. **Return a decision-ready result.** Follow the explanation guidance above.
-   Recommend retain, revise or hold in ordinary language, naming the change and
-   the reason. Explain what improved versus Before, what stayed intact, and what
-   remains uncertain in terms of the owner's workflow. Say what adopting now
-   would leave unverified and whether to change the PR, wait, or leave it alone
-   while verification continues. Put file mappings and report corrections in the
-   linked evidence; bring any correction that changes the recommendation into
-   the answer. Equal results do not prove a rule unnecessary, and simulated
-   behavior does not prove real-service reliability.
+6. **Return a decision-ready result.** Give the action-first conclusion above in
+   the first post-verification answer, not only after an adoption question.
+   Explain what improved versus Before, what stayed intact, and what remains
+   uncertain in terms of the owner's workflow. Apply the merge-readiness rule
+   below before recommending merge. Put file mappings, detailed methodology and
+   report corrections in linked evidence; surface any correction or uncertainty
+   that changes the recommendation. Equal results do not prove a rule unnecessary,
+   and evidence about agent decisions does not establish unobserved service behavior.
 
 ## Adoption questions
 
-Merge is the owner's decision, not a verification outcome. When asked whether to
-merge, restate the retain/revise/hold result and name the merge-readiness checks
-that did and did not run, such as code review, CI and mergeability. A summary of
-intended changes is not a code review. Do not upgrade the recommendation under a
-leading question. Do not merge.
+Recommend merging a PR only when the behavior evidence supports adoption and the
+relevant normal code review, current CI results and mergeability have been checked
+for the reviewed head. Independently obtain these read-only, including unresolved
+material review findings and required checks; a summary of intended changes is not
+a code review, and missing, pending or skipped required checks are not passes.
+If a required check is unavailable or inconclusive, hold the merge recommendation
+and name that blocker while preserving any supported behavioral findings. Refresh
+readiness if the head changes; do not apply evidence to an unreviewed revision.
+
+Merge remains the owner's decision. A recommendation is not execution
+authorization: do not merge, publish, adopt or edit the source under this skill.
+When asked later whether to merge, use the same evidence standard; do not upgrade
+the recommendation merely because the question leads toward approval.
 
 When the owner asks whether the journey needed them, answer from the session:
 list each owner input and whether it was necessary, without agreeing to a framing

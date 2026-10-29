@@ -30,20 +30,24 @@ Keep private sources, trials, reports, and temporary comparisons outside this
 checkout. No model-backed verification runs in CI. Synthetic fixtures remain
 the deterministic test set and supplemental edge-case examples.
 
-## Local verification handoff prototype
+## Behavior rehearsal and replay checks
 
-For the isolated, conversational handoff-to-decision replay, explicitly load
-[the maintainer skill source](../.agents/skills/verification-handoff-prototype/SKILL.md)
-in Claude Code or Codex, then supply the change, permitted context and case root.
-OMP can load that same path; this is not an installed-plugin or runtime-adapter claim.
+The shipped [`behavior-rehearse` skill](../plugin/skills/behavior-rehearse/SKILL.md)
+is the guided review-to-recommendation entry. In Claude Code invoke
+`/behavior-diff:behavior-rehearse`; in Codex invoke `$behavior-rehearse`, then supply
+the selected change or PR and permitted context. It delegates comparison to the
+sibling `behavior-diff` skill in the same installed plugin. No source-checkout
+maintainer skill is needed. Live comparisons still require bounded model-cost
+approval; replay-only requests do not run trials or external actions.
+
+For the conversational fixed-evidence replay, also supply the private case root.
 The host operates the helper; the owner should not have to choose evidence IDs.
-
-Python 3.10+ is sufficient. The skill includes the one-command helper invocation
+Python 3.10+ is sufficient for replay. The skill includes the helper invocation
 and `fixtures/synthetic.json` for an offline, invented demonstration. Run its
 deterministic behavior checks separately with:
 
 ```sh
-python3 tests/verification-handoff-prototype-test.py
+python3 tests/behavior-rehearse-test.py
 ```
 
 Use a mode-0700 directory outside all Git trees for mode-0600 session/packet files.

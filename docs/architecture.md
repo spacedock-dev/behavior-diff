@@ -18,7 +18,13 @@ scripts handle execution, evidence, and reporting.
 +----------------------------+----------------------------+
                              v
 +---------------------------------------------------------+
-| Skill preparation (LLM; reference recipe)               |
+| behavior-rehearse: guided journey (optional entry)       |
+| Review context -> reuse authority / one bounded proposal|
+| Delegate comparison to sibling behavior-diff skill     |
++----------------------------+----------------------------+
+                             v
++---------------------------------------------------------+
+| behavior-diff preparation (LLM; reference recipe)       |
 | Change intent + preservation -> capabilities/premises   |
 | -> neutral task + ordinary/bounded edge data + private  |
 | case criteria; reuse sufficient project data            |
@@ -59,6 +65,13 @@ scripts handle execution, evidence, and reporting.
 | reached / missed / unknown; intent supported /          |
 | contradicted / insufficient evidence; run health apart; |
 | report agreement or gap disclosed; user decides         |
++---------------------------------------------------------+
+                             v
++---------------------------------------------------------+
+| behavior-rehearse: first final answer (guided entry)    |
+| Action + reason first; decision-changing risks visible |
+| Detailed evidence and methodology linked; no adoption |
+| action or external effect implied                     |
 +---------------------------------------------------------+
 ```
 
@@ -1023,29 +1036,33 @@ synthetic local emulators only. An explicit publication-policy update and review
 of actual outgoing content remain required before uploading any private session;
 blinding and private repository visibility are not publication permission.
 
-## Local verification handoff prototype
+## Guided behavior rehearsal
 
-The repository-local [maintainer skill](../.agents/skills/verification-handoff-prototype/SKILL.md)
-owns the journey, the canonical Behavior Diff skill owns the comparison, and the
-existing runner owns execution. These are responsibilities, not new processes
-or an additional coordinator.
+The shipped [`behavior-rehearse` skill](../plugin/skills/behavior-rehearse/SKILL.md)
+is the guided user entry. It owns the journey, the sibling `behavior-diff`
+skill owns the comparison, and the existing runner owns execution. These are
+responsibilities, not new processes or an additional coordinator. Direct
+`behavior-diff` requests still enter comparison preparation without the review
+journey.
 
 ```text
 Owner's question + selected change + existing authority
-  -> handoff: review context and delegate comparison to Behavior Diff
-  -> Behavior Diff: resolve inputs, feasibility, and missing run terms
-  -> handoff: one proposal only for missing authority or material decisions
+  -> behavior-rehearse: review context and delegate comparison to behavior-diff
+  -> behavior-diff: resolve inputs, feasibility, and missing run terms
+  -> behavior-rehearse: one proposal for missing authority or material decisions
   -> Behavior Diff: prepare -> freeze -> verify
   -> existing runner: fresh trials -> recorded evidence -> existing posttrial path
-  -> Behavior Diff: assess reached cases, findings, limits, and execution health
-  -> handoff: practical recommendation + adoption risk (no merge)
+  -> behavior-diff: assess reached cases, findings, limits, and execution health
+  -> behavior-rehearse: action-first recommendation + adoption risk (no merge)
 ```
 
-The handoff follows delegated work through completion without owner reminders,
+Behavior Rehearsal follows delegated work through completion without owner reminders,
 but does not maintain another scenario recipe, launch command, or behavioral
-assessment. It uses one resolved Behavior Diff version even when reviewing a
-different repository. Existing frozen input records, run handles, status readers,
-and evidence remain authoritative; this introduces no new handoff schema or
+assessment. It resolves `behavior-diff` from the same installed plugin's sibling
+skill directory, including when reviewing a different repository, rather than
+from a maintainer `.agents` directory or the original source checkout.
+Existing frozen input records, run handles, status readers, and evidence remain
+authoritative; this introduces no new handoff schema or
 automatic execution-resume promise.
 
 Ordinary comparisons use the existing runner's supported host path. The optional
@@ -1058,6 +1075,11 @@ without prior discussion or outcomes. Required safety or evidence boundaries
 cannot be waived merely to complete a journey.
 
 The handoff reuses existing authorization and requests only missing terms.
+When the goal is ambiguous, it first inspects the change, then offers 2–4
+outcome-based options with a recommendation in the same proposal as the run terms.
+Clear goals skip this menu. Explicit approval accepts the stated goal and covered
+run terms; selecting a goal alone does not authorize execution. A changed goal
+requires only uncovered terms to be approved, not a new stage-by-stage consent loop.
 Paid runs, changed provider/data exposure, and expanded scope need bounded
 authority. No global configuration writes or PR operations are implied.
 An execution failure stops the affected work, not safe non-model diagnosis or
@@ -1066,10 +1088,11 @@ recovery; the handoff carries it through within authority or explains the
 remaining decision. It does not build a replacement launcher.
 
 The agreed question determines whether a simulation is sufficient or a live
-service is required. The final answer explains what to do with the change, why,
-and what remains unverified. Detailed evidence stays in private links; risks
-that affect the decision remain visible. A useful null result can complete the
-journey; missing required evidence or failed execution cannot.
+service is required. The first final answer leads with what to do with the
+change and why, followed by decision-changing risk and remaining required
+evidence gaps. Non-decision-changing methodology and detailed evidence stay in
+private links. A useful null result can complete the journey; missing required
+evidence or failed execution cannot.
 
 Explicit replay-only requests use saved evidence without new trials. Optional
 `replay.py` owns private snapshots, correction invalidation, confirmed revisions
