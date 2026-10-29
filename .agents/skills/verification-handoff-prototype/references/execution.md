@@ -1,9 +1,11 @@
 # Execution handoff
 
-The host owns this work. Do not expose helper setup as owner homework. Load the
-available Behavior Diff skill once and retain its exact base and version. In a
-Behavior Diff development checkout, use its canonical `plugin/skills/behavior-diff`
-source; elsewhere use the discovered installed skill. Never silently mix versions.
+The host owns this work. Do not expose helper setup as owner homework. Resolve
+this handoff skill's physical location before choosing Behavior Diff. If it
+belongs to a Behavior Diff source checkout, load that checkout's canonical
+`plugin/skills/behavior-diff` source, even when the reviewed project is elsewhere.
+Otherwise load the discovered installed Behavior Diff skill. Retain its exact
+base and version for the whole comparison; never silently mix versions.
 Missing tooling is a concrete prerequisite to resolve or report, not permission
 to invent a substitute runner.
 
@@ -98,27 +100,34 @@ Do not claim complete isolation if a relevant channel cannot be checked.
 
 Run the fresh historical preparer as a host subprocess with its own isolated
 context. Use an in-session subagent only when the host verifiably gives it no
-injected session memory. If Behavior Diff provides no isolation for the host, use
-a disposable launcher in the private run root, for example a wrapper first on
-`PATH` that applies process-local flags disabling memory and plugins and denies
-reads of memory stores and the original checkout. Prefer the host's existing
-sign-in. If a private host home is unavoidable, disclose it in the proposal, keep
-any credential copy mode 0600 inside the mode-0700 run root, never print it, and
-delete it when the run ends or is interrupted. Verify the launcher with harmless
-non-model probes before model use, keep it with the evidence, and record it in
-the result. Never change the owner's global host settings instead.
+injected session memory. For macOS Codex decision comparisons, use the bundled
+`codex_isolated.py` launcher described in Behavior Diff's
+`references/scenario-and-test-data.md`. Do not reuse an old private launcher or
+write a new wrapper. Use one selected Behavior Diff version for preparation and
+trials; an older installation without the helper is a version prerequisite, not
+evidence that the repository needs Go or live image generation.
 
-Before a paid probe, check the actual launcher path with non-model probes:
-authentication availability, writing and reading in the trial workspace, and
-denial of reads from excluded sources. A copy from the outer shell alone does not
-verify the agent's execution path. Check for nested sandbox restrictions before
-launch; do not simply disable protections to make the probe pass. An alternative
-isolation configuration needs equivalent read/write boundaries verified first.
-Check whether the host records the actions needed by the frozen criteria.
-File existence can establish an artifact, not that the agent inspected it.
-If the host cannot exercise an execution path without a model, mark that path
-unverified and include its smallest necessary probe in the approval. Do not
-claim that an outer-shell check proves the inner path works.
+The helper uses one outer sandbox and checks its file-access boundary before
+starting Codex. It isolates the host home and temporarily copies existing sign-in
+credentials, so disclose that in the proposal. It cleans up the temporary runtime
+on completion or a handled interruption. Never print credentials or change global
+host settings. If the host cannot start the helper's sandbox, preserve its error;
+use the host's explicit permission mechanism when allowed, not an unconfined
+fallback. A sandbox failure is about that execution environment, not the PR.
+
+The supported evidence path is Codex shell commands, command returns and workspace
+artifacts. Use local adapters for approved decision simulations. Missing native
+image-tool events do not establish that shell actions cannot be recorded.
+Do not require real artwork saving for a decision-only question. If the approved
+question requires actual image generation, inspection or a real service, those
+capabilities remain separate preflight requirements; never silently simulate them.
+File existence establishes an artifact, not that the agent inspected it.
+
+On other hosts, use their documented isolation rather than claiming this macOS
+helper applies. If no supported path can preserve the required boundary, report
+that limitation and finish independent checks. A model-backed capability probe
+still requires explicit authorization; non-model checks do not prove agent
+compliance or live-service reliability.
 
 Follow Behavior Diff's preflight and frozen-handoff helpers rather than rebuilding
 their validators. Simulation checks prove the fixture's mechanics, not that a

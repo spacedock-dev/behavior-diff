@@ -272,6 +272,15 @@ Normal trial tools, the primary model and reasoning settings, trial-local storag
 and native trace normalization are unchanged; user configuration is not edited.
 Claude, Codex, and Pi do not use this OMP advisor subsystem.
 
+Codex trials opt into `codex_isolated.py` when
+`BEHAVIOR_DIFF_CODEX_ISOLATION_ROOT` is set; `BEHAVIOR_DIFF_CODEX_DENY_READ`
+names an additional source checkout to exclude. This macOS-only path validates
+its outer sandbox before model execution and avoids adding a second sandbox
+inside it. Each process gets a private disposable host home; workspace writes
+remain allowed while sibling private data is denied. Normal Codex launches are
+unchanged when the opt-in is absent. This path targets controlled shell-based
+decision fixtures, not native image tooling or network isolation.
+
 The trace contains paired tool actions and recorded returns plus a final answer.
 Claude's stream is retained; Codex command output and Pi/OMP tool results keep
 their call identities during normalization. Raw host logs and stderr remain
@@ -994,12 +1003,16 @@ The owner's touchpoints are the request, one proposal and the adoption decision.
 The host owns planning, preparation, bounded recovery and interpretation, without
 requiring owner reminders between stages. It decides whether a workflow engine is
 under test from the target repository, not instruction wording. It normally runs
-the fresh preparer as an isolated host subprocess, using a disposable private
-launcher when Behavior Diff has no host isolation. It delegates comparison
-mechanics to Behavior Diff's existing contracts, not a second runner. Unsupported
-capabilities remain blockers rather than silently reduced scope. Paid runs and
-private-data handoffs need explicit bounded authority; model switches are limited
-to named fallbacks. Global configuration is not a write target. Evaluation
+the fresh preparer as an isolated host subprocess. On macOS, Codex preparation
+and opt-in trials use the bundled `codex_isolated.py` launcher rather than a
+per-session wrapper. It verifies an outer filesystem sandbox before disabling
+Codex's nested sandbox, isolates the temporary host home, and cleans up copied
+sign-in data. `run-trial.sh` still normalizes recorded shell actions; assessment
+uses its existing host path. The frozen handoff pins the isolation environment
+and shipped helper bytes. Unsupported capabilities remain blockers rather than
+silently reduced scope. Paid runs and private-data handoffs need explicit bounded
+authority; model switches are limited to named fallbacks. Global configuration
+is not a write target. Evaluation
 responses and merge questions never authorize PR operations.
 
 Failed attempts stop the affected execution, not safe non-model recovery or
@@ -1017,7 +1030,7 @@ Explicit replay-only requests use saved evidence without new trials. Optional
 and read-only root-scoped citations for that subset. Its fixed-evidence mode is
 not a fresh-run status. Unchanged support survives correction; missing/changed
 citations become gaps. Private packets stay outside Git trees; synthetic fixtures
-exercise helper mechanics only. No helper schema or production runner changed.
+exercise helper mechanics only. The replay schema is unchanged.
 Owner effort reduction requires an actual walkthrough, not deterministic checks;
 feedback is optional after delivery. Historical experimental purpose stays frozen.
 

@@ -465,6 +465,25 @@ class HandoffTests(Fixtures, unittest.TestCase):
         Path(record["notes_file"]).chmod(0o644)
         self.assertNotEqual(self.verify(stage).returncode, 0)
 
+    def test_frozen_handoff_rejects_isolation_environment_changes(self):
+        project, data = self.standard()
+        self.env["BEHAVIOR_DIFF_CODEX_ISOLATION_ROOT"] = str(self.tmp / "runtime")
+        self.env["BEHAVIOR_DIFF_CODEX_DENY_READ"] = str(project)
+        stage = self.staged(project, data, handoff=self.handoff_file())
+        result = self.verify(stage)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        for name in (
+            "BEHAVIOR_DIFF_CODEX_ISOLATION_ROOT",
+            "BEHAVIOR_DIFF_CODEX_DENY_READ",
+        ):
+            original = self.env.pop(name)
+            self.assertNotEqual(self.verify(stage).returncode, 0)
+            self.env[name] = original + "-different"
+            self.assertNotEqual(self.verify(stage).returncode, 0)
+            self.env[name] = original
+        result = self.verify(stage)
+        self.assertEqual(result.returncode, 0, result.stderr)
+
     def test_direct_freeze_uses_archive_not_unrelated_work_and_rejects_stale_after(
         self,
     ):
