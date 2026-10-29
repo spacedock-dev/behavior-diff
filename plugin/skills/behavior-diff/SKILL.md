@@ -123,13 +123,22 @@ the single-role or two-agent path. Create the fixtures with
    **Historical context boundary.** Before deriving historical purpose, read
    the source-isolation rule in `references/scenario-and-test-data.md`. If this
    session already knows later history or previous trial outcomes, purpose
-   derivation and preparation must use the fresh context described there.
-   If that isolation is unavailable, stop; disclosure alone is not a substitute.
+   derivation and preparation must use the fresh supplied-history context defined
+   there. An unavailable fresh-session mechanism blocks preparation; unavailable
+   complete ambient-context or per-turn model attestation does not block an ordinary
+   supported-environment rehearsal. Preserve those limits rather than silently
+   upgrading a historical PR request into a stronger isolation claim.
 
    **Freeze the purpose before drafting or running trials.** Derive concise,
    distinct goals from the current conversation and the selected diff without
    asking the owner to restate their reason. Use one or two sentences per goal;
    keep separate goals separate, including behavior meant to survive a cleanup.
+   Distinguish the owner's comparison question from production obligations in
+   the instruction being tested. Do not infer a real-output goal merely because
+   that instruction requires a production tool. Before capability checks, apply
+   the reference's claim derivation: ordinary decision goals default to
+   controlled external-tool simulation, disclosed in the initial proposal;
+   explicit real-output goals retain their real dependencies.
    On both Claude Code and Codex, use the conversation already available in the
    current context, including supplied summaries; do not open host transcript
    stores, resume other sessions, or infer access to missing turns. The same
@@ -226,9 +235,14 @@ the single-role or two-agent path. Create the fixtures with
 
 2. **Prepare the scenario and data.** Before drafting anything, read
    `references/scenario-and-test-data.md` inside this skill's base directory
-   and follow its preparation recipe once. From the frozen goals, author a
-   neutral task, sufficient shared data, private per-case criteria, and the
-   sanitized scenario with frozen checks and required recorded sources.
+   and follow its preparation recipe once. From the frozen goals, derive
+   decision, execution-quality, and integration claims before tool dependencies.
+   Author a neutral task, sufficient shared data, private per-case criteria,
+   and the sanitized scenario with frozen checks and required recorded sources.
+   Follow [Controlled behavior simulation](references/scenario-and-test-data.md#controlled-behavior-simulation)
+   for equal, recorded interfaces that expose material outcomes without
+   enforcing correct decisions or supplying assessment answers. Choosing to
+   inspect through a simulated tool is not evidence of actual pixel detection.
    Keep private context outside every trial input. The helper validates and
    inventories your reviewed files; it never authors their meaning or proves
    that a required capability works.
@@ -243,11 +257,16 @@ the single-role or two-agent path. Create the fixtures with
    user to confirm the file, task, cost, or run mode. Do not mention trial
    counts, cost, or full versus fast modes during normal execution.
    First satisfy the privacy and sensitive-content approval boundary above;
-   automatic execution never overrides it. If the planned environment cannot
-   support a required capability or premise, stop and report it; do not silently
-   substitute a narrower test or fabricate approvals. Stop preparation workers
-   before launch, and keep the first result: no retuning or reruns to manufacture
-   a finding after seeing outcomes.
+   automatic execution never overrides it or a surrounding journey's approval
+   gate. Apply the reference's claim-level capability checks: missing required
+   premises stop dependent claims, while an unavailable production tool alone
+   does not block a decision claim already scoped to simulation. Report blocked
+   claims; do not silently narrow an approved real-output goal or fabricate
+   approvals. If changed scope needs approval, offer the reference's concrete
+   bounded proposal; do not re-ask an unchanged approved budget. Security and
+   historical-freshness gates remain mandatory. Stop preparation workers before
+   launch, and keep the first result: no retuning or reruns to manufacture a
+   finding after seeing outcomes.
 
    Use the reference's complete private handoff for both hosts:
    `prepare_shared.py prepare --handoff` for staged data or exclusions;

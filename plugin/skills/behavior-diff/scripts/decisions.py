@@ -105,27 +105,6 @@ SCHEMA = """{{
     "edit_hunks": [<1-based numbers of the supporting instruction diff hunks>]
   }}|null,
   "purpose_summary": "<1-2 short plain sentences restating the supplied purpose goals, at most 320 characters>"|null,
-  "target_assessment": {{
-    "criteria": [
-      {{"id": "<stable criterion id; with a scenario record, one criterion per check copying its id, goal, text, mode, required_evidence and evidence_kind verbatim>", "goal": <1-based purpose goal>,
-        "text": "<observable desired behavior, <=600 characters>",
-        "mode": "correction"|"new"|"change"|"preservation",
-        "required_evidence": "<evidence needed to judge this criterion, <=600 characters>",
-        "evidence_kind": "output"|"source_consistency"|"recorded_action",
-        "decisions": [<related chain row indexes, or empty>],
-        "before": [{{"trial": "<exact completed before name>",
-          "outcome": "met"|"not_met"|"uncertain"|"unassessable",
-          "refs": ["<this trial's recorded evidence id or trial-name:answer>"],
-          "output_excerpt": "<ONE exact contiguous span copied from this trial's cited final answer or required captured artifact, no joined fragments, <=1200 characters; required for met/not_met output or source_consistency, otherwise may be empty>",
-          "explanation": "<what is observed and what cannot be determined, <=600 characters>"}}],
-        "after": [{{"trial": "<exact completed after name>",
-          "outcome": "met"|"not_met"|"uncertain"|"unassessable",
-          "refs": ["<this trial's recorded evidence id or trial-name:answer>"],
-          "output_excerpt": "<ONE exact contiguous span copied from this trial's cited final answer or required captured artifact, no joined fragments, <=1200 characters; required for met/not_met output or source_consistency, otherwise may be empty>",
-          "explanation": "<what is observed and what cannot be determined, <=600 characters>"}}]
-      }}
-    ]
-  }}|null,
   "chain": [
     {{"topic": "<2-4 plain words naming the observed result or behavior>",
      "decision": "<the choice available, phrased as a question>",
@@ -136,6 +115,27 @@ SCHEMA = """{{
      "edit_hunks": [<1-based numbers of related instruction diff hunks, or empty>],
      "note": "<optional: one short clause, only if worth saying>"}}
   ],
+  "target_assessment": {{
+    "criteria": [
+      {{"id": "<stable criterion id; with a scenario record, one criterion per check copying its id, goal, text, mode, required_evidence and evidence_kind verbatim>", "goal": <1-based purpose goal>,
+        "text": "<observable desired behavior, <=600 characters>",
+        "mode": "correction"|"new"|"change"|"preservation",
+        "required_evidence": "<evidence needed to judge this criterion, <=600 characters>",
+        "evidence_kind": "output"|"source_consistency"|"recorded_action",
+        "decisions": [<1-based indexes of related rows in the final chain, not goal/check numbers; empty if none>],
+        "before": [{{"trial": "<exact completed before name>",
+          "outcome": "met"|"not_met"|"uncertain"|"unassessable",
+          "refs": ["<this trial's recorded evidence id or trial-name:answer>"],
+          "output_excerpt": "<empty for recorded_action; otherwise ONE exact contiguous span from this trial's cited final answer or required captured artifact, <=1200 characters; required for met/not_met output or source_consistency>",
+          "explanation": "<what is observed and what cannot be determined, <=600 characters>"}}],
+        "after": [{{"trial": "<exact completed after name>",
+          "outcome": "met"|"not_met"|"uncertain"|"unassessable",
+          "refs": ["<this trial's recorded evidence id or trial-name:answer>"],
+          "output_excerpt": "<empty for recorded_action; otherwise ONE exact contiguous span from this trial's cited final answer or required captured artifact, <=1200 characters; required for met/not_met output or source_consistency>",
+          "explanation": "<what is observed and what cannot be determined, <=600 characters>"}}]
+      }}
+    ]
+  }}|null,
   "fork": <1-based index into chain of the FIRST divergence, or null>,
   "fork_note": "<one possible explanation linking the first difference to later differences, or null>",
   "outcome": <1-based index of the primary task outcome in chain, or null>,
@@ -306,14 +306,19 @@ source content; cite output evidence AND at least one readable captured source c
 For both, met/not_met needs a nonempty output_excerpt: choose ONE exact contiguous
 span of the cited trial final answer or declared captured artifact showing the claim
 and copy it character for character. Never join fragments, add ellipses, paraphrase
-or repair it. "recorded_action" judges whether the agent made a call: a tool-N
-record proves only that its listed source call was made, even when its return was
-omitted or unavailable, never what the call returned. Files the agent wrote or
+or repair it. For "recorded_action", leave output_excerpt empty for every outcome;
+cite the calls, not a quotation describing them. A tool-N record proves only that
+its listed source call was made, even when its return was omitted or unavailable,
+never what the call returned. Files the agent wrote or
 published do not prove completion without captured output. Records ending in
 :trace or :overflow, sources shown as [sensitive source omitted], self-reported
 actions and duplicate call or result identities prove no outcome. Absence of a call
 is shown only by the trial's complete call list; an :overflow record means later
 calls are not listed.
+Assign each criterion's decisions only after the chain is final. Every index must
+name a row in that returned chain, not a goal/check number or a discarded draft row.
+Verify each nonempty output_excerpt against its cited source in that same trial;
+text from a tracker cannot cite :answer, and text from another trial cannot be reused.
 Met/not_met requires evidence sufficient for the stated criterion: checking output
 consistency with a source requires BOTH recorded source content and output evidence.
 When no available or truncated record contains that source content, source agreement

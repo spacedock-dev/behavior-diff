@@ -450,7 +450,7 @@ class HandoffTests(Fixtures, unittest.TestCase):
                 "sessionId": "synthetic-session",
                 "forkedFromId": None,
                 "parentThreadId": None,
-                "historyMode": "legacy",
+                "historyMode": "paginated",
                 "turns": [
                     {
                         "id": reference["turn_id"],
@@ -467,6 +467,22 @@ class HandoffTests(Fixtures, unittest.TestCase):
                     }
                 ],
             },
+        }
+        turns = native["thread"]["turns"]
+        native["thread"]["turns"] = []
+        native = {
+            "thread_read": native,
+            "turn_pages": [
+                {
+                    "request": {
+                        "threadId": reference["thread_id"],
+                        "cursor": None,
+                        "sortDirection": "asc",
+                        "itemsView": "full",
+                    },
+                    "response": {"data": turns, "nextCursor": None},
+                }
+            ],
         }
         for key, content in (
             ("record_file", json.dumps(native)),

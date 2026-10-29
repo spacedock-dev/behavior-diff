@@ -470,13 +470,28 @@ digests cannot prove that a probe ran or succeeded.
 
 Optional private `preparation_evidence` binds native preparer records and the
 reviewed input file to this inventory. `preparation_evidence.py` checks the
-supported Codex native export for one complete, non-inherited legacy-history
-turn with matching plain-text user input. Changed or missing files fail verify.
+supported Codex native export for one complete, non-inherited turn with matching
+plain-text user input. Legacy exports carry full turns directly; paginated
+exports retain metadata plus every unfiltered full-item turn-page request and
+response through the terminal cursor. Incomplete chains, summary-only items and
+additional turns fail validation. Changed or missing files fail verify.
 Unsupported or absent records remain unavailable/unverified. The native thread's
 model field is not per-turn execution telemetry: neither a resolved model nor the
 entire historical context is claimed verified. These private records never become
 trial inputs or assessment content; validation does not authenticate a fabricated
 export.
+Ordinary historical rehearsal requires a fresh supplied history and reviewed
+contemporary inputs, not attestation of every hidden context surface. Verified
+input/completion facets support that bounded route despite the overall unverified
+label; unavailable model/ambient-context facets remain disclosed. Invalid input,
+inherited history or failed completion still blocks preparation. A stronger
+isolation or model-attestation claim requires the owner's explicit goal and its
+separate capabilities, rather than being inferred from a PR request.
+Codex preparation explicitly disables memory, hooks, plugins, apps, multi-agent
+features, web search and each configured MCP server for that process, verifying
+effective configuration before a model turn. An empty MCP table is not a reset.
+The private record keeps only sanitized control facts, not credential-bearing
+configuration; these controls do not attest every hidden context surface.
 
 Optional `context_requirements_file` freezes a declared native filesystem
 restriction separately from preparation provenance. The existing runner prepares
@@ -611,6 +626,11 @@ The modules below live in the skill's [`scripts/`](../plugin/skills/behavior-dif
   rewritten definitions still invalidate the whole target; `decisions.target_rejection`
   is reserved for that global failure. Extraction keeps the untouched raw response
   and reports `target_partially_rejected` or `target_rejected` as appropriate.
+  The extraction schema emits the decision chain before criteria reference it.
+  Criteria use final chain indexes and trial-local citations; action checks leave
+  output excerpts empty rather than quoting narrative as evidence of a call.
+  Output/source-consistency checks still require exact excerpts and the same
+  provenance validation. No invalid citation is repaired or silently accepted.
   With a scenario record, the complete frozen check set is mandatory. The report
   loader binds it to configuration, not model output; a conflicting persisted
   record or purpose invalidates the assessment without dropping observations.
@@ -1073,6 +1093,10 @@ Behavior Diff owns the distinction between supported-environment findings and
 stronger isolation claims, including historical preparation in a fresh context
 without prior discussion or outcomes. Required safety or evidence boundaries
 cannot be waived merely to complete a journey.
+If a sandboxed command tool cannot start a nested native sandbox, the host's
+authorized command-approval mechanism owns execution access to the unchanged
+preparation or runner command. Child sandboxes remain enabled. The skill does not
+enable automatic approval or grant OS permission from model-run consent.
 
 The handoff reuses existing authorization and requests only missing terms.
 When the goal is ambiguous, it first inspects the change, then offers 2–4
@@ -1087,12 +1111,21 @@ independent review. Behavior Diff supplies the capability gap and supported
 recovery; the handoff carries it through within authority or explains the
 remaining decision. It does not build a replacement launcher.
 
-The agreed question determines whether a simulation is sufficient or a live
-service is required. The first final answer leads with what to do with the
-change and why, followed by decision-changing risk and remaining required
-evidence gaps. Non-decision-changing methodology and detailed evidence stay in
-private links. A useful null result can complete the journey; missing required
-evidence or failed execution cannot.
+Behavior Diff maps the owner's question to claims before requiring capabilities.
+Ordinary instruction rehearsals test agent decisions using controlled modeled
+external services, disclosed in the initial proposal. Production instructions
+requiring an artifact or upload do not alone require real generation or a live
+service in the test. Real output quality, visual recognition and live integration
+claims still require their corresponding capabilities; they cannot be replaced
+by recorded simulated decisions. Missing capabilities block dependent claims,
+not independent authorized behavioral work. An approved real-output scope needs
+an explicit revised proposal before substitution.
+
+The first final answer leads with what to do with the change and why, followed
+by decision-changing risk and remaining required evidence gaps.
+Non-decision-changing methodology and detailed evidence stay in private links.
+A useful null result can complete the journey; missing required evidence or
+failed execution cannot.
 
 Explicit replay-only requests use saved evidence without new trials. Optional
 `replay.py` owns private snapshots, correction invalidation, confirmed revisions
