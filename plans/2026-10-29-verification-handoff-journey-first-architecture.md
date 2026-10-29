@@ -495,8 +495,8 @@ No release, retirement of live mode, or reduction of host support is implied.
 ## References
 
 - [Current architecture](../docs/architecture.md)
-- [Verification handoff skill](../.agents/skills/verification-handoff-prototype/SKILL.md)
-- [Current handoff execution instructions](../.agents/skills/verification-handoff-prototype/references/execution.md)
+- [Behavior review skill](../plugin/skills/behavior-review/SKILL.md)
+- [Current handoff execution instructions](../plugin/skills/behavior-review/references/execution.md)
 - [Canonical Behavior Diff skill](../plugin/skills/behavior-diff/SKILL.md)
 - [Canonical preparation and trusted launch recipe](../plugin/skills/behavior-diff/references/scenario-and-test-data.md)
 - [Existing trial adapter](../plugin/skills/behavior-diff/scripts/run-trial.sh)

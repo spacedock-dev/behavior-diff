@@ -1,35 +1,69 @@
 # Execution handoff
 
 The host owns this work. Do not expose helper setup as owner homework. Resolve
-this handoff skill's physical location before choosing Behavior Diff. If it
-belongs to a Behavior Diff source checkout, load that checkout's canonical
-`plugin/skills/behavior-diff` source, even when the reviewed project is elsewhere.
-Otherwise load the discovered installed Behavior Diff skill. Retain its exact
-base and version for the whole comparison; never silently mix versions.
-Missing tooling is a concrete prerequisite to resolve or report, not permission
-to invent a substitute runner.
+Behavior Review's physical installed skill directory, following any symlink to
+its actual location. Load exactly `../behavior-diff/SKILL.md` relative to that
+directory: the comparison skill is a sibling in the same installed plugin.
+Retain its exact physical base and version for the whole comparison. Never resolve
+it from the target repository, `.agents`, the original source checkout or an older
+plugin cache, and never silently mix versions. A missing sibling is a concrete
+installation prerequisite to resolve or report, not permission to search for a
+different copy or invent a substitute runner.
 
 ## Handoff proposal
 
-Explain what the owner will learn before listing run terms. Use one message
-shaped like this synthetic example; replace every placeholder with checked facts:
+Inspect the change first. When the goal is ambiguous, offer 2–4 distinct outcomes
+tailored to it, with a recommended option and a short reason. Do not require
+technical test design from the owner. Skip the options for an already clear goal.
+Combine this clarification with the run proposal, not a separate questionnaire.
+
+For an invented PR adding archive checksum checks, the options could be:
+
+1. **New checks and existing safeguards (recommended):** does the agent verify
+   the archive while preserving recovery and approval before adoption?
+2. **New checks:** does the agent detect a checksum mismatch and avoid accepting
+   a damaged archive?
+3. **Existing safeguards:** do recovery and human approval still work after
+   adding checksum verification?
+
+Explain why the recommendation fits the actual change, and let the owner name
+another concern. These example options are not a fixed menu for every PR.
+
+Then state run terms covering the recommended option. If all offered options
+can share the same bounded terms, explicitly say so; otherwise identify the
+differences before seeking approval. Do not promise unknown terms to avoid an
+extra question. Shape the combined message like this synthetic example, replacing
+every placeholder with checked facts:
 
 ```text
-I recommend checking whether this change helps the agent <owner's outcome>
-without <preserved risk>. I'll compare the old and new instructions using
-<test situation>. This will tell us <decision behavior>, but won't establish
-<live-service reliability or other excluded claim>.
+<Include outcome options above only when the goal needs clarification.>
+I recommend <option and reason, or the owner's explicit goal>: checking whether
+this change helps the agent <owner's outcome>
+without losing <preserved safeguard>. I'll compare the old and new instructions
+using <test situation>. This will answer <decision question>.
+<State an important excluded claim only if it affects this decision.>
 
 I'll run three attempts with each version, using <preparation/trial model>,
 with <named fallback and trigger>, and <assessment model and fallback or none>.
 This uses <provider/account> with <cost estimate or explicit quota boundary,
 including preparation, probes, retries and fallback execution>. It sends
 <specified inputs and evidence> to <provider>; results stay <private location>.
-Recovery is limited to <specific allowance>. Do you approve this comparison?
+Recovery is limited to <specific allowance>. These terms cover <named options>.
+Do you approve? "Approve" accepts <recommended option or explicit goal> and these
+run terms. To authorize another covered option, say "approve option <number>".
+You can also name a different concern.
 ```
 
 Name a fallback for each model role, or state that none is approved. A budget
 alone never authorizes a different model.
+
+An option number or goal correction alone selects the question, not permission
+to spend quota or send data. Ask only for authorization still missing. An explicit
+approval of another option can proceed without another approval when its scope,
+provider, data and run limits were fully stated and covered. Otherwise present
+only the changed terms for approval. If existing authority already covers the
+selected goal and every run term, continue without asking again. None of these
+replies authorizes adoption or merge.
 
 ## Delegate the comparison, retain the journey
 
@@ -114,13 +148,20 @@ or leaves a required claim unsupported, resolve that through its canonical audit
 before synthesizing the recommendation. Keep independent instruction-review
 findings distinguishable from observed trial behavior.
 
-Use SKILL.md's ordinary-language guidance to answer the owner's original question:
-what to keep or change, what improved or stayed unchanged, what was preserved or
-regressed, and what adopting now would leave uncertain. Explain whether the
-remaining risk changes the advice. Keep detailed mappings, minority results,
-report corrections and recovery records in linked private evidence; surface
-anything that changes the decision in the answer itself. A process difference is
-not automatically an improvement, equal trials do not establish universal
-redundancy, and simulation does not prove live-service reliability. Never turn a
-comparison finding into merge authorization.
-Finish the handoff before offering optional process feedback.
+Use SKILL.md's action-first conclusion and merge-readiness rules in the first
+post-verification answer. Give the recommendation without making the owner ask
+whether to merge or what to do next. For a PR, independently gather relevant
+normal code review, current CI results and mergeability read-only for the reviewed
+head before recommending merge. If any required evidence is missing or a required
+check remains unresolved, hold that decision with its specific blocker.
+
+Explain what improved or stayed unchanged and which of the owner's actual
+safeguards remained intact. State supported confidence, not guarantees. Bring
+remaining uncertainty into the answer when it changes the advice; keep accurate
+scope, detailed mappings, minority results, report corrections and recovery
+records in linked private evidence otherwise. Do not use default simulation/E2E
+disclaimers in place of a practical consequence. A process difference is not
+automatically an improvement, equal trials do not establish universal redundancy,
+and agent-decision evidence does not establish unobserved service behavior.
+A recommendation never authorizes merge or another external effect.
+Finish the review before offering optional process feedback.

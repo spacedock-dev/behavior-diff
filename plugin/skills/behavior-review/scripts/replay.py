@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Prototype: project fixed local evidence onto owner-confirmed, mutable goals."""
+"""Project fixed local evidence onto owner-confirmed, mutable review goals."""
 
 import argparse
 import hashlib

@@ -90,21 +90,41 @@ codex plugin add behavior-diff@spacedock
 
 ## Use Behavior Diff
 
-1. Edit one instruction file. Keep the change uncommitted.
-2. Ask Claude Code or Codex to run Behavior Diff on the change.
-3. Review the report before you commit the instruction.
+Use the shipped [`behavior-review` skill](plugin/skills/behavior-review/SKILL.md)
+for a guided review of an instruction change or PR through a practical adoption
+recommendation. It owns the journey; the underlying `behavior-diff` skill owns
+comparison preparation and assessment, and the existing runner executes trials.
 
-For example:
+In Claude Code:
+
+```text
+/behavior-diff:behavior-review Review my AGENTS.md change and recommend whether to adopt it.
+```
+
+In Codex:
+
+```text
+$behavior-review Review my AGENTS.md change and recommend whether to adopt it.
+```
+
+Supply the change or PR and any context you permit the agent to inspect. The
+agent reviews the change, follows the comparison through completion, and leads
+its first final answer with what to do and why. Decision-changing risks stay
+visible; detailed evidence and methodology stay in linked evidence. It reuses
+existing authority and asks once for missing bounded run approval. Paid model
+calls and external effects still require their own applicable authority; a
+recommendation never authorizes commit, push, merge, release, or publication.
+
+For a comparison without the guided review journey, keep an instruction edit
+uncommitted and ask:
 
 ```text
 Run behavior diff on my AGENTS.md change.
 ```
 
-In Claude Code, you can also run:
-
-```text
-/behavior-diff
-```
+Or invoke `/behavior-diff:behavior-diff` in Claude Code or `$behavior-diff` in
+Codex. Explicit PR or historical Git inputs are also supported; they do not
+require an uncommitted edit.
 
 Behavior Diff finds the changed instruction file and works out what the change
 is meant to do and what it must preserve. From that intent, the agent designs a
