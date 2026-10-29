@@ -3,6 +3,7 @@
 
 import importlib.util
 import json
+import os
 from pathlib import Path
 import tempfile
 import unittest
@@ -199,6 +200,10 @@ class NativeContextTests(unittest.TestCase):
                 self.module.check_route("claude", Path(root))
             native.assert_not_called()
 
+    @unittest.skipIf(
+        os.environ.get("CI"),
+        "Local-only runner smoke; CI must not invoke behavior-diff.sh",
+    )
     def test_runner_rejects_required_unsupported_route_before_agent(self):
         with tempfile.TemporaryDirectory() as root:
             work = Path(root).resolve()
