@@ -1,12 +1,12 @@
 ---
-name: behavior-review
+name: behavior-rehearse
 description: Reviews an instruction change or PR and carries one bounded owner-approved verification through Behavior Diff to an action-first recommendation. Use when the owner wants to know whether to merge, revise, or hold a behavior change without coordinating the verification steps.
 ---
 
-# Behavior Review
+# Behavior Rehearsal
 
 Own verification through a decision-ready result. Success means less owner
-coordination, not completion of a checklist. Behavior Review owns the journey;
+coordination, not completion of a checklist. Behavior Rehearsal owns the journey;
 Behavior Diff owns the comparison; the existing runner owns execution.
 Use the same workflow on Claude Code and Codex. Other hosts may load this skill.
 Resolve bundled files relative to this loaded skill's physical directory, never

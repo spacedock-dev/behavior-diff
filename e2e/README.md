@@ -30,11 +30,11 @@ Keep private sources, trials, reports, and temporary comparisons outside this
 checkout. No model-backed verification runs in CI. Synthetic fixtures remain
 the deterministic test set and supplemental edge-case examples.
 
-## Behavior review and replay checks
+## Behavior rehearsal and replay checks
 
-The shipped [`behavior-review` skill](../plugin/skills/behavior-review/SKILL.md)
+The shipped [`behavior-rehearse` skill](../plugin/skills/behavior-rehearse/SKILL.md)
 is the guided review-to-recommendation entry. In Claude Code invoke
-`/behavior-diff:behavior-review`; in Codex invoke `$behavior-review`, then supply
+`/behavior-diff:behavior-rehearse`; in Codex invoke `$behavior-rehearse`, then supply
 the selected change or PR and permitted context. It delegates comparison to the
 sibling `behavior-diff` skill in the same installed plugin. No source-checkout
 maintainer skill is needed. Live comparisons still require bounded model-cost
@@ -47,7 +47,7 @@ and `fixtures/synthetic.json` for an offline, invented demonstration. Run its
 deterministic behavior checks separately with:
 
 ```sh
-python3 tests/behavior-review-test.py
+python3 tests/behavior-rehearse-test.py
 ```
 
 Use a mode-0700 directory outside all Git trees for mode-0600 session/packet files.

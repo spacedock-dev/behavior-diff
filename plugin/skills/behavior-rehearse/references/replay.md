@@ -1,7 +1,7 @@
 # Optional saved-evidence replay helper
 
 Use this for an explicit fixed-evidence replay or a saved-evidence subset of
-Behavior Review. It does not run Behavior Diff, authorize work, or measure owner effort.
+Behavior Rehearsal. It does not run Behavior Diff, authorize work, or measure owner effort.
 Its `mode` describes fixed evidence only; do not present it as the status of a
 fresh comparison. Keep fresh-run receipts and conclusions in that run's artifacts.
 

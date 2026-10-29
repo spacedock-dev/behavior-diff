@@ -18,7 +18,7 @@ scripts handle execution, evidence, and reporting.
 +----------------------------+----------------------------+
                              v
 +---------------------------------------------------------+
-| behavior-review: guided review journey (optional entry)  |
+| behavior-rehearse: guided journey (optional entry)       |
 | Review context -> reuse authority / one bounded proposal|
 | Delegate comparison to sibling behavior-diff skill     |
 +----------------------------+----------------------------+
@@ -68,7 +68,7 @@ scripts handle execution, evidence, and reporting.
 +---------------------------------------------------------+
                              v
 +---------------------------------------------------------+
-| behavior-review: first final answer (guided entry)      |
+| behavior-rehearse: first final answer (guided entry)    |
 | Action + reason first; decision-changing risks visible |
 | Detailed evidence and methodology linked; no adoption |
 | action or external effect implied                     |
@@ -1036,9 +1036,9 @@ synthetic local emulators only. An explicit publication-policy update and review
 of actual outgoing content remain required before uploading any private session;
 blinding and private repository visibility are not publication permission.
 
-## Guided behavior review
+## Guided behavior rehearsal
 
-The shipped [`behavior-review` skill](../plugin/skills/behavior-review/SKILL.md)
+The shipped [`behavior-rehearse` skill](../plugin/skills/behavior-rehearse/SKILL.md)
 is the guided user entry. It owns the journey, the sibling `behavior-diff`
 skill owns the comparison, and the existing runner owns execution. These are
 responsibilities, not new processes or an additional coordinator. Direct
@@ -1047,16 +1047,16 @@ journey.
 
 ```text
 Owner's question + selected change + existing authority
-  -> behavior-review: review context and delegate comparison to behavior-diff
+  -> behavior-rehearse: review context and delegate comparison to behavior-diff
   -> behavior-diff: resolve inputs, feasibility, and missing run terms
-  -> behavior-review: one proposal for missing authority or material decisions
+  -> behavior-rehearse: one proposal for missing authority or material decisions
   -> Behavior Diff: prepare -> freeze -> verify
   -> existing runner: fresh trials -> recorded evidence -> existing posttrial path
   -> behavior-diff: assess reached cases, findings, limits, and execution health
-  -> behavior-review: action-first recommendation + adoption risk (no merge)
+  -> behavior-rehearse: action-first recommendation + adoption risk (no merge)
 ```
 
-Behavior review follows delegated work through completion without owner reminders,
+Behavior Rehearsal follows delegated work through completion without owner reminders,
 but does not maintain another scenario recipe, launch command, or behavioral
 assessment. It resolves `behavior-diff` from the same installed plugin's sibling
 skill directory, including when reviewing a different repository, rather than

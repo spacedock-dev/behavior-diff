@@ -1,7 +1,7 @@
 # Execution handoff
 
 The host owns this work. Do not expose helper setup as owner homework. Resolve
-Behavior Review's physical installed skill directory, following any symlink to
+Behavior Rehearsal's physical installed skill directory, following any symlink to
 its actual location. Load exactly `../behavior-diff/SKILL.md` relative to that
 directory: the comparison skill is a sibling in the same installed plugin.
 Retain its exact physical base and version for the whole comparison. Never resolve

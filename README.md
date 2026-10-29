@@ -90,7 +90,7 @@ codex plugin add behavior-diff@spacedock
 
 ## Use Behavior Diff
 
-Use the shipped [`behavior-review` skill](plugin/skills/behavior-review/SKILL.md)
+Use the shipped [`behavior-rehearse` skill](plugin/skills/behavior-rehearse/SKILL.md)
 for a guided review of an instruction change or PR through a practical adoption
 recommendation. It owns the journey; the underlying `behavior-diff` skill owns
 comparison preparation and assessment, and the existing runner executes trials.
@@ -98,13 +98,13 @@ comparison preparation and assessment, and the existing runner executes trials.
 In Claude Code:
 
 ```text
-/behavior-diff:behavior-review Review my AGENTS.md change and recommend whether to adopt it.
+/behavior-diff:behavior-rehearse Review my AGENTS.md change and recommend whether to adopt it.
 ```
 
 In Codex:
 
 ```text
-$behavior-review Review my AGENTS.md change and recommend whether to adopt it.
+$behavior-rehearse Review my AGENTS.md change and recommend whether to adopt it.
 ```
 
 Supply the change or PR and any context you permit the agent to inspect. The

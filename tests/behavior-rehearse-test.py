@@ -9,7 +9,7 @@ import tempfile
 import unittest
 
 
-SKILL = Path(__file__).resolve().parents[1] / "plugin/skills/behavior-review"
+SKILL = Path(__file__).resolve().parents[1] / "plugin/skills/behavior-rehearse"
 
 
 class ReplayTests(unittest.TestCase):
