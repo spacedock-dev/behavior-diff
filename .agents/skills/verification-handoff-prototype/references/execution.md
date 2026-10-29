@@ -9,22 +9,21 @@ to invent a substitute runner.
 
 ## Handoff proposal
 
-Settle the route before writing the proposal, so it does not stop on a fixture
-question the repository already answers. Use one message shaped like this
-synthetic example:
+Explain what the owner will learn before listing run terms. Use one message
+shaped like this synthetic example; replace every placeholder with checked facts:
 
 ```text
-Question: does the change make the agent <intended outcomes> while keeping
-<preserved requirements>? Route: ordinary-agent Before/After comparison of
-<mapped files> against a local simulated <service>. Not tested: <live services>.
-Run: 3 Before + 3 After trials, at most one startup retry. Models:
-preparation and trials <primary>, or <fallback> if <primary> is rate limited
-or unavailable; assessment <assessment model>, no fallback approved.
-Provider/account: <host, sign-in type>. Cost/quota: <estimate or boundary,
-including one fallback relaunch>.
-Outgoing data: pinned instruction files and fixture data to <provider>; no new
-provider.
-Recommendation: approve as proposed.
+I recommend checking whether this change helps the agent <owner's outcome>
+without <preserved risk>. I'll compare the old and new instructions using
+<test situation>. This will tell us <decision behavior>, but won't establish
+<live-service reliability or other excluded claim>.
+
+I'll run three attempts with each version, using <preparation/trial model>,
+with <named fallback and trigger>, and <assessment model and fallback or none>.
+This uses <provider/account> with <cost estimate or explicit quota boundary,
+including preparation, probes, retries and fallback execution>. It sends
+<specified inputs and evidence> to <provider>; results stay <private location>.
+Recovery is limited to <specific allowance>. Do you approve this comparison?
 ```
 
 Name a fallback for each model role, or state that none is approved. A budget
@@ -70,6 +69,15 @@ A multi-file change must keep its file mapping. If the runner accepts only one
 target, a combined file is a disclosed test construction: state it in the
 proposal and result, and do not present it as the repository layout.
 
+Choose capabilities from the question, not from a previous failed setup. For a
+question about agent decisions, a disclosed local service simulation may be
+sufficient; real image generation is not automatically a prerequisite for testing
+whether the agent requests a cover and waits for approval. If the question includes
+image quality, actual saving, live services or real worker continuation, preserve
+those requirements. After scope is approved, changing the evidence method in a way
+that loses a required claim needs owner approval. Complete independent checks
+where possible without presenting partial coverage as the full comparison.
+
 ## Check compatibility and confounds before launch
 
 Inspect effective subprocess settings, not just the interactive session's model.
@@ -99,6 +107,18 @@ any credential copy mode 0600 inside the mode-0700 run root, never print it, and
 delete it when the run ends or is interrupted. Verify the launcher with harmless
 non-model probes before model use, keep it with the evidence, and record it in
 the result. Never change the owner's global host settings instead.
+
+Before a paid probe, check the actual launcher path with non-model probes:
+authentication availability, writing and reading in the trial workspace, and
+denial of reads from excluded sources. A copy from the outer shell alone does not
+verify the agent's execution path. Check for nested sandbox restrictions before
+launch; do not simply disable protections to make the probe pass. An alternative
+isolation configuration needs equivalent read/write boundaries verified first.
+Check whether the host records the actions needed by the frozen criteria.
+File existence can establish an artifact, not that the agent inspected it.
+If the host cannot exercise an execution path without a model, mark that path
+unverified and include its smallest necessary probe in the approval. Do not
+claim that an outer-shell check proves the inner path works.
 
 Follow Behavior Diff's preflight and frozen-handoff helpers rather than rebuilding
 their validators. Simulation checks prove the fixture's mechanics, not that a
@@ -132,7 +152,25 @@ comparison on one model, does not consume the startup retry, and is a new
 comparison rather than a mix of models. Without a named fallback, send one
 bounded proposal. Do not retune after a null result. A changed scenario or
 isolation condition is a new comparison, not a replacement result.
-Stop repeated unsuccessful recovery with a concrete blocker.
+When an attempt fails, separate the affected capability from the rest of the
+question. Inspect the failed phase and native evidence; continue safe non-model
+diagnosis and independent review within the existing authority. Before another
+paid attempt, make a concrete in-scope local repair or state a distinct diagnostic
+hypothesis and what the probe would distinguish. In either case, require remaining
+authorization and perform applicable non-model checks first. Preserve original
+failures and record exactly what changed. Do not repeat an unchanged failed probe.
+
+A missing action record blocks claims about that action, not every possible
+finding. Inspect supported recording and artifact sources without treating an
+agent's final answer as proof of execution. If required evidence cannot be
+captured, stop that comparison rather than spending the remaining trial budget
+on unassessable runs. Report available findings as partial.
+
+Exhausted probe/retry authority does not require the owner to diagnose the setup.
+Finish permitted non-model work, then request only the missing authority with
+the repair, expected information and bounded cost. If no safe repair or supported
+route exists, explain the remaining capability gap and its decision consequence.
+Do not run indefinitely, weaken isolation, or change the approved question.
 
 ## Interpretation and return
 
@@ -144,12 +182,11 @@ shared memory, task hints and environment failures. Check the generated headline
 against raw decisions; a wording difference is not a changed outcome. Correct it
 in your assessment without editing the report.
 
-Deliver the recommendation without requiring “what does the report mean?”:
-what question was tested; added benefit observed or not demonstrated; regressions
-and preserved behavior; decisive evidence; unresolved scope and its decision impact.
+Use SKILL.md's ordinary-language decision guidance for the owner-facing answer.
+Keep the full goal-by-goal audit, source mapping, minority results, report
+corrections and recovery record in linked private evidence. State any limitation
+that affects adoption in the answer itself. Recommend retain/revise/hold at the
+tested scope; never merge or turn that result into a merge recommendation.
 A process change without an outcome change is not automatically an improvement.
-Recommend retain/revise/hold at the tested scope; never merge, and do not turn
-that result into a merge recommendation. Do not infer universal redundancy from
-a few equal trials or promise the next real run will succeed. Finish the
-verification handoff before offering optional process feedback; never operate the
-PR in response to that feedback.
+Do not infer universal redundancy from equal trials or promise live reliability.
+Finish the handoff before offering optional process feedback.

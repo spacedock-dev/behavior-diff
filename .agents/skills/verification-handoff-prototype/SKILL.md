@@ -41,6 +41,29 @@ Resolve bundled files relative to this loaded skill, never the target repository
   or unrelated studies unless explicitly requested. Do not persist raw owner
   responses by default. Familiarity and reused evidence must be disclosed.
 
+## Explain the decision in ordinary language
+
+Write for the owner of the workflow, not the maintainer of the test tool. Apply
+this to proposals, progress messages, blockers and the final answer. Lead with
+what you recommend doing to the change and why, using the owner's task as the
+subject. Explain what benefit was observed, what risk remains, and whether that
+risk changes the recommendation. The owner must not need to open a report to
+understand the decision.
+
+Use short, natural paragraphs. Translate retain/revise/hold into a concrete action:
+"keep these instructions", "change this rule", or "wait for evidence about this
+behavior". Name what is on hold; a failed test is not a reason by itself to reject
+the PR. Distinguish intended benefits from demonstrated benefits. Do not turn
+missing evidence into reassurance.
+
+Keep commands, trace formats, sandbox details, source mappings and diagnostic
+history in linked evidence unless they change the owner's decision. Explain
+technical limits by their practical consequence. Keep model, cost and data terms
+visible when requesting consent, but state the question and recommendation first.
+Progress messages should say what changed, whether the result is affected, and
+what you are doing next; do not narrate every debugging step. Use the available
+Humanizer guidance in embedded mode without installing it or changing evidence.
+
 ## Workflow
 
 1. **Understand the change and route it without model calls.** Load the
@@ -71,14 +94,15 @@ Resolve bundled files relative to this loaded skill, never the target repository
    as the execution handoff describes. Separate setup failures, missed cases and
    unavailable assessment from behavioral failures. Never rerun merely to obtain
    a difference.
-6. **Return a decision-ready result.** Lead with retain, revise or hold and why.
-   State what changed versus Before, what stayed intact, what remains unknown, and
-   whether additional instructions showed added value. Disclose how files were
-   mapped and any generated-report claim you corrected. Link inspectable evidence
-   after the conclusion. Equal outcomes mean no observed added benefit under
-   these conditions, not proof that a rule is universally unnecessary. Simulated
-   behavior does not prove real-service reliability. Do not wait for the owner
-   to ask what the report means.
+6. **Return a decision-ready result.** Follow the explanation guidance above.
+   Recommend retain, revise or hold in ordinary language, naming the change and
+   the reason. Explain what improved versus Before, what stayed intact, and what
+   remains uncertain in terms of the owner's workflow. Say what adopting now
+   would leave unverified and whether to change the PR, wait, or leave it alone
+   while verification continues. Put file mappings and report corrections in the
+   linked evidence; bring any correction that changes the recommendation into
+   the answer. Equal results do not prove a rule unnecessary, and simulated
+   behavior does not prove real-service reliability.
 
 ## Adoption questions
 
@@ -94,12 +118,19 @@ the record contradicts.
 
 ## Completion and blockers
 
-Finish with the bounded question answered, or an evidence-backed blocker naming
-what failed, what was tried, what remains unverified and the smallest recommended
-resolution. Stop only when no in-scope route exists. Missing capability is not
-permission to fake a worker or shrink scope. An intermediate review, helper
-result or successful process exit is not completion. Keep the exact run handle
-and private continuation context for interrupted work.
+Finish with the bounded question answered, or an evidence-backed blocker after
+the execution handoff's recovery steps. A failed attempt or exhausted model-call
+allowance stops further paid execution, not safe non-model diagnosis or useful
+independent review. Finish that work before returning. Respect an explicit
+owner instruction to stop all work.
+
+Do not end with "fix the runner" as owner homework. Explain what the failure means
+for the change, what remains unknown, what you tried, and the specific permission,
+capability or unavailable fact needed next. When only new run authority is
+missing, recommend a bounded check and explain what repair makes it worth trying.
+Keep the run handle and private continuation context. Never bypass isolation,
+invent evidence, silently narrow scope, or repeat unsuccessful attempts merely
+to avoid returning a legitimate blocker.
 
 After delivery, optional feedback may ask what coordination the owner still had
 to do. Do not require an interview to finish. Distinguish necessary owner choices

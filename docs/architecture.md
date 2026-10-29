@@ -986,8 +986,8 @@ Selected change + project context
      (skipped when the request already authorizes them)
   -> instruction and saved-evidence review
   -> Behavior Diff preparation + compatibility/isolation preflight
-  -> execute, check status, recover within terms -> audit evidence
-  -> retain/revise/hold recommendation -> owner adoption decision (no merge)
+  -> execute -> diagnose failures + continue independent checks within authority
+  -> audit evidence -> plain-language recommendation + adoption risk (no merge)
 ```
 
 The owner's touchpoints are the request, one proposal and the adoption decision.
@@ -1001,6 +1001,16 @@ capabilities remain blockers rather than silently reduced scope. Paid runs and
 private-data handoffs need explicit bounded authority; model switches are limited
 to named fallbacks. Global configuration is not a write target. Evaluation
 responses and merge questions never authorize PR operations.
+
+Failed attempts stop the affected execution, not safe non-model recovery or
+independent review. The host verifies launcher boundaries before paid probes,
+requires a repair or distinct hypothesis before retries, and keeps required
+evidence gaps explicit. Exhausted run authority triggers a bounded proposal only
+after permitted diagnosis is complete. Decision simulations do not automatically
+require live service capabilities; the approved question controls that choice.
+Owner-facing messages explain what to do with the change, why, and what remains
+unverified. Technical diagnosis and detailed evidence stay in private links;
+decision-relevant risks and consent terms remain visible.
 
 Explicit replay-only requests use saved evidence without new trials. Optional
 `replay.py` owns private snapshots, correction invalidation, confirmed revisions
