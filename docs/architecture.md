@@ -986,44 +986,50 @@ blinding and private repository visibility are not publication permission.
 ## Local verification handoff prototype
 
 The repository-local [maintainer skill](../.agents/skills/verification-handoff-prototype/SKILL.md)
-owns the verification handoff, separate from the installed plugin:
+owns the journey, the canonical Behavior Diff skill owns the comparison, and the
+existing runner owns execution. These are responsibilities, not new processes
+or an additional coordinator.
 
 ```text
-Selected change + project context
-  -> no-model route checks (fixture fit, file mapping, host, models, isolation)
-  -> one handoff proposal: goals + route + run terms with named model fallbacks
-     (skipped when the request already authorizes them)
-  -> instruction and saved-evidence review
-  -> Behavior Diff preparation + compatibility/isolation preflight
-  -> execute -> diagnose failures + continue independent checks within authority
-  -> audit evidence -> plain-language recommendation + adoption risk (no merge)
+Owner's question + selected change + existing authority
+  -> handoff: review context and delegate comparison to Behavior Diff
+  -> Behavior Diff: resolve inputs, feasibility, and missing run terms
+  -> handoff: one proposal only for missing authority or material decisions
+  -> Behavior Diff: prepare -> freeze -> verify
+  -> existing runner: fresh trials -> recorded evidence -> existing posttrial path
+  -> Behavior Diff: assess reached cases, findings, limits, and execution health
+  -> handoff: practical recommendation + adoption risk (no merge)
 ```
 
-The owner's touchpoints are the request, one proposal and the adoption decision.
-The host owns planning, preparation, bounded recovery and interpretation, without
-requiring owner reminders between stages. It decides whether a workflow engine is
-under test from the target repository, not instruction wording. It normally runs
-the fresh preparer as an isolated host subprocess. On macOS, Codex preparation
-and opt-in trials use the bundled `codex_isolated.py` launcher rather than a
-per-session wrapper. It verifies an outer filesystem sandbox before disabling
-Codex's nested sandbox, isolates the temporary host home, and cleans up copied
-sign-in data. `run-trial.sh` still normalizes recorded shell actions; assessment
-uses its existing host path. The frozen handoff pins the isolation environment
-and shipped helper bytes. Unsupported capabilities remain blockers rather than
-silently reduced scope. Paid runs and private-data handoffs need explicit bounded
-authority; model switches are limited to named fallbacks. Global configuration
-is not a write target. Evaluation
-responses and merge questions never authorize PR operations.
+The handoff follows delegated work through completion without owner reminders,
+but does not maintain another scenario recipe, launch command, or behavioral
+assessment. It uses one resolved Behavior Diff version even when reviewing a
+different repository. Existing frozen input records, run handles, status readers,
+and evidence remain authoritative; this introduces no new handoff schema or
+automatic execution-resume promise.
 
-Failed attempts stop the affected execution, not safe non-model recovery or
-independent review. The host verifies launcher boundaries before paid probes,
-requires a repair or distinct hypothesis before retries, and keeps required
-evidence gaps explicit. Exhausted run authority triggers a bounded proposal only
-after permitted diagnosis is complete. Decision simulations do not automatically
-require live service capabilities; the approved question controls that choice.
-Owner-facing messages explain what to do with the change, why, and what remains
-unverified. Technical diagnosis and detailed evidence stay in private links;
-decision-relevant risks and consent terms remain visible.
+Ordinary comparisons use the existing runner's supported host path. The optional
+`codex_isolated.py` path remains available for a required filesystem boundary,
+not a mandatory prerequisite or automatic fallback for every handoff. Fresh
+trial processes and matching settings are not proof of complete causal isolation.
+Behavior Diff owns the distinction between supported-environment findings and
+stronger isolation claims, including historical preparation in a fresh context
+without prior discussion or outcomes. Required safety or evidence boundaries
+cannot be waived merely to complete a journey.
+
+The handoff reuses existing authorization and requests only missing terms.
+Paid runs, changed provider/data exposure, and expanded scope need bounded
+authority. No global configuration writes or PR operations are implied.
+An execution failure stops the affected work, not safe non-model diagnosis or
+independent review. Behavior Diff supplies the capability gap and supported
+recovery; the handoff carries it through within authority or explains the
+remaining decision. It does not build a replacement launcher.
+
+The agreed question determines whether a simulation is sufficient or a live
+service is required. The final answer explains what to do with the change, why,
+and what remains unverified. Detailed evidence stays in private links; risks
+that affect the decision remain visible. A useful null result can complete the
+journey; missing required evidence or failed execution cannot.
 
 Explicit replay-only requests use saved evidence without new trials. Optional
 `replay.py` owns private snapshots, correction invalidation, confirmed revisions
