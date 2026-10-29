@@ -16,21 +16,54 @@ criteria with the recipe below.
 Use the contemporary change, relevant unchanged instructions and references,
 and available owner context. A supplied real request is usable, but not required.
 For a historical comparison, exclude later fixes, later incidents, earlier
-fixtures, and trial results; do not mine host transcripts. If the orchestrator
-already knows later history or previous outcomes, derive historical purpose and
-prepare the inputs in a fresh context that inherits none of that conversation.
+fixtures, and trial results from the supplied preparation context; do not mine
+host transcripts. If the orchestrator knows later history or previous outcomes,
+derive historical purpose and prepare inputs in a new, non-resumed, non-forked
+session, or a supported subagent that does not inherit that conversation.
 Supply only the selected contemporary instruction versions, required references,
 available contemporary owner context or commit message, and this generic method.
-Use a supported fresh session or isolated subagent; if unavailable, stop and
-report the missing isolation prerequisite before deriving or freezing purpose.
+Use a private preparation workspace containing those reviewed inputs, not earlier
+runs. Do not load prior-session stores or reuse an outcome-aware conversation.
+If no supported fresh-session mechanism is available, stop before preparation.
 If case selection or tooling was informed by hindsight, still disclose that
-limit: isolation does not remove historical selection bias.
+limit: a fresh supplied history does not remove historical selection bias.
 
-Before deriving historical purpose, check whether the chosen fresh host can
-retain native supplied-input and completion records and expose the required
-context controls. Do not discover missing provenance only after making a claim
-of compliant preparation, or replace missing fresh preparation with a session
-that already knows the outcomes.
+For an ordinary supported-environment rehearsal, this is a **supplied-history
+freshness requirement**, not proof that every hidden system instruction, host
+memory or ambient context is absent. Before a model call, check that the chosen
+host supports the new session and required input/completion records; use available
+history controls and review the supplied inputs. Afterward, inspect the native
+record for inherited history, mismatched input, failed completion or observed
+contamination. Those are blockers. Lack of complete ambient-context enumeration
+or resolved per-turn model telemetry is not, unless the owner explicitly requests
+that stronger evidence. Do not turn a historical PR request alone into that claim.
+
+For Codex preparation, a new thread alone is insufficient when the process
+inherits memory or hooks. Before `thread/start` or any model turn, start its
+app-server with these process-local overrides:
+
+```sh
+codex app-server \
+  -c features.memories=false -c features.hooks=false \
+  -c features.plugins=false -c features.apps=false \
+  -c features.multi_agent=false -c features.multi_agent_v2=false \
+  -c 'web_search="disabled"'
+```
+
+Read `config/read` without starting a turn. Disable each configured MCP server
+for the preparation process too, then restart and verify the effective controls.
+Use an inline TOML table containing the actual server names with `enabled=false`,
+for example `-c 'mcp_servers={example_service={enabled=false}}'`; an empty table
+merges with inherited configuration and does not disable its servers. Verify
+all six feature flags are false, web search is disabled, and no MCP server is
+enabled before starting preparation. Keep the approved account/model and normal
+child sandbox; do not change global configuration. Record only the control
+summary, never the full configuration or credential-bearing server definitions.
+These controls prevent the known history-loading routes, not every possible
+hidden context source. If a preparer reports prior-outcome context, preserve that
+report and inspect the available records and effective controls; do not claim
+its source or contents were established solely from the report, and do not mark
+the affected preparation fresh without resolving it.
 
 After preparation, the private handoff may include `preparation_evidence` with
 `host`, `record_file`, `input_file`, `thread_id`, and `turn_id`. The files must
@@ -39,32 +72,75 @@ preparer prompt; `record_file` is the host-native export, not an agent-written
 summary. Freeze binds both files by digest and verify rejects changed or missing
 records.
 
-The Codex adapter validates a native `ThreadReadResponse` containing one complete,
-non-inherited legacy-history turn and one matching plain-text user input.
-Partial, paginated, forked, compacted, ambiguous or failed records do not establish
+The Codex adapter accepts legacy and paginated native histories. Both must
+establish one complete, non-inherited turn and one matching plain-text user
+input. Partial, forked, compacted, ambiguous or failed records do not establish
 those facts. Unsupported host formats remain explicitly unavailable.
+
+- For `historyMode: "legacy"`, save the complete native `ThreadReadResponse`
+  returned by `thread/read` with `includeTurns: true`.
+- For `historyMode: "paginated"`, use `thread/read` with `includeTurns: false`
+  for metadata, then `thread/turns/list` with `threadId`, `cursor: null`,
+  `sortDirection: "asc"` and `itemsView: "full"`. Follow every `nextCursor`
+  until it is explicitly `null`, retaining each exact request and response.
+  An optional positive `limit` sets page size, not the total history limit.
+  Save this envelope as `record_file`:
+
+      {"thread_read": <native ThreadReadResponse>, "turn_pages": [{"request": <exact ThreadTurnsListParams>, "response": <native ThreadTurnsListResponse>}]}
+
+  The metadata-only thread must have an empty `turns` array. Page requests
+  must start at the beginning, keep the same thread, direction and full item
+  view, and follow the complete cursor chain without filtering or repetition.
+  Summary items and unfinished pages cannot establish fresh preparation.
+  Preserve native responses unchanged; never rewrite the history mode or
+  combine pages into a fabricated legacy response.
+
+Capture these records after the preparation turn completes, before freezing
+the handoff. Native pagination alone is not a missing preparation capability.
 
 These checks establish only the supplied user input and native completion
 represented in the provided record. They do not authenticate an arbitrary export
 or enumerate injected system context. Codex's thread model is configured/latest
-metadata, not per-turn execution telemetry: resolved execution model and the
-complete historical context boundary remain unavailable. Missing references
-remain unverified. Never turn those unavailable facets into a compliant-preparation
-claim; when the requested claim requires them, report the missing prerequisite.
+metadata, not per-turn execution telemetry. The adapter therefore retains overall
+`status: "unverified"` and unavailable `resolved_model` and `historical_boundary`
+facets even when `supplied_user_input` and `completion` are verified.
+
+For an ordinary supported-environment rehearsal, use those verified facets with
+the fresh-session and reviewed-input checks above, disclose the unavailable
+facets, and continue to freeze and run. Do not require the overall status to
+become verified, relabel unavailable facets, or ask the owner to waive them.
+Missing or invalid required input/completion evidence still blocks preparation.
+When the owner explicitly requires complete ambient isolation or resolved-model
+attestation, retain that stronger requirement and report the missing capability.
 Native records and reviewed prompts stay out of trial copies, assessment input
 and public reports.
 
 1. **Goals.** Start from the frozen purpose goals. Name new behavior and
    behavior that must survive the change. Mark preservation goals as inferred
    unless stated.
-2. **Capabilities and premises.** For each goal, list what the agent must
-   observe, decide, or produce. For each capability, list the environment
-   facts it depends on (files, query results, tools, permissions, repository
-   state, time), where the trial can reach each fact, and which source is
-   authoritative. Assessment-only knowledge must not stand in for a premise
-   missing from the trial. If an outcome depends on time, set one as-of
-   timestamp and timezone, give both variants the same neutral as-of statement,
-   and make every simulated clock and calculation agree.
+2. **Claims before capabilities.** For each goal, first name the claim the
+   comparison must support: an agent decision (such as choosing to inspect,
+   checking a result, or respecting an approval boundary), actual execution
+   quality (such as detecting a visual defect), or a real integration outcome.
+   Record its basis in the selected request and contemporary instructions.
+   A production requirement in the source instruction does not by itself make
+   its production tool a trial dependency for an agent-decision question.
+   Preserve that requirement as behavior under test; do not turn every source
+   requirement into an end-to-end acceptance claim.
+
+   For ordinary instruction rehearsals of decisions, default to controlled
+   simulation of external tools as described below. Disclose that evidence
+   boundary in the initial proposal before approval and freeze it with the
+   claims. Explicit real-output or real-integration goals retain their actual
+   dependencies; never silently replace them with simulation.
+
+   Only then list what the agent must observe, decide, or produce for each
+   claim. Map each capability to its premises (files, query results, tools,
+   permissions, repository state, time), reachable interfaces, and authoritative
+   sources. Assessment-only knowledge must not stand in for a premise missing
+   from the trial. If an outcome depends on time, set one as-of timestamp and
+   timezone, give both variants the same neutral as-of statement, and make
+   every simulated clock and calculation agree.
 3. **Task.** Write a natural user request that starts before the tested work
    and reaches the changed rule. It defines starting state and scope only. It
    must not state the expected answer, the rule, a findings list, or a
@@ -85,9 +161,10 @@ and public reports.
    arguments or artifacts, and not enforce the desired result. Extra scenarios
    or trial sets require separate approval.
 5. **Private notes.** Outside every trial input, in the private `0700`
-   directory, record with mode `0600`: the goal → capability → premise →
-   case mapping; why each case was selected; evidence that establishes whether
-   each condition was reached, missed, or remains unknown; for each agreement
+   directory, record with mode `0600`: the goal → claim and evidence boundary →
+   capability → premise → case mapping; why each case was selected; evidence
+   that establishes whether each condition was reached, missed, or remains
+   unknown; for each agreement
    check, the trial-reachable sources whose returned content must ground it;
    separate criteria for supported, contradicted, or insufficient-evidence
    outcomes for every case; cross-case cues and interactions; capabilities left
@@ -200,6 +277,53 @@ Ask the user only when a material requirement cannot be reached from the
 change, project, or conversation. Do not require an incident or an existing
 eval.
 
+## Controlled behavior simulation
+
+Controlled simulation tests the agent's choices against authored external-tool
+behavior, not the quality or availability of the real service. Use it by default
+for ordinary decision goals, not as a fallback after approving a real-output
+claim. It does not waive historical fresh preparation, privacy, permissions,
+required context boundaries, or the real Spacedock handoff requirements.
+
+Give both variants the same interfaces and initial state. Make every material
+outcome needed for the decision discoverable through those interfaces, including
+failure results and relevant artifacts. Record submitted actions, arguments,
+artifacts, and tool returns. The adapter must accept wrong actions as well as
+correct ones; it must not reject a bad choice just to force compliance, repair
+the agent's work, supply assessment answers, or tell it which branch is correct.
+Use the existing captured read forms for required source evidence. Keep private
+criteria out of tool responses. Simulated user responses must never be presented
+as the real owner's approval or authorize real external effects.
+
+An inspection request and an inspection result support different claims.
+Recorded use of a simulated inspection interface can show that the agent chose
+to inspect and responded to its returned facts; it cannot establish that the
+agent actually detected pixels or that a native generator produced a valid
+image. Name simulation in the initial terms and scenario limitations, and keep
+that distinction in assessment and the final recommendation.
+
+For example, use a synthetic archive and checksum manifest with no personal
+data. For the decision claim "checks integrity before publishing", a safe local
+adapter can record the requested download, return an authored archive result,
+and expose a checksum mismatch through the same query interface on both sides.
+Let the agent discover it and record any publish attempt without publishing.
+This supports only decisions in response to modeled results. The separate claim
+"downloads a real archive and correctly computes its digest" requires actual
+archive bytes, the real download integration when required, and a working digest
+command; an authored checksum result cannot establish it.
+
+Resolve missing capabilities per claim before stopping a comparison. A missing
+native production tool blocks the real-output claim that depends on it, not an
+ordinary decision claim already scoped to simulation. Report blocked claims
+explicitly; do not mark them passed or silently omit them. If an approved plan
+requires the blocked real outcome, stop that dependent work and offer a concrete,
+bounded revised proposal naming the retained decision claims, simulated
+interfaces, lost real-output evidence, and any change to the approved quota.
+Obtain approval for that changed scope before running it. Do not silently convert
+an approved real-output claim to simulation, re-ask an unchanged approved budget,
+or launch extra trials. Cross-cutting security or freshness failures still stop
+all work that depends on them.
+
 ## Comparison scope and execution route
 
 Ordinary comparisons ask whether the selected change is useful in the supported
@@ -226,12 +350,14 @@ explicitly selected, separately scoped route, never an automatic fallback.
 A filesystem boundary alone does not establish causal isolation from every
 model or host influence.
 
-If a required boundary or capability is unavailable, report that precise blocker.
+If a required boundary or claim-level capability is unavailable, report that
+precise blocker and stop the dependent work under the claim rules above.
 Do not weaken host permissions, invent a launcher, or silently substitute a
-current-environment comparison for the stronger requested claim. Conversely, do
-not block an ordinary supported-environment comparison solely because it cannot
-support a strict causal claim. Historical fresh-context preparation above remains
-required on either route; disclosing host exposure does not waive it.
+current-environment comparison for the stronger requested claim. Conversely,
+do not block an ordinary supported-environment comparison solely because it
+cannot support a strict causal claim or an unrequested real-output claim.
+Historical fresh-context preparation above remains required on either route;
+disclosing host exposure does not waive it.
 
 ### Required native filesystem boundary
 
@@ -276,12 +402,14 @@ under the host's intended permissions:
 - The selected After bytes and the Before content or verified absence are
   available; every reference required by either version is in the trial base.
   Exactly the selected instruction differs between variants.
-- Exercise the required reads, queries, local tests, artifact writes and safe
-  action recording in scratch copies under the intended host tools and
-  permissions. Confirm consistent facts and authoritative sources, including
-  time when needed. Confirm that each source requirement names a source the
-  trial can reach through a captured read form listed in step 6. Do not assume
-  subagent dispatch or approvals exist.
+- Exercise the reads, queries, local tests, artifact writes and safe action
+  recording required by the derived claims in scratch copies under the intended
+  host tools and permissions. For controlled simulation, exercise its actual
+  interfaces and recorded returns, not the production service it models.
+  Confirm consistent facts and authoritative sources, including time when
+  needed. Confirm that each source requirement names a source the trial can
+  reach through a captured read form listed in step 6. Do not assume subagent
+  dispatch or approvals exist.
 - Represent relevant branch/remote state, permissions and existing user work
   explicitly. Use safe local artifacts for modeled publication; never include
   credentials or perform real external effects merely to test an instruction.
@@ -295,9 +423,10 @@ under the host's intended permissions:
 Run probes in scratch copies only. A probe may exercise discovery queries to
 check the environment, but must not deposit its findings in trial inputs or
 change the original project or frozen stage. The trial still performs discovery
-itself. If a required capability or premise is missing, stop and report it.
-Do not substitute a generic simulator or fabricate approvals. A deliberately
-modeled limitation is part of the scenario; an accidental harness failure is not.
+itself. If a required capability or premise is missing, apply the claim-level
+stop rules above before launch. Never substitute a generic simulator for a
+required real outcome or fabricate approvals. A deliberately modeled limitation
+is part of the frozen scenario; an accidental harness failure is not.
 
 ## Freeze
 
@@ -357,6 +486,15 @@ to launch a duplicate. If execution fails or its owner is lost, preserve that ru
 and report the affected phase even if a report was generated. Distinguish startup,
 normalization, assessment, and behavioral failures. Claim that no model ran only
 when startup diagnostics and native evidence establish that fact.
+
+Check the execution host separately from the trial sandbox. A sandboxed command
+tool may be unable to start another native sandbox even though the same runner
+works from the host. Use the host's normal, authorized command-approval mechanism
+for the exact preparation or fixed-runner command; retain the child agents'
+normal sandbox. Model-run consent is not OS permission. Do not disable sandboxes,
+enable automatic approvals, or add a replacement launcher to evade a denial.
+If the host cannot grant the needed execution access, report that prerequisite;
+do not classify it as an unavailable simulated production tool.
 
 Use only the recovery allowance already authorized for this comparison. Before
 another model-backed attempt, identify a concrete local repair or a distinct

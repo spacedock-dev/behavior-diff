@@ -77,6 +77,87 @@ class NativePreparationTests(unittest.TestCase):
         self.native["thread"].pop("model")
         self.assertEqual(self.validate(), original)
 
+    def paginated_record(self):
+        metadata = copy.deepcopy(self.native)
+        turns = metadata["thread"].pop("turns")
+        metadata["thread"].update(historyMode="paginated", turns=[])
+        return {
+            "thread_read": metadata,
+            "turn_pages": [
+                {
+                    "request": {
+                        "threadId": self.reference["thread_id"],
+                        "cursor": None,
+                        "sortDirection": "asc",
+                        "itemsView": "full",
+                    },
+                    "response": {"data": turns, "nextCursor": None},
+                }
+            ],
+        }
+
+    def test_complete_paginated_history_preserves_native_facet_limits(self):
+        self.assertEqual(self.validate(self.paginated_record()), self.validate())
+
+    def test_paginated_cursor_chain_reaches_the_full_turn(self):
+        native = self.paginated_record()
+        second = copy.deepcopy(native["turn_pages"][0])
+        native["turn_pages"][0]["response"] = {
+            "data": [],
+            "nextCursor": "page-two",
+        }
+        second["request"]["cursor"] = "page-two"
+        native["turn_pages"].append(second)
+        self.assertEqual(self.validate(native), self.validate())
+        second["request"]["cursor"] = "wrong-cursor"
+        with self.assertRaises(ValueError):
+            self.validate(native)
+        second["request"]["cursor"] = "page-two"
+        second["response"]["nextCursor"] = "page-two"
+        with self.assertRaises(ValueError):
+            self.validate(native)
+
+    def test_paginated_history_requires_complete_unfiltered_cursor_chain(self):
+        mutations = [
+            lambda n: n["turn_pages"][0]["request"].update(cursor="skipped-page"),
+            lambda n: n.update(turn_pages=None),
+            lambda n: n["thread_read"]["thread"].update(historyMode="legacy"),
+            lambda n: n["turn_pages"][0]["request"].update(threadId="wrong-thread"),
+            lambda n: n["turn_pages"][0]["request"].update(itemsView="summary"),
+            lambda n: n["turn_pages"][0]["request"].update(turnId="filtered-turn"),
+            lambda n: n["turn_pages"][0]["response"].pop("nextCursor"),
+            lambda n: n["turn_pages"][0]["response"].update(nextCursor="more"),
+            lambda n: n["turn_pages"].append(copy.deepcopy(n["turn_pages"][0])),
+            lambda n: n["thread_read"]["thread"].update(
+                turns=copy.deepcopy(self.native["thread"]["turns"])
+            ),
+            lambda n: n["turn_pages"][0]["response"]["data"][0].update(
+                itemsView="summary"
+            ),
+            lambda n: n["thread_read"]["thread"].update(parentThreadId="inherited"),
+            lambda n: n["turn_pages"][0]["response"]["data"][0]["items"][0]["content"][
+                0
+            ].update(text="unreviewed input"),
+        ]
+        for index, mutate in enumerate(mutations):
+            with self.subTest(index=index):
+                native = self.paginated_record()
+                mutate(native)
+                with self.assertRaises(ValueError):
+                    self.validate(native)
+
+    def test_paginated_history_does_not_hide_an_additional_turn(self):
+        native = self.paginated_record()
+        first = native["turn_pages"][0]
+        first["response"]["nextCursor"] = "page-two"
+        second = copy.deepcopy(first)
+        second["request"]["cursor"] = "page-two"
+        second["response"]["nextCursor"] = None
+        second["response"]["data"][0]["id"] = "another-turn"
+        native["turn_pages"].append(second)
+        with self.assertRaises(ValueError):
+            self.validate(native)
+
     def test_truncated_and_duplicate_native_json_are_rejected(self):
         for content in (
             '{"thread":',

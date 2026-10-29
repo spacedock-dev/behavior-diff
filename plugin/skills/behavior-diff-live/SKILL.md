@@ -63,6 +63,14 @@ the sibling skill's bundled `scripts/` directory.
    Validate it with `python3 <behavior-diff scripts>/purpose.py <purpose file>`.
    Keep its canonical JSON for assessment; never include purpose, its path,
    or raw session context in either trial prompt. Do not revise it after results.
+   Before capability checks, follow the canonical reference's
+   [claim derivation](../behavior-diff/references/scenario-and-test-data.md#prepare-from-intent)
+   and [controlled behavior simulation](../behavior-diff/references/scenario-and-test-data.md#controlled-behavior-simulation)
+   rules. Disclose simulated external tools in the initial proposal for ordinary
+   decision goals. A production-tool requirement in the tested instruction alone
+   does not require a real-output trial; explicitly real goals keep their actual
+   dependencies and claim-level stops. Never turn simulated results into real
+   inspection evidence or real owner approval.
 
 2. **Build the variants** in a scratch dir, never in the user's repo:
 

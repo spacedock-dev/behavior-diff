@@ -13,9 +13,13 @@ different copy or invent a substitute runner.
 ## Handoff proposal
 
 Inspect the change first. When the goal is ambiguous, offer 2–4 distinct outcomes
-tailored to it, with a recommended option and a short reason. Do not require
-technical test design from the owner. Skip the options for an already clear goal.
-Combine this clarification with the run proposal, not a separate questionnaire.
+tailored to it, with a recommended option and a short reason. Ordinary instruction
+rehearsal uses controlled external-service simulation to check agent decisions
+and safeguards. Real-output quality and live integration are separate goals; require
+them only when the owner's explicit question depends on them, not from action
+verbs in the production instructions. Do not require technical test design from
+the owner. Skip the options for an already clear goal. Combine this clarification
+with the run proposal, not a separate questionnaire.
 
 For an invented PR adding archive checksum checks, the options could be:
 
@@ -29,6 +33,14 @@ For an invented PR adding archive checksum checks, the options could be:
 Explain why the recommendation fits the actual change, and let the owner name
 another concern. These example options are not a fixed menu for every PR.
 
+Before asking approval, use Behavior Diff to resolve method fit for every material
+goal, including the intended new behavior and preserved safeguards. Identify the
+claims the scenario will test and any material untested claims. Do not drop goals
+to fit available tools or approve a broad question before discovering it requires
+a different method. If an option requires unavailable real outputs, explain that
+limit and recommend a concrete bounded proposal that distinguishes the behavioral
+check from the unresolved real-output claim.
+
 Then state run terms covering the recommended option. If all offered options
 can share the same bounded terms, explicitly say so; otherwise identify the
 differences before seeking approval. Do not promise unknown terms to avoid an
@@ -40,8 +52,12 @@ every placeholder with checked facts:
 I recommend <option and reason, or the owner's explicit goal>: checking whether
 this change helps the agent <owner's outcome>
 without losing <preserved safeguard>. I'll compare the old and new instructions
-using <test situation>. This will answer <decision question>.
-<State an important excluded claim only if it affects this decision.>
+using <test situation>. External services will be simulated with controlled tool
+results to check <agent decisions and safeguards>, not <real-output quality or
+integration claims>. This will answer <decision question>.
+<If the owner's explicit goal requires real outputs, replace the simulation
+sentence with the checked real-output method and its dependencies.>
+<Name every material untested claim and its consequence for this decision.>
 
 I'll run three attempts with each version, using <preparation/trial model>,
 with <named fallback and trigger>, and <assessment model and fallback or none>.
@@ -88,18 +104,29 @@ Shared settings or guidance may support a current-environment observation, not
 proof that added rules alone caused it. If the owner explicitly requires stronger
 isolation, follow the canonical method; an unavailable required boundary remains a
 blocker. Do not weaken the host sandbox or automatically fall back to another
-launcher. Historical scenario preparation still requires the canonical fresh
-session excluding this conversation and prior results, regardless of the trial
-execution boundary.
+launcher. Historical preparation follows the canonical supplied-history freshness
+requirement: a new context with reviewed contemporary inputs, not this conversation
+or prior results. It does not require complete hidden-context or per-turn model
+attestation unless the owner explicitly requests that stronger claim. Apply the
+canonical facet-level checks rather than treating an overall unverified provenance
+label as a blanket stop.
 
-Preserve the owner's question when selecting capabilities. An agreed simulation
-may answer a decision-only question; actual generation, inspection, saving, live
-services or real worker continuation remain requirements when the question
-depends on them. A mention of a worker or gate alone does not make a workflow
-engine a dependency. Use Behavior Diff to resolve the route from repository facts
-and required claims, not from a previous failed setup. Do not ask the owner to
-diagnose a mismatch or approve a route that already fits the agreed scope.
-Changing the method in a way that loses an agreed claim requires owner approval.
+Preserve the owner's complete question when selecting capabilities. By default,
+ordinary instruction rehearsal uses controlled external-service simulation under
+Behavior Diff's canonical method. The production requirement to generate, inspect,
+save, call a service or continue a worker does not itself require real production
+tools in a decision rehearsal. Test whether the agent makes those decisions and
+honors their safeguards against recorded tool results; never present simulated
+results as observed real output quality, visual inspection or integration evidence.
+A mention of a worker or gate alone does not make a workflow engine a dependency.
+
+When the owner's explicit goal depends on actual outputs, inspection, saving, live
+services or real worker continuation, retain those as real dependencies. Resolve
+the route from repository facts and required claims, not a previous failed setup.
+Distinguish claims about agent decisions from claims about execution quality and
+integration before seeking consent. Keep all material untested claims visible;
+do not silently narrow the goal or elevate an approved decision goal into a
+real-output requirement.
 
 ## Authorization, execution and recovery
 
@@ -127,12 +154,22 @@ Do not retune after a null result or present changed conditions as a replacement
 for the original comparison.
 
 Route the failed comparison step through its canonical recovery while completing
-useful safe non-model diagnosis and independent review. A missing action record
-blocks the claim that depends on it, not every independent finding. Label partial
-coverage as partial; do not present it as a completed end-to-end comparison.
-Exhausted retry authority is not a reason to hand setup diagnosis to the owner.
-Finish permitted independent work, then ask only for the missing authority,
-capability or fact with a concrete recommendation and decision consequence.
+useful safe non-model diagnosis and independent review. For an approved decision
+rehearsal, route a missing native production tool to a canonical supported behavioral
+scenario within the approved simulation method and run terms. Do not ask for fresh
+consent for an already covered route or make its setup owner homework. A missing
+action record blocks the claim that depends on it, not every independent finding.
+Label partial coverage as partial; do not hide untested material goals or present
+partial evidence as a completed end-to-end comparison.
+
+If an explicit real-output goal is blocked, do not silently replace it with
+simulation. Finish permitted independent work, state what remains untested, and
+offer a concrete bounded amended proposal: the recommended answerable question,
+which original claims it would and would not cover, and only the changed method,
+authority or run terms requiring approval. Preserve the original approved scope
+until the owner accepts an amendment. Exhausted retry authority is not a reason
+to hand setup diagnosis to the owner. Ask only for the missing authority,
+capability or fact, with a recommendation and decision consequence.
 
 Model approval is not permission for live-service effects, source edits, global
 configuration writes, publication, adoption or merge. Obtain the specific

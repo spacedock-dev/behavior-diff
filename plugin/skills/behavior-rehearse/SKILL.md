@@ -90,16 +90,24 @@ Humanizer guidance in embedded mode without installing it or changing evidence.
    If the request leaves materially different verification goals open, offer 2–4
    concrete, outcome-based options derived from that change. Mark one recommended
    and explain why; usually check both the intended new behavior and preservation
-   of existing safeguards. Allow the owner to name a different concern. Do not
-   ask only "What do you want to verify?" or present model, fixture or execution
-   mode choices as goals. If the goal is already clear, skip the options.
-   Give Behavior Diff the proposed or explicit question and source context; use
-   its method to resolve inputs, capabilities, tested scope and run terms. Do not
-   require the owner to assemble evidence or confirm repository-provided facts.
+   of existing safeguards. Ordinary instruction rehearsal checks agent decisions
+   using controlled simulation of external services. Treat real generation,
+   inspection or integration as a dependency only when the owner's explicit goal
+   requires real outputs, not because the PR tells the production agent to perform
+   those actions. Allow the owner to name a different concern. Do not ask only
+   "What do you want to verify?" or present execution modes as goals. If the goal
+   is already clear, skip the options.
+   Give Behavior Diff the proposed or explicit question and source context; resolve
+   method fit, capabilities and the complete tested scope before requesting run
+   approval. Preserve each material goal and identify any claim the method cannot
+   test; do not approve broad wording and later upgrade its capability requirements.
+   Do not require the owner to assemble evidence or confirm repository-provided facts.
 2. **Settle goal and authority together.** Put any goal options and their
    recommendation in the same handoff proposal as the applicable bounded run
    terms, following [execution handoff](references/execution.md#handoff-proposal).
-   State which option each set of terms covers. Explicitly say that "approve"
+   State the controlled-service simulation default and which claims and options
+   the terms cover, distinguishing agent decisions from real-output quality or
+   integration. Explicitly say that "approve"
    accepts the recommended goal and its stated run terms; choosing a goal alone
    is not run authorization. Do not add separate scope and execution approval
    rounds when one proposal can settle both. Reuse existing authorization and
@@ -123,11 +131,15 @@ Humanizer guidance in embedded mode without installing it or changing evidence.
    Use [execution handoff](references/execution.md) for authority and recovery
    boundaries, not a second comparison recipe.
 5. **Recover without abandoning independent work.** Route a comparison problem
-   through Behavior Diff's diagnosis and recovery method. Continue useful safe
-   non-model diagnosis and independent review within authority. An in-scope
-   supported route is work to do, not owner homework. Ask again only for a
-   material goal correction, unavailable fact or authority beyond approved terms.
-   Never rerun merely to obtain a difference.
+   through Behavior Diff's diagnosis and recovery method. For a decision goal,
+   missing native production tools call for a supported behavioral scenario within
+   the approved simulation method, not a whole-comparison blocker. Continue useful
+   safe non-model diagnosis and independent review within authority. An in-scope
+   supported route is work to do, not owner homework. If an explicit real-output
+   goal cannot be tested, preserve that gap and propose a concrete bounded amendment
+   with the changed claims and run terms; do not silently convert it to simulation.
+   Ask again only for a material goal correction, unavailable fact or authority
+   beyond approved terms. Never rerun merely to obtain a difference.
 6. **Return a decision-ready result.** Give the action-first conclusion above in
    the first post-verification answer, not only after an adoption question.
    Explain what improved versus Before, what stayed intact, and what remains
