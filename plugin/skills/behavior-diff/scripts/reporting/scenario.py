@@ -10,9 +10,11 @@ is never a trial input.
 
 from dataclasses import dataclass
 from typing import Tuple
+import re
 
 from reporting.explanation import _text
 from reporting.sources import SourceRequirementData, parse_source_requirements
+from reporting.sources import sensitive_text
 from reporting.target import EVIDENCE_KINDS, MODES
 
 SUMMARY_LIMIT = 400
@@ -20,6 +22,15 @@ RATIONALE_LIMIT = 1200
 ITEM_LIMIT = 300
 CHECK_TEXT_LIMIT = 600
 ID_LIMIT = 80
+
+ARTIFACT_LIMIT = 16
+ARTIFACT_PATH_LIMIT = 120
+
+
+@dataclass(frozen=True)
+class ArtifactRequirementData:
+    check: str
+    paths: Tuple[str, ...]
 
 
 @dataclass(frozen=True)
@@ -40,6 +51,7 @@ class ScenarioData:
     limitations: Tuple[str, ...]
     checks: Tuple[ScenarioCheckData, ...]
     source_requirements: Tuple[SourceRequirementData, ...]
+    artifact_requirements: Tuple[ArtifactRequirementData, ...] = ()
 
 
 def _texts(values, minimum, maximum):
@@ -69,13 +81,60 @@ def _check(raw, purpose):
     )
 
 
+def _artifact_requirements(raw, checks):
+    allowed = {check.id for check in checks if check.evidence_kind != "recorded_action"}
+    if type(raw) is not list or len(raw) > ARTIFACT_LIMIT:
+        raise ValueError("invalid artifact requirements")
+    result, seen, paths, aliases = [], set(), set(), {}
+    for item in raw:
+        if (
+            type(item) is not dict
+            or set(item) != {"check", "paths"}
+            or type(item["check"]) is not str
+            or item["check"] not in allowed
+            or item["check"] in seen
+            or type(item["paths"]) is not list
+            or not 1 <= len(item["paths"]) <= ARTIFACT_LIMIT
+        ):
+            raise ValueError("invalid artifact requirement")
+        selected = []
+        for path in item["paths"]:
+            if (
+                type(path) is not str
+                or not 1 <= len(path) <= ARTIFACT_PATH_LIMIT
+                or sensitive_text(path)
+                or (path.casefold() in aliases and aliases[path.casefold()] != path)
+                or any(
+                    not re.fullmatch(r"[A-Za-z0-9_-][A-Za-z0-9_.-]*", part)
+                    or re.match(
+                        r"(?i)(?:private|eval|assessment|criteria|grader)", part
+                    )
+                    for part in path.split("/")
+                )
+                or path in selected
+            ):
+                raise ValueError("invalid or private artifact path")
+            selected.append(path)
+            aliases[path.casefold()] = path
+            paths.add(path)
+        seen.add(item["check"])
+        result.append(ArtifactRequirementData(item["check"], tuple(selected)))
+    if len(paths) > ARTIFACT_LIMIT:
+        raise ValueError("too many required artifact paths")
+    return tuple(result)
+
+
 def parse_scenario(raw, purpose):
     """Return None for an unrecorded scenario, else a validated ScenarioData."""
     if raw is None:
         return None
     if not purpose:
         raise ValueError("a scenario record needs frozen purpose goals")
-    if type(raw) is not dict or set(raw) != set(ScenarioData.__dataclass_fields__):
+    fields = set(ScenarioData.__dataclass_fields__)
+    if type(raw) is not dict or set(raw) not in (
+        fields,
+        fields - {"artifact_requirements"},
+    ):
         raise ValueError("invalid scenario fields")
     checks = raw["checks"]
     if type(checks) is not list or not 1 <= len(checks) <= 16:
@@ -96,4 +155,5 @@ def parse_scenario(raw, purpose):
         _texts(raw["limitations"], 0, 8),
         parsed,
         requirements,
+        _artifact_requirements(raw.get("artifact_requirements", []), parsed),
     )

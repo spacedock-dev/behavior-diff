@@ -6,12 +6,13 @@
 #
 # Usage: run-trial.sh --agent claude|codex|pi|omp --model M --dir DIR \
 #          --task-file FILE [--allowed CLAUDE_TOOL_LIST] [--trace-dir DIR] \
-#          [--status-file FILE]
+#          [--status-file FILE] [--context-requirements-file PRIVATE_JSON]
 # The agent runs with cwd DIR; trace.jsonl/stderr.log land in --trace-dir
 # (default: DIR). --status-file names the caller-owned trial status record;
 # this script merges only its phase and the host CLI exit code into it.
 set -euo pipefail
-agent="" model="" dir="" task_file="" allowed="" trace_dir="" status_file=""
+umask 077
+agent="" model="" dir="" task_file="" allowed="" trace_dir="" status_file="" context_requirements_file=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --agent)
@@ -42,6 +43,10 @@ while [ $# -gt 0 ]; do
       status_file=$2
       shift 2
       ;;
+    --context-requirements-file)
+      context_requirements_file=$2
+      shift 2
+      ;;
     *)
       echo "run-trial: unknown argument $1" >&2
       exit 2
@@ -58,6 +63,12 @@ esac
   exit 2
 }
 scripts=$(cd "$(dirname "$0")" && pwd)
+native_context_args=()
+if [ -n "$context_requirements_file" ]; then
+  context_requirements_file=$(cd "$(dirname "$context_requirements_file")" && pwd -P)/$(basename "$context_requirements_file")
+  python3 "$scripts/native_context.py" validate --requirements "$context_requirements_file" \
+    --agent "$agent" --workspace "$dir" || exit 2
+fi
 if [ "$agent" = codex ]; then
   case "$model" in
     sol | luna)
@@ -71,6 +82,18 @@ fi
 task=$(cat "$task_file")
 trace_dir=$(cd "${trace_dir:-$dir}" && pwd)
 cd "$dir"
+if [ -n "$context_requirements_file" ]; then
+  python3 "$scripts/native_context.py" prepare --requirements "$context_requirements_file" \
+    --agent "$agent" --workspace "$PWD" --output "$trace_dir/context-boundary.json" \
+    >"$trace_dir/native-context-args" || {
+    rm -f "$trace_dir/native-context-args"
+    exit 2
+  }
+  while IFS= read -r -d '' arg; do
+    native_context_args+=("$arg")
+  done <"$trace_dir/native-context-args"
+  rm "$trace_dir/native-context-args"
+fi
 
 # BEHAVIOR_DIFF_TRIAL tells this plugin's own hooks to stay silent inside a
 # trial — otherwise a user-scope install would nudge itself recursively.
@@ -129,7 +152,11 @@ if [ "$agent" = claude ]; then
     --output-format stream-json --verbose >"$trace_dir/trace.jsonl" 2>"$trace_dir/stderr.log" || cli_exit=$?
   record_status "{\"cli_exit_code\":$cli_exit}"
 elif [ "$agent" = codex ]; then
-  if [ -n "${BEHAVIOR_DIFF_CODEX_ISOLATION_ROOT:-}" ]; then
+  if [ -n "$context_requirements_file" ]; then
+    codex "${native_context_args[@]}" exec --strict-config \
+      --ephemeral --skip-git-repo-check -m "$model" --json "$task" \
+      </dev/null >"$trace_dir/codex-raw.jsonl" 2>"$trace_dir/stderr.log" || cli_exit=$?
+  elif [ -n "${BEHAVIOR_DIFF_CODEX_ISOLATION_ROOT:-}" ]; then
     isolation_args=(exec --workspace "$PWD" --root "$BEHAVIOR_DIFF_CODEX_ISOLATION_ROOT" --model "$model")
     if [ -n "${BEHAVIOR_DIFF_CODEX_DENY_READ:-}" ]; then
       isolation_args+=(--deny-read "$BEHAVIOR_DIFF_CODEX_DENY_READ")
@@ -158,6 +185,10 @@ elif [ "$agent" = codex ]; then
              | .item.text]
             | {type: "result", result: (last // "")}' \
     "$trace_dir/codex-raw.jsonl" >>"$trace_dir/trace.jsonl"
+  if [ -n "$context_requirements_file" ]; then
+    python3 "$scripts/native_context.py" observe --requirements "$context_requirements_file" \
+      --trace "$trace_dir/trace.jsonl" --output "$trace_dir/context-boundary.json" || exit 2
+  fi
 elif [ "$agent" = omp ]; then
   # PIPESTATUS separates the host CLI's exit from the task writer's.
   printf '%s\n' "$task" | omp -p \

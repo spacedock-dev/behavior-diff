@@ -18,6 +18,8 @@ import sys
 import tarfile
 import unicodedata
 
+from native_context import load_requirements
+from preparation_evidence import validate_preparation_evidence
 from purpose import read_purpose, unique_object
 from scenario import read_scenario
 from source import read_source
@@ -54,6 +56,8 @@ def handoff(path, project, working, root, data=None):
     if type(record) is not dict or not required <= record.keys() <= required | {
         "scenario_file",
         "source_file",
+        "preparation_evidence",
+        "context_requirements_file",
     }:
         raise PreparationError("invalid handoff fields")
     files = {str(path): regular_file(path)}
@@ -63,6 +67,7 @@ def handoff(path, project, working, root, data=None):
         "notes_file",
         "scenario_file",
         "source_file",
+        "context_requirements_file",
     ):
         if key not in record:
             continue
@@ -84,6 +89,35 @@ def handoff(path, project, working, root, data=None):
         raise PreparationError("a non-null purpose needs its reviewed scenario")
     if "source_file" in record:
         read_source(record["source_file"])
+    if "context_requirements_file" in record:
+        load_requirements(record["context_requirements_file"])
+    preparation = {
+        "facts": {
+            "status": "unverified",
+            "supplied_user_input": "unavailable",
+            "completion": "unavailable",
+            "resolved_model": "unavailable",
+            "historical_boundary": "unavailable",
+            "limitations": ["No native preparation record was supplied."],
+        }
+    }
+    if "preparation_evidence" in record:
+        reference = record["preparation_evidence"]
+        if type(reference) is not dict:
+            raise PreparationError("invalid native preparation evidence reference")
+        for key in ("record_file", "input_file"):
+            value = private_file(reference[key])
+            if any(within(value, p) for p in trial_roots):
+                raise PreparationError(
+                    "native preparation records must remain outside trial inputs"
+                )
+            reference[key] = str(value)
+            private_paths.append(str(value))
+            files[str(value)] = regular_file(value)
+        preparation = {
+            "reference": reference,
+            "facts": validate_preparation_evidence(reference),
+        }
     task = Path(record["task_file"]).read_text().rstrip("\n")
     if not task.strip() or "\0" in task:
         raise PreparationError("task must be nonempty text without NUL")
@@ -131,7 +165,12 @@ def handoff(path, project, working, root, data=None):
         raise PreparationError("fast must be a boolean")
     if settings.get("fast"):
         argv.append("--fast")
-    for key in ("purpose_file", "scenario_file", "source_file"):
+    for key in (
+        "purpose_file",
+        "scenario_file",
+        "source_file",
+        "context_requirements_file",
+    ):
         if key in record:
             argv += ["--" + key.replace("_", "-"), record[key]]
     # Freeze shipped mechanics as well as custom tools, without caches or data.
@@ -142,6 +181,7 @@ def handoff(path, project, working, root, data=None):
         "files": inventory(files),
         "private": private_paths,
         "settings": settings,
+        "preparation_evidence": preparation,
         "codex_isolation": {
             name: os.environ[name]
             for name in (
@@ -647,6 +687,13 @@ def verify(root, as_json=False):
                 raise PreparationError(
                     "handoff context, settings or tools changed after freeze"
                 )
+        preparation = context.get("preparation_evidence", {})
+        if "reference" in preparation:
+            if (
+                validate_preparation_evidence(preparation["reference"])
+                != preparation["facts"]
+            ):
+                raise PreparationError("native preparation facts changed after freeze")
     if frozen["before_mode"] == "absent":
         if (root / "before").exists() or (root / "before").is_symlink():
             raise PreparationError("absent Before must not have a frozen content file")

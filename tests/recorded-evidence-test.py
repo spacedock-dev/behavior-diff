@@ -623,6 +623,186 @@ class SourceRequirementTests(unittest.TestCase):
         self.assertEqual(self.records()[0]["status"], "available")
 
 
+class ArtifactEvidenceTests(unittest.TestCase):
+    """Only frozen, exact output paths admit captured project bytes."""
+
+    setUp = RecordedEvidenceTests.setUp
+    trace = RecordedEvidenceTests.trace
+    records = RecordedEvidenceTests.records
+
+    def configure_artifacts(self, paths=("decision-record.md",)):
+        config = scenario_config(["*facts.txt*"])
+        config["scenario_record"]["artifact_requirements"] = [
+            {"check": "cap-agrees", "paths": list(paths)}
+        ]
+        (self.root / "config.json").write_text(json.dumps(config))
+        return config
+
+    def test_required_shell_written_artifact_reaches_assessment(self):
+        self.trace(command("write", "printf proposed > decision-record.md", ""))
+        project = self.root / "before-1/project"
+        project.mkdir()
+        (project / "decision-record.md").write_text("Synthetic actual saved decision.")
+        (project / "private-evaluator.md").write_text("Must never enter assessment.")
+        self.configure_artifacts()
+        records = self.records()
+        artifact = next(r for r in records if ":artifact-" in r["id"])
+        self.assertEqual(artifact["text"], "Synthetic actual saved decision.")
+        self.assertEqual(artifact["status"], "available")
+        self.assertIn("decision-record.md", artifact["source"])
+        self.assertNotIn("proposed", artifact["text"])
+        self.assertNotIn("Must never", json.dumps(records))
+        self.assertEqual(
+            next(r for r in records if ":tool-" in r["id"])["status"], "omitted"
+        )
+        evidence_records(collect_run_evidence(self.root))
+
+    def test_missing_links_nontext_and_sensitive_artifacts_fail_closed(self):
+        self.trace([])
+        project = self.root / "before-1/project"
+        project.mkdir()
+        outside = self.root / "evaluator.txt"
+        outside.write_text("Private evaluator sentinel")
+        (project / "linked.md").symlink_to(outside)
+        (project / "hardlink.md").hardlink_to(outside)
+        (project / "directory.md").mkdir()
+        (project / "binary.md").write_bytes(b"synthetic\0binary")
+        (project / "filtered.md").write_text("password=synthetic-value")
+        (project / "large.md").write_text("x" * 65537)
+        self.configure_artifacts(
+            (
+                "missing.md",
+                "linked.md",
+                "hardlink.md",
+                "directory.md",
+                "binary.md",
+                "filtered.md",
+                "large.md",
+            )
+        )
+        records = self.records()
+        self.assertTrue(all(not record["text"] for record in records))
+        self.assertTrue(
+            all(record["status"] in ("omitted", "unavailable") for record in records)
+        )
+        self.assertNotIn("Private evaluator sentinel", json.dumps(records))
+
+    def test_artifact_excerpt_budget_and_full_privacy_scan(self):
+        self.trace([])
+        project = self.root / "before-1/project"
+        project.mkdir()
+        for index in range(6):
+            (project / f"decision-{index}.md").write_text("s" * (EXCERPT_LIMIT + 1))
+        (project / "filtered.md").write_text("s" * EXCERPT_LIMIT + " password=hidden")
+        self.configure_artifacts(
+            tuple(f"decision-{index}.md" for index in range(6)) + ("filtered.md",)
+        )
+        records = self.records()
+        self.assertEqual(sum(len(record["text"]) for record in records), TRIAL_LIMIT)
+        self.assertTrue(all(record["status"] == "truncated" for record in records[:6]))
+        self.assertEqual(records[-1]["status"], "omitted")
+        self.assertEqual(records[-1]["text"], "")
+        evidence_records(collect_run_evidence(self.root))
+
+    def test_artifact_contract_bounds_and_case_aliases(self):
+        self.trace([])
+        for paths in (
+            (),
+            ("same.md", "same.md"),
+            ("Same.md", "same.md"),
+            ("a" * 121,),
+            tuple(f"decision-{index}.md" for index in range(17)),
+        ):
+            with self.subTest(paths=paths):
+                self.configure_artifacts(paths)
+                with self.assertRaises(ValueError):
+                    collect_run_evidence(self.root)
+
+    def test_missing_trace_keeps_artifact_and_project_symlinks_are_excluded(self):
+        project = self.root / "before-1/project"
+        project.mkdir(parents=True)
+        (project / "decision-record.md").write_text("Synthetic saved decision.")
+        self.configure_artifacts()
+        records = self.records()
+        self.assertEqual(records[0]["status"], "available")
+        self.assertEqual(records[1]["id"], "before-1:trace")
+        (project / "decision-record.md").unlink()
+        project.rmdir()
+        outside = self.root / "private-evaluator"
+        outside.mkdir()
+        (outside / "decision-record.md").write_text("Private sentinel")
+        project.symlink_to(outside, target_is_directory=True)
+        records = self.records()
+        self.assertEqual(records[0]["status"], "unavailable")
+        self.assertNotIn("Private sentinel", json.dumps(records))
+
+    def test_path_aliases_and_private_evaluator_selection_rejected(self):
+        self.trace([])
+        for path in (
+            "../decision.md",
+            "/tmp/decision.md",
+            "./decision.md",
+            "a//decision.md",
+            "a/../decision.md",
+            ".git/config",
+            ".env",
+            "private/decision.md",
+            "private-evaluator.md",
+            "criteria.json",
+            "assessment.md",
+            "eval-notes.md",
+            "a\\decision.md",
+            "decision*.md",
+        ):
+            with self.subTest(path=path):
+                self.configure_artifacts((path,))
+                with self.assertRaises(ValueError):
+                    collect_run_evidence(self.root)
+
+    def test_artifact_is_output_not_a_source_read_or_recorded_action(self):
+        for trial in ("before-1", "after-1"):
+            self.trace(call("read-1"), trial)
+            project = self.root / trial / "project"
+            project.mkdir()
+            (project / "decision-record.md").write_text("Synthetic cap: 500.")
+        config = self.configure_artifacts()
+        scenario = parse_scenario(config["scenario_record"], PURPOSE)
+        definition = config["scenario_record"]["checks"][0]
+        raw = criterion(
+            "source_consistency",
+            excerpt="Synthetic cap: 500.",
+            before_outcome="unassessable",
+        )
+        row = raw["criteria"][0]
+        row.update(definition)
+        row["after"][0]["refs"] = ["after-1:artifact-1", "after-1:tool-1"]
+        evidence = evidence_records(collect_run_evidence(self.root))
+        target, rejection = check_target(
+            raw, PURPOSE, ANSWERS, evidence, scenario=scenario
+        )
+        self.assertIsNone(rejection)
+        self.assertIsNone(target.criteria[0].rejection)
+        row["after"][0]["refs"] = ["after-1:artifact-1"]
+        target, _ = check_target(raw, PURPOSE, ANSWERS, evidence, scenario=scenario)
+        self.assertEqual(
+            target.criteria[0].rejection, "criterion lacks a required frozen source"
+        )
+        row["after"][0]["refs"] = ["after-1:answer", "after-1:tool-1"]
+        row["after"][0]["output_excerpt"] = "Synthetic draft"
+        target, _ = check_target(raw, PURPOSE, ANSWERS, evidence, scenario=scenario)
+        self.assertEqual(
+            target.criteria[0].rejection, "criterion lacks a required captured artifact"
+        )
+        row["evidence_kind"] = "recorded_action"
+        row["after"][0]["refs"] = ["after-1:artifact-1"]
+        row["after"][0]["output_excerpt"] = ""
+        target, _ = check_target(raw, PURPOSE, ANSWERS, evidence)
+        self.assertEqual(
+            target.criteria[0].rejection,
+            "criterion lacks required source or output evidence",
+        )
+
+
 class TargetEvidenceTests(unittest.TestCase):
     """A captured call proves that the call ran, never what it returned."""
 

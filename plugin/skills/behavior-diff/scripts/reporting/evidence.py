@@ -1,13 +1,18 @@
-"""Bound recorded tool returns for assessment; never retrieve source files.
+"""Bound recorded tool returns and explicitly declared captured output artifacts.
 
 Offsets describe the returned text, not file line numbers. Filtering is deliberately
 conservative and cannot certify arbitrary prose as free of private information.
 """
 
 import json
+import hashlib
+import os
+import stat
+from contextlib import nullcontext
 import re
 import shlex
 from pathlib import Path
+from reporting.context_boundary import boundary_exclusion
 
 from reporting.sources import (
     DESCRIPTOR_TRUNCATED,
@@ -21,6 +26,7 @@ TRIAL_LIMIT = 16384
 RUN_LIMIT = 131072
 RECORD_LIMIT = 128
 SOURCE_LIMIT = 240
+ARTIFACT_BYTE_LIMIT = 65536
 SELF_REPORTED = "self-reported action, not a captured return"
 DUPLICATE_CALL = "duplicate tool call identity"
 DUPLICATE_RESULT = "duplicate tool result identity"
@@ -172,14 +178,91 @@ def _share(records, budget):
     return used
 
 
-def _trial_evidence(path, name, remaining, self_reported=False, required=()):
+def _artifact_evidence(trial, paths):
+    """Read only nominated regular files, using no-follow directory descriptors."""
     records = []
+    for index, relative in enumerate(paths, 1):
+        record = {
+            "id": f"{trial.name}:artifact-{index}",
+            "source": "artifact " + relative,
+            "range": {"start": 0, "end": 0, "unit": "characters"},
+            "text": "",
+            "status": "unavailable",
+            "reason": "required artifact missing or unsafe",
+        }
+        records.append(record)
+        descriptors = []
+        try:
+            # Opening each component relative to an already opened directory
+            # prevents both static links and path-swap escapes.
+            directory = os.open(trial, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+            descriptors.append(directory)
+            for part in ("project", *relative.split("/")[:-1]):
+                directory = os.open(
+                    part,
+                    os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW,
+                    dir_fd=directory,
+                )
+                descriptors.append(directory)
+            fd = os.open(
+                relative.split("/")[-1],
+                os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK,
+                dir_fd=directory,
+            )
+            descriptors.append(fd)
+            info = os.fstat(fd)
+            if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1:
+                raise ValueError("unsafe file")
+            if info.st_size > ARTIFACT_BYTE_LIMIT:
+                record.update(
+                    status="omitted", reason="artifact exceeds bounded privacy scan"
+                )
+                continue
+            with os.fdopen(os.dup(fd), "rb") as stream:
+                data = stream.read(ARTIFACT_BYTE_LIMIT + 1)
+            after = os.fstat(fd)
+            if len(data) > ARTIFACT_BYTE_LIMIT or (
+                info.st_size,
+                info.st_mtime_ns,
+                info.st_ctime_ns,
+            ) != (after.st_size, after.st_mtime_ns, after.st_ctime_ns):
+                record.update(reason="artifact changed or exceeded capture limit")
+                continue
+            text = data.decode("utf-8")
+            if "\0" in text:
+                raise ValueError("non-text artifact")
+            if sensitive_text(text):
+                record.update(
+                    status="omitted", reason="potentially sensitive artifact content"
+                )
+                continue
+            record["source"] += " sha256:" + hashlib.sha256(data).hexdigest()
+            record.update(
+                text=text[:EXCERPT_LIMIT],
+                status="truncated" if len(text) > EXCERPT_LIMIT else "available",
+                reason="artifact assessment truncation"
+                if len(text) > EXCERPT_LIMIT
+                else "",
+            )
+            record["range"]["end"] = len(record["text"])
+        except (OSError, ValueError, UnicodeError):
+            pass
+        finally:
+            for fd in reversed(descriptors):
+                os.close(fd)
+    return records
+
+
+def _trial_evidence(
+    path, name, remaining, self_reported=False, required=(), artifacts=()
+):
+    records = _artifact_evidence(path.parent, artifacts)
     pending = {}
     used = 0
     call_count = 0
     overflow = 0
     if not path.is_file() or path.is_symlink():
-        return [
+        records.append(
             {
                 "id": f"{name}:trace",
                 "source": "trial recording",
@@ -188,8 +271,13 @@ def _trial_evidence(path, name, remaining, self_reported=False, required=()):
                 "status": "unavailable",
                 "reason": "recording missing or symlink excluded",
             }
-        ], used
-    with path.open(encoding="utf-8", errors="replace") as stream:
+        )
+    stream_context = (
+        path.open(encoding="utf-8", errors="replace")
+        if path.is_file() and not path.is_symlink()
+        else nullcontext([])
+    )
+    with stream_context as stream:
         for line in stream:
             try:
                 event = json.loads(line)
@@ -318,7 +406,9 @@ def _trial_evidence(path, name, remaining, self_reported=False, required=()):
     priority, incidental = [], []
     for record in records:
         if record["text"]:
-            matched = source_matches(record["source"], required)
+            matched = ":artifact-" in record["id"] or source_matches(
+                record["source"], required
+            )
             (priority if matched else incidental).append(record)
     budget = max(0, min(TRIAL_LIMIT, remaining))
     # Frozen required sources claim the same trial budget before incidental reads.
@@ -327,10 +417,10 @@ def _trial_evidence(path, name, remaining, self_reported=False, required=()):
     return records, used
 
 
-def _required_patterns(config):
-    """Return frozen source-requirement patterns; historical runs have none."""
+def _required_inputs(config):
+    """Return frozen source patterns and exact output paths; historical runs have none."""
     if type(config) is not dict or config.get("scenario_record") is None:
-        return ()
+        return (), ()
     # Scenario validation imports target, which imports this module.
     from reporting.scenario import parse_scenario
     from reporting.target import parse_purpose
@@ -343,13 +433,21 @@ def _required_patterns(config):
         raise ValueError(
             "invalid frozen scenario record in run configuration"
         ) from None
-    return tuple(
+    patterns = tuple(
         dict.fromkeys(
             pattern
             for requirement in scenario.source_requirements
             for pattern in requirement.any_of
         )
     )
+    artifacts = tuple(
+        dict.fromkeys(
+            path
+            for requirement in scenario.artifact_requirements
+            for path in requirement.paths
+        )
+    )
+    return patterns, artifacts
 
 
 def collect_run_evidence(run):
@@ -362,7 +460,7 @@ def collect_run_evidence(run):
     self_reported = (
         type(config) is dict and config.get("trace_source") == "self-reported"
     )
-    required = _required_patterns(config)
+    required, artifacts = _required_inputs(config)
     trials = {}
     remaining = RUN_LIMIT
     grades = run / "grades.tsv"
@@ -379,11 +477,14 @@ def collect_run_evidence(run):
     ]
     for index, name in enumerate(names):
         trial = run / name
+        if boundary_exclusion(trial) is not None:
+            trials[trial.name] = []
+            continue
         trace = trial / "trace.jsonl"
         # Reserve a share for every remaining trial, including the other variant.
         allowance = remaining // (len(names) - index)
         records, used = _trial_evidence(
-            trace, trial.name, allowance, self_reported, required
+            trace, trial.name, allowance, self_reported, required, artifacts
         )
         trials[trial.name] = records
         remaining -= used
@@ -392,10 +493,11 @@ def collect_run_evidence(run):
             "per_excerpt_characters": EXCERPT_LIMIT,
             "per_trial_characters": TRIAL_LIMIT,
             "per_run_characters": RUN_LIMIT,
-            "per_trial_records": RECORD_LIMIT,
-            "selection": _REQUIRED_SELECTION if required else _SELECTION,
+            "per_trial_records": RECORD_LIMIT + len(artifacts),
+            "selection": ("declared artifacts and " if artifacts else "")
+            + (_REQUIRED_SELECTION if required else _SELECTION),
             "privacy": "Known sensitive sources and credential/email patterns are omitted; arbitrary private prose cannot be reliably detected.",
-            "provenance": "Ranges are offsets in recorded returned text, not source-file lines. Absence here does not prove the agent lacked information.",
+            "provenance": "Ranges are character offsets in captured returns or explicitly declared project artifacts, not source-file lines. Artifact SHA-256 identifies captured bytes, not authorship or a read/action. Absence does not prove the agent lacked information.",
         },
         "trials": trials,
     }

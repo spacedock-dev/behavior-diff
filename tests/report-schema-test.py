@@ -406,6 +406,7 @@ def scenario_record(payload=""):
             }
         ],
         "source_requirements": [],
+        "artifact_requirements": [],
     }
 
 

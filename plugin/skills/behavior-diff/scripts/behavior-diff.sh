@@ -7,6 +7,9 @@
 #   behavior-diff.sh --file CLAUDE.md --task "one-line scenario" \
 #       [--trials 3 | --fast] [--model NAME] [--before-file ORIGINAL]
 #       [--purpose-file JSON] [--scenario-file JSON] [--source-file JSON]
+#       [--context-requirements-file PRIVATE_JSON]
+# Optional context requirements select a fail-closed native Codex filesystem
+# policy, not proof of isolation from injected/non-filesystem context.
 # Purpose is frozen report/assessment context, never an added trial instruction.
 # Purpose and bounded recorded read/search returns go to the assessment provider
 # and local reports. Supply reviewed safe context; exclusions are not privacy guarantees.
@@ -33,10 +36,10 @@
 # ${BEHAVIOR_DIFF_HOME:-~/.behavior-diff}/runs.
 set -euo pipefail
 
-file="" task="" trials=3 agent=claude model="" vocab=generic extract_agent="" extract_model="" before_file="" purpose_file="" scenario_file="" source_file=""
+file="" task="" trials=3 agent=claude model="" vocab=generic extract_agent="" extract_model="" before_file="" purpose_file="" scenario_file="" source_file="" context_requirements_file=""
 while [ $# -gt 0 ]; do
   case "$1" in
-    --file | --before-file | --purpose-file | --scenario-file | --source-file | --task | --trials | --model | --agent | --vocab | --extract-agent | --extract-model)
+    --file | --before-file | --purpose-file | --scenario-file | --source-file | --context-requirements-file | --task | --trials | --model | --agent | --vocab | --extract-agent | --extract-model)
       if [ $# -lt 2 ] || [ -z "$2" ]; then
         echo "behavior-diff: $1 needs a value" >&2
         exit 2
@@ -62,6 +65,10 @@ while [ $# -gt 0 ]; do
       ;;
     --source-file)
       source_file=$2
+      shift 2
+      ;;
+    --context-requirements-file)
+      context_requirements_file=$2
       shift 2
       ;;
     --task)
@@ -153,6 +160,15 @@ command -v jq >/dev/null || {
   exit 3
 }
 scripts=$(cd "$(dirname "$0")" && pwd)
+context_args=()
+context_required=false
+if [ -n "$context_requirements_file" ]; then
+  context_requirements_file=$(cd "$(dirname "$context_requirements_file")" && pwd -P)/$(basename "$context_requirements_file")
+  python3 "$scripts/native_context.py" validate --requirements "$context_requirements_file" \
+    --agent "$agent" --workspace "$PWD" || exit 2
+  context_args=(--context-requirements-file "$context_requirements_file")
+  context_required=true
+fi
 
 # Validate and freeze purpose before any model discovery or trial launch.
 # Never print rejected content: even a derived purpose can contain secrets.
@@ -251,6 +267,14 @@ context_rel() { # $1 option name, $2 absolute context path -> repo-relative path
   fi
   case "$2" in "$repo"/*) printf '%s\n' "${2#"$repo"/}" ;; esac
 }
+if [ -n "$context_requirements_file" ]; then
+  case "$context_requirements_file" in
+    "$repo" | "$repo"/*)
+      echo "behavior-diff: context requirements must remain outside trial source" >&2
+      exit 2
+      ;;
+  esac
+fi
 purpose_rel="" scenario_rel="" source_rel=""
 if [ -n "$purpose_file" ]; then
   purpose_rel=$(context_rel --purpose-file "$purpose_file") || exit 2
@@ -305,6 +329,12 @@ mkdir -p "$runs_root/runs"
 runs_dir=$(cd "$runs_root/runs" && pwd -P)
 run=$(mktemp -d "$runs_dir/diff-$(date +%Y%m%d-%H%M%S)-XXXXXX")
 run_id=${run##*/}
+if [ -n "$context_requirements_file" ]; then
+  python3 "$scripts/native_context.py" freeze --requirements "$context_requirements_file" \
+    --output "$run/context-requirements.json" || exit 2
+  context_requirements_file=$run/context-requirements.json
+  context_args=(--context-requirements-file "$context_requirements_file")
+fi
 
 say() { # one console line; a closed console must never stop the run
   if ! (printf '%s\n' "$*") 2>/dev/null; then
@@ -428,9 +458,10 @@ jq -n --arg f "$rel" --arg task "$task" --arg vocab "$vocab" \
   --arg title "Behavior Diff — $rel" --argjson purpose "$purpose" \
   --argjson scenario_record "$scenario_record" \
   --argjson source "$source_json" --argjson ci_context "$ci_context" \
+  --argjson context_required "$context_required" \
   --arg before_label "$before_label" --arg after_label "$after_label" \
   '{title:$title, scenario:$task, purpose:$purpose,
-    scenario_record:$scenario_record,
+    scenario_record:$scenario_record, context_boundary_required:$context_required,
     target_file:$f, mode:"review", vocab:$vocab,
     before_label:$before_label, after_label:$after_label}
     + (if $source == null then {} else {source:$source} end)
@@ -471,7 +502,7 @@ run_trial_worker() { # $1 trial directory; runs as a background job
   if cd "$dir/project" && guarded_step snapshot_project; then
     guarded_step "$scripts/run-trial.sh" --agent "$agent" --model "$model" \
       --dir "$dir/project" --task-file "$run/task.md" \
-      --allowed "$ALLOWED" --trace-dir "$dir" --status-file "$trial_status" ||
+      --allowed "$ALLOWED" --trace-dir "$dir" --status-file "$trial_status" ${context_args[@]+"${context_args[@]}"} ||
       code=$?
   else
     code=$?
@@ -558,7 +589,6 @@ launch() { # $1 variant, $2 trial index
     prepare_snapshot "$@"
   fi
   preparing_trial=""
-  run_trial_worker "$dir" &
 }
 
 say "behavior diff on $rel: $trials trial(s) per variant, agent $agent, model $model"
@@ -566,6 +596,18 @@ record_status "$run/status.json" run '{"phase":"running_trials"}'
 milestone "starting $((2 * trials)) trials"
 for v in before after; do
   for t in $(seq 1 "$trials"); do launch "$v" "$t"; done
+done
+if [ -n "$context_requirements_file" ]; then
+  for v in before after; do
+    for t in $(seq 1 "$trials"); do
+      python3 "$scripts/native_context.py" validate --requirements "$context_requirements_file" \
+        --agent "$agent" --workspace "$run/$v-$t/project" \
+        --policy-workspace "$run/$v-$t/project" || exit 2
+    done
+  done
+fi
+for v in before after; do
+  for t in $(seq 1 "$trials"); do run_trial_worker "$run/$v-$t" & done
 done
 wait || true
 

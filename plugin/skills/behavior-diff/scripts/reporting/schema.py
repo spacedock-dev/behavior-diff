@@ -597,7 +597,10 @@ def _decisions(value, path, hunk_count, groups=None, final_answers=None):
     evidence = persisted_evidence(value.get("recorded_evidence", []))
     raw_scenario = value.get("scenario_record")
     scenario = parse_scenario(raw_scenario, purpose)
-    if raw_scenario is not None and _json_value(asdict(scenario)) != raw_scenario:
+    canonical_scenario = _json_value(asdict(scenario)) if scenario else None
+    if canonical_scenario is not None and "artifact_requirements" not in raw_scenario:
+        canonical_scenario.pop("artifact_requirements")
+    if raw_scenario is not None and canonical_scenario != raw_scenario:
         _invalid(path + ".scenario_record", "canonical scenario recorded before trials")
     raw_target = value.get("target_assessment")
     target = parse_target(

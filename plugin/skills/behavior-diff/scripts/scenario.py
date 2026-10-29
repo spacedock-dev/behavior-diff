@@ -28,7 +28,12 @@ def read_scenario(path, purpose_path):
     with path.open(encoding="utf-8") as stream:
         raw = json.load(stream, object_pairs_hook=unique_object)
     scenario = parse_scenario(raw, parse_purpose(read_purpose(purpose_path)))
-    return asdict(scenario) if scenario else None
+    if scenario is None:
+        return None
+    result = asdict(scenario)
+    if "artifact_requirements" not in raw:
+        result.pop("artifact_requirements")
+    return result
 
 
 def main():
@@ -56,7 +61,10 @@ def main():
             "with 1..8 distinct fnmatch patterns (<=200, no brackets, no edge "
             "spaces) over recorded source descriptors; each pattern needs a "
             "literal path, endpoint, or identifier and must not name a "
-            "sensitive source",
+            "sensitive source. Optional artifact_requirements is 0..16 "
+            "{check,paths} groups naming output/source_consistency checks, "
+            "with at most 16 distinct exact project-relative text paths "
+            "(<=120 characters); no aliases, hidden, private, evaluator or secret paths",
             file=sys.stderr,
         )
         return 2

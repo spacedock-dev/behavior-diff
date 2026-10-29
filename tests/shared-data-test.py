@@ -433,6 +433,72 @@ class HandoffTests(Fixtures, unittest.TestCase):
                 self.assertTrue(result.stderr.strip())
                 self.assertFalse(root.exists())
 
+    def test_native_preparation_files_are_private_frozen_and_drift_checked(self):
+        project, data = self.standard()
+        descriptor = self.handoff_file()
+        reference = {
+            "host": "codex",
+            "thread_id": "synthetic-thread",
+            "turn_id": "synthetic-turn",
+            "record_file": str(descriptor.parent / "native.json"),
+            "input_file": str(descriptor.parent / "input.txt"),
+        }
+        supplied = "Synthetic historical preparation input.\n"
+        native = {
+            "thread": {
+                "id": reference["thread_id"],
+                "sessionId": "synthetic-session",
+                "forkedFromId": None,
+                "parentThreadId": None,
+                "historyMode": "legacy",
+                "turns": [
+                    {
+                        "id": reference["turn_id"],
+                        "status": "completed",
+                        "error": None,
+                        "itemsView": "full",
+                        "items": [
+                            {
+                                "id": "synthetic-user-item",
+                                "type": "userMessage",
+                                "content": [{"type": "text", "text": supplied}],
+                            }
+                        ],
+                    }
+                ],
+            },
+        }
+        for key, content in (
+            ("record_file", json.dumps(native)),
+            ("input_file", supplied),
+        ):
+            path = Path(reference[key])
+            path.write_text(content)
+            path.chmod(0o600)
+        handoff = json.loads(descriptor.read_text())
+        handoff["preparation_evidence"] = reference
+        descriptor.write_text(json.dumps(handoff))
+        stage = self.staged(project, data, handoff=descriptor, exclude=PRIVATE)
+        frozen = json.loads((stage / "freeze.json").read_text())
+        context = frozen["context"]
+        facts = context["preparation_evidence"]["facts"]
+        self.assertEqual(facts["supplied_user_input"], "verified")
+        self.assertEqual(facts["resolved_model"], "unavailable")
+        self.assertEqual(facts["historical_boundary"], "unavailable")
+        self.assertNotIn(supplied, json.dumps(frozen))
+        self.assertNotIn(reference["record_file"], context["argv"])
+        self.assertNotIn(reference["input_file"], context["argv"])
+        for key in ("record_file", "input_file"):
+            path = Path(reference[key])
+            original = path.read_bytes()
+            path.write_bytes(original + b" ")
+            self.assertNotEqual(self.verify(stage).returncode, 0)
+            path.unlink()
+            self.assertNotEqual(self.verify(stage).returncode, 0)
+            path.write_bytes(original)
+            path.chmod(0o600)
+        self.assertEqual(self.verify(stage).returncode, 0)
+
     def test_complete_staged_handoff_rejects_every_context_and_settings_mutation(self):
         project, data = self.standard()
         descriptor = self.handoff_file()

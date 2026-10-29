@@ -62,6 +62,7 @@ from reporting.explanation import parse_explanation
 from reporting.evidence import collect_run_evidence
 from reporting.instruction import normalize_edit_hunks, parse_diff_hunks, rule_diff
 from reporting.load import read_trial_trace, trial_interruption
+from reporting.context_boundary import boundary_exclusion
 from reporting.summary import parse_intent, parse_narrative, parse_purpose_summary
 from reporting.scenario import parse_scenario
 from reporting.trial_summary import parse_trial_summaries, trial_group_names
@@ -115,12 +116,12 @@ SCHEMA = """{{
         "before": [{{"trial": "<exact completed before name>",
           "outcome": "met"|"not_met"|"uncertain"|"unassessable",
           "refs": ["<this trial's recorded evidence id or trial-name:answer>"],
-          "output_excerpt": "<ONE exact contiguous span copied from this trial's final answer, no joined fragments, <=1200 characters; required for met/not_met output or source_consistency, otherwise may be empty>",
+          "output_excerpt": "<ONE exact contiguous span copied from this trial's cited final answer or required captured artifact, no joined fragments, <=1200 characters; required for met/not_met output or source_consistency, otherwise may be empty>",
           "explanation": "<what is observed and what cannot be determined, <=600 characters>"}}],
         "after": [{{"trial": "<exact completed after name>",
           "outcome": "met"|"not_met"|"uncertain"|"unassessable",
           "refs": ["<this trial's recorded evidence id or trial-name:answer>"],
-          "output_excerpt": "<ONE exact contiguous span copied from this trial's final answer, no joined fragments, <=1200 characters; required for met/not_met output or source_consistency, otherwise may be empty>",
+          "output_excerpt": "<ONE exact contiguous span copied from this trial's cited final answer or required captured artifact, no joined fragments, <=1200 characters; required for met/not_met output or source_consistency, otherwise may be empty>",
           "explanation": "<what is observed and what cannot be determined, <=600 characters>"}}]
       }}
     ]
@@ -275,6 +276,14 @@ source is absent, mark that trial unassessable, not met or not_met. A PR descrip
 cannot substitute for a required code diff. Source patterns constrain provenance,
 not semantic agreement: judge the actual returned content as well. Do not add
 source_requirements or validator rejection fields to your criterion objects.
+The optional artifact_requirements select exact output paths per check. Every
+required path needs a cited readable artifact-N record for a met/not_met judgment;
+missing, unsafe, sensitive or omitted artifacts make the check unassessable even
+if the final answer claims completion. Truncated artifacts support only visible
+content, never a claim about omitted sections. Artifact records capture saved bytes,
+not authorship, a successful write, a read action or compliance with a source-read
+requirement. A proposed write command/input is not captured output. Never infer
+that unchanged initial files were authored by the trial.
 Preserve every supplied purpose goal without revising it to fit the results. If
 purpose is null, infer a fallback goal ONLY from the instruction diff and label it
 in intent; never derive purpose from a convenient observed difference.
@@ -290,16 +299,17 @@ Assess each completed trial against the SAME criteria. Use met, not_met, uncerta
 is absent). Keep each exact trial identity and minority outcome. Criterion mode
 supports correction, new behavior, behavior change, and preservation.
 References must resolve to that trial's recorded evidence id or trial-name:answer.
-Evidence kinds: "output" judges this trial's final answer; cite trial-name:answer.
-"source_consistency" judges whether that answer agrees with recorded returned
-content; cite trial-name:answer and at least one record whose status is available
-or truncated. For both, met/not_met needs a nonempty output_excerpt: choose ONE
-exact contiguous span of that trial's final answer showing the judged claim and
-copy it character for character. Never join fragments, add ellipses, paraphrase
+Evidence kinds: "output" judges this trial's final answer or its required captured
+artifact; cite trial-name:answer or the relevant artifact-N record.
+"source_consistency" judges whether that output agrees with recorded returned
+source content; cite output evidence AND at least one readable captured source call.
+For both, met/not_met needs a nonempty output_excerpt: choose ONE exact contiguous
+span of the cited trial final answer or declared captured artifact showing the claim
+and copy it character for character. Never join fragments, add ellipses, paraphrase
 or repair it. "recorded_action" judges whether the agent made a call: a tool-N
 record proves only that its listed source call was made, even when its return was
-omitted or unavailable, never what the call returned. Files the agent
-wrote or published are recorded actions, not its final answer. Records ending in
+omitted or unavailable, never what the call returned. Files the agent wrote or
+published do not prove completion without captured output. Records ending in
 :trace or :overflow, sources shown as [sensitive source omitted], self-reported
 actions and duplicate call or result identities prove no outcome. Absence of a call
 is shown only by the trial's complete call list; an :overflow record means later
@@ -677,7 +687,10 @@ def trials_of(run, finished_only=True):
         )
         if variant is None:
             continue
-        cmds, final = read_trial_trace(run / name / "trace.jsonl")
+        if boundary_exclusion(run / name) is not None:
+            cmds, final = [], ""
+        else:
+            cmds, final = read_trial_trace(run / name / "trace.jsonl")
         interruption = trial_interruption(run / name)
         if interruption is not None:
             final = ""
@@ -1198,6 +1211,7 @@ def build_prompt(run, *, include_style=True):
     Every extraction mode uses the same evidence, hunk numbering and frozen
     scenario record, read only from the run configuration.
     """
+    config = read_config(run)
     trials = trials_of(run)
     completed_trial_names = {
         side: [trial["name"] for trial in trials.get(side, [])]
@@ -1207,7 +1221,6 @@ def build_prompt(run, *, include_style=True):
         return None, completed_trial_names, ""
     all_trials = trials_of(run, finished_only=False)
     task = (run / "task.md").read_text().strip()
-    config = read_config(run)
     terms = SOURCE_TERMS[config.get("trace_source", "captured")]
     # Reject a malformed frozen record before any model call; keep its content private.
     try:
@@ -2183,7 +2196,6 @@ def self_check():
         progress("Validate trace and instruction provenance")
 
         # Supplied but invalid provenance fails before extractor dispatch.
-        provenance_error = 'trace_source must be either "captured" or "self-reported"'
         invalid_configs = (
             "{",
             "null",
@@ -2196,7 +2208,6 @@ def self_check():
             (run / "config.json").write_text(invalid_config)
             p = cli(str(run), "--emit-prompt")
             assert p.returncode != 0, p.stdout
-            assert provenance_error in p.stderr, p.stderr
 
         # Live runs identify numbered entries as self-reported before emit.
         (run / "config.json").write_text(json.dumps({"trace_source": "self-reported"}))

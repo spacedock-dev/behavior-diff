@@ -396,8 +396,8 @@ shared-data stage.
 The private helper
 [`prepare_shared.py`](../plugin/skills/behavior-diff/scripts/prepare_shared.py)
 delivers a reviewed data directory to every trial without changing the user's
-checkout or adding runner options. It only delivers and verifies: the skill
-designs the data, and the helper does not generate data, launch models, or infer
+checkout. It only delivers and verifies: the skill designs the data, and the helper
+does not generate data, launch models, or infer
 provenance. The optional private `--handoff` descriptor names task, purpose,
 scenario, optional source, notes, required references, custom tools and settings.
 It reuses the existing input readers and freezes those inputs plus shipped
@@ -455,6 +455,31 @@ existing runner only after re-verification in the same environment. Semantic
 capability probes, source closure and privacy review remain with the agent;
 digests cannot prove that a probe ran or succeeded.
 
+Optional private `preparation_evidence` binds native preparer records and the
+reviewed input file to this inventory. `preparation_evidence.py` checks the
+supported Codex native export for one complete, non-inherited legacy-history
+turn with matching plain-text user input. Changed or missing files fail verify.
+Unsupported or absent records remain unavailable/unverified. The native thread's
+model field is not per-turn execution telemetry: neither a resolved model nor the
+entire historical context is claimed verified. These private records never become
+trial inputs or assessment content; validation does not authenticate a fabricated
+export.
+
+Optional `context_requirements_file` freezes a declared native filesystem
+restriction separately from preparation provenance. The existing runner prepares
+trial snapshots and checks the selected native policy before starting any model
+worker. Unsupported hosts, conflicting configuration or failed access canaries
+stop launch rather than silently changing routes. The ordinary route remains
+unchanged when this contract is absent; it provides no new isolation claim.
+
+The per-trial private marker records enforcement and observed forbidden-path
+attempts. `reporting/context_boundary.py` is the shared eligibility rule:
+violations or unavailable required markers exclude raw trial evidence from the
+assessment and eligible counts. Successful filesystem canaries do not establish
+clean injected, connector, browser or cloud context; an unobserved read attempt
+is not proof of its absence.
+A prepared trial remains ineligible until post-trial observation finishes.
+
 The local [`audit_evidence.py`](../plugin/skills/behavior-diff/scripts/audit_evidence.py)
 indexes every expected trial and every original normalized/native JSONL event
 with exact line, byte and tool-part pointers, preserving duplicate identities,
@@ -473,11 +498,14 @@ One trial is shown below. The coordinator repeats this sequence for all
 ```text
 behavior-diff.sh        run-trial.sh          Agent CLI
        |                     |                     |
+       | stage all snapshots |                     |
+       | optional native filesystem preflight      |
        |-- start ----------->|                     |
        |                     |-- task + model ---->|
        |                     |< host events -------|
        |                     |                     |
        |                     | capture/normalize trace.jsonl
+       |                     | optional boundary marker
        |< process ends ------|
        |
        | wait for all 2 x N trials
@@ -491,8 +519,8 @@ behavior-diff.sh        run-trial.sh          Agent CLI
 The modules below live in the skill's [`scripts/`](../plugin/skills/behavior-diff/scripts/) directory.
 
 - **Model-based interpretation:** `decisions.py` reads the task, trial actions,
-  final answers, numbered instruction-diff hunks, frozen purpose, and bounded
-  recorded returns. Extractor prompts travel over stdin, not command-line
+  final answers, numbered instruction-diff hunks, frozen purpose, bounded recorded
+  returns and explicitly declared decision artifacts. Extractor prompts travel over stdin, not command-line
   arguments, so large comparisons do not hit the operating system's per-argument
   size limit. The same extraction call defines observable target criteria,
   required evidence, and per-trial outcomes (`met`, `not_met`, `uncertain`, or
@@ -556,9 +584,10 @@ The modules below live in the skill's [`scripts/`](../plugin/skills/behavior-dif
   compares recorded command sequences. `reporting/instruction.py` supplies the
   instruction diff. `reporting/content.py` derives shared wording and evidence
   limits. `reporting/target.py` validates purpose, criteria, exact completed-trial
-  membership, trial-local source references, and contiguous final-answer excerpts.
-  Source consistency needs a final-answer excerpt and readable recorded sources
-  matching every frozen `source_requirements` group for that check. Alternatives
+  membership, trial-local source references, and contiguous output excerpts.
+  Output can come from the final answer or declared captured decision artifacts.
+  Source consistency also requires readable recorded sources matching every frozen
+  `source_requirements` group for that check. Alternatives
   within a group are OR; groups are AND. Descriptor matching constrains provenance,
   not semantic truth. A trustworthy captured call can establish that a call was
   made even when its return was omitted; it cannot establish source agreement.
@@ -616,8 +645,9 @@ distinct. Links between decisions and edits do not prove causality.
 
 ### Recorded evidence bounds
 
-`reporting/evidence.py` selects only recorded read/search/list returns and
-conservatively recognized read-only shell commands. Stable IDs use the trial
+`reporting/evidence.py` selects recorded read/search/list returns,
+conservatively recognized read-only shell commands, and explicitly declared saved
+decision artifacts. Stable tool IDs use the trial
 name and recorded tool-call ordinal. Source descriptors retain supplied ranges;
 excerpt ranges are character offsets in returned text, **not file line numbers**.
 Text blocks are joined with newlines; images are not sent as text evidence.
@@ -631,6 +661,16 @@ eligible through supported shell/execution adapters, including namespaced `exec`
 tools. API request-body flags, mutating methods, compound commands, errors and
 sensitive content remain excluded. This selects already-recorded text; it never
 invokes `gh` or fetches a source.
+
+Optional frozen scenario `artifact_requirements` bind output checks to at most
+sixteen exact project-relative paths. Only those retained trial-project files are
+read; there is no general filesystem scrape. No-follow directory-relative opens
+reject symlinks, hardlinks and nonregular files. Files over 64 KiB are omitted;
+bounded UTF-8 content is filtered before sharing the existing evidence budgets.
+Artifact records identify captured bytes by SHA-256, not proposed write input,
+authorship or a proven read action. Missing required artifacts prevent determinate
+judgments even when the final answer claims completion. Source-consistency checks
+still need their separately captured authoritative source returns.
 
 Limits are 4,096 Unicode characters per excerpt, 16,384 per trial, 131,072 per
 run, and 128 tool records per trial. Selection uses the saved `grades.tsv`
