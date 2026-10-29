@@ -210,10 +210,10 @@ case $accept_section in
   *) fail 'rendered nudge acceptance does not include the full fixture task' ;;
 esac
 
-[[ $(jq -r '.version' "$claude_manifest") == 0.4.12 ]] ||
-  fail 'Claude manifest version is not 0.4.12'
-[[ $(jq -r '.version' "$codex_manifest") == 0.4.12 ]] ||
-  fail 'Codex manifest version is not 0.4.12'
+[[ $(jq -r '.version' "$claude_manifest") == 0.4.13 ]] ||
+  fail 'Claude manifest version is not 0.4.13'
+[[ $(jq -r '.version' "$codex_manifest") == 0.4.13 ]] ||
+  fail 'Codex manifest version is not 0.4.13'
 
 require_fixed 'one numbered line per tool action' \
   'missing action contract: one numbered line per tool action'
