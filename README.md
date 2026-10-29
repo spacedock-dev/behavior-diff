@@ -647,6 +647,19 @@ live evaluations. Five cases are diagnostic evidence, not an overall accuracy
 estimate. See the skill's [protocol](.agents/skills/run-behavior-diff-human-evaluation/references/workflow.md)
 for sampling eligibility, preparation, consent, and scoring.
 
+## Illustrated explanations
+
+Use the repo-local
+[`elwp` — Explain with pictures](.agents/skills/elwp/SKILL.md) skill
+to turn a plan, architecture, or user journey into a plain-language HTML page.
+It follows the [illustrated handoff page](docs/verification-handoff-explained.html):
+physical analogies, responsibility cards, an interactive journey, tradeoffs,
+and explicit evidence limits. It uses `anatomy` guidance when available and
+verifies the actual page in a browser.
+
+Example: “Use elwp to explain this plan with pictures and a
+clickable user journey.” This is a local maintainer workflow, not plugin payload.
+
 ## Release
 
 1. Update both plugin manifests to the same `X.Y.Z` version.
