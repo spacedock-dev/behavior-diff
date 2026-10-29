@@ -6,8 +6,8 @@ description: Carries an instruction change from one owner-approved handoff propo
 # Verification handoff prototype
 
 Own verification through a decision-ready result. Success means less owner
-coordination, not completion of a checklist. This maintainer skill orchestrates
-Behavior Diff; it does not replace its preparation, runner or evidence contracts.
+coordination, not completion of a checklist. The handoff owns the journey;
+Behavior Diff owns the comparison; the existing runner owns execution.
 Use the same workflow on Claude Code and Codex. OMP may load this source explicitly.
 Resolve bundled files relative to this loaded skill, never the target repository.
 
@@ -16,10 +16,11 @@ Resolve bundled files relative to this loaded skill, never the target repository
 - The owner has three touchpoints: the request, one handoff proposal, and the
   adoption decision. Skip the proposal when the request already confirms the
   question and authorizes every run term. Any other owner input is an exception.
-- Own discovery, planning, tool selection, preflight, execution, bounded recovery
-  and interpretation. Never ask the owner to select evidence IDs, design tests,
-  debug the harness, choose a fallback model, ask what a report means or remind
-  you to take the next agreed step.
+- Own the question, authority, review synthesis and follow-through. Direct
+  Behavior Diff through its canonical comparison method rather than duplicating
+  preparation, launch or assessment recipes. Never ask the owner to select
+  evidence IDs, design tests, debug the harness, choose a fallback model, explain
+  a report or remind you to take the next agreed step.
 - Ask outside the proposal only for material goal corrections, unavailable domain
   facts, or authority beyond approved terms. Each interruption states the concrete
   decision, recommendation and consequence. Never end a turn by asking what to do
@@ -66,35 +67,41 @@ Humanizer guidance in embedded mode without installing it or changing evidence.
 
 ## Workflow
 
-1. **Understand the change and route it without model calls.** Resolve and load
-   the `behavior-diff` skill using the source-selection rule in
+1. **Understand the decision without model calls.** Resolve and load the canonical
+   `behavior-diff` skill using the source-selection rule in
    [execution handoff](references/execution.md). Inspect the selected diff,
-   relevant unchanged rules and available discussion. Pin revisions and source
-   paths. Then settle the route with deterministic checks: fixture fit, file
-   mapping, host authentication, model availability and isolation, as
-   [execution handoff](references/execution.md) describes. Do not require the
-   owner to assemble an evidence packet or confirm a route the repository answers.
-2. **Send one handoff proposal.** In one message, propose the intended outcomes,
-   preserved requirements, tested scope and route, plus the run terms above, with
-   explicit/inferred sources and a recommendation. Distinguish added rule value
-   from reliability in the owner's current environment. Keep study questions out.
-   Reuse confirmation and authorization already given. A goal correction requires
-   reassessing affected evidence and resending only the changed terms.
+   relevant unchanged rules and available discussion. Give Behavior Diff the
+   owner's question and source context; use its method to resolve inputs,
+   requirements, capabilities, tested scope and claim limits. Do not require the
+   owner to assemble an evidence packet or confirm facts the repository answers.
+   By default, answer whether the change helps in the supported current
+   environment; do not ask the owner to choose a technical comparison mode.
+2. **Settle authority once.** If needed, send one proposal with the intended
+   outcomes, preserved requirements, tested scope, important limits and missing
+   run terms, with explicit/inferred sources and a recommendation. Behavior Diff
+   supplies comparison-specific terms; communicate them, not a design exercise.
+   Skip renewed consent for terms already authorized. Keep study questions out.
+   A goal correction requires reassessing affected evidence and resending only
+   changed terms.
 3. **Review, then prepare verification.** Inspect instructions and saved evidence.
    Review completion is not verification completion. For changed agent behavior,
-   proceed directly to preparing the Behavior Diff comparison. Existing evidence
-   can satisfy the question only when revisions, conditions and coverage match;
-   explain that conclusion. Report a material ambiguity without editing the source
-   or silently testing a repaired version. Keep the agreed question.
-4. **Preflight before spending.** Follow the execution handoff. Own fixture
-   preparation, host compatibility, isolation, scenario reach and confound checks.
-   A blocker with an in-scope route is work to do, not a stopping point. Ask again
-   only when preflight needs terms outside the approval.
-5. **Run and assess.** After approval, launch and follow through to raw actions,
-   returns and artifacts. Monitor status after each launch and handle failed runs
-   as the execution handoff describes. Separate setup failures, missed cases and
-   unavailable assessment from behavioral failures. Never rerun merely to obtain
-   a difference.
+   continue directly through Behavior Diff's canonical preparation and preflight.
+   Existing evidence can satisfy the question only when revisions, conditions and
+   coverage match; explain that conclusion. Report a material ambiguity without
+   editing the source or silently testing a repaired version.
+4. **Follow the comparison through.** Within approved terms, carry Behavior Diff's
+   preparation, freeze, existing-runner launch, status handling and evidence audit
+   through to supported findings. Loading the skill or handing it inputs is not
+   completion; do not wait for the owner to request each next step. Keep the run
+   handle and follow live or uncertain work through its canonical status contract.
+   Use [execution handoff](references/execution.md) for authority and recovery
+   boundaries, not a second comparison recipe.
+5. **Recover without abandoning independent work.** Route a comparison problem
+   through Behavior Diff's diagnosis and recovery method. Continue useful safe
+   non-model diagnosis and independent review within authority. An in-scope
+   supported route is work to do, not owner homework. Ask again only for a
+   material goal correction, unavailable fact or authority beyond approved terms.
+   Never rerun merely to obtain a difference.
 6. **Return a decision-ready result.** Follow the explanation guidance above.
    Recommend retain, revise or hold in ordinary language, naming the change and
    the reason. Explain what improved versus Before, what stayed intact, and what
@@ -120,18 +127,18 @@ the record contradicts.
 ## Completion and blockers
 
 Finish with the bounded question answered, or an evidence-backed blocker after
-the execution handoff's recovery steps. A failed attempt or exhausted model-call
-allowance stops further paid execution, not safe non-model diagnosis or useful
-independent review. Finish that work before returning. Respect an explicit
-owner instruction to stop all work.
+Behavior Diff's applicable recovery and the execution handoff's independent work.
+A failed attempt or exhausted model-call allowance stops further paid execution,
+not safe non-model diagnosis or useful independent review. Finish that work before
+returning. Respect an explicit owner instruction to stop all work.
 
 Do not end with "fix the runner" as owner homework. Explain what the failure means
 for the change, what remains unknown, what you tried, and the specific permission,
 capability or unavailable fact needed next. When only new run authority is
 missing, recommend a bounded check and explain what repair makes it worth trying.
-Keep the run handle and private continuation context. Never bypass isolation,
-invent evidence, silently narrow scope, or repeat unsuccessful attempts merely
-to avoid returning a legitimate blocker.
+Keep the run handle and private continuation context. Never bypass a required
+boundary, invent evidence, silently narrow scope, or repeat unsuccessful attempts
+merely to avoid returning a legitimate blocker.
 
 After delivery, optional feedback may ask what coordination the owner still had
 to do. Do not require an interview to finish. Distinguish necessary owner choices

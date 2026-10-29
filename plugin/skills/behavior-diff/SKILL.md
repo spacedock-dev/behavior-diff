@@ -13,11 +13,13 @@ The user judges the evidence. Preparation never modifies the user's checkout.
 
 ## Ownership
 
-The skill owns judgment. It finds the change, freezes its purpose, prepares
-the scenario, shared data, and private assessment criteria from the change's
-intent, writes the reviewed scenario record, preflights and freezes the inputs,
-selects the current trial stack and model, and explains the evidence against
-each goal and case.
+This skill is the canonical owner of comparison requirements, capability and
+premise checks, execution-route selection, and evidence interpretation. It finds
+the change, freezes its purpose, prepares the scenario, shared data, and private
+assessment criteria, preflights and freezes the inputs, selects the current trial
+stack and model, and audits the evidence against each goal and case. A surrounding
+handoff journey refers to this method rather than defining another comparison
+recipe; it owns permissions and the practical recommendation to the owner.
 
 The scripts own repeatable mechanics. They stage and verify prepared shared
 data, build variants, run trials, normalize traces, grade completeness, extract
@@ -255,11 +257,13 @@ the single-role or two-agent path. Create the fixtures with
    reconstruct validators, inventories, or commands. Spacedock fixture delivery
    remains on its own reference path.
 
-   For macOS Codex comparisons requiring memory and source isolation, use the
-   reference's bundled `codex_isolated.py` preparation/probe path and opt-in
-   trial environment. Do not invent another nested-sandbox wrapper. This path
-   records shell-command actions for local decision fixtures; it does not
-   establish native image-tool or live-service capabilities.
+   Use the existing runner with its default host sandbox for an ordinary
+   supported-environment comparison. Follow the reference's comparison-scope
+   rules to disclose current-environment limits; a fresh process and equal
+   settings do not establish isolation from host memory or other instructions.
+   Only when filesystem isolation is explicitly required may the optional macOS
+   Codex helper apply. It is never an automatic fallback for a failed launch.
+   Keep historical fresh preparation regardless of the trial execution route.
 
    Preserve the current host and model choices above. Keep three trials per
    side; select `fast:true` only for an explicit current request for `fast`,
@@ -317,6 +321,11 @@ the single-role or two-agent path. Create the fixtures with
    unassessable attempts and harness failures separately from requirement failures.
    Identical Before and After behavior can still fail a goal After added. State
    where your assessment agrees with or differs from the report; do not edit it.
+   Apply the reference's frozen comparison scope when interpreting results.
+   Current-environment observations can inform whether to keep the change, but
+   cannot establish that the selected rule alone caused a difference. If a
+   required stronger boundary was unavailable, report that blocker rather than
+   relabeling weaker evidence as an isolated incremental-rule comparison.
    Orient the reader briefly: say what the agent was asked to do, the changed
    skill's role when relevant, and the decision point tested. Lead with the
    practical supported contrast, not an internal workflow label. At first use,

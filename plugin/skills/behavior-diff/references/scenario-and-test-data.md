@@ -1,11 +1,11 @@
 # Scenario and test data
 
-Read this file before drafting the task for any comparison. It is the single
-recipe for preparing the scenario, shared data, and private assessment
-criteria from the change's intent, for preflighting and freezing them, and for
-delivering shared files to every Before and After trial. You, not a script,
-prepare the scenario and data; `prepare_shared.py` only stages and verifies
-files you prepared and reviewed.
+Read this file before drafting the task for any comparison. It is the canonical
+recipe for comparison requirements, capabilities and premises, route selection,
+scenario and shared-data preparation, preflight, freeze, launch, and raw-evidence
+interpretation. Surrounding journeys refer here rather than adding their own
+technical eligibility rules. You, not a script, prepare the scenario and data;
+`prepare_shared.py` only stages and verifies files you prepared and reviewed.
 
 Spacedock workflow comparisons use the fixtures in
 [spacedock-duo.md](spacedock-duo.md) for delivery; still derive their task and
@@ -149,6 +149,39 @@ Ask the user only when a material requirement cannot be reached from the
 change, project, or conversation. Do not require an incident or an existing
 eval.
 
+## Comparison scope and execution route
+
+Ordinary comparisons ask whether the selected change is useful in the supported
+current environment, not whether it is the sole causal influence. Use the existing
+runner and its default host sandbox. Do not require a custom launcher, disable the
+host sandbox, or ask the owner to choose technical modes for that question.
+
+Before preflight, record the intended claim and relevant environment limits in
+the private notes and sanitized scenario limitations. Identify available shared
+host instructions, settings, memory, tools, and permissions; mark unknown exposure
+as unknown rather than claiming absence. Keep the selected inputs and declared
+configuration equal apart from the instruction being compared and freeze them
+with the existing handoff. Equal settings and fresh trial processes are controls,
+not proof that host memory, other skills, or global instructions cannot influence
+the trials. Report observed behavior under that disclosed environment; do not
+attribute a difference solely to the selected rule.
+
+If the request explicitly requires a strict incremental-rule claim, identify the
+additional influences that must be excluded and establish those boundaries before
+launch. The optional [macOS Codex helper](#isolated-codex-decision-comparisons-on-macos)
+applies only when filesystem isolation is explicitly required and its documented
+boundary fits the required capabilities. It is not the normal route and never an
+automatic fallback for a runner or sandbox failure. A filesystem boundary alone
+does not establish causal isolation from every model or host influence.
+
+If a required boundary or capability is unavailable, report that precise blocker.
+Do not weaken host permissions, invent a launcher, or silently substitute a
+current-environment comparison for the stronger requested claim. Conversely, do
+not block an ordinary supported-environment comparison solely because it cannot
+support a strict causal claim. Historical fresh-context preparation above remains
+required on either route; disclosing host exposure does not waive it.
+
+
 ## Preflight
 
 Before spending trial calls, check the actual environment the trials will use,
@@ -230,6 +263,36 @@ trial. Stop preparation workers before launch. Keep the first result. Do not
 change cases, data, criteria, or the scenario record after seeing outcomes, and
 do not rerun to produce a finding.
 
+## Bounded execution recovery
+
+Retain the exact run handle and inspect the existing status reader and native
+outputs before deciding what failed. A live or uncertain trial is not permission
+to launch a duplicate. If execution fails or its owner is lost, preserve that run
+and report the affected phase even if a report was generated. Distinguish startup,
+normalization, assessment, and behavioral failures. Claim that no model ran only
+when startup diagnostics and native evidence establish that fact.
+
+Use only the recovery allowance already authorized for this comparison. Before
+another model-backed attempt, identify a concrete local repair or a distinct
+diagnostic hypothesis, complete applicable non-model checks, and confirm remaining
+authority. Do not repeat an unchanged failed probe, change global settings, bypass
+the host sandbox, or select the optional isolation helper as an automatic fallback.
+Continue useful non-model diagnosis and independent review when model authority
+is exhausted; preserve required evidence gaps instead of inventing results.
+
+For model unavailability or rate limiting, retry at most once when that retry is
+explicitly covered. If a named fallback and its comparison cost are already
+authorized, switch only to that model. Re-run the whole Before/After comparison
+on the same fallback model as a new comparison; never mix replacement trials into
+the failed run. The fallback comparison must fit its own approved allowance,
+not be treated as a free startup retry. Without sufficient authority or an approved
+fallback, return the specific missing permission or capability to the caller.
+
+Changed models, scenarios, or isolation conditions require a new frozen handoff
+and retain the original attempt. Do not rerun or retune merely because results
+were null, negative, or inconclusive. Missing required action evidence blocks
+that claim; finish independent supported findings and label partial coverage.
+
 ## Assess the result
 
 Use the local raw locator, never the assessment collector as the audit boundary:
@@ -268,6 +331,14 @@ report the unmet After goal alongside the unchanged behavior. State where this
 raw assessment agrees or disagrees with the automatic report, including each
 frozen scenario check it shows, and disclose untested capabilities. Never edit
 an existing report to match the audit.
+
+Match the conclusion to the frozen comparison scope: an ordinary run supports
+observations in the disclosed current environment and a bounded keep/change
+recommendation, not a claim that the selected rule alone caused the result.
+Fresh processes, identical settings, staging and freeze records do not prove
+host-memory isolation. For a stronger claim, report which required boundaries
+were established and what remains unexcluded; never upgrade the claim from
+favorable outcomes alone.
 
 ## When to deliver shared data
 
@@ -419,14 +490,17 @@ files in a stage by hand.
 
 ## Isolated Codex decision comparisons on macOS
 
-For a comparison that requires isolation from the owner's memory and checkout,
-use `scripts/codex_isolated.py` rather than building a private launcher. This is
-an opt-in execution path for preparation and trials, not a new scenario generator
-or evidence assessor. It supports shell-command actions and workspace artifacts;
-it does not establish native image-tool recording or live-service reliability.
-The supported host is Codex CLI `0.165.0` on macOS. The probe rejects other
-versions rather than assuming that isolation flags still have the same meaning.
-This version check is not a live-model execution check.
+Only when filesystem isolation from the owner's memory files and checkout is an
+explicit requirement, and this boundary supports the required capabilities, use
+`scripts/codex_isolated.py` rather than building a private launcher. This optional
+path is not required for ordinary supported-environment comparisons and is never
+an automatic fallback after a runner or sandbox failure. It covers preparation
+and trials, not scenario generation or evidence assessment. It supports
+shell-command actions and workspace artifacts; it does not establish native
+image-tool recording or live-service reliability. The supported host is Codex CLI
+`0.165.0` on macOS. The probe rejects other versions rather than assuming that
+isolation flags still have the same meaning. This version check is not a
+live-model execution check.
 
 Create a private scratch root outside the original checkout. Keep the preparation
 workspace, staged project, run output and private assessment notes under that
