@@ -255,6 +255,12 @@ the single-role or two-agent path. Create the fixtures with
    reconstruct validators, inventories, or commands. Spacedock fixture delivery
    remains on its own reference path.
 
+   For macOS Codex comparisons requiring memory and source isolation, use the
+   reference's bundled `codex_isolated.py` preparation/probe path and opt-in
+   trial environment. Do not invent another nested-sandbox wrapper. This path
+   records shell-command actions for local decision fixtures; it does not
+   establish native image-tool or live-service capabilities.
+
    Preserve the current host and model choices above. Keep three trials per
    side; select `fast:true` only for an explicit current request for `fast`,
    `--fast`, `two runs`, or `one trial per side`. Never put purpose, scenario,

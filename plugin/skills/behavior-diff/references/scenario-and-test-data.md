@@ -417,6 +417,71 @@ If `prepare` exits with a nonzero status, the helper removes the incomplete
 stage. Stop. Correct the inputs, then prepare a new stage path. Do not edit
 files in a stage by hand.
 
+## Isolated Codex decision comparisons on macOS
+
+For a comparison that requires isolation from the owner's memory and checkout,
+use `scripts/codex_isolated.py` rather than building a private launcher. This is
+an opt-in execution path for preparation and trials, not a new scenario generator
+or evidence assessor. It supports shell-command actions and workspace artifacts;
+it does not establish native image-tool recording or live-service reliability.
+The supported host is Codex CLI `0.165.0` on macOS. The probe rejects other
+versions rather than assuming that isolation flags still have the same meaning.
+This version check is not a live-model execution check.
+
+Create a private scratch root outside the original checkout. Keep the preparation
+workspace, staged project, run output and private assessment notes under that
+root in separate directories. A process may read its own workspace and temporary
+runtime, but not sibling notes or trial workspaces. Put only permitted historical
+inputs into the preparer's workspace. Do not give it prior outcomes or owner
+answers.
+
+Before model use, run the non-model boundary check:
+
+```bash
+python3 "$SKILL_DIR/scripts/codex_isolated.py" probe \
+  --workspace "$PREPARATION_WORKSPACE" --root "$PRIVATE_ROOT" \
+  --deny-read "$ORIGINAL_PROJECT"
+```
+
+After bounded model/data approval, invoke a fresh preparer through the same helper:
+
+```bash
+python3 "$SKILL_DIR/scripts/codex_isolated.py" exec \
+  --workspace "$PREPARATION_WORKSPACE" --root "$PRIVATE_ROOT" \
+  --deny-read "$ORIGINAL_PROJECT" --model "$PREPARATION_MODEL" \
+  < "$PRIVATE/preparation-task.txt" > "$PRIVATE/preparation-raw.jsonl"
+```
+
+The prompt is read by the launching process; trial-visible files remain confined
+to the workspace. Disclose that the helper temporarily copies the existing Codex
+sign-in into a private per-process home. It removes that runtime on completion
+or a handled interruption. It never writes the user's global configuration.
+
+Set these variables before freezing, verifying and launching the comparison:
+
+```bash
+export BEHAVIOR_DIFF_CODEX_ISOLATION_ROOT="$PRIVATE_ROOT"
+export BEHAVIOR_DIFF_CODEX_DENY_READ="$ORIGINAL_PROJECT"
+```
+
+The standard fixed-runner invocation below is unchanged. `run-trial.sh` selects
+the helper for Codex trials when the isolation root is set. The frozen handoff
+records both settings and rejects changes before launch. Assessment remains on
+its existing host path and receives the permitted recorded evidence.
+
+The helper verifies one outer macOS sandbox, then disables Codex's inner sandbox
+only inside that boundary to avoid nested-sandbox failures. If this check fails,
+no model starts. Do not bypass a denied sandbox launch; obtain any necessary host
+permission or report the unavailable execution capability. This is filesystem
+isolation for controlled decision fixtures, not a network firewall or a guarantee
+against hostile code. Do not put credentials or real external actions in fixtures.
+Native image generation and real worker handoffs need their own supported paths.
+
+The boundary check does not prove that a model uses tools correctly or that its
+events are complete. Audit native `command_execution` events and normalized
+tool results after authorized trials; do not treat final-answer claims as actions.
+
+
 ## Verify, then run
 
 Verification immediately before launch compares the complete handoff:
@@ -508,4 +573,6 @@ directory that the runner prints with `status.py`. To list stage runs with
 - Live services, credentials, writable external systems, and multi-file
   instruction versions are not delivered.
 - The helper does not detect secrets. The caller reviews every shared file.
-- No path provides a filesystem sandbox. See [Freeze discipline](#freeze-discipline).
+- Staging and freezing alone do not provide a filesystem sandbox. The optional
+  [isolated Codex path](#isolated-codex-decision-comparisons-on-macos) adds the
+  documented boundary. See also [Freeze discipline](#freeze-discipline).

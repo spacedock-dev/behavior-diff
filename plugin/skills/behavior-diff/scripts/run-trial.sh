@@ -129,10 +129,19 @@ if [ "$agent" = claude ]; then
     --output-format stream-json --verbose >"$trace_dir/trace.jsonl" 2>"$trace_dir/stderr.log" || cli_exit=$?
   record_status "{\"cli_exit_code\":$cli_exit}"
 elif [ "$agent" = codex ]; then
-  # Codex has no per-tool allowlist; the workspace-write sandbox scoped to
-  # this variant copy is the equivalent containment.
-  codex exec --ephemeral --skip-git-repo-check -s workspace-write \
-    -m "$model" --json "$task" </dev/null >"$trace_dir/codex-raw.jsonl" 2>"$trace_dir/stderr.log" || cli_exit=$?
+  if [ -n "${BEHAVIOR_DIFF_CODEX_ISOLATION_ROOT:-}" ]; then
+    isolation_args=(exec --workspace "$PWD" --root "$BEHAVIOR_DIFF_CODEX_ISOLATION_ROOT" --model "$model")
+    if [ -n "${BEHAVIOR_DIFF_CODEX_DENY_READ:-}" ]; then
+      isolation_args+=(--deny-read "$BEHAVIOR_DIFF_CODEX_DENY_READ")
+    fi
+    printf '%s\n' "$task" |
+      python3 "$scripts/codex_isolated.py" "${isolation_args[@]}" \
+        >"$trace_dir/codex-raw.jsonl" 2>"$trace_dir/stderr.log" || cli_exit=${PIPESTATUS[1]}
+  else
+    # Codex has no per-tool allowlist; use its normal workspace-write sandbox.
+    codex exec --ephemeral --skip-git-repo-check -s workspace-write \
+      -m "$model" --json "$task" </dev/null >"$trace_dir/codex-raw.jsonl" 2>"$trace_dir/stderr.log" || cli_exit=$?
+  fi
   record_status "{\"phase\":\"normalizing\",\"cli_exit_code\":$cli_exit}"
   jq -c 'select(.type == "item.completed"
                 and (.item.item_type // .item.type) == "command_execution")

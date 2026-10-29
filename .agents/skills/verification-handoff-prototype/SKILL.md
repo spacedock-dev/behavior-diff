@@ -66,11 +66,12 @@ Humanizer guidance in embedded mode without installing it or changing evidence.
 
 ## Workflow
 
-1. **Understand the change and route it without model calls.** Load the
-   available `behavior-diff` skill. Inspect the selected diff, relevant unchanged
-   rules and available discussion. Pin revisions and source paths. Then settle the
-   route with deterministic checks: fixture fit, file mapping, host
-   authentication, model availability and isolation, as
+1. **Understand the change and route it without model calls.** Resolve and load
+   the `behavior-diff` skill using the source-selection rule in
+   [execution handoff](references/execution.md). Inspect the selected diff,
+   relevant unchanged rules and available discussion. Pin revisions and source
+   paths. Then settle the route with deterministic checks: fixture fit, file
+   mapping, host authentication, model availability and isolation, as
    [execution handoff](references/execution.md) describes. Do not require the
    owner to assemble an evidence packet or confirm a route the repository answers.
 2. **Send one handoff proposal.** In one message, propose the intended outcomes,

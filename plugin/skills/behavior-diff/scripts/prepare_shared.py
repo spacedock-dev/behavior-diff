@@ -142,6 +142,14 @@ def handoff(path, project, working, root, data=None):
         "files": inventory(files),
         "private": private_paths,
         "settings": settings,
+        "codex_isolation": {
+            name: os.environ[name]
+            for name in (
+                "BEHAVIOR_DIFF_CODEX_ISOLATION_ROOT",
+                "BEHAVIOR_DIFF_CODEX_DENY_READ",
+            )
+            if os.environ.get(name)
+        },
         "argv": argv,
     }
 
@@ -620,6 +628,16 @@ def verify(root, as_json=False):
         raise PreparationError("prepared files changed after freeze")
     context = frozen.get("context")
     if context:
+        isolation = {
+            name: os.environ[name]
+            for name in (
+                "BEHAVIOR_DIFF_CODEX_ISOLATION_ROOT",
+                "BEHAVIOR_DIFF_CODEX_DENY_READ",
+            )
+            if os.environ.get(name)
+        }
+        if isolation != context.get("codex_isolation", {}):
+            raise PreparationError("Codex isolation settings changed after freeze")
         for name in context["private"]:
             private_file(name)
         for name, expected in context["files"].items():

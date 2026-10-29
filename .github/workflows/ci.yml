@@ -109,6 +109,9 @@ jobs:
       - name: Check shared-data preparation boundaries
         run: python3 tests/shared-data-test.py
 
+      - name: Check isolated Codex launcher without models
+        run: python3 tests/codex-isolation-test.py
+
       - name: Check optional Jev helper without network
         run: python3 tests/jev-test.py
 
