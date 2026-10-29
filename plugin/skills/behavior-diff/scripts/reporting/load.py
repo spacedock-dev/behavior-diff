@@ -10,6 +10,7 @@ from typing import Optional
 import progress
 from reporting import content
 from reporting.attention import parse_attention
+from reporting.context_boundary import boundary_exclusion, boundary_status
 from reporting.explanation import _text, parse_explanation
 from reporting.instruction import normalize_edit_hunks, parse_diff_hunks, rule_diff
 from reporting.provenance import config_ci_context, config_source
@@ -182,6 +183,16 @@ def _variants(run, grades, metadata):
 
 def _trial(run, name, grade, metadata):
     verdict, actions = grade
+    boundary = boundary_exclusion(run / name)
+    if boundary is not None:
+        return TrialData(
+            name=name,
+            verdict="BLOCKED",
+            actions="-",
+            commands=(),
+            final="",
+            outcome="Blocked — " + boundary,
+        )
     commands, final = read_trial_trace(run / name / "trace.jsonl")
     interruption = trial_interruption(run / name)
     if interruption is not None:
@@ -199,7 +210,11 @@ def _trial(run, name, grade, metadata):
         actions=actions,
         commands=tuple(commands),
         final=final,
-        outcome=_outcome_label(verdict, actions, metadata.mode),
+        outcome=(
+            "Native filesystem policy enforced; no violation observed, not proof of clean context. Other context coverage unavailable."
+            if boundary_status(run / name) == "enforced"
+            else _outcome_label(verdict, actions, metadata.mode)
+        ),
     )
 
 
@@ -210,6 +225,9 @@ def trial_interruption(trial_dir):
     normalized final text; that text is not a completed answer. Runs without trial
     status records, such as older runs and authored fixtures, return None.
     """
+    boundary = boundary_exclusion(trial_dir)
+    if boundary is not None:
+        return boundary
     try:
         record = progress.read_record(trial_dir / progress.TRIAL_RECORD, "trial")
     except progress.ProgressError:
@@ -559,6 +577,12 @@ def _convert_decisions(
     goals = persisted_goals or parse_purpose(purpose)
     summarized_goals = persisted_goals
     canonical = json.loads(json.dumps(asdict(scenario))) if scenario else None
+    if canonical is not None and not scenario.artifact_requirements:
+        if (
+            type(raw.get("scenario_record")) is dict
+            and "artifact_requirements" not in raw["scenario_record"]
+        ):
+            canonical.pop("artifact_requirements")
     mismatch = "scenario_record" in raw and raw["scenario_record"] != canonical
     if scenario is not None:
         # Frozen checks number the configured goals; persisted copies must agree.

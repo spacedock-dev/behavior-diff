@@ -179,10 +179,11 @@ def evidence_records(raw):
         if (
             type(trial) is not str
             or type(entries) is not list
-            or len(entries) > RECORD_LIMIT + 1
+            or len(entries) > RECORD_LIMIT + 17
         ):
             raise ValueError("invalid recorded evidence trial")
         trial_characters = 0
+        ordinary_records = 0
         for entry in entries:
             if type(entry) is not dict or set(entry) != {
                 "id",
@@ -199,13 +200,24 @@ def evidence_records(raw):
             if (
                 type(identifier) is not str
                 or re.fullmatch(
-                    re.escape(trial) + r":(?:tool-[1-9][0-9]*|trace|overflow)",
+                    re.escape(trial)
+                    + r":(?:tool-[1-9][0-9]*|artifact-(?:[1-9]|1[0-6])|trace|overflow)",
                     identifier,
                 )
                 is None
                 or identifier in seen
             ):
                 raise ValueError("invalid recorded evidence identity")
+            if ":artifact-" not in identifier:
+                ordinary_records += 1
+                if ordinary_records > RECORD_LIMIT + 1:
+                    raise ValueError("invalid recorded evidence trial")
+            elif status in ("available", "truncated") and (
+                type(entry.get("source")) is not str
+                or re.fullmatch(r"artifact .+ sha256:[a-f0-9]{64}", entry["source"])
+                is None
+            ):
+                raise ValueError("invalid captured artifact descriptor")
             if status not in ("available", "truncated", "omitted", "unavailable"):
                 raise ValueError("invalid recorded evidence status")
             if (
@@ -338,7 +350,14 @@ def _criterion_definition(item, purpose, seen, frozen):
 
 
 def _criterion_assessment(
-    item, definition, final_answers, records, positions, requirements, persisted
+    item,
+    definition,
+    final_answers,
+    records,
+    positions,
+    requirements,
+    persisted,
+    artifact_paths=(),
 ):
     fields = set(_DEFINITION) | {"decisions", "before", "after"}
     if set(item) not in (fields, fields | {"rejection"}):
@@ -394,9 +413,26 @@ def _criterion_assessment(
             excerpt = trial["output_excerpt"]
             if type(excerpt) is not str or len(excerpt) > 1200:
                 raise ValueError("invalid target output excerpt")
-            if excerpt and name + ":answer" not in refs:
-                raise ValueError("target output excerpt must cite its trial answer")
-            if excerpt and excerpt not in final_answers[side][name]:
+            output_sources = [
+                final_answers[side][name] for ref in refs if ref == name + ":answer"
+            ]
+            output_sources.extend(
+                record.text
+                for ref in refs
+                if (record := records.get(ref)) is not None
+                and record.trial == name
+                and ":artifact-" in record.id
+                and _returned_content(record)
+                and any(
+                    record.source.startswith("artifact " + path + " sha256:")
+                    for path in artifact_paths
+                )
+            )
+            if excerpt and not output_sources:
+                raise ValueError(
+                    "target output excerpt must cite its trial answer or required artifact"
+                )
+            if excerpt and not any(excerpt in text for text in output_sources):
                 raise ValueError("target output excerpt must be exact and trial-local")
             for ref in refs:
                 if ref != name + ":answer" and (
@@ -418,7 +454,14 @@ def _criterion_assessment(
                     raise ValueError(
                         "determinate target outcome needs available evidence"
                     )
-                has_output = answer in refs
+                has_output = bool(output_sources)
+                for path in artifact_paths:
+                    if not any(
+                        records[ref].source.startswith("artifact " + path + " sha256:")
+                        for ref in content
+                        if ":artifact-" in ref
+                    ):
+                        raise ValueError("criterion lacks a required captured artifact")
                 if (
                     item["evidence_kind"] == "source_consistency"
                     and not (has_output and content)
@@ -528,6 +571,14 @@ def check_target(
                     positions,
                     requirements,
                     persisted,
+                    tuple(
+                        path
+                        for requirement in (
+                            scenario.artifact_requirements if scenario else ()
+                        )
+                        if requirement.check == definition[0]
+                        for path in requirement.paths
+                    ),
                 )
             except ValueError as error:
                 criterion = TargetCriterionData(*definition, (), (), (), str(error))
@@ -610,6 +661,6 @@ def evidence_limit_text(limits):
     return (
         f"At most {limits.per_excerpt_characters} characters per excerpt, "
         f"{limits.per_trial_characters} per trial, {limits.per_run_characters} per run, "
-        f"and {limits.per_trial_records} tool records per trial. "
+        f"and {limits.per_trial_records} captured records per trial. "
         f"Selection: {limits.selection}. {limits.privacy} {limits.provenance}"
     )

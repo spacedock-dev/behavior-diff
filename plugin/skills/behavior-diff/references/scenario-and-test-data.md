@@ -26,6 +26,34 @@ report the missing isolation prerequisite before deriving or freezing purpose.
 If case selection or tooling was informed by hindsight, still disclose that
 limit: isolation does not remove historical selection bias.
 
+Before deriving historical purpose, check whether the chosen fresh host can
+retain native supplied-input and completion records and expose the required
+context controls. Do not discover missing provenance only after making a claim
+of compliant preparation, or replace missing fresh preparation with a session
+that already knows the outcomes.
+
+After preparation, the private handoff may include `preparation_evidence` with
+`host`, `record_file`, `input_file`, `thread_id`, and `turn_id`. The files must
+be private and outside trial inputs. `input_file` is the reviewed plain-text
+preparer prompt; `record_file` is the host-native export, not an agent-written
+summary. Freeze binds both files by digest and verify rejects changed or missing
+records.
+
+The Codex adapter validates a native `ThreadReadResponse` containing one complete,
+non-inherited legacy-history turn and one matching plain-text user input.
+Partial, paginated, forked, compacted, ambiguous or failed records do not establish
+those facts. Unsupported host formats remain explicitly unavailable.
+
+These checks establish only the supplied user input and native completion
+represented in the provided record. They do not authenticate an arbitrary export
+or enumerate injected system context. Codex's thread model is configured/latest
+metadata, not per-turn execution telemetry: resolved execution model and the
+complete historical context boundary remain unavailable. Missing references
+remain unverified. Never turn those unavailable facets into a compliant-preparation
+claim; when the requested claim requires them, report the missing prerequisite.
+Native records and reviewed prompts stay out of trial copies, assessment input
+and public reports.
+
 1. **Goals.** Start from the frozen purpose goals. Name new behavior and
    behavior that must survive the change. Mark preservation goals as inferred
    unless stated.
@@ -91,8 +119,8 @@ limit: isolation does not remove historical selection bias.
      characters; `required_evidence` names what decides the check.
    - `evidence_kind` names exactly one kind of evidence: `recorded_action` for
      a recorded tool call such as a required code read, `output` for content
-     of the final answer, and `source_consistency` for a final answer that
-     must agree with recorded returned content. Split a compound requirement
+     of the final answer or a declared decision artifact, and `source_consistency`
+     for that output's agreement with recorded returned content. Split a compound requirement
      into separate checks. For example, "reads the code and reports the value
      it finds" becomes a `recorded_action` check for the read, an `output`
      check for the report, and a `source_consistency` check for agreement.
@@ -134,6 +162,29 @@ limit: isolation does not remove historical selection bias.
      before incidental reads, so keep required sources small; many large
      required returns can still exhaust that budget.
 
+   - Optional `artifact_requirements` selects saved decision files that an
+     `output` or `source_consistency` check needs:
+     `{"check":"reports-total","paths":["deliverables/decision.md"]}`.
+     Each check appears at most once; all its listed paths are required.
+     Declare these paths before trials, include the requested outputs in the
+     neutral task, and obtain authority for sending their contents to assessment.
+     Select at most sixteen distinct exact project-relative paths, each at most
+     120 ASCII characters. No globs, absolute paths, aliases, hidden paths, or
+     private evaluator, credential, or secret files are permitted.
+
+     The collector reads only these declared files from each retained trial
+     project. It rejects symlinks, hardlinks and nonregular files. UTF-8 files
+     over 64 KiB are omitted; eligible contents pass the existing sensitive-text
+     filter and share the existing assessment budgets. Missing, omitted and
+     truncated evidence remains explicit. A final-answer completion claim cannot
+     substitute for a missing required artifact.
+
+     Artifact records identify captured bytes and their SHA-256 digest, not who
+     wrote them or which tool read them. They cannot prove a `recorded_action`
+     or satisfy a required source-read return. For `source_consistency`, retain
+     the separate authoritative `source_requirements`. Select only outputs
+     reviewed as suitable for disclosure; filtering is not a secrets audit.
+
    Use plain text: no Markdown, links, or control characters. Generalize
    private detail as for purpose: no names, credentials, private URLs, source
    excerpts, raw notes, or later history. Never record outcomes, per-trial
@@ -168,11 +219,12 @@ attribute a difference solely to the selected rule.
 
 If the request explicitly requires a strict incremental-rule claim, identify the
 additional influences that must be excluded and establish those boundaries before
-launch. The optional [macOS Codex helper](#isolated-codex-decision-comparisons-on-macos)
-applies only when filesystem isolation is explicitly required and its documented
-boundary fits the required capabilities. It is not the normal route and never an
-automatic fallback for a runner or sandbox failure. A filesystem boundary alone
-does not establish causal isolation from every model or host influence.
+launch. For a required Codex local-filesystem boundary, use the existing runner's
+native permission-profile contract below when its capabilities fit. The optional
+[macOS Codex helper](#isolated-codex-decision-comparisons-on-macos) remains an
+explicitly selected, separately scoped route, never an automatic fallback.
+A filesystem boundary alone does not establish causal isolation from every
+model or host influence.
 
 If a required boundary or capability is unavailable, report that precise blocker.
 Do not weaken host permissions, invent a launcher, or silently substitute a
@@ -180,6 +232,40 @@ current-environment comparison for the stronger requested claim. Conversely, do
 not block an ordinary supported-environment comparison solely because it cannot
 support a strict causal claim. Historical fresh-context preparation above remains
 required on either route; disclosing host exposure does not waive it.
+
+### Required native filesystem boundary
+
+When the agreed comparison requires excluding historical files from trial tool
+reads, freeze a private `context_requirements_file` in the handoff. Its JSON is:
+
+```json
+{"version":1,"scope":"codex-local-filesystem","deny_read":["/private/synthetic/historical-context"]}
+```
+
+Use 1–64 exact canonical absolute file or subtree paths, not globs or relative
+paths. Do not include private paths in public reports. The verified handoff
+passes this file to the existing runner; it does not add another executor.
+The supported route is native Codex permission profiles on macOS. It permits
+the native minimal runtime and trial workspace, explicitly denies the nominated
+paths, disables network, and never combines that profile with the legacy
+`--sandbox` override or approval escalation.
+
+Before any model worker starts, the runner checks configuration and exercises
+actual allowed workspace access and prohibited-read canaries in staged trial
+workspaces. Unsupported hosts, configuration conflicts and failed canaries stop
+launch. This is not approval to change global permissions or switch to Full
+Access. The minimal runtime does not automatically expose Homebrew or other
+host-installed tools: exercise the scenario's required commands under the same
+policy during semantic preflight, or report the missing capability.
+
+The private `context-boundary.json` records enforcement and any observed attempt
+to use a nominated forbidden path. Required missing/invalid markers and recorded
+violations exclude the trial's raw content from assessment and eligible counts.
+A denied attempt does not prove a successful read; conservative exclusion keeps
+that ambiguity visible. No observed attempt is not proof of clean context.
+Injected instructions, connectors, browser/cloud state and other non-filesystem
+channels remain unverified. Establish any additional required boundary separately;
+do not silently substitute detection-only checks for prevention.
 
 
 ## Preflight
